@@ -1,0 +1,71 @@
+# macOS
+.DS_Store
+
+# Xcode
+build/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.xcuserstate
+**/.xcode.env.local
+
+# Android / IntelliJ / Gradle
+android/.gradle/
+android/app/build/
+.idea/
+*.iml
+local.properties
+.gradle/
+.cxx/
+*.keystore
+!debug.keystore
+.kotlin/
+
+# Node / JS
+node_modules/
+npm-debug.log*
+yarn-error.log*
+yarn-debug.log*
+.pnpm-debug.log*
+
+# Expo / Metro
+.expo/
+.expo-shared/
+*.expo.*
+*.jsbundle
+.metro-health-check*
+
+# Fastlane
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots/
+**/fastlane/test_output/
+
+# CocoaPods
+ios/Pods/
+vendor/bundle/
+
+# Testing
+coverage/
+
+# Yarn 2+ / PnP
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Misc
+*.swp
