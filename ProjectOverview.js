@@ -8,7 +8,8 @@
 // ├── src/
 // │   ├── screens/              # All app screens
 // │   │   ├── auth/             # Authentication screens
-// │   │   │   ├── LoginScreen.tsx              # from src/app/login/page.tsx
+// │   │   │   ├── AdminLoginScreen.tsx       # from src/app/login/page.tsx       
+// │   │   │   ├── LoginScreen.tsx             
 // │   │   │   ├── ClientLoginScreen.tsx        # from src/app/client-login/[slug]/page.tsx
 // │   │   │   └── UserLoginScreen.tsx          # from src/app/user-login/
 // │   │   ├── admin/            # Admin screens

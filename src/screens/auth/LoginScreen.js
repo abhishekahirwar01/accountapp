@@ -1,159 +1,156 @@
-import React, { useState } from "react";
+// src/screens/auth/LoginScreen.js
+import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
-} from "react-native";
-import Ionicons from "react-native-vector-icons/Ionicons";
+  TouchableOpacity,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 
-export default function LoginScreen({ onLogin }) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+import AdminLoginScreen from './AdminLoginScreen';
+import ClientLoginScreen from './ClientLoginScreen';
+import UserLoginScreen from './UserLoginScreen';
 
-  const handleSubmit = () => {
-    setLoading(true);
-    setError("");
+export default function LoginScreen() {
+  const [activeRole, setActiveRole] = useState('user'); // default role
 
-    setTimeout(() => {
-      if (username === "admin" && password === "123") {
-        onLogin("master");
-      } else if (username === "user" && password === "123") {
-        onLogin("customer");
-      } else {
-        setError("Invalid username or password");
-      }
-      setLoading(false);
-    }, 1200);
+  const roles = [
+    { id: 'user', label: 'User' },
+    { id: 'client', label: 'Client' },
+    { id: 'admin', label: 'Admin' },
+  ];
+
+  const renderForm = () => {
+    if (activeRole === 'admin') return <AdminLoginScreen />;
+    if (activeRole === 'client') return <ClientLoginScreen />;
+    return <UserLoginScreen />; // default user
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.card}>
-        {/* Title */}
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: '#f9fafb' }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>AccounTech Pro</Text>
-        <Text style={styles.subtitle}>Professional Accounting Software</Text>
+        <Text style={styles.subtitle}>Select Login Type</Text>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        {/* Username Input */}
-        <TextInput
-          style={styles.input}
-          placeholder="Enter username"
-          value={username}
-          onChangeText={setUsername}
-          autoCapitalize="none"
-        />
-
-        {/* Password Input */}
-        <View style={styles.passwordContainer}>
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            placeholder="Enter password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
-          />
-          <TouchableOpacity
-            onPress={() => setShowPassword(!showPassword)}
-            style={styles.eyeButton}
-          >
-            <Ionicons
-              name={showPassword ? "eye-off" : "eye"}
-              size={20}
-              color="#6b7280"
-            />
-          </TouchableOpacity>
+        <View style={styles.roleContainer}>
+          {roles.map(({ id, label }) => (
+            <TouchableOpacity
+              key={id}
+              style={[
+                styles.roleItem,
+                activeRole === id && styles.roleItemActive,
+              ]}
+              onPress={() => setActiveRole(id)}
+              activeOpacity={0.8}
+            >
+              <View
+                style={[
+                  styles.radioOuter,
+                  activeRole === id && styles.radioOuterActive,
+                ]}
+              >
+                {activeRole === id && <View style={styles.radioInner} />}
+              </View>
+              <Text
+                style={[
+                  styles.roleText,
+                  activeRole === id && styles.roleTextActive,
+                ]}
+              >
+                {label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        {/* Submit Button */}
-        <TouchableOpacity
-          style={styles.button}
-          onPress={handleSubmit}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <View style={styles.btnContent}>
-              <Ionicons name="log-in-outline" size={18} color="#fff" />
-              <Text style={styles.buttonText}>Sign In</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
-    </View>
+        <View style={styles.formContainer}>{renderForm()}</View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f1f5f9",
-    padding: 16,
-  },
-  card: {
-    width: "100%",
-    maxWidth: 380,
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 6,
+    flexGrow: 1,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 24,
   },
   title: {
-    fontSize: 26,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 4,
-    backgroundColor: "linear-gradient(90deg, #6366f1, #3b82f6)", // only for web
-    color: "#2563eb",
+    fontSize: 32,
+    fontWeight: '900',
+    marginBottom: 6,
+    color: '#1e293b',
   },
   subtitle: {
-    fontSize: 14,
-    color: "#6b7280",
-    textAlign: "center",
-    marginBottom: 20,
+    fontSize: 18,
+    marginBottom: 24,
+    color: '#475569',
   },
-  input: {
-    height: 48,
+  roleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginBottom: 32,
+  },
+  roleItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 30,
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 10,
-    marginBottom: 12,
-    paddingHorizontal: 12,
-    backgroundColor: "#f9fafb",
+    borderColor: '#cbd5e1',
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  passwordContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
+  roleItemActive: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#2563eb',
+    shadowOpacity: 0.2,
   },
-  eyeButton: {
-    position: "absolute",
-    right: 12,
+  radioOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#94a3b8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
   },
-  button: {
-    backgroundColor: "#2563eb",
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: "center",
-    marginTop: 10,
+  radioOuterActive: {
+    borderColor: '#fff',
   },
-  btnContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#fff',
   },
-  buttonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  error: { color: "red", textAlign: "center", marginBottom: 10 },
+  roleText: {
+    fontSize: 16,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  roleTextActive: {
+    color: '#fff',
+  },
+  formContainer: {
+    width: '100%',
+    maxWidth: 400,
+  },
 });
