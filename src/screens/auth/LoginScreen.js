@@ -14,7 +14,7 @@ import AdminLoginScreen from './AdminLoginScreen';
 import ClientLoginScreen from './ClientLoginScreen';
 import UserLoginScreen from './UserLoginScreen';
 
-export default function LoginScreen() {
+export default function LoginScreen({ navigation }) { // <-- accept navigation
   const [activeRole, setActiveRole] = useState('user'); // default role
 
   const roles = [
@@ -24,9 +24,10 @@ export default function LoginScreen() {
   ];
 
   const renderForm = () => {
-    if (activeRole === 'admin') return <AdminLoginScreen />;
-    if (activeRole === 'client') return <ClientLoginScreen />;
-    return <UserLoginScreen />; // default user
+    // pass navigation prop to child screens
+    if (activeRole === 'admin') return <AdminLoginScreen navigation={navigation} />;
+    if (activeRole === 'client') return <ClientLoginScreen navigation={navigation} />;
+    return <UserLoginScreen navigation={navigation} />; // default user
   };
 
   return (

@@ -6,10 +6,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-export default function AdminLoginScreen({ onLogin }) {
+export default function AdminLoginScreen({ navigation }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -19,14 +20,22 @@ export default function AdminLoginScreen({ onLogin }) {
   const handleSubmit = () => {
     setLoading(true);
     setError('');
+
     setTimeout(() => {
+      // Navigate based on username & password
       if (username === 'admin' && password === '123') {
-        onLogin('master');
+        Alert.alert('Login Successful', 'Welcome, Admin!');
+        navigation.replace('AdminDashboard');
       } else if (username === 'user' && password === '123') {
-        onLogin('customer');
+        Alert.alert('Login Successful', 'Welcome, User!');
+        navigation.replace('UserDashboard');
+      } else if (username === 'client' && password === '123') {
+        Alert.alert('Login Successful', 'Welcome, Client!');
+        navigation.replace('ClientDashboard');
       } else {
         setError('Invalid username or password');
       }
+
       setLoading(false);
     }, 1200);
   };

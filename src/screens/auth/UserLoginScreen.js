@@ -1,5 +1,4 @@
-// src/screens/auth/UserLoginScreen.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,17 +10,61 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
+// Dummy current user check (replace with AsyncStorage if needed)
+const getCurrentUser = () => null;
+
 export default function UserLoginScreen({ navigation }) {
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const HARD_USER = {
-    userId: 'user',
-    password: '123',
-    role: 'admin',
-    userName: 'Akash Demo',
+  // Hardcoded users
+  const HARD_USERS = [
+    {
+      userId: 'master',
+      password: '123',
+      role: 'master',
+      userName: 'Master Admin',
+    },
+    {
+      userId: 'admin',
+      password: '123',
+      role: 'admin',
+      userName: 'Admin User',
+    },
+    {
+      userId: 'customer',
+      password: '123',
+      role: 'customer',
+      userName: 'Customer Demo',
+    },
+    {
+      userId: 'client',
+      password: '123',
+      role: 'client',
+      userName: 'Client Demo',
+    },
+  ];
+
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    const u = getCurrentUser();
+    if (!u) return;
+
+    handleRedirect(u.role);
+  }, [navigation]);
+
+  const handleRedirect = role => {
+    if (role === 'master') {
+      navigation.replace('AdminDashboard');
+    } else if (role === 'admin') {
+      navigation.replace('Dashboard'); // ya alag bhi rakh sakte ho
+    } else if (role === 'customer') {
+      navigation.replace('Dashboard');
+    } else {
+      navigation.replace('UserDashboard'); // default
+    }
   };
 
   const onSubmit = () => {
@@ -33,20 +76,13 @@ export default function UserLoginScreen({ navigation }) {
     setIsLoading(true);
 
     setTimeout(() => {
-      if (userId === HARD_USER.userId && password === HARD_USER.password) {
-        Alert.alert('Login Successful', `Welcome back, ${HARD_USER.userName}!`);
+      const foundUser = HARD_USERS.find(
+        u => u.userId === userId && u.password === password,
+      );
 
-        if (HARD_USER.role === 'master') {
-          navigation?.replace('AdminDashboard');
-        } else if (
-          HARD_USER.role === 'admin' ||
-          HARD_USER.role === 'customer' ||
-          HARD_USER.role === 'client'
-        ) {
-          navigation?.replace('Dashboard');
-        } else {
-          navigation?.replace('UserDashboard');
-        }
+      if (foundUser) {
+        Alert.alert('Login Successful', `Welcome back, ${foundUser.userName}!`);
+        handleRedirect(foundUser.role);
       } else {
         Alert.alert('Login Failed', 'Invalid User ID or Password');
       }
@@ -121,6 +157,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 6,
+    justifyContent: 'center',
   },
   title: {
     fontSize: 28,

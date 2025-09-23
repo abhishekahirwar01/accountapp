@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
@@ -21,9 +20,12 @@ export default function ClientLoginScreen({ navigation }) {
   const [sendingOtp, setSendingOtp] = useState(false);
   const [resendIn, setResendIn] = useState(0);
 
-  const HARD_USERNAME = 'akash';
-  const HARD_PASSWORD = '123456';
-  const HARD_OTP = '654321';
+  const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState(''); // 'success' or 'error'
+
+  const HARD_USERNAME = 'user';
+  const HARD_PASSWORD = '123';
+  const HARD_OTP = '321';
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -31,38 +33,53 @@ export default function ClientLoginScreen({ navigation }) {
     return () => clearInterval(interval);
   }, [resendIn]);
 
+  // Password login
   const onSubmit = () => {
     setIsLoading(true);
     setTimeout(() => {
       if (username === HARD_USERNAME && password === HARD_PASSWORD) {
-        Alert.alert('Login Successful', `Welcome back, ${username}!`);
-        navigation.replace('Dashboard');
+        setMessageType('success');
+        setMessage(`Login Successful! Welcome back, ${username}`);
+        setTimeout(() => {
+          navigation.replace('Dashboard');
+        }, 1000);
       } else {
-        Alert.alert('Login Failed', 'Invalid username or password');
+        setMessageType('error');
+        setMessage('Invalid username or password');
       }
       setIsLoading(false);
     }, 1000);
   };
 
+  // Send OTP
   const onSendOtp = () => {
-    if (!username)
-      return Alert.alert('Username required', 'Enter your username first');
+    if (!username) {
+      setMessageType('error');
+      setMessage('Enter your username first');
+      return;
+    }
     setSendingOtp(true);
     setTimeout(() => {
-      Alert.alert('OTP Sent', `Your OTP is: ${HARD_OTP}`);
+      setMessageType('success');
+      setMessage(`OTP Sent: ${HARD_OTP}`);
       setResendIn(30);
       setSendingOtp(false);
     }, 500);
   };
 
+  // OTP login
   const onSubmitOtp = () => {
     setIsLoading(true);
     setTimeout(() => {
       if (username === HARD_USERNAME && otp === HARD_OTP) {
-        Alert.alert('OTP Verified', `Welcome back, ${username}!`);
-        navigation.replace('Dashboard');
+        setMessageType('success');
+        setMessage(`OTP Verified! Welcome back, ${username}`);
+        setTimeout(() => {
+          navigation.replace('Dashboard');
+        }, 1000);
       } else {
-        Alert.alert('OTP Login Failed', 'Invalid OTP');
+        setMessageType('error');
+        setMessage('Invalid OTP');
       }
       setIsLoading(false);
     }, 1000);
@@ -94,6 +111,20 @@ export default function ClientLoginScreen({ navigation }) {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Inline message */}
+      {message ? (
+        <Text
+          style={{
+            color: messageType === 'success' ? 'green' : 'red',
+            marginBottom: 16,
+            textAlign: 'center',
+            fontWeight: '600',
+          }}
+        >
+          {message}
+        </Text>
+      ) : null}
 
       {tab === 'password' && (
         <View style={styles.form}>
@@ -175,19 +206,20 @@ export default function ClientLoginScreen({ navigation }) {
             placeholder="Enter OTP"
             value={otp}
             onChangeText={setOtp}
-            keyboardType="visible-password"
+            keyboardType="numeric"
             style={styles.input}
             editable={!isLoading}
             placeholderTextColor="#94a3b8"
-            maxLength={6}
+            maxLength={HARD_OTP.length} // Dynamic max length
           />
           <TouchableOpacity
             style={[
               styles.button,
-              (isLoading || otp.length !== 6) && styles.buttonDisabled,
+              (isLoading || otp.length !== HARD_OTP.length) &&
+                styles.buttonDisabled, // Dynamic check
             ]}
             onPress={onSubmitOtp}
-            disabled={isLoading || otp.length !== 6}
+            disabled={isLoading || otp.length !== HARD_OTP.length}
             activeOpacity={0.8}
           >
             {isLoading ? (
