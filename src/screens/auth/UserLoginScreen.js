@@ -6,11 +6,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { navigateByRole } from '../../utils/roleNavigation';
 
-// Dummy current user check (replace with AsyncStorage if needed)
+// Dummy current user check (replace with AsyncStorage or API)
 const getCurrentUser = () => null;
 
 export default function UserLoginScreen({ navigation }) {
@@ -18,6 +18,9 @@ export default function UserLoginScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState(''); // 'success' | 'error'
 
   // Hardcoded users
   const HARD_USERS = [
@@ -27,12 +30,7 @@ export default function UserLoginScreen({ navigation }) {
       role: 'master',
       userName: 'Master Admin',
     },
-    {
-      userId: 'admin',
-      password: '123',
-      role: 'admin',
-      userName: 'Admin User',
-    },
+    { userId: 'admin', password: '123', role: 'admin', userName: 'Admin User' },
     {
       userId: 'customer',
       password: '123',
@@ -51,29 +49,18 @@ export default function UserLoginScreen({ navigation }) {
   useEffect(() => {
     const u = getCurrentUser();
     if (!u) return;
-
-    handleRedirect(u.role);
+    navigateByRole(navigation, u.role);
   }, [navigation]);
-
-  const handleRedirect = role => {
-    if (role === 'master') {
-      navigation.replace('AdminDashboard');
-    } else if (role === 'admin') {
-      navigation.replace('Dashboard'); // ya alag bhi rakh sakte ho
-    } else if (role === 'customer') {
-      navigation.replace('Dashboard');
-    } else {
-      navigation.replace('UserDashboard'); // default
-    }
-  };
 
   const onSubmit = () => {
     if (!userId.trim() || !password.trim()) {
-      Alert.alert('Validation Error', 'Please enter User ID and Password');
+      setMessageType('error');
+      setMessage('Please enter User ID and Password');
       return;
     }
 
     setIsLoading(true);
+    setMessage('');
 
     setTimeout(() => {
       const foundUser = HARD_USERS.find(
@@ -81,11 +68,16 @@ export default function UserLoginScreen({ navigation }) {
       );
 
       if (foundUser) {
-        Alert.alert('Login Successful', `Welcome back, ${foundUser.userName}!`);
-        handleRedirect(foundUser.role);
+        setMessageType('success');
+        setMessage(`Welcome back, ${foundUser.userName}!`);
+        setTimeout(() => {
+          navigateByRole(navigation, foundUser.role);
+        }, 1000);
       } else {
-        Alert.alert('Login Failed', 'Invalid User ID or Password');
+        setMessageType('error');
+        setMessage('Invalid User ID or Password');
       }
+
       setIsLoading(false);
     }, 1000);
   };
@@ -93,6 +85,19 @@ export default function UserLoginScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>User Login</Text>
+
+      {message ? (
+        <Text
+          style={{
+            color: messageType === 'success' ? 'green' : 'red',
+            marginBottom: 16,
+            textAlign: 'center',
+            fontWeight: '600',
+          }}
+        >
+          {message}
+        </Text>
+      ) : null}
 
       <TextInput
         placeholder="User ID"

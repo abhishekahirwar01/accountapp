@@ -1,6 +1,10 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import LoginScreen from '../screens/auth/LoginScreen';
+import GettingStartedScreen from '../screens/auth/GettingStartedScreen';
+import OTPVerificationScreen from '../screens/auth/OTPVerificationScreen';
+import AdminLoginScreen from '../screens/auth/AdminLoginScreen';
+import UserLoginScreen from '../screens/auth/UserLoginScreen';
+import ClientLoginScreen from '../screens/auth/ClientLoginScreen';
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 import UserDashboardScreen from '../screens/main/UserDashboardScreen';
 import DashboardScreen from '../screens/main/DashboardScreen';
@@ -10,7 +14,13 @@ const Stack = createNativeStackNavigator();
 export default function AppNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="GettingStarted" component={GettingStartedScreen} />
+      <Stack.Screen name="OTPVerification" component={OTPVerificationScreen} />
+      <Stack.Screen name="AdminLoginScreen" component={AdminLoginScreen} />
+      <Stack.Screen name="UserLoginScreen" component={UserLoginScreen} />
+      <Stack.Screen name="ClientLoginScreen" component={ClientLoginScreen} />
+
+      {/* Dashboards */}
       <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
       <Stack.Screen name="UserDashboard" component={UserDashboardScreen} />
       <Stack.Screen name="Dashboard" component={DashboardScreen} />

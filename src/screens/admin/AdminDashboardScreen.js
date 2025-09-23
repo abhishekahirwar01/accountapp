@@ -3,13 +3,14 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 
 export default function AdminDashboardScreen({ navigation }) {
   const handleLogout = () => {
-    navigation.replace("Login"); // Go back to login screen
+    // Redirect to GettingStarted screen after logout
+    navigation.replace("GettingStarted");
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>👑 ADMIN DASHBOARD</Text>
-      <Text style={styles.subtitle}>Welcome, Admin!</Text>
+      <Text style={styles.title}>👑Master ADMIN DASHBOARD</Text>
+      <Text style={styles.subtitle}>Welcome,Master Admin!</Text>
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Text style={styles.logoutText}>Logout</Text>
