@@ -25,7 +25,7 @@ export default function AdminLoginScreen({ navigation }) {
     setTimeout(() => {
       // Hardcoded demo users
       const role =
-        username === 'admin' && password === '123'
+        username === 'master' && password === '123'
           ? 'master'
           : username === 'user' && password === '123'
           ? 'user'

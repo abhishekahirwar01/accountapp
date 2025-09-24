@@ -22,8 +22,8 @@ export default function OTPVerificationScreen({ navigation }) {
 
   const USERS = [
     {
-      role: 'admin',
-      email: 'admin01@gmail.com',
+      role: 'master',
+      email: 'master01@gmail.com',
       mobile: '1111111111',
       otp: '111111',
     },
@@ -74,7 +74,7 @@ export default function OTPVerificationScreen({ navigation }) {
       setMessageType('success');
       setMessage('OTP Verified! Redirecting...');
       setTimeout(() => {
-        if (user.role === 'admin') navigation.replace('AdminLoginScreen');
+        if (user.role === 'master') navigation.replace('AdminLoginScreen');
         else if (user.role === 'client')
           navigation.replace('ClientLoginScreen');
         else navigation.replace('UserLoginScreen');

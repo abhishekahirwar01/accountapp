@@ -24,12 +24,6 @@ export default function UserLoginScreen({ navigation }) {
 
   // Hardcoded users
   const HARD_USERS = [
-    {
-      userId: 'master',
-      password: '123',
-      role: 'master',
-      userName: 'Master Admin',
-    },
     { userId: 'admin', password: '123', role: 'admin', userName: 'Admin User' },
     {
       userId: 'customer',
