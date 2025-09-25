@@ -1,9 +1,9 @@
 // src/components/layout/BottomNav.jsx
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-// Role-based menu items
 const roleMenus = {
   master: [
     { name: 'Dashboard', icon: 'grid-outline' },
@@ -49,48 +49,57 @@ export default function BottomNav({ role = 'customer', onTabChange }) {
   };
 
   return (
-    <View style={styles.container}>
-      {menuItems.map(item => (
-        <TouchableOpacity
-          key={item.name}
-          style={styles.tab}
-          onPress={() => handlePress(item.name)}
-        >
-          <Ionicons
-            name={item.icon}
-            size={24}
-            color={activeTab === item.name ? '#4F46E5' : '#999'}
-          />
-          <Text
-            style={[
-              styles.label,
-              { color: activeTab === item.name ? '#4F46E5' : '#999' },
-            ]}
+    <SafeAreaView edges={['bottom']} style={styles.safeArea}>
+      <View style={styles.container}>
+        {menuItems.map(item => (
+          <TouchableOpacity
+            key={item.name}
+            style={styles.tab}
+            onPress={() => handlePress(item.name)}
+            activeOpacity={0.7}
           >
-            {item.name}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
+            <Ionicons
+              name={item.icon}
+              size={22}
+              color={activeTab === item.name ? '#0A66C2' : '#666'}
+            />
+            <Text
+              style={[
+                styles.label,
+                { color: activeTab === item.name ? '#0A66C2' : '#666' },
+              ]}
+              numberOfLines={1}
+            >
+              {item.name}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    backgroundColor: '#fff',
+  },
   container: {
     flexDirection: 'row',
-    height: 70,
-    borderTopWidth: 1,
-    borderTopColor: '#ccc',
+    height: 56,
+    borderTopWidth: 0.5,
+    borderTopColor: '#ddd',
     backgroundColor: '#fff',
     justifyContent: 'space-around',
     alignItems: 'center',
   },
   tab: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 4,
   },
   label: {
-    fontSize: 12,
+    fontSize: 10,
     marginTop: 2,
   },
 });

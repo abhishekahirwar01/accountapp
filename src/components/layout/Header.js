@@ -5,29 +5,24 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
-  Image,
   Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import Logo from '../../../assets/images/logo.jpg';
 
 export default function Header({ role = 'Admin' }) {
   const [showSearch, setShowSearch] = useState(false);
   const [searchText, setSearchText] = useState('');
 
   const handleNotification = () => {
-    if (showSearch) setShowSearch(false); // close search if open
     console.log('Notification clicked');
   };
 
   const handleHistory = () => {
-    if (showSearch) setShowSearch(false);
     console.log('History clicked');
   };
 
   const handleProfile = () => {
-    if (showSearch) setShowSearch(false);
     console.log('Profile clicked');
   };
 
@@ -39,63 +34,88 @@ export default function Header({ role = 'Admin' }) {
     Keyboard.dismiss();
   };
 
+  const handleBack = () => {
+    setShowSearch(false);
+    setSearchText('');
+  };
+
   return (
     <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }}>
       <View style={styles.container}>
-        {/* Left Side */}
-        {!showSearch ? (
-          <Text style={styles.appName}>AccounTech Pro</Text>
-        ) : (
-          <Image source={Logo} style={styles.logo} resizeMode="contain" />
-        )}
+        {/* Search Mode */}
+        {showSearch ? (
+          <View style={styles.searchContainer}>
+            {/* Search Input with Back Icon Inside */}
+            <View style={styles.searchInputContainer}>
+              <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                <Ionicons name="arrow-back" size={22} color="#334155" />
+              </TouchableOpacity>
 
-        {/* Center - Search Bar */}
-        {showSearch && (
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search..."
-            placeholderTextColor="#94A3B8"
-            value={searchText}
-            onChangeText={setSearchText}
-            returnKeyType="search"
-            autoFocus={true}
-            onSubmitEditing={handleSearchSubmit}
-          />
-        )}
-
-        {/* Right Side */}
-        <View style={styles.rightContainer}>
-          {!showSearch && (
-            <TouchableOpacity
-              onPress={() => setShowSearch(true)}
-              style={styles.iconButton}
-            >
-              <Ionicons name="search" size={22} color="#334155" />
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={handleNotification}
-          >
-            <Ionicons name="notifications-outline" size={22} color="#334155" />
-            <View style={styles.notificationBadge}>
-              <Text style={styles.badgeText}>3</Text>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search..."
+                placeholderTextColor="#94A3B8"
+                value={searchText}
+                onChangeText={setSearchText}
+                returnKeyType="search"
+                autoFocus={true}
+                onSubmitEditing={handleSearchSubmit}
+              />
             </View>
-          </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            {/* Left Side */}
+            <Text style={styles.appName}>AccounTech Pro</Text>
 
-          <TouchableOpacity style={styles.iconButton} onPress={handleHistory}>
-            <Ionicons name="time-outline" size={22} color="#334155" />
-          </TouchableOpacity>
+            {/* Right Side */}
+            <View style={styles.rightContainer}>
+              {/* Search Button */}
+              <TouchableOpacity
+                onPress={() => setShowSearch(true)}
+                style={styles.iconButton}
+              >
+                <Ionicons name="search" size={22} color="#334155" />
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.profileContainer}
-            onPress={handleProfile}
-          >
-            <Ionicons name="person-circle-outline" size={28} color="#334155" />
-            <Text style={styles.roleText}>{role}</Text>
-          </TouchableOpacity>
-        </View>
+              {/* Notification */}
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={handleNotification}
+              >
+                <Ionicons
+                  name="notifications-outline"
+                  size={22}
+                  color="#334155"
+                />
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.badgeText}>3</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* History */}
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={handleHistory}
+              >
+                <Ionicons name="time-outline" size={22} color="#334155" />
+              </TouchableOpacity>
+
+              {/* Profile */}
+              <TouchableOpacity
+                style={styles.profileContainer}
+                onPress={handleProfile}
+              >
+                <Ionicons
+                  name="person-circle-outline"
+                  size={28}
+                  color="#334155"
+                />
+                <Text style={styles.roleText}>{role}</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -106,27 +126,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 12, // Horizontal padding reduced
-    paddingTop: 8, // Top padding reduced
-    paddingBottom: 0, // Removed bottom padding to eliminate the extra space
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 0,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 0,
   },
   appName: {
     fontSize: 20,
     fontWeight: '700',
     color: '#1E293B',
   },
-  logo: {
-    width: 40,
-    height: 40,
-  },
   rightContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   iconButton: {
-    padding: 6, // Reduced padding
+    padding: 6,
     marginHorizontal: 4,
     borderRadius: 10,
     backgroundColor: '#F8FAFC',
@@ -159,15 +174,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 2,
   },
-  searchInput: {
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
-    height: 40,
-    marginHorizontal: 12,
+    paddingVertical: 4,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderRadius: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
+  },
+  backButton: {
+    padding: 6,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    paddingHorizontal: 8,
     fontSize: 15,
     color: '#1E293B',
   },
