@@ -1,48 +1,66 @@
-// src/screens/admin/AdminDashboardScreen.jsx
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import Header from '../../components/layout/Header';
 import BottomNav from '../../components/layout/BottomNav';
+
+// Import your new screens
+import ClientManagementScreen from './ClientManagementScreen';
+import ClientDetailScreen from './ClientDetailScreen';
 
 export default function AdminDashboardScreen({ navigation }) {
   const [currentTab, setCurrentTab] = useState('Dashboard');
 
   const handleLogout = () => navigation.replace('GettingStarted');
 
+  // ✅ Helper function to render tab-wise content
+  const renderContent = () => {
+    switch (currentTab) {
+      case 'Dashboard':
+        return (
+          <ScrollView contentContainerStyle={styles.mainContent}>
+            <Text style={styles.title}>Master Admin Dashboard</Text>
+            <Text style={styles.subtitle}>Welcome, Master Admin!</Text>
+
+            <View style={styles.cardsContainer}>
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Total Clients</Text>
+                <Text style={styles.cardValue}>128</Text>
+              </View>
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Active Users</Text>
+                <Text style={styles.cardValue}>76</Text>
+              </View>
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Revenue</Text>
+                <Text style={styles.cardValue}>$12,480</Text>
+              </View>
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Pending Tasks</Text>
+                <Text style={styles.cardValue}>8</Text>
+              </View>
+            </View>
+          </ScrollView>
+        );
+      case 'Clients':
+        return <ClientManagementScreen navigation={navigation} />;
+      case 'ClientDetail':
+        return <ClientDetailScreen navigation={navigation} />;
+      default:
+        return (
+          <View style={styles.center}>
+            <Text>{currentTab} Screen Coming Soon...</Text>
+          </View>
+        );
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <Header username="Master Admin" role="master" />
 
-      {/* Main Content */}
-      <ScrollView contentContainerStyle={styles.mainContent}>
-        <Text style={styles.title}>Master Admin Dashboard</Text>
-        <Text style={styles.subtitle}>Welcome, Master Admin!</Text>
-
-        {/* Example Dashboard Cards */}
-        <View style={styles.cardsContainer}>
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Total Clients</Text>
-            <Text style={styles.cardValue}>128</Text>
-          </View>
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Active Users</Text>
-            <Text style={styles.cardValue}>76</Text>
-          </View>
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Revenue</Text>
-            <Text style={styles.cardValue}>$12,480</Text>
-          </View>
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Pending Tasks</Text>
-            <Text style={styles.cardValue}>8</Text>
-          </View>
-        </View>
-
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
-      </ScrollView>
+      {/* Tab-wise Content */}
+      <View style={{ flex: 1 }}>{renderContent()}</View>
 
       {/* Bottom Navigation */}
       <BottomNav role="master" onTabChange={(tab) => setCurrentTab(tab)} />
@@ -103,22 +121,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1e293b',
   },
-  logoutButton: {
-    backgroundColor: '#ef4444',
-    paddingVertical: 15,
-    paddingHorizontal: 45,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
-    alignItems: 'center',
+  center: {
+    flex: 1,
     justifyContent: 'center',
-    marginTop: 20,
-  },
-  logoutText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
+    alignItems: 'center',
   },
 });
