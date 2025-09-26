@@ -1,11 +1,15 @@
+// src/screens/admin/AdminDashboardScreen.jsx
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import Header from '../../components/layout/Header';
 import BottomNav from '../../components/layout/BottomNav';
 
-// Import your new screens
+// Import your screens
 import ClientManagementScreen from './ClientManagementScreen';
 import ClientDetailScreen from './ClientDetailScreen';
+import CompaniesScreen from './CompaniesScreen'; // ✅ Add this import
+import AnalyticsScreen from './AnalyticsScreen';
+import SettingsScreen from './SettingsScreen';
 
 export default function AdminDashboardScreen({ navigation }) {
   const [currentTab, setCurrentTab] = useState('Dashboard');
@@ -41,10 +45,22 @@ export default function AdminDashboardScreen({ navigation }) {
             </View>
           </ScrollView>
         );
+
       case 'Clients':
         return <ClientManagementScreen navigation={navigation} />;
+
       case 'ClientDetail':
         return <ClientDetailScreen navigation={navigation} />;
+
+      case 'Companies': // ✅ Added this case
+        return <CompaniesScreen navigation={navigation} />;
+
+      case 'Analytics':
+        return <AnalyticsScreen navigation={navigation} />;
+
+      case 'Settings':
+        return <SettingsScreen navigation={navigation} />;
+
       default:
         return (
           <View style={styles.center}>
@@ -63,7 +79,7 @@ export default function AdminDashboardScreen({ navigation }) {
       <View style={{ flex: 1 }}>{renderContent()}</View>
 
       {/* Bottom Navigation */}
-      <BottomNav role="master" onTabChange={(tab) => setCurrentTab(tab)} />
+      <BottomNav role="master" onTabChange={tab => setCurrentTab(tab)} />
     </View>
   );
 }
