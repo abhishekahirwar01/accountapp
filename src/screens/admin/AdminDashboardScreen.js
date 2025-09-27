@@ -7,7 +7,7 @@ import BottomNav from '../../components/layout/BottomNav';
 // Import your screens
 import ClientManagementScreen from './ClientManagementScreen';
 import ClientDetailScreen from './ClientDetailScreen';
-import CompaniesScreen from './CompaniesScreen'; // ✅ Add this import
+import CompaniesScreen from './CompaniesScreen';
 import AnalyticsScreen from './AnalyticsScreen';
 import SettingsScreen from './SettingsScreen';
 

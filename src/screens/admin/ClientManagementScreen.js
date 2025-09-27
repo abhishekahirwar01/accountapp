@@ -12,6 +12,7 @@ import {
   Switch,
   ActivityIndicator,
 } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import {
   PlusCircle,
   Eye,
@@ -112,6 +113,25 @@ export default function ClientManagementPage() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Load permissions when switching to permissions tab
+  useEffect(() => {
+    if (activeTab === 'permissions' && selectedClient) {
+      setCurrentPermissions({
+        maxCompanies: selectedClient.maxCompanies || 5,
+        maxUsers: selectedClient.maxUsers || 10,
+        maxInventories: selectedClient.maxInventories || 50,
+        canSendInvoiceEmail: selectedClient.canSendInvoiceEmail || false,
+        canSendInvoiceWhatsapp: selectedClient.canSendInvoiceWhatsapp || false,
+        canCreateUsers: selectedClient.canCreateUsers || true,
+        canCreateCustomers: selectedClient.canCreateCustomers || true,
+        canCreateVendors: selectedClient.canCreateVendors || true,
+        canCreateProducts: selectedClient.canCreateProducts || true,
+        canCreateCompanies: selectedClient.canCreateCompanies || false,
+        canUpdateCompanies: selectedClient.canUpdateCompanies || false,
+      });
+    }
+  }, [activeTab, selectedClient]);
+
   const handleDelete = client => {
     setClientToDelete(client);
     setIsAlertOpen(true);
@@ -175,19 +195,17 @@ export default function ClientManagementPage() {
   };
 
   const handleSavePermissions = () => {
-    if (!clientForPermissions) return;
+    if (!selectedClient) return;
     setIsSavingPermissions(true);
     setTimeout(() => {
       setClients(
         clients.map(c =>
-          c._id === clientForPermissions._id
-            ? { ...c, ...currentPermissions }
-            : c,
+          c._id === selectedClient._id ? { ...c, ...currentPermissions } : c,
         ),
       );
       Alert.alert('Success', 'Permissions updated successfully.');
       setIsSavingPermissions(false);
-      setIsPermissionsDialogOpen(false);
+      setIsDialogOpen(false);
     }, 1000);
   };
 
@@ -216,6 +234,7 @@ export default function ClientManagementPage() {
   };
 
   const copyToClipboardTab = text => {
+    Clipboard.setString(text);
     Alert.alert('Copied', 'URL copied to clipboard');
   };
 
@@ -258,8 +277,10 @@ export default function ClientManagementPage() {
     setIsDialogOpen(false);
   };
 
-  const copyToClipboard = text =>
+  const copyToClipboard = text => {
+    Clipboard.setString(text);
     Alert.alert('Copied', 'URL copied to clipboard');
+  };
 
   if (isLoading)
     return (
@@ -350,7 +371,7 @@ export default function ClientManagementPage() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            {/* Header title mimicking web UI */}
+            {/* Header */}
             <Text style={styles.modalTitle}>
               {selectedClient ? 'Edit Client' : 'Add New Client'}
             </Text>
@@ -360,207 +381,291 @@ export default function ClientManagementPage() {
                 : 'Fill in the form below to add a new client.'}
             </Text>
 
-            {/* Tabs */}
-            <View style={styles.tabsRow}>
-              {['general', 'permissions', 'validity', 'password'].map(tab => (
-                <TouchableOpacity
-                  key={tab}
-                  onPress={() => setActiveTab(tab)}
-                  style={[
-                    styles.tabBtn,
-                    activeTab === tab && styles.tabBtnActive,
-                  ]}
-                >
-                  <Text
+            {/* Tabs (only in edit) */}
+            {selectedClient && (
+              <View style={styles.tabsRow}>
+                {['general', 'permissions', 'validity', 'password'].map(tab => (
+                  <TouchableOpacity
+                    key={tab}
+                    onPress={() => setActiveTab(tab)}
                     style={[
-                      styles.tabText,
-                      activeTab === tab && styles.tabTextActive,
+                      styles.tabBtn,
+                      activeTab === tab && styles.tabBtnActive,
                     ]}
                   >
-                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Tab content */}
-            {activeTab === 'general' && (
-              <ClientForm
-                client={selectedClient}
-                onSubmit={onFormSubmit}
-                onCancel={() => setIsDialogOpen(false)}
-                hideAdvanced={true}
-              />
-            )}
-
-            {activeTab === 'permissions' && (
-              <ScrollView style={{ maxHeight: 380 }}>
-                <Text style={styles.sectionTitle}>Manage Permissions</Text>
-                {[
-                  {
-                    key: 'canSendInvoiceEmail',
-                    label: 'Send Invoice via Email',
-                  },
-                  {
-                    key: 'canSendInvoiceWhatsapp',
-                    label: 'Send Invoice via WhatsApp',
-                  },
-                  { key: 'canCreateUsers', label: 'Create Users' },
-                  { key: 'canCreateCustomers', label: 'Create Customers' },
-                  { key: 'canCreateVendors', label: 'Create Vendors' },
-                  { key: 'canCreateProducts', label: 'Create Products' },
-                  { key: 'canCreateCompanies', label: 'Create Companies' },
-                  { key: 'canUpdateCompanies', label: 'Update Companies' },
-                ].map(({ key, label }) => (
-                  <View key={key} style={styles.permissionItem}>
-                    <Text style={styles.permissionText}>{label}</Text>
-                    <Switch
-                      value={Boolean(currentPermissions[key])}
-                      onValueChange={v => handlePermissionChange(key, v)}
-                    />
-                  </View>
-                ))}
-
-                <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
-                  Usage Limits
-                </Text>
-                {[
-                  { key: 'maxCompanies', label: 'Max Companies' },
-                  { key: 'maxUsers', label: 'Max Users' },
-                  { key: 'maxInventories', label: 'Max Inventories' },
-                ].map(({ key, label }) => (
-                  <View key={key} style={styles.limitItem}>
-                    <Text style={styles.limitText}>{label}</Text>
-                    <TextInput
-                      style={styles.numberInput}
-                      keyboardType="numeric"
-                      value={String(currentPermissions[key] || 0)}
-                      onChangeText={t =>
-                        handlePermissionChange(
-                          key,
-                          Math.max(parseInt(t) || 0, 0),
-                        )
-                      }
-                    />
-                  </View>
-                ))}
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    justifyContent: 'flex-end',
-                    marginTop: 12,
-                  }}
-                >
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.primaryButton]}
-                    onPress={() => {
-                      setActiveTab('general');
-                    }}
-                  >
-                    <Text style={styles.primaryButtonText}>Done</Text>
+                    <Text
+                      style={[
+                        styles.tabText,
+                        activeTab === tab && styles.tabTextActive,
+                      ]}
+                    >
+                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    </Text>
                   </TouchableOpacity>
-                </View>
-              </ScrollView>
-            )}
-
-            {activeTab === 'validity' && (
-              <ScrollView style={{ maxHeight: 380 }}>
-                <Text style={styles.sectionTitle}>Account Validity</Text>
-                <View style={styles.validityCard}>
-                  <Text style={styles.validityStatus}>Active</Text>
-                  <Text style={styles.validityRow}>
-                    Expires On:{' '}
-                    {new Date(
-                      Date.now() + 1000 * 60 * 60 * 24 * 50,
-                    ).toLocaleString()}
-                  </Text>
-                  <Text style={styles.validityRow}>Days Left: 50</Text>
-                  <View style={[styles.permissionItem, { marginTop: 8 }]}>
-                    <Text style={styles.permissionText}>Account Enabled</Text>
-                    <Switch value={true} onValueChange={() => {}} />
-                  </View>
-                </View>
-
-                <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
-                  Extend Validity
-                </Text>
-                <View style={{ flexDirection: 'row' }}>
-                  <TextInput
-                    style={[styles.textInput, { flex: 1 }]}
-                    placeholder="Duration"
-                    defaultValue="30"
-                    keyboardType="numeric"
-                  />
-                  <TextInput
-                    style={[styles.textInput, { flex: 1, marginLeft: 10 }]}
-                    placeholder="Unit (days/months/years)"
-                    defaultValue="days"
-                  />
-                </View>
-                <TouchableOpacity
-                  style={[
-                    styles.modalButton,
-                    styles.primaryButton,
-                    { marginTop: 10 },
-                  ]}
-                  onPress={() => {}}
-                >
-                  <Text style={styles.primaryButtonText}>Extend</Text>
-                </TouchableOpacity>
-
-                <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
-                  Set Exact Expiry
-                </Text>
-                <TextInput style={styles.textInput} placeholder="mm/dd/yyyy" />
-                <TouchableOpacity
-                  style={[
-                    styles.modalButton,
-                    styles.primaryButton,
-                    { marginTop: 10 },
-                  ]}
-                  onPress={() => {}}
-                >
-                  <Text style={styles.primaryButtonText}>Save Exact Date</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            )}
-
-            {activeTab === 'password' && (
-              <View>
-                <Text style={styles.sectionTitle}>Reset Password</Text>
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    marginBottom: 20,
-                  }}
-                >
-                  <TextInput
-                    style={[styles.textInput, { flex: 1 }]}
-                    secureTextEntry={!eyeOpen}
-                    placeholder="New password"
-                    value={newPassword}
-                    onChangeText={setNewPassword}
-                  />
-                  <TouchableOpacity
-                    onPress={() => setEyeOpen(!eyeOpen)}
-                    style={{ marginLeft: 10 }}
-                  >
-                    {eyeOpen ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.primaryButton]}
-                  onPress={confirmResetPassword}
-                >
-                  {isSubmittingPassword ? (
-                    <ActivityIndicator color="#FFF" />
-                  ) : (
-                    <Text style={styles.primaryButtonText}>Reset Password</Text>
-                  )}
-                </TouchableOpacity>
+                ))}
               </View>
             )}
+
+            {/* BODY: scrollable + keyboard avoiding */}
+            <ScrollView
+              style={{ flexGrow: 0, maxHeight: 380 }}
+              contentContainerStyle={{ paddingBottom: 16 }}
+              keyboardShouldPersistTaps="handled"
+            >
+              {(!selectedClient || activeTab === 'general') && (
+                <ClientForm
+                  client={selectedClient}
+                  onSubmit={onFormSubmit}
+                  onCancel={() => setIsDialogOpen(false)}
+                  hideAdvanced={false}
+                />
+              )}
+
+              {selectedClient && activeTab === 'permissions' && (
+                <View>
+                  <Text style={styles.sectionTitle}>Manage Permissions</Text>
+                  <Text style={styles.modalText}>
+                    Modify usage limits and feature access for this client.
+                  </Text>
+
+                  <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
+                    Feature Permissions
+                  </Text>
+                  {[
+                    {
+                      key: 'canCreateUsers',
+                      label: 'Create Users',
+                      icon: Users,
+                    },
+                    {
+                      key: 'canCreateCustomers',
+                      label: 'Create Customers',
+                      icon: Contact,
+                    },
+                    {
+                      key: 'canCreateVendors',
+                      label: 'Create Vendors',
+                      icon: Store,
+                    },
+                    {
+                      key: 'canCreateProducts',
+                      label: 'Create Products',
+                      icon: Package,
+                    },
+                    {
+                      key: 'canSendInvoiceEmail',
+                      label: 'Send Invoice via Email',
+                      icon: Send,
+                    },
+                    {
+                      key: 'canSendInvoiceWhatsapp',
+                      label: 'Send Invoice via WhatsApp',
+                      icon: MessageSquare,
+                    },
+                    {
+                      key: 'canCreateCompanies',
+                      label: 'Create Companies',
+                      icon: Building,
+                    },
+                    {
+                      key: 'canUpdateCompanies',
+                      label: 'Update Companies',
+                      icon: Users,
+                    },
+                  ].map(({ key, label, icon: Icon }) => (
+                    <View key={key} style={styles.permissionItem}>
+                      <View style={styles.permissionLabel}>
+                        <Icon size={20} color="#666" />
+                        <Text style={styles.permissionText}>{label}</Text>
+                      </View>
+                      <Switch
+                        value={Boolean(currentPermissions[key])}
+                        onValueChange={v => handlePermissionChange(key, v)}
+                      />
+                    </View>
+                  ))}
+
+                  <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
+                    Usage Limits
+                  </Text>
+                  {[
+                    {
+                      key: 'maxCompanies',
+                      label: 'Max Companies',
+                      icon: Building,
+                    },
+                    { key: 'maxUsers', label: 'Max Users', icon: Users },
+                    {
+                      key: 'maxInventories',
+                      label: 'Max Inventories',
+                      icon: Package,
+                    },
+                  ].map(({ key, label, icon: Icon }) => (
+                    <View key={key} style={styles.limitItem}>
+                      <View style={styles.limitLabel}>
+                        <Icon size={20} color="#666" />
+                        <Text style={styles.limitText}>{label}</Text>
+                      </View>
+                      <TextInput
+                        style={styles.numberInput}
+                        keyboardType="numeric"
+                        value={String(currentPermissions[key] || 0)}
+                        onChangeText={t =>
+                          handlePermissionChange(
+                            key,
+                            Math.max(parseInt(t) || 0, 0),
+                          )
+                        }
+                      />
+                    </View>
+                  ))}
+
+                  {/* Footer with only Save button */}
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      justifyContent: 'flex-end',
+                      marginTop: 20,
+                      gap: 10,
+                    }}
+                  >
+                    <TouchableOpacity
+                      style={[styles.modalButton, styles.primaryButton]}
+                      onPress={handleSavePermissions}
+                    >
+                      {isSavingPermissions ? (
+                        <ActivityIndicator color="#FFF" />
+                      ) : (
+                        <Text style={styles.primaryButtonText}>
+                          Save Changes
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+             {selectedClient && activeTab === 'validity' && (
+  <View>
+    <Text style={styles.sectionTitle}>Account Validity</Text>
+    <View style={styles.validityCard}>
+      <Text style={styles.validityStatus}>Active</Text>
+      <Text style={styles.validityRow}>
+        Expires On:{' '}
+        {new Date(Date.now() + 1000 * 60 * 60 * 24 * 50).toLocaleString()}
+      </Text>
+      <Text style={styles.validityRow}>Days Left: 50</Text>
+      <View style={[styles.permissionItem, { marginTop: 8 }]}>
+        <Text style={styles.permissionText}>Account Enabled</Text>
+        <Switch value={true} onValueChange={() => {}} />
+      </View>
+    </View>
+
+    <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Extend Validity</Text>
+    <View style={{ flexDirection: 'row' }}>
+      <TextInput
+        style={[styles.textInput, { flex: 1 }]}
+        placeholder="Duration"
+        defaultValue="30"
+        keyboardType="numeric"
+      />
+      <TextInput
+        style={[styles.textInput, { flex: 1, marginLeft: 10 }]}
+        placeholder="Unit (days/months/years)"
+        defaultValue="days"
+      />
+    </View>
+    <TouchableOpacity
+      style={[styles.modalButton, styles.primaryButton, { marginTop: 10 }]}
+      onPress={() => {
+        console.log('Validity extended'); // Simulate saving
+      }}
+    >
+      <Text style={styles.primaryButtonText}>Extend</Text>
+    </TouchableOpacity>
+
+    <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Set Exact Expiry</Text>
+    <TextInput style={styles.textInput} placeholder="mm/dd/yyyy" />
+    <TouchableOpacity
+      style={[styles.modalButton, styles.primaryButton, { marginTop: 10 }]}
+      onPress={() => {
+        console.log('Exact expiry set'); // Simulate saving
+      }}
+    >
+      <Text style={styles.primaryButtonText}>Save Exact Date</Text>
+    </TouchableOpacity>
+
+    {/* Footer with Cancel and Save buttons */}
+    <View
+      style={{
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        marginTop: 20,
+        gap: 10,
+      }}
+    >
+      {/* Cancel Button */}
+      <TouchableOpacity
+        style={[styles.modalButton, styles.cancelButton]}
+        onPress={() => setIsDialogOpen(false)} // Close the modal
+      >
+        <Text style={styles.cancelButtonText}>Cancel</Text>
+      </TouchableOpacity>
+
+      {/* Save Changes Button */}
+      <TouchableOpacity
+        style={[styles.modalButton, styles.primaryButton]}
+        onPress={() => {
+          console.log('Validity changes saved'); // Simulate saving changes
+          setIsDialogOpen(false); // Close the modal
+        }}
+      >
+        <Text style={styles.primaryButtonText}>Save Changes</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+)}
+
+
+              {selectedClient && activeTab === 'password' && (
+                <View>
+                  <Text style={styles.sectionTitle}>Reset Password</Text>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      marginBottom: 20,
+                    }}
+                  >
+                    <TextInput
+                      style={[styles.textInput, { flex: 1 }]}
+                      secureTextEntry={!eyeOpen}
+                      placeholder="New password"
+                      value={newPassword}
+                      onChangeText={setNewPassword}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setEyeOpen(!eyeOpen)}
+                      style={{ marginLeft: 10 }}
+                    >
+                      {eyeOpen ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.primaryButton]}
+                    onPress={confirmResetPassword}
+                  >
+                    {isSubmittingPassword ? (
+                      <ActivityIndicator color="#FFF" />
+                    ) : (
+                      <Text style={styles.primaryButtonText}>
+                        Reset Password
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -644,7 +749,7 @@ export default function ClientManagementPage() {
                 {isSubmittingPassword ? (
                   <ActivityIndicator color="#FFF" />
                 ) : (
-                  <Text style={styles.primaryButtonText}>Reset</Text>
+                  <Text style={styles.primaryButtonText}>Reset Password</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -826,8 +931,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     borderRadius: 12,
     padding: 20,
-    width: '100%',
-    maxWidth: 400,
+    width: '95%', // was '100%'
+    maxWidth: 480, // a little wider for tablets/web
     maxHeight: '90%',
   },
   modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
@@ -856,7 +961,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
-  sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12, color: '#000' },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+    color: '#000',
+  },
 
   permissionItem: {
     flexDirection: 'row',

@@ -10,6 +10,7 @@ import {
   Button,
 } from 'react-native';
 
+
 export default function ClientForm({
   client,
   onSubmit,
@@ -17,20 +18,14 @@ export default function ClientForm({
   hideAdvanced = false,
 }) {
   const [contactName, setContactName] = useState(client?.contactName || '');
-  const [clientUsername, setClientUsername] = useState(
-    client?.clientUsername || '',
-  );
+  const [clientUsername, setClientUsername] = useState(client?.clientUsername || '');
   const [email, setEmail] = useState(client?.email || '');
   const [phone, setPhone] = useState(client?.phone || '');
   const [password, setPassword] = useState('');
   const [maxCompanies, setMaxCompanies] = useState(client?.maxCompanies || 5);
   const [maxUsers, setMaxUsers] = useState(client?.maxUsers || 10);
-  const [canSendInvoiceEmail, setCanSendInvoiceEmail] = useState(
-    client?.canSendInvoiceEmail ?? false,
-  );
-  const [canSendInvoiceWhatsapp, setCanSendInvoiceWhatsapp] = useState(
-    client?.canSendInvoiceWhatsapp ?? false,
-  );
+  const [canSendInvoiceEmail, setCanSendInvoiceEmail] = useState(client?.canSendInvoiceEmail ?? false);
+  const [canSendInvoiceWhatsapp, setCanSendInvoiceWhatsapp] = useState(client?.canSendInvoiceWhatsapp ?? false);
   const [validityAmount, setValidityAmount] = useState(30);
   const [validityUnit, setValidityUnit] = useState('days');
   const [eyeOpen, setEyeOpen] = useState(false);
@@ -39,17 +34,13 @@ export default function ClientForm({
   const expiryPreview = useMemo(() => {
     if (client) return null;
     const d = new Date();
-    if (validityUnit === 'days')
-      d.setDate(d.getDate() + Number(validityAmount));
-    if (validityUnit === 'months')
-      d.setMonth(d.getMonth() + Number(validityAmount));
-    if (validityUnit === 'years')
-      d.setFullYear(d.getFullYear() + Number(validityAmount));
+    if (validityUnit === 'days') d.setDate(d.getDate() + Number(validityAmount));
+    if (validityUnit === 'months') d.setMonth(d.getMonth() + Number(validityAmount));
+    if (validityUnit === 'years') d.setFullYear(d.getFullYear() + Number(validityAmount));
     return d.toDateString();
   }, [validityAmount, validityUnit, client]);
 
   const handleSubmit = () => {
-    // Just UI, no backend
     const formData = {
       contactName,
       clientUsername,
@@ -68,10 +59,12 @@ export default function ClientForm({
   };
 
   return (
-    <ScrollView
+    <ScrollView 
       style={styles.container}
-      contentContainerStyle={{ paddingBottom: 40 }}
+      contentContainerStyle={{ paddingBottom: 80 }}
+      keyboardShouldPersistTaps="handled"
     >
+      {/* Contact Name Field */}
       <View style={styles.section}>
         <Text style={styles.label}>Contact Name</Text>
         <TextInput
@@ -82,19 +75,19 @@ export default function ClientForm({
         />
       </View>
 
+      {/* Username Field */}
       <View style={styles.section}>
         <Text style={styles.label}>Username</Text>
         <TextInput
           style={[styles.input, client ? { backgroundColor: '#eee' } : null]}
           placeholder="e.g. johndoe"
           value={clientUsername}
-          editable={!client}
-          onChangeText={text =>
-            setClientUsername(text.toLowerCase().replace(/\s+/g, ''))
-          }
+          editable={!client}  // Username editable only if creating a new client
+          onChangeText={(text) => setClientUsername(text.toLowerCase().replace(/\s+/g, ''))}
         />
       </View>
 
+      {/* Password Field (only for new clients) */}
       {!client && (
         <View style={styles.section}>
           <Text style={styles.label}>Password</Text>
@@ -106,16 +99,14 @@ export default function ClientForm({
               value={password}
               onChangeText={setPassword}
             />
-            <TouchableOpacity
-              onPress={() => setEyeOpen(!eyeOpen)}
-              style={{ marginLeft: 8 }}
-            >
+            <TouchableOpacity onPress={() => setEyeOpen(!eyeOpen)} style={{ marginLeft: 8 }}>
               <Text style={{ color: 'blue' }}>{eyeOpen ? 'Hide' : 'Show'}</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
 
+      {/* Email Field */}
       <View style={styles.section}>
         <Text style={styles.label}>Email</Text>
         <TextInput
@@ -127,6 +118,7 @@ export default function ClientForm({
         />
       </View>
 
+      {/* Phone Field */}
       <View style={styles.section}>
         <Text style={styles.label}>Phone</Text>
         <TextInput
@@ -138,16 +130,17 @@ export default function ClientForm({
         />
       </View>
 
+      {/* Account Validity Fields (only for new clients) */}
       {!client && !hideAdvanced && (
         <View style={styles.section}>
           <Text style={styles.label}>Account Validity</Text>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={{ flexDirection: 'row' }}>
             <TextInput
-              style={[styles.input, { flex: 1 }]}
+              style={[styles.input, { flex: 1, marginRight: 10 }]}
               keyboardType="number-pad"
               placeholder="e.g. 30"
               value={validityAmount.toString()}
-              onChangeText={v => setValidityAmount(Number(v))}
+              onChangeText={(v) => setValidityAmount(Number(v))}
             />
             <TextInput
               style={[styles.input, { flex: 1 }]}
@@ -164,6 +157,7 @@ export default function ClientForm({
         </View>
       )}
 
+      {/* Max Companies and Users Fields */}
       {!hideAdvanced && (
         <>
           <View style={styles.section}>
@@ -172,7 +166,7 @@ export default function ClientForm({
               style={styles.input}
               keyboardType="number-pad"
               value={maxCompanies.toString()}
-              onChangeText={v => setMaxCompanies(Number(v))}
+              onChangeText={(v) => setMaxCompanies(Number(v))}
             />
           </View>
 
@@ -182,39 +176,29 @@ export default function ClientForm({
               style={styles.input}
               keyboardType="number-pad"
               value={maxUsers.toString()}
-              onChangeText={v => setMaxUsers(Number(v))}
+              onChangeText={(v) => setMaxUsers(Number(v))}
             />
           </View>
 
+          {/* Invoice Options */}
           <View style={styles.sectionRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Send Invoice via Email</Text>
             </View>
-            <RNSwitch
-              value={canSendInvoiceEmail}
-              onValueChange={setCanSendInvoiceEmail}
-            />
+            <RNSwitch value={canSendInvoiceEmail} onValueChange={setCanSendInvoiceEmail} />
           </View>
 
           <View style={styles.sectionRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Send Invoice via WhatsApp</Text>
             </View>
-            <RNSwitch
-              value={canSendInvoiceWhatsapp}
-              onValueChange={setCanSendInvoiceWhatsapp}
-            />
+            <RNSwitch value={canSendInvoiceWhatsapp} onValueChange={setCanSendInvoiceWhatsapp} />
           </View>
         </>
       )}
 
-      <View
-        style={{
-          marginTop: 20,
-          flexDirection: 'row',
-          justifyContent: 'flex-end',
-        }}
-      >
+      {/* Action Buttons */}
+      <View style={{ marginTop: 20, flexDirection: 'row', justifyContent: 'flex-end' }}>
         <View style={{ marginRight: 8 }}>
           <Button title="Cancel" onPress={onCancel} />
         </View>
@@ -228,7 +212,7 @@ export default function ClientForm({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#fff' },
+  container: { flex: 1, padding: 20 }, // Removed backgroundColor
   section: { marginBottom: 16 },
   sectionRow: {
     flexDirection: 'row',
@@ -243,6 +227,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     padding: 10,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: '#fff', // Keep inputs white
   },
 });
