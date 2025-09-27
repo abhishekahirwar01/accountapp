@@ -52,7 +52,7 @@ export default function AdminDashboardScreen({ navigation }) {
       case 'ClientDetail':
         return <ClientDetailScreen navigation={navigation} />;
 
-      case 'Companies': // ✅ Added this case
+      case 'Companies': 
         return <CompaniesScreen navigation={navigation} />;
 
       case 'Analytics':

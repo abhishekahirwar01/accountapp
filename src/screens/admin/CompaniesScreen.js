@@ -44,6 +44,19 @@ const HARDCODED_COMPANIES = [
       email: 'sarah@email.com',
     },
   },
+  {
+    _id: '3',
+    businessName: 'TableTech Corp',
+    businessType: 'Technology',
+    registrationNumber: 'REG345678',
+    gstin: 'GSTIN345678',
+    mobileNumber: '+1-555-0789',
+    selectedClient: {
+      _id: 'c3',
+      contactName: 'Mike Wilson',
+      email: 'mike@email.com',
+    },
+  },
 ];
 
 const HARDCODED_CLIENTS = [
