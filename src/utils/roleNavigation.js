@@ -9,8 +9,12 @@ export const navigateByRole = (navigation, role) => {
     case 'client':
       navigation.replace('Dashboard', { role }); // pass role
       break;
-    default:
+    case 'user': 
       navigation.replace('UserDashboard', { role }); // pass role
+      break;
+    default:
+      // fallback for any unknown role
+      navigation.replace('UserDashboard', { role }); 
       break;
   }
 };

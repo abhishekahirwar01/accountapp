@@ -4,141 +4,194 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
+  Image,
   Dimensions,
+  StatusBar,
 } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import LinearGradient from 'react-native-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
+// ✅ Correct logo path (webp in assets/images)
+const logoPath = require('../../../assets/images/logogettingStarted.png');
 
 export default function GettingStartedScreen({ navigation }) {
   const { height } = Dimensions.get('window');
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        contentContainerStyle={[styles.scrollContent, { minHeight: height }]}
-        showsVerticalScrollIndicator={false}
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#1e3a8a" />
+      <LinearGradient
+        colors={['#ffffff', '#e0e7ff']} // White to blue gradient
+        style={[styles.background, { minHeight: height }]}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>AccounTech Pro</Text>
+        <View style={styles.content}>
+          {/* Header with Logo */}
+          <View style={styles.logoContainer}>
+            <Image source={logoPath} style={styles.logo} resizeMode="contain" />
+          </View>
+
+          <Text style={styles.title}>AccountTech Pro</Text>
           <Text style={styles.subtitle}>Professional Accounting Services</Text>
+
+          {/* Feature Highlights */}
+          <View style={styles.featuresContainer}>
+            <View style={styles.featureItem}>
+              <View style={styles.featureIcon}>
+                <Text style={styles.featureIconText}>✓</Text>
+              </View>
+              <Text style={styles.featureText}>Enterprise-Grade Security</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <View style={styles.featureIcon}>
+                <Text style={styles.featureIconText}>✓</Text>
+              </View>
+              <Text style={styles.featureText}>Real-Time Financial Insights</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <View style={styles.featureIcon}>
+                <Text style={styles.featureIconText}>✓</Text>
+              </View>
+              <Text style={styles.featureText}>Compliance Guaranteed</Text>
+            </View>
+          </View>
+
+          {/* CTA Button */}
+          <TouchableOpacity
+            style={styles.buttonWrapper}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('OTPVerification')}
+          >
+            <LinearGradient
+              colors={['#2563eb', '#1d4ed8', '#1e40af']}
+              style={styles.button}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={styles.buttonText}>Get Started</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          {/* Trust Indicator */}
+          <Text style={styles.trustText}>
+            Trusted by 10,000+ accounting professionals
+          </Text>
         </View>
-
-        {/* Steps */}
-        <View style={styles.stepsContainer}>
-          <View style={styles.stepBox}>
-            <Ionicons name="mail-outline" size={28} color="#2563eb" />
-            <Text style={styles.step}>
-              Step 1: Verify with Email or Mobile OTP
-            </Text>
-          </View>
-          <View style={styles.stepBox}>
-            <Ionicons name="lock-closed-outline" size={28} color="#2563eb" />
-            <Text style={styles.step}>Step 2: Login using your credentials</Text>
-          </View>
-          <View style={styles.stepBox}>
-            <Ionicons name="checkmark-done-outline" size={28} color="#2563eb" />
-            <Text style={styles.step}>Step 3: Access your dashboard</Text>
-          </View>
-        </View>
-
-        {/* Get Started Button */}
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => navigation.navigate('OTPVerification')}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.buttonText}>Get Started</Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      {/* Progress Bar at Bottom */}
-      <View style={styles.progressContainer}>
-        <View style={[styles.progressDot, styles.activeDot]} />
-        <View style={[styles.progressDot]} />
-        <View style={[styles.progressDot]} />
-      </View>
-    </View>
+      </LinearGradient>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
   },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 120, // header pushed lower
-    paddingBottom: 160, // leave space for button above progress
-    justifyContent: 'flex-start',
+  background: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
   },
-  header: {
-    alignItems: 'center', // center title/subtitle
-    marginBottom: 60, // spacing between header and steps
+  content: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  logoContainer: {
+    marginBottom: 32,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+  },
+  logo: {
+    width: 140,
+    height: 140,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#2563eb',
-    marginBottom: 6,
-  },
+  fontSize: 36,
+  fontWeight: '800',
+  color: '#1e3a8a', // Professional deep blue
+  marginBottom: 8,
+  letterSpacing: 1,
+  textAlign: 'center',
+  textShadowColor: 'rgba(0, 0, 0, 0.1)', // softer shadow
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 2,
+},
+
   subtitle: {
-    fontSize: 16,
-    color: '#64748b',
+    fontSize: 17,
+    color: '#4b5563',
     textAlign: 'center',
+    letterSpacing: 0.6,
+    fontWeight: '500',
+    marginBottom: 48,
+    lineHeight: 24,
   },
-  stepsContainer: {
-    marginTop: 0, // keep steps just above button
-    marginBottom: 20,
+  featuresContainer: {
+    marginBottom: 48,
+    width: '100%',
+    alignItems: 'center',
   },
-  stepBox: {
+  featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f1f5f9',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12, // slightly tighter spacing
+    marginBottom: 20,
+    paddingHorizontal: 16,
+    width: '100%',
+    justifyContent: 'flex-start',
   },
-  step: {
+  featureIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  featureIconText: {
+    color: '#fff',
+    fontWeight: '700',
     fontSize: 16,
-    color: '#1e293b',
-    marginLeft: 12,
-    flexShrink: 1,
+  },
+  featureText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+    flex: 1,
+  },
+  buttonWrapper: {
+    width: '85%',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+    marginBottom: 32,
   },
   button: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 16,
-    borderRadius: 12,
+    paddingVertical: 18,
+    borderRadius: 16,
     alignItems: 'center',
-    shadowColor: '#2563eb',
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    marginTop: 20,
   },
   buttonText: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: 20,
+    fontSize: 18,
+    letterSpacing: 1,
   },
-  progressContainer: {
-    flexDirection: 'row',
-    position: 'absolute',
-    bottom: 0,
-    width: '100%',
-    justifyContent: 'space-around',
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-  },
-  progressDot: {
-    flex: 1,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#d1d5db',
-    marginHorizontal: 4,
-  },
-  activeDot: {
-    backgroundColor: '#2563eb',
+  trustText: {
+    color: 'rgba(0, 0, 0, 0.7)',
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: '400',
+    letterSpacing: 0.4,
+    fontStyle: 'italic',
   },
 });

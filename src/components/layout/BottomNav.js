@@ -32,6 +32,13 @@ const roleMenus = {
     { name: 'Users', icon: 'people-outline' },
     { name: 'Reports', icon: 'document-text-outline' },
   ],
+  user: [
+    { name: 'Dashboard', icon: 'grid-outline' },
+    { name: 'Transactions', icon: 'swap-horizontal-outline' },
+    { name: 'Inventory', icon: 'cube-outline' },
+    { name: 'Reports', icon: 'document-text-outline' },
+    { name: 'Profile', icon: 'person-outline' },
+  ],
 };
 
 export default function BottomNav({ role = 'customer', onTabChange }) {

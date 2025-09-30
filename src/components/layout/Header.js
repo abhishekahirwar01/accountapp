@@ -6,6 +6,7 @@ import {
   TextInput,
   StyleSheet,
   Keyboard,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -14,17 +15,9 @@ export default function Header({ role = 'Admin' }) {
   const [showSearch, setShowSearch] = useState(false);
   const [searchText, setSearchText] = useState('');
 
-  const handleNotification = () => {
-    console.log('Notification clicked');
-  };
-
-  const handleHistory = () => {
-    console.log('History clicked');
-  };
-
-  const handleProfile = () => {
-    console.log('Profile clicked');
-  };
+  const handleNotification = () => console.log('Notification clicked');
+  const handleHistory = () => console.log('History clicked');
+  const handleProfile = () => console.log('Profile clicked');
 
   const handleSearchSubmit = () => {
     if (searchText.trim() === '') return;
@@ -40,15 +33,20 @@ export default function Header({ role = 'Admin' }) {
   };
 
   return (
-    <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }}>
-      <View style={styles.container}>
-        {/* Search Mode */}
-        {showSearch ? (
-          <View style={styles.searchContainer}>
-            {/* Search Input with Back Icon Inside */}
-            <View style={styles.searchInputContainer}>
+    <>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#FFFFFF"
+        translucent={false}
+        hidden={false}
+      />
+
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }}>
+        <View style={styles.container}>
+          {showSearch ? (
+            <View style={styles.searchContainer}>
               <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                <Ionicons name="arrow-back" size={22} color="#334155" />
+                <Ionicons name="arrow-back" size={24} color="#334155" />
               </TouchableOpacity>
 
               <TextInput
@@ -60,64 +58,58 @@ export default function Header({ role = 'Admin' }) {
                 returnKeyType="search"
                 autoFocus={true}
                 onSubmitEditing={handleSearchSubmit}
+                keyboardType='visible-password'
               />
             </View>
-          </View>
-        ) : (
-          <>
-            {/* Left Side */}
-            <Text style={styles.appName}>AccounTech Pro</Text>
+          ) : (
+            <>
+              <Text style={styles.appName}>AccounTech Pro</Text>
+              <View style={styles.rightContainer}>
+                <TouchableOpacity
+                  onPress={() => setShowSearch(true)}
+                  style={styles.iconButton}
+                >
+                  <Ionicons name="search" size={22} color="#334155" />
+                </TouchableOpacity>
 
-            {/* Right Side */}
-            <View style={styles.rightContainer}>
-              {/* Search Button */}
-              <TouchableOpacity
-                onPress={() => setShowSearch(true)}
-                style={styles.iconButton}
-              >
-                <Ionicons name="search" size={22} color="#334155" />
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={handleNotification}
+                >
+                  <Ionicons
+                    name="notifications-outline"
+                    size={22}
+                    color="#334155"
+                  />
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.badgeText}>3</Text>
+                  </View>
+                </TouchableOpacity>
 
-              {/* Notification */}
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={handleNotification}
-              >
-                <Ionicons
-                  name="notifications-outline"
-                  size={22}
-                  color="#334155"
-                />
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.badgeText}>3</Text>
-                </View>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={handleHistory}
+                >
+                  <Ionicons name="time-outline" size={22} color="#334155" />
+                </TouchableOpacity>
 
-              {/* History */}
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={handleHistory}
-              >
-                <Ionicons name="time-outline" size={22} color="#334155" />
-              </TouchableOpacity>
-
-              {/* Profile */}
-              <TouchableOpacity
-                style={styles.profileContainer}
-                onPress={handleProfile}
-              >
-                <Ionicons
-                  name="person-circle-outline"
-                  size={28}
-                  color="#334155"
-                />
-                <Text style={styles.roleText}>{role}</Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        )}
-      </View>
-    </SafeAreaView>
+                <TouchableOpacity
+                  style={styles.profileContainer}
+                  onPress={handleProfile}
+                >
+                  <Ionicons
+                    name="person-circle-outline"
+                    size={28}
+                    color="#334155"
+                  />
+                  <Text style={styles.roleText}>{role}</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+        </View>
+      </SafeAreaView>
+    </>
   );
 }
 
@@ -127,8 +119,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 0,
+    paddingVertical: 12, // vertical spacing for status bar
     backgroundColor: '#FFFFFF',
   },
   appName: {
@@ -146,11 +137,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#F8FAFC',
     position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   notificationBadge: {
     position: 'absolute',
-    top: 2,
-    right: 2,
+    top: -2,
+    right: -2,
     backgroundColor: '#EF4444',
     borderRadius: 6,
     width: 16,
@@ -165,7 +158,7 @@ const styles = StyleSheet.create({
   },
   profileContainer: {
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
     marginLeft: 8,
   },
   roleText: {
@@ -173,31 +166,28 @@ const styles = StyleSheet.create({
     color: '#64748B',
     fontWeight: '600',
     marginTop: 2,
+    textAlign: 'center',
   },
+  // --- Search Mode Styles ---
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    paddingVertical: 4,
-  },
-  searchInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
     backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
     borderRadius: 12,
     paddingHorizontal: 8,
+    height: 44, // consistent height with icons
   },
   backButton: {
     padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6,
   },
   searchInput: {
     flex: 1,
-    height: 40,
-    paddingHorizontal: 8,
-    fontSize: 15,
+    fontSize: 16,
     color: '#1E293B',
+    paddingVertical: 0, // vertically center input text
   },
 });

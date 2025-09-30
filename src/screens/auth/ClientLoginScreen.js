@@ -9,10 +9,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  TouchableWithoutFeedback,
-  Keyboard,
+  StatusBar,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import LinearGradient from 'react-native-linear-gradient';
 import { navigateByRole } from '../../utils/roleNavigation';
 
 export default function ClientLoginScreen({ navigation }) {
@@ -91,160 +91,172 @@ export default function ClientLoginScreen({ navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#f0f4f8' }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <LinearGradient
+      colors={['#4f46e5', '#6366f1', '#a5b4fc']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={{ flex: 1 }}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <StatusBar barStyle="light-content" backgroundColor="#4f46e5" />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <ScrollView
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.title}>Client Login</Text>
+          {/* Card Container */}
+          <View style={styles.card}>
+            <Text style={styles.title}>Client Sign In</Text>
 
-          {/* Tab Switch */}
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
-              onPress={() => setTab('password')}
-              style={[styles.tabButton, tab === 'password' && styles.activeTab]}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  tab === 'password' && styles.activeTabText,
-                ]}
+            {/* Tab Switch */}
+            <View style={styles.tabContainer}>
+              <TouchableOpacity
+                onPress={() => setTab('password')}
+                style={[styles.tabButton, tab === 'password' && styles.activeTab]}
               >
-                Password
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setTab('otp')}
-              style={[styles.tabButton, tab === 'otp' && styles.activeTab]}
-            >
-              <Text
-                style={[styles.tabText, tab === 'otp' && styles.activeTabText]}
+                <Text
+                  style={[
+                    styles.tabText,
+                    tab === 'password' && styles.activeTabText,
+                  ]}
+                >
+                  Password
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setTab('otp')}
+                style={[styles.tabButton, tab === 'otp' && styles.activeTab]}
               >
-                OTP
+                <Text
+                  style={[styles.tabText, tab === 'otp' && styles.activeTabText]}
+                >
+                  OTP
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Message */}
+            {message ? (
+              <Text
+                style={{
+                  color: messageType === 'success' ? 'green' : 'red',
+                  marginBottom: 16,
+                  textAlign: 'center',
+                  fontWeight: '600',
+                }}
+              >
+                {message}
               </Text>
-            </TouchableOpacity>
-          </View>
+            ) : null}
 
-          {/* Message */}
-          {message ? (
-            <Text
-              style={{
-                color: messageType === 'success' ? 'green' : 'red',
-                marginBottom: 16,
-                textAlign: 'center',
-                fontWeight: '600',
-              }}
-            >
-              {message}
-            </Text>
-          ) : null}
-
-          {/* Password Login */}
-          {tab === 'password' && (
-            <View style={styles.form}>
-              <TextInput
-                placeholder="Username"
-                value={username}
-                onChangeText={setUsername}
-                style={styles.input}
-                editable={!isLoading}
-                autoCapitalize="none"
-                placeholderTextColor="#94a3b8"
-              />
-              <View style={styles.passwordContainer}>
+            {/* Password Login */}
+            {tab === 'password' && (
+              <View style={styles.form}>
                 <TextInput
-                  placeholder="Password"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
+                  placeholder="Username"
+                  value={username}
+                  onChangeText={setUsername}
+                  style={styles.input}
+                  editable={!isLoading}
+                  autoCapitalize="none"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="visible-password"
+                />
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    placeholder="Password"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    style={styles.input}
+                    editable={!isLoading}
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="visible-password"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeButton}
+                  >
+                    <Ionicons
+                      name={showPassword ? 'eye-off' : 'eye'}
+                      size={22}
+                      color="#64748b"
+                    />
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  style={[styles.button, isLoading && styles.buttonDisabled]}
+                  onPress={onSubmit}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.buttonText}>Sign In</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* OTP Login */}
+            {tab === 'otp' && (
+              <View style={styles.form}>
+                <TextInput
+                  placeholder="Username"
+                  value={username}
+                  onChangeText={setUsername}
+                  style={styles.input}
+                  editable={!isLoading && !sendingOtp}
+                  autoCapitalize="none"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="visible-password"
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.button,
+                    (sendingOtp || resendIn > 0 || !username) &&
+                      styles.buttonDisabled,
+                  ]}
+                  onPress={onSendOtp}
+                  disabled={sendingOtp || resendIn > 0 || !username}
+                >
+                  <Text style={styles.buttonText}>
+                    {resendIn > 0 ? `Resend in ${resendIn}s` : 'Send OTP'}
+                  </Text>
+                </TouchableOpacity>
+                <TextInput
+                  placeholder="Enter OTP"
+                  value={otp}
+                  onChangeText={setOtp}
+                 keyboardType="visible-password"
                   style={styles.input}
                   editable={!isLoading}
                   placeholderTextColor="#94a3b8"
+                  maxLength={HARD_OTP.length}
                 />
                 <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeButton}
+                  style={[
+                    styles.button,
+                    (isLoading || otp.length !== HARD_OTP.length) &&
+                      styles.buttonDisabled,
+                  ]}
+                  onPress={onSubmitOtp}
+                  disabled={isLoading || otp.length !== HARD_OTP.length}
                 >
-                  <Ionicons
-                    name={showPassword ? 'eye-off' : 'eye'}
-                    size={22}
-                    color="#64748b"
-                  />
+                  {isLoading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.buttonText}>Verify & Sign In</Text>
+                  )}
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={[styles.button, isLoading && styles.buttonDisabled]}
-                onPress={onSubmit}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Sign In</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* OTP Login */}
-          {tab === 'otp' && (
-            <View style={styles.form}>
-              <TextInput
-                placeholder="Username"
-                value={username}
-                onChangeText={setUsername}
-                style={styles.input}
-                editable={!isLoading && !sendingOtp}
-                autoCapitalize="none"
-                placeholderTextColor="#94a3b8"
-              />
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  (sendingOtp || resendIn > 0 || !username) &&
-                    styles.buttonDisabled,
-                ]}
-                onPress={onSendOtp}
-                disabled={sendingOtp || resendIn > 0 || !username}
-              >
-                <Text style={styles.buttonText}>
-                  {resendIn > 0 ? `Resend in ${resendIn}s` : 'Send OTP'}
-                </Text>
-              </TouchableOpacity>
-              <TextInput
-                placeholder="Enter OTP"
-                value={otp}
-                onChangeText={setOtp}
-                keyboardType="numeric"
-                style={styles.input}
-                editable={!isLoading}
-                placeholderTextColor="#94a3b8"
-                maxLength={HARD_OTP.length}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  (isLoading || otp.length !== HARD_OTP.length) &&
-                    styles.buttonDisabled,
-                ]}
-                onPress={onSubmitOtp}
-                disabled={isLoading || otp.length !== HARD_OTP.length}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Verify & Sign In</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
+            )}
+          </View>
         </ScrollView>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
@@ -254,12 +266,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 20,
+    elevation: 10,
+  },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 32,
-    color: '#2563eb',
+    fontSize: 28,
+    fontWeight: '700',
     textAlign: 'center',
+    marginBottom: 32,
+    color: '#1e3a8a',
   },
   tabContainer: {
     flexDirection: 'row',
