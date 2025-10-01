@@ -72,6 +72,7 @@ export default function ClientForm({
           placeholder="e.g. John Doe"
           value={contactName}
           onChangeText={setContactName}
+          keyboardType="visible-password"
         />
       </View>
 
@@ -84,6 +85,7 @@ export default function ClientForm({
           value={clientUsername}
           editable={!client}  // Username editable only if creating a new client
           onChangeText={(text) => setClientUsername(text.toLowerCase().replace(/\s+/g, ''))}
+          keyboardType="visible-password"
         />
       </View>
 
@@ -98,6 +100,7 @@ export default function ClientForm({
               secureTextEntry={!eyeOpen}
               value={password}
               onChangeText={setPassword}
+              keyboardType="visible-password"
             />
             <TouchableOpacity onPress={() => setEyeOpen(!eyeOpen)} style={{ marginLeft: 8 }}>
               <Text style={{ color: 'blue' }}>{eyeOpen ? 'Hide' : 'Show'}</Text>
@@ -112,7 +115,7 @@ export default function ClientForm({
         <TextInput
           style={styles.input}
           placeholder="contact@company.com"
-          keyboardType="email-address"
+          keyboardType="visible-password"
           value={email}
           onChangeText={setEmail}
         />
@@ -124,7 +127,7 @@ export default function ClientForm({
         <TextInput
           style={styles.input}
           placeholder="+1 (555) 123-4567"
-          keyboardType="phone-pad"
+          keyboardType="visible-password"
           value={phone}
           onChangeText={setPhone}
         />
@@ -137,7 +140,7 @@ export default function ClientForm({
           <View style={{ flexDirection: 'row' }}>
             <TextInput
               style={[styles.input, { flex: 1, marginRight: 10 }]}
-              keyboardType="number-pad"
+              keyboardType="visible-password"
               placeholder="e.g. 30"
               value={validityAmount.toString()}
               onChangeText={(v) => setValidityAmount(Number(v))}
@@ -147,6 +150,7 @@ export default function ClientForm({
               placeholder="Unit (days, months, years)"
               value={validityUnit}
               onChangeText={setValidityUnit}
+              keyboardType="visible-password"
             />
           </View>
           {expiryPreview && (
@@ -164,7 +168,7 @@ export default function ClientForm({
             <Text style={styles.label}>Max Companies</Text>
             <TextInput
               style={styles.input}
-              keyboardType="number-pad"
+              keyboardType="visible-password"
               value={maxCompanies.toString()}
               onChangeText={(v) => setMaxCompanies(Number(v))}
             />
@@ -174,7 +178,7 @@ export default function ClientForm({
             <Text style={styles.label}>Max Users</Text>
             <TextInput
               style={styles.input}
-              keyboardType="number-pad"
+              keyboardType="visible-password"
               value={maxUsers.toString()}
               onChangeText={(v) => setMaxUsers(Number(v))}
             />

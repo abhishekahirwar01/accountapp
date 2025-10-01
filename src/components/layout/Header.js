@@ -10,14 +10,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useNavigation } from '@react-navigation/native';
 
-export default function Header({ role = 'Admin' }) {
+export default function Header({ role = 'master' }) {
   const [showSearch, setShowSearch] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const navigation = useNavigation();
 
   const handleNotification = () => console.log('Notification clicked');
-  const handleHistory = () => console.log('History clicked');
   const handleProfile = () => console.log('Profile clicked');
+  const handleHistory = () => navigation.navigate('HistoryScreen');
 
   const handleSearchSubmit = () => {
     if (searchText.trim() === '') return;
@@ -38,7 +40,6 @@ export default function Header({ role = 'Admin' }) {
         barStyle="dark-content"
         backgroundColor="#FFFFFF"
         translucent={false}
-        hidden={false}
       />
 
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }}>
@@ -60,10 +61,20 @@ export default function Header({ role = 'Admin' }) {
                 onSubmitEditing={handleSearchSubmit}
                 keyboardType='visible-password'
               />
+
+              {searchText.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => setSearchText('')}
+                  style={styles.clearButton}
+                >
+                  <Ionicons name="close-circle" size={20} color="#94A3B8" />
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <>
               <Text style={styles.appName}>AccounTech Pro</Text>
+
               <View style={styles.rightContainer}>
                 <TouchableOpacity
                   onPress={() => setShowSearch(true)}
@@ -86,12 +97,14 @@ export default function Header({ role = 'Admin' }) {
                   </View>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={handleHistory}
-                >
-                  <Ionicons name="time-outline" size={22} color="#334155" />
-                </TouchableOpacity>
+                {role === 'master' && (
+                  <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={handleHistory}
+                  >
+                    <Ionicons name="time-outline" size={22} color="#334155" />
+                  </TouchableOpacity>
+                )}
 
                 <TouchableOpacity
                   style={styles.profileContainer}
@@ -119,7 +132,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingVertical: 12, // vertical spacing for status bar
+    paddingVertical: 12,
     backgroundColor: '#FFFFFF',
   },
   appName: {
@@ -136,9 +149,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     borderRadius: 10,
     backgroundColor: '#F8FAFC',
-    position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
   },
   notificationBadge: {
     position: 'absolute',
@@ -168,7 +181,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     textAlign: 'center',
   },
-  // --- Search Mode Styles ---
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -176,7 +188,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderRadius: 12,
     paddingHorizontal: 8,
-    height: 44, // consistent height with icons
+    height: 44,
   },
   backButton: {
     padding: 6,
@@ -184,10 +196,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 6,
   },
+  clearButton: {
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 6,
+  },
   searchInput: {
     flex: 1,
     fontSize: 16,
     color: '#1E293B',
-    paddingVertical: 0, // vertically center input text
+    paddingVertical: 0,
   },
 });

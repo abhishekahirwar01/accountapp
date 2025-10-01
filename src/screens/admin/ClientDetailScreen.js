@@ -1,5 +1,3 @@
-
-// ClientDetailScreen.js
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -10,6 +8,7 @@ import {
   useWindowDimensions,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, Button, Avatar, Chip } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
@@ -67,7 +66,6 @@ const ClientDetailScreen = ({ route, navigation }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
 
-  // -------- Responsive helpers --------
   const { width } = useWindowDimensions();
   const isXS = width < 360;
   const isSM = width >= 360 && width < 400;
@@ -79,54 +77,60 @@ const ClientDetailScreen = ({ route, navigation }) => {
   const subTitleFont = baseFont + 2;
   const avatarSize = isXS ? 42 : isSM ? 46 : 50;
 
-  // KPI card layout: 2 per row on phones, 3 on large phones, 4 on tablets
   const kpiPerRow = isLG ? 4 : isMD ? 3 : 2;
   const kpiGap = 8;
   const kpiHorizontalPad = 8 * 2;
-  const kpiCardWidthPx = (width - kpiHorizontalPad - (kpiPerRow - 1) * kpiGap) / kpiPerRow;
+  const kpiCardWidthPx =
+    (width - kpiHorizontalPad - (kpiPerRow - 1) * kpiGap) / kpiPerRow;
 
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      const foundClient = MOCK_CLIENTS.find((c) => c._id === clientId);
-      setClient(foundClient);
-      setCompanies(MOCK_COMPANIES[clientId] || []);
-      setLoading(false);
-    }, 500);
+    const foundClient = MOCK_CLIENTS.find(c => c._id === clientId);
+    setClient(foundClient);
+    setCompanies(MOCK_COMPANIES[clientId] || []);
+    setLoading(false);
   }, [clientId]);
 
-  if (loading) {
+  if (loading)
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <Text>Loading...</Text>
-      </View>
+      </SafeAreaView>
     );
-  }
-
-  if (!client) {
+  if (!client)
     return (
-      <View style={styles.errorContainer}>
+      <SafeAreaView style={styles.errorContainer}>
         <Text>Client not found</Text>
         <Button onPress={() => navigation.goBack()}>Go Back</Button>
-      </View>
+      </SafeAreaView>
     );
-  }
 
   const kpiData = [
     { title: 'Lifetime Revenue', value: '₹500,000', icon: 'currency-inr' },
     { title: 'Net Profit', value: '₹225,000', icon: 'trending-up' },
     { title: 'Active Users', value: '6', icon: 'account-group' },
-    { title: 'Companies', value: String(companies.length), icon: 'office-building' },
+    {
+      title: 'Companies',
+      value: String(companies.length),
+      icon: 'office-building',
+    },
   ];
 
   const KpiCard = ({ title, value, icon, widthPx }) => (
     <Card style={[styles.kpiCard, { width: widthPx }]}>
       <Card.Content style={styles.kpiContent}>
         <View style={{ flexShrink: 1, paddingRight: 6 }}>
-          <Text style={[styles.kpiValue, { fontSize: baseFont + 4 }]} numberOfLines={1} ellipsizeMode="tail">
+          <Text
+            style={[styles.kpiValue, { fontSize: baseFont + 4 }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {value}
           </Text>
-          <Text style={[styles.kpiTitle, { fontSize: baseFont - 1 }]} numberOfLines={1} ellipsizeMode="tail">
+          <Text
+            style={[styles.kpiTitle, { fontSize: baseFont - 1 }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {title}
           </Text>
         </View>
@@ -145,264 +149,243 @@ const ClientDetailScreen = ({ route, navigation }) => {
         >
           {company.businessName}
         </Text>
-        <Text style={[styles.companyType, { fontSize: baseFont }]} numberOfLines={1} ellipsizeMode="tail">
+        <Text
+          style={[styles.companyType, { fontSize: baseFont }]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
           {company.businessType}
         </Text>
-
         <View>
           <View style={styles.detailRow}>
             <Icon name="account" size={14 + (baseFont - 14)} color="#666" />
-            <Text style={[styles.detailText, { fontSize: baseFont }]} numberOfLines={1} ellipsizeMode="tail">
+            <Text
+              style={[styles.detailText, { fontSize: baseFont }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
               {company.companyOwner}
             </Text>
           </View>
           <View style={styles.detailRow}>
             <Icon name="phone" size={14 + (baseFont - 14)} color="#666" />
-            <Text style={[styles.detailText, { fontSize: baseFont }]} numberOfLines={1} ellipsizeMode="tail">
+            <Text
+              style={[styles.detailText, { fontSize: baseFont }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
               {company.contactNumber}
             </Text>
           </View>
           <View style={styles.detailRow}>
             <Icon name="identifier" size={14 + (baseFont - 14)} color="#666" />
-            <Text style={[styles.detailText, { fontSize: baseFont }]} numberOfLines={1} ellipsizeMode="tail">
+            <Text
+              style={[styles.detailText, { fontSize: baseFont }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
               {company.registrationNumber}
             </Text>
           </View>
-          {company.gstin ? (
+          {company.gstin && (
             <View style={styles.detailRow}>
-              <Icon name="file-document" size={14 + (baseFont - 14)} color="#666" />
-              <Text style={[styles.detailText, { fontSize: baseFont }]} numberOfLines={1} ellipsizeMode="tail">
+              <Icon
+                name="file-document"
+                size={14 + (baseFont - 14)}
+                color="#666"
+              />
+              <Text
+                style={[styles.detailText, { fontSize: baseFont }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
                 {company.gstin}
               </Text>
             </View>
-          ) : null}
+          )}
         </View>
       </Card.Content>
     </Card>
   );
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 16 }}>
-      {/* Header */}
-      <Card style={styles.headerCard}>
-        <Card.Content>
-          <View style={styles.header}>
-            <Avatar.Text
-              size={avatarSize}
-              label={client.contactName.split(' ').map((n) => n[0]).join('')}
-              style={styles.clientAvatar}
-            />
-            <View style={styles.headerText}>
-              <Text
-                style={[styles.clientName, { fontSize: titleFont }]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {client.contactName}
-              </Text>
-              <Text
-                style={[styles.companyName, { fontSize: subTitleFont }]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {client.companyName}
-              </Text>
-              <Text
-                style={[styles.clientEmail, { fontSize: baseFont }]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {client.email}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.headerActions}>
-            <Button
-              mode="outlined"
-              icon="account-plus"
-              onPress={() => Alert.alert('UI Only', 'Add User functionality')}
-              style={{ marginRight: 8 }}
-              compact={isXS}
-            >
-              Add User
-            </Button>
-            <Button
-              mode="contained"
-              icon="pencil"
-              onPress={() => Alert.alert('UI Only', 'Edit Client functionality')}
-              compact={isXS}
-            >
-              Edit Client
-            </Button>
-          </View>
-        </Card.Content>
-      </Card>
-
-      {/* KPI Cards */}
-      <View style={[styles.kpiGrid, { paddingHorizontal: 8 }]}>
-        {kpiData.map((kpi, index) => (
-          <View
-            key={kpi.title}
-            style={{
-              marginBottom: kpiGap,
-              marginRight: (index + 1) % kpiPerRow === 0 ? 0 : kpiGap,
-            }}
-          >
-            <KpiCard {...kpi} widthPx={kpiCardWidthPx} />
-          </View>
-        ))}
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.tabs}>
-            {['overview', 'financials', 'companies', 'users'].map((tab, i) => {
-              const selected = activeTab === tab;
-              return (
-                <Chip
-                  key={tab}
-                  selected={selected}
-                  onPress={() => setActiveTab(tab)}
-                  style={[styles.tabChip, { marginRight: i === 3 ? 0 : 8 }]}
-                  textStyle={[styles.tabText, { fontSize: baseFont - 1 }]}
-                  compact={isXS}
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        {/* Header */}
+        <Card style={styles.headerCard}>
+          <Card.Content>
+            <View style={styles.header}>
+              <Avatar.Text
+                size={avatarSize}
+                label={client.contactName
+                  .split(' ')
+                  .map(n => n[0])
+                  .join('')}
+                style={styles.clientAvatar}
+              />
+              <View style={styles.headerText}>
+                <Text
+                  style={[styles.clientName, { fontSize: titleFont }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
                 >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </Chip>
-              );
-            })}
-          </View>
-        </ScrollView>
-      </View>
-
-      {/* Tab Content */}
-      <View style={styles.tabContent}>
-        {activeTab === 'overview' && (
-          <Card>
-            <Card.Content>
-              <Text style={[styles.sectionTitle, { fontSize: baseFont + 4 }]}>Client Overview</Text>
-              <Text style={{ fontSize: baseFont }}>
-                Comprehensive dashboard for {client.contactName} at {client.companyName}. Monitor
-                performance, manage accounts, and track usage statistics.
-              </Text>
-            </Card.Content>
-          </Card>
-        )}
-
-        {activeTab === 'financials' && (
-          <Card>
-            <Card.Content>
-              <Text style={[styles.sectionTitle, { fontSize: baseFont + 4 }]}>Financial Reports</Text>
-
-              <Card style={styles.reportCard}>
-                <Card.Content>
-                  <View style={styles.reportHeader}>
-                    <Icon name="file-chart" size={isXS ? 20 : 24} color="#2196F3" />
-                    <View style={styles.reportText}>
-                      <Text
-                        style={[styles.reportTitle, { fontSize: baseFont + 2 }]}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                      >
-                        Profit & Loss Statement
-                      </Text>
-                      <Text style={[styles.reportDescription, { fontSize: baseFont }]}>
-                        View the income statement
-                      </Text>
-                    </View>
-                  </View>
-                  <Button
-                    mode="outlined"
-                    onPress={() => Alert.alert('UI Only', 'View Report')}
-                    compact={isXS}
-                  >
-                    View Report
-                  </Button>
-                </Card.Content>
-              </Card>
-
-              <Card style={styles.reportCard}>
-                <Card.Content>
-                  <View style={styles.reportHeader}>
-                    <Icon name="file-chart" size={isXS ? 20 : 24} color="#4CAF50" />
-                    <View style={styles.reportText}>
-                      <Text
-                        style={[styles.reportTitle, { fontSize: baseFont + 2 }]}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                      >
-                        Balance Sheet
-                      </Text>
-                      <Text style={[styles.reportDescription, { fontSize: baseFont }]}>
-                        View financial position
-                      </Text>
-                    </View>
-                  </View>
-                  <Button
-                    mode="outlined"
-                    onPress={() => Alert.alert('UI Only', 'View Report')}
-                    compact={isXS}
-                  >
-                    View Report
-                  </Button>
-                </Card.Content>
-              </Card>
-            </Card.Content>
-          </Card>
-        )}
-
-        {activeTab === 'companies' && (
-          <Card>
-            <Card.Content>
-              <Text style={[styles.sectionTitle, { fontSize: baseFont + 4 }]}>Company Management</Text>
-              <Text style={[styles.sectionSubtitle, { fontSize: baseFont }]}>
-                Manage companies associated with {client.companyName}
-              </Text>
-
-              {companies.length > 0 ? (
-                companies.map((company) => <CompanyCard key={company._id} company={company} />)
-              ) : (
-                <Text style={[styles.noDataText, { fontSize: baseFont }]}>No companies found</Text>
-              )}
-            </Card.Content>
-          </Card>
-        )}
-
-        {activeTab === 'users' && (
-          <Card>
-            <Card.Content>
-              <Text style={[styles.sectionTitle, { fontSize: baseFont + 4 }]}>User Management</Text>
-              <Text style={{ fontSize: baseFont }}>
-                Manage users associated with {client.companyName}
-              </Text>
+                  {client.contactName}
+                </Text>
+                <Text
+                  style={[styles.companyName, { fontSize: subTitleFont }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {client.companyName}
+                </Text>
+                <Text
+                  style={[styles.clientEmail, { fontSize: baseFont }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {client.email}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.headerActions}>
               <Button
-                mode="contained"
+                mode="outlined"
                 icon="account-plus"
                 onPress={() => Alert.alert('UI Only', 'Add User functionality')}
-                style={styles.addUserButton}
+                style={{ marginRight: 8 }}
                 compact={isXS}
               >
                 Add User
               </Button>
-            </Card.Content>
-          </Card>
-        )}
-      </View>
-    </ScrollView>
+              <Button
+                mode="contained"
+                icon="pencil"
+                onPress={() =>
+                  Alert.alert('UI Only', 'Edit Client functionality')
+                }
+                compact={isXS}
+              >
+                Edit Client
+              </Button>
+            </View>
+          </Card.Content>
+        </Card>
+
+        {/* KPI Cards */}
+        <View style={[styles.kpiGrid, { paddingHorizontal: 8 }]}>
+          {kpiData.map((kpi, index) => (
+            <View
+              key={kpi.title}
+              style={{
+                marginBottom: kpiGap,
+                marginRight: (index + 1) % kpiPerRow === 0 ? 0 : kpiGap,
+              }}
+            >
+              <KpiCard {...kpi} widthPx={kpiCardWidthPx} />
+            </View>
+          ))}
+        </View>
+
+        {/* Tabs */}
+        <View style={styles.tabContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.tabs}>
+              {['overview', 'financials', 'companies', 'users'].map(
+                (tab, i) => {
+                  const selected = activeTab === tab;
+                  return (
+                    <Chip
+                      key={tab}
+                      selected={selected}
+                      onPress={() => setActiveTab(tab)}
+                      style={[styles.tabChip, { marginRight: i === 3 ? 0 : 8 }]}
+                      textStyle={[styles.tabText, { fontSize: baseFont - 1 }]}
+                      compact={isXS}
+                    >
+                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    </Chip>
+                  );
+                },
+              )}
+            </View>
+          </ScrollView>
+        </View>
+
+        {/* Tab Content */}
+        <View style={styles.tabContent}>
+          {activeTab === 'overview' && (
+            <Card>
+              <Card.Content>
+                <Text style={[styles.sectionTitle, { fontSize: baseFont + 4 }]}>
+                  Client Overview
+                </Text>
+                <Text style={{ fontSize: baseFont }}>
+                  Comprehensive dashboard for {client.contactName} at{' '}
+                  {client.companyName}. Monitor performance, manage accounts,
+                  and track usage statistics.
+                </Text>
+              </Card.Content>
+            </Card>
+          )}
+          {activeTab === 'financials' && (
+            <Card>
+              <Card.Content>
+                <Text style={[styles.sectionTitle, { fontSize: baseFont + 4 }]}>
+                  Financial Reports
+                </Text>
+              </Card.Content>
+            </Card>
+          )}
+          {activeTab === 'companies' && (
+            <Card>
+              <Card.Content>
+                <Text style={[styles.sectionTitle, { fontSize: baseFont + 4 }]}>
+                  Company Management
+                </Text>
+                {companies.map(c => (
+                  <CompanyCard key={c._id} company={c} />
+                ))}
+              </Card.Content>
+            </Card>
+          )}
+          {activeTab === 'users' && (
+            <Card>
+              <Card.Content>
+                <Text style={[styles.sectionTitle, { fontSize: baseFont + 4 }]}>
+                  User Management
+                </Text>
+                <Button
+                  mode="contained"
+                  icon="account-plus"
+                  onPress={() =>
+                    Alert.alert('UI Only', 'Add User functionality')
+                  }
+                  style={styles.addUserButton}
+                  compact={isXS}
+                >
+                  Add User
+                </Button>
+              </Card.Content>
+            </Card>
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-  },
+    paddingTop: Platform.OS === 'android' ? 8 : 0,
+  }, // top padding for Android
+  scrollContainer: { paddingBottom: 16 },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingTop: 16,
   },
   errorContainer: {
     flex: 1,
@@ -410,144 +393,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
   },
-
-  headerCard: {
-    margin: 16,
-    marginBottom: 8,
-    borderRadius: 12,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  clientAvatar: {
-    marginRight: 12,
-  },
-  headerText: {
-    flex: 1,
-  },
-  clientName: {
-    fontWeight: 'bold',
-  },
-  companyName: {
-    color: '#666',
-    marginTop: 2,
-  },
-  clientEmail: {
-    color: '#999',
-    marginTop: 2,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    // replaced 'gap' with explicit margins on children
-  },
-
-  // KPI
-  kpiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 8,
-  },
-  kpiCard: {
-    borderRadius: 12,
-  },
+  headerCard: { margin: 16, marginBottom: 8, borderRadius: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  clientAvatar: { marginRight: 12 },
+  headerText: { flex: 1 },
+  clientName: { fontWeight: 'bold' },
+  companyName: { color: '#666', marginTop: 2 },
+  clientEmail: { color: '#999', marginTop: 2 },
+  headerActions: { flexDirection: 'row' },
+  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
+  kpiCard: { borderRadius: 12 },
   kpiContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  kpiValue: {
-    fontWeight: 'bold',
-  },
-  kpiTitle: {
-    color: '#666',
-    marginTop: 4,
-  },
-
-  // Tabs
-  tabContainer: {
-    paddingHorizontal: 16,
-    marginVertical: 8,
-  },
-  tabs: {
-    flexDirection: 'row',
-  },
-  tabChip: {
-    // marginRight applied inline
-  },
-  tabText: {
-    // fontSize applied inline
-  },
-
-  // Content
-  tabContent: {
-    padding: 16,
-    paddingTop: 0,
-  },
-  sectionTitle: {
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  sectionSubtitle: {
-    color: '#666',
-    marginBottom: 12,
-  },
-
-  // Reports
-  reportCard: {
-    marginBottom: 12,
-    borderRadius: 12,
-  },
+  kpiValue: { fontWeight: 'bold' },
+  kpiTitle: { color: '#666', marginTop: 4 },
+  tabContainer: { paddingHorizontal: 16, marginVertical: 8 },
+  tabs: { flexDirection: 'row' },
+  tabChip: {},
+  tabText: {},
+  tabContent: { padding: 16, paddingTop: 0 },
+  sectionTitle: { fontWeight: 'bold', marginBottom: 8 },
+  sectionSubtitle: { color: '#666', marginBottom: 12 },
+  reportCard: { marginBottom: 12, borderRadius: 12 },
   reportHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
   },
-  reportText: {
-    flex: 1,
-    marginLeft: 10,
-  },
-  reportTitle: {
-    fontWeight: 'bold',
-  },
-  reportDescription: {
-    color: '#666',
-  },
-
-  // Companies
-  companyCard: {
-    marginBottom: 12,
-    borderRadius: 12,
-  },
-  companyName: {
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  companyType: {
-    color: '#666',
-    marginBottom: 10,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  detailText: {
-    color: '#666',
-    marginLeft: 8,
-  },
-
-  // Misc
-  noDataText: {
-    textAlign: 'center',
-    color: '#999',
-    marginVertical: 24,
-  },
-  addUserButton: {
-    marginTop: 12,
-    alignSelf: 'flex-start',
-  },
+  reportText: { flex: 1, marginLeft: 10 },
+  reportTitle: { fontWeight: 'bold' },
+  reportDescription: { color: '#666' },
+  companyCard: { marginBottom: 12, borderRadius: 12 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  detailText: { color: '#666', marginLeft: 8 },
+  noDataText: { textAlign: 'center', color: '#999', marginVertical: 24 },
+  addUserButton: { marginTop: 12, alignSelf: 'flex-start' },
 });
 
 export default ClientDetailScreen;

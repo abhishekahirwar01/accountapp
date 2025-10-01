@@ -4,7 +4,9 @@ import {
   Text,
   ScrollView,
   StyleSheet,
+  StatusBar,
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Picker } from "@react-native-picker/picker";
 import { Users } from "lucide-react-native";
 
@@ -113,130 +115,165 @@ export default function AnalyticsScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Client Analytics</Text>
-        <Text style={styles.subtitle}>
-          Select a client and company to view their detailed dashboard.
-        </Text>
-      </View>
-
-      {/* Client & Company selection */}
-      <View style={styles.selectionRow}>
-        {/* Client Dropdown */}
-        <View style={styles.selectionBox}>
-          <Text style={styles.label}>Select Client:</Text>
-          <View style={styles.dropdownWrapper}>
-            <Picker
-              selectedValue={selectedClientId}
-              onValueChange={(value) => {
-                setSelectedClientId(value);
-                setSelectedCompanyId(""); // reset company when client changes
-              }}
-            >
-              <Picker.Item label="-- Select Client --" value="" />
-              {clients.map((client) => (
-                <Picker.Item
-                  key={client._id}
-                  label={client.contactName}
-                  value={client._id}
-                />
-              ))}
-            </Picker>
-          </View>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f7f7f7" />
+      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Client Analytics</Text>
+          <Text style={styles.subtitle}>
+            Select a client and company to view their detailed dashboard.
+          </Text>
         </View>
 
-        {/* Company Dropdown (only if client selected) */}
-        {selectedClientId && (
+        {/* Client & Company selection */}
+        <View style={styles.selectionRow}>
+          {/* Client Dropdown */}
           <View style={styles.selectionBox}>
-            <Text style={styles.label}>Select Company:</Text>
+            <Text style={styles.label}>Select Client:</Text>
             <View style={styles.dropdownWrapper}>
               <Picker
-                selectedValue={selectedCompanyId}
-                onValueChange={(value) => setSelectedCompanyId(value)}
+                selectedValue={selectedClientId}
+                onValueChange={(value) => {
+                  setSelectedClientId(value);
+                  setSelectedCompanyId(""); // reset company when client changes
+                }}
               >
-                <Picker.Item label="All Companies" value="" />
-                {companies.map((company) => (
+                <Picker.Item label="-- Select Client --" value="" />
+                {clients.map((client) => (
                   <Picker.Item
-                    key={company._id}
-                    label={company.businessName}
-                    value={company._id}
+                    key={client._id}
+                    label={client.contactName}
+                    value={client._id}
                   />
                 ))}
               </Picker>
             </View>
           </View>
-        )}
-      </View>
 
-      {/* No client selected */}
-      {!selectedClient && (
-        <View style={styles.noClientCard}>
-          <Users size={48} color="#999" />
-          <Text style={styles.noClientTitle}>No Client Selected</Text>
-          <Text style={styles.noClientText}>
-            Please select a client to view their data.
-          </Text>
-        </View>
-      )}
-
-      {/* Tabs */}
-      {selectedClient && (
-        <View style={styles.tabsContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {[
-              "dashboard",
-              "transactions",
-              "companies",
-              "users",
-              "reports",
-            ].map((tab) => (
-              <View key={tab} style={{ marginRight: 6 }}>
-                <Text
-                  style={[
-                    styles.tabButton,
-                    activeTab === tab && styles.tabButtonActive,
-                  ]}
-                  onPress={() => setActiveTab(tab)}
+          {/* Company Dropdown (only if client selected) */}
+          {selectedClientId && (
+            <View style={styles.selectionBox}>
+              <Text style={styles.label}>Select Company:</Text>
+              <View style={styles.dropdownWrapper}>
+                <Picker
+                  selectedValue={selectedCompanyId}
+                  onValueChange={(value) => setSelectedCompanyId(value)}
                 >
-                  {tab === "reports" ? "REPORTS" : tab.toUpperCase()}
-                </Text>
+                  <Picker.Item label="All Companies" value="" />
+                  {companies.map((company) => (
+                    <Picker.Item
+                      key={company._id}
+                      label={company.businessName}
+                      value={company._id}
+                    />
+                  ))}
+                </Picker>
               </View>
-            ))}
-          </ScrollView>
-
-          {/* Tab content */}
-          <View style={styles.tabContent}>
-            {renderTabContent()}
-          </View>
+            </View>
+          )}
         </View>
-      )}
-    </ScrollView>
+
+        {/* No client selected */}
+        {!selectedClient && (
+          <View style={styles.noClientCard}>
+            <Users size={48} color="#999" />
+            <Text style={styles.noClientTitle}>No Client Selected</Text>
+            <Text style={styles.noClientText}>
+              Please select a client to view their data.
+            </Text>
+          </View>
+        )}
+
+        {/* Tabs */}
+        {selectedClient && (
+          <View style={styles.tabsContainer}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.tabsScrollContent}
+            >
+              {[
+                "dashboard",
+                "transactions",
+                "companies",
+                "users",
+                "reports",
+              ].map((tab) => (
+                <View key={tab} style={styles.tabButtonContainer}>
+                  <Text
+                    style={[
+                      styles.tabButton,
+                      activeTab === tab && styles.tabButtonActive,
+                    ]}
+                    onPress={() => setActiveTab(tab)}
+                  >
+                    {tab === "reports" ? "REPORTS" : tab.toUpperCase()}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+
+            {/* Tab content */}
+            <View style={styles.tabContent}>
+              {renderTabContent()}
+            </View>
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: "#f7f7f7" },
-  header: { marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: "bold" },
-  subtitle: { fontSize: 14, color: "#555", marginTop: 4 },
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#f7f7f7",
+  },
+  container: { 
+    flex: 1, 
+    backgroundColor: "#f7f7f7" 
+  },
+  contentContainer: {
+    flexGrow: 1,
+    padding: 16,
+  },
+  header: { 
+    marginBottom: 20,
+    paddingTop: 8,
+  },
+  title: { 
+    fontSize: 24, 
+    fontWeight: "bold",
+    color: "#333",
+  },
+  subtitle: { 
+    fontSize: 14, 
+    color: "#555", 
+    marginTop: 4 
+  },
 
   selectionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 20,
+    gap: 10,
   },
   selectionBox: {
     flex: 1,
-    marginRight: 10,
   },
-  label: { fontWeight: "bold", marginBottom: 6 },
+  label: { 
+    fontWeight: "bold", 
+    marginBottom: 6,
+    color: "#333",
+    fontSize: 14,
+  },
   dropdownWrapper: {
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: 6,
     backgroundColor: "#fff",
+    overflow: "hidden",
   },
 
   noClientCard: {
@@ -247,24 +284,51 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     alignItems: "center",
     marginBottom: 20,
+    marginTop: 10,
   },
-  noClientTitle: { fontSize: 16, fontWeight: "bold", marginTop: 8 },
-  noClientText: { color: "#555", marginTop: 4 },
+  noClientTitle: { 
+    fontSize: 16, 
+    fontWeight: "bold", 
+    marginTop: 8,
+    color: "#333",
+  },
+  noClientText: { 
+    color: "#555", 
+    marginTop: 4,
+    textAlign: "center",
+  },
 
-  tabsContainer: { marginTop: 10 },
+  tabsContainer: { 
+    marginTop: 10,
+    flex: 1,
+  },
+  tabsScrollContent: {
+    paddingHorizontal: 2,
+  },
+  tabButtonContainer: {
+    marginRight: 6,
+  },
   tabButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 6,
     backgroundColor: "#eee",
+    color: "#333",
+    fontWeight: "500",
+    fontSize: 12,
+    textAlign: "center",
   },
-  tabButtonActive: { backgroundColor: "#3399ff", color: "#fff" },
+  tabButtonActive: { 
+    backgroundColor: "#3399ff", 
+    color: "#fff" 
+  },
   tabContent: {
     padding: 12,
     backgroundColor: "#fff",
     borderRadius: 6,
-    minHeight: 100,
+    minHeight: 200,
     marginTop: 12,
+    flex: 1,
   },
 
   // Reports specific styles
@@ -285,6 +349,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     borderRadius: 4,
     fontWeight: "500",
+    color: "#333",
   },
   reportTypeButtonActive: {
     backgroundColor: "#3399ff",

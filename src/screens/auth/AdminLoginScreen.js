@@ -23,26 +23,27 @@ export default function AdminLoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = () => {
-    setLoading(true);
-    setTimeout(() => {
-      const role =
-        username === 'master' && password === '123'
-          ? 'master'
-          : username === 'user' && password === '123'
-          ? 'user'
-          : username === 'client' && password === '123'
-          ? 'client'
-          : null;
+  setLoading(true);
 
-      if (role) {
-        Alert.alert('Login Successful', `Welcome, ${username}!`);
-        navigateByRole(navigation, role);
-      } else {
-        Alert.alert('Login Failed', 'Invalid username or password');
-      }
-      setLoading(false);
-    }, 1200);
-  };
+  const role =
+    username === 'master' && password === '123'
+      ? 'master'
+      : username === 'user' && password === '123'
+      ? 'user'
+      : username === 'client' && password === '123'
+      ? 'client'
+      : null;
+
+  if (role) {
+    Alert.alert('Login Successful', `Welcome, ${username}!`);
+    navigateByRole(navigation, role);
+  } else {
+    Alert.alert('Login Failed', 'Invalid username or password');
+  }
+
+  setLoading(false);
+};
+
 
   return (
     <LinearGradient

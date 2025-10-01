@@ -11,7 +11,9 @@ import {
   Dimensions,
   Switch,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Clipboard from '@react-native-clipboard/clipboard';
 import {
   PlusCircle,
@@ -38,7 +40,7 @@ import {
 import ClientCard from '../../components/clients/ClientCard';
 import ClientForm from '../../components/clients/ClientForm';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const hardcodedClients = [
   {
@@ -284,153 +286,558 @@ export default function ClientManagementPage() {
 
   if (isLoading)
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Loading clients...</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading clients...</Text>
+        </View>
+      </SafeAreaView>
     );
 
   return (
-    <View style={styles.container}>
-      <ScrollView>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Client Management</Text>
-            <Text style={styles.subtitle}>Manage your clients</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
+      <View style={styles.container}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+        >
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.title}>Client Management</Text>
+              <Text style={styles.subtitle}>Manage your clients</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity
+                style={[styles.addButton, { marginLeft: 12 }]}
+                onPress={handleAddNew}
+              >
+                <PlusCircle size={20} color="#FFF" />
+                <Text style={styles.addButtonText}>Add Client</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+
+          {/* Filters */}
+          <View style={styles.filtersRow}>
+            <TextInput
+              style={[styles.textInput, { flex: 1 }]}
+              placeholder="Filter by name"
+              value={contactNameFilter}
+              onChangeText={setContactNameFilter}
+              keyboardType="visible-password"
+            />
+            <TextInput
+              style={[styles.textInput, { flex: 1, marginLeft: 10 }]}
+              placeholder="Filter by username"
+              value={usernameFilter}
+              keyboardType="visible-password"
+              onChangeText={setUsernameFilter}
+            />
             <TouchableOpacity
-              style={[styles.addButton, { marginLeft: 12 }]}
-              onPress={handleAddNew}
+              style={[
+                styles.modalButton,
+                styles.cancelButton,
+                { marginLeft: 10 },
+              ]}
+              onPress={() => {
+                setContactNameFilter('');
+                setUsernameFilter('');
+              }}
             >
-              <PlusCircle size={20} color="#FFF" />
-              <Text style={styles.addButtonText}>Add Client</Text>
+              <Text style={styles.cancelButtonText}>Clear</Text>
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Filters */}
-        <View style={styles.filtersRow}>
-          <TextInput
-            style={[styles.textInput, { flex: 1 }]}
-            placeholder="Filter by name"
-            value={contactNameFilter}
-            onChangeText={setContactNameFilter}
-          />
-          <TextInput
-            style={[styles.textInput, { flex: 1, marginLeft: 10 }]}
-            placeholder="Filter by username"
-            value={usernameFilter}
-            onChangeText={setUsernameFilter}
-          />
-          <TouchableOpacity
-            style={[
-              styles.modalButton,
-              styles.cancelButton,
-              { marginLeft: 10 },
-            ]}
-            onPress={() => {
-              setContactNameFilter('');
-              setUsernameFilter('');
-            }}
-          >
-            <Text style={styles.cancelButtonText}>Clear</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.clientsGrid}>
-          {filteredClients.map(client => (
-            <ClientCard
-              key={client._id}
-              client={client}
-              onEdit={() => handleEdit(client)}
-              onDelete={() => handleDelete(client)}
-              onResetPassword={() => handleResetPasswordTab(client)}
-              onManagePermissions={() => handleManagePermissionsTab(client)}
-              copyToClipboard={copyToClipboardTab}
-              getAppLoginUrl={getAppLoginUrl}
-            />
-          ))}
-          {filteredClients.length === 0 && (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No clients found</Text>
-              <Text style={styles.emptyStateSubtext}>
-                Add your first client to get started
-              </Text>
-            </View>
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Add/Edit Modal with Tabs */}
-      <Modal
-        visible={isDialogOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setIsDialogOpen(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {/* Header */}
-            <Text style={styles.modalTitle}>
-              {selectedClient ? 'Edit Client' : 'Add New Client'}
-            </Text>
-            <Text style={styles.modalText}>
-              {selectedClient
-                ? `Update the details for ${selectedClient.contactName}.`
-                : 'Fill in the form below to add a new client.'}
-            </Text>
-
-            {/* Tabs (only in edit) */}
-            {selectedClient && (
-              <View style={styles.tabsRow}>
-                {['general', 'permissions', 'validity', 'password'].map(tab => (
-                  <TouchableOpacity
-                    key={tab}
-                    onPress={() => setActiveTab(tab)}
-                    style={[
-                      styles.tabBtn,
-                      activeTab === tab && styles.tabBtnActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.tabText,
-                        activeTab === tab && styles.tabTextActive,
-                      ]}
-                    >
-                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+          <View style={styles.clientsGrid}>
+            {filteredClients.map(client => (
+              <ClientCard
+                key={client._id}
+                client={client}
+                onEdit={() => handleEdit(client)}
+                onDelete={() => handleDelete(client)}
+                onResetPassword={() => handleResetPasswordTab(client)}
+                onManagePermissions={() => handleManagePermissionsTab(client)}
+                copyToClipboard={copyToClipboardTab}
+                getAppLoginUrl={getAppLoginUrl}
+              />
+            ))}
+            {filteredClients.length === 0 && (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>No clients found</Text>
+                <Text style={styles.emptyStateSubtext}>
+                  Add your first client to get started
+                </Text>
               </View>
             )}
+          </View>
+        </ScrollView>
 
-            {/* BODY: scrollable + keyboard avoiding */}
-            <ScrollView
-              style={{ flexGrow: 0, maxHeight: 380 }}
-              contentContainerStyle={{ paddingBottom: 16 }}
-              keyboardShouldPersistTaps="handled"
-            >
-              {(!selectedClient || activeTab === 'general') && (
-                <ClientForm
-                  client={selectedClient}
-                  onSubmit={onFormSubmit}
-                  onCancel={() => setIsDialogOpen(false)}
-                  hideAdvanced={false}
-                />
-              )}
+        {/* Add/Edit Modal with Tabs */}
+        <Modal
+          visible={isDialogOpen}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setIsDialogOpen(false)}
+        >
+          <SafeAreaView style={styles.modalSafeArea}>
+            <StatusBar backgroundColor="rgba(0,0,0,0.5)" />
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                {/* Header */}
+                <Text style={styles.modalTitle}>
+                  {selectedClient ? 'Edit Client' : 'Add New Client'}
+                </Text>
+                <Text style={styles.modalText}>
+                  {selectedClient
+                    ? `Update the details for ${selectedClient.contactName}.`
+                    : 'Fill in the form below to add a new client.'}
+                </Text>
 
-              {selectedClient && activeTab === 'permissions' && (
-                <View>
-                  <Text style={styles.sectionTitle}>Manage Permissions</Text>
-                  <Text style={styles.modalText}>
-                    Modify usage limits and feature access for this client.
+                {/* Tabs (only in edit) */}
+                {selectedClient && (
+                  <View style={styles.tabsRow}>
+                    {['general', 'permissions', 'validity', 'password'].map(
+                      tab => (
+                        <TouchableOpacity
+                          key={tab}
+                          onPress={() => setActiveTab(tab)}
+                          style={[
+                            styles.tabBtn,
+                            activeTab === tab && styles.tabBtnActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.tabText,
+                              activeTab === tab && styles.tabTextActive,
+                            ]}
+                          >
+                            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                          </Text>
+                        </TouchableOpacity>
+                      ),
+                    )}
+                  </View>
+                )}
+
+                {/* BODY: scrollable + keyboard avoiding */}
+                <ScrollView
+                  style={{ flexGrow: 0, maxHeight: 380 }}
+                  contentContainerStyle={{ paddingBottom: 16 }}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {(!selectedClient || activeTab === 'general') && (
+                    <ClientForm
+                      client={selectedClient}
+                      onSubmit={onFormSubmit}
+                      onCancel={() => setIsDialogOpen(false)}
+                      hideAdvanced={false}
+                    />
+                  )}
+
+                  {selectedClient && activeTab === 'permissions' && (
+                    <View>
+                      <Text style={styles.sectionTitle}>
+                        Manage Permissions
+                      </Text>
+                      <Text style={styles.modalText}>
+                        Modify usage limits and feature access for this client.
+                      </Text>
+
+                      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
+                        Feature Permissions
+                      </Text>
+                      {[
+                        {
+                          key: 'canCreateUsers',
+                          label: 'Create Users',
+                          icon: Users,
+                        },
+                        {
+                          key: 'canCreateCustomers',
+                          label: 'Create Customers',
+                          icon: Contact,
+                        },
+                        {
+                          key: 'canCreateVendors',
+                          label: 'Create Vendors',
+                          icon: Store,
+                        },
+                        {
+                          key: 'canCreateProducts',
+                          label: 'Create Products',
+                          icon: Package,
+                        },
+                        {
+                          key: 'canSendInvoiceEmail',
+                          label: 'Send Invoice via Email',
+                          icon: Send,
+                        },
+                        {
+                          key: 'canSendInvoiceWhatsapp',
+                          label: 'Send Invoice via WhatsApp',
+                          icon: MessageSquare,
+                        },
+                        {
+                          key: 'canCreateCompanies',
+                          label: 'Create Companies',
+                          icon: Building,
+                        },
+                        {
+                          key: 'canUpdateCompanies',
+                          label: 'Update Companies',
+                          icon: Users,
+                        },
+                      ].map(({ key, label, icon: Icon }) => (
+                        <View key={key} style={styles.permissionItem}>
+                          <View style={styles.permissionLabel}>
+                            <Icon size={20} color="#666" />
+                            <Text style={styles.permissionText}>{label}</Text>
+                          </View>
+                          <Switch
+                            value={Boolean(currentPermissions[key])}
+                            onValueChange={v => handlePermissionChange(key, v)}
+                          />
+                        </View>
+                      ))}
+
+                      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
+                        Usage Limits
+                      </Text>
+                      {[
+                        {
+                          key: 'maxCompanies',
+                          label: 'Max Companies',
+                          icon: Building,
+                        },
+                        { key: 'maxUsers', label: 'Max Users', icon: Users },
+                        {
+                          key: 'maxInventories',
+                          label: 'Max Inventories',
+                          icon: Package,
+                        },
+                      ].map(({ key, label, icon: Icon }) => (
+                        <View key={key} style={styles.limitItem}>
+                          <View style={styles.limitLabel}>
+                            <Icon size={20} color="#666" />
+                            <Text style={styles.limitText}>{label}</Text>
+                          </View>
+                          <TextInput
+                            style={styles.numberInput}
+                            keyboardType="visible-password"
+                            value={String(currentPermissions[key] || 0)}
+                            onChangeText={t =>
+                              handlePermissionChange(
+                                key,
+                                Math.max(parseInt(t) || 0, 0),
+                              )
+                            }
+                          />
+                        </View>
+                      ))}
+
+                      {/* Footer with only Save button */}
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'flex-end',
+                          marginTop: 20,
+                          gap: 10,
+                        }}
+                      >
+                        <TouchableOpacity
+                          style={[styles.modalButton, styles.primaryButton]}
+                          onPress={handleSavePermissions}
+                        >
+                          {isSavingPermissions ? (
+                            <ActivityIndicator color="#FFF" />
+                          ) : (
+                            <Text style={styles.primaryButtonText}>
+                              Save Changes
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
+                  {selectedClient && activeTab === 'validity' && (
+                    <View>
+                      <Text style={styles.sectionTitle}>Account Validity</Text>
+                      <View style={styles.validityCard}>
+                        <Text style={styles.validityStatus}>Active</Text>
+                        <Text style={styles.validityRow}>
+                          Expires On:{' '}
+                          {new Date(
+                            Date.now() + 1000 * 60 * 60 * 24 * 50,
+                          ).toLocaleString()}
+                        </Text>
+                        <Text style={styles.validityRow}>Days Left: 50</Text>
+                        <View style={[styles.permissionItem, { marginTop: 8 }]}>
+                          <Text style={styles.permissionText}>
+                            Account Enabled
+                          </Text>
+                          <Switch value={true} onValueChange={() => {}} />
+                        </View>
+                      </View>
+
+                      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
+                        Extend Validity
+                      </Text>
+                      <View style={{ flexDirection: 'row' }}>
+                        <TextInput
+                          style={[styles.textInput, { flex: 1 }]}
+                          placeholder="Duration"
+                          defaultValue="30"
+                          keyboardType="visible-password"
+                        />
+                        <TextInput
+                          style={[
+                            styles.textInput,
+                            { flex: 1, marginLeft: 10 },
+                          ]}
+                          placeholder="Unit (days/months/years)"
+                          defaultValue="days"
+                          keyboardType="visible-password"
+                        />
+                      </View>
+                      <TouchableOpacity
+                        style={[
+                          styles.modalButton,
+                          styles.primaryButton,
+                          { marginTop: 10 },
+                        ]}
+                        onPress={() => {
+                          console.log('Validity extended');
+                        }}
+                      >
+                        <Text style={styles.primaryButtonText}>Extend</Text>
+                      </TouchableOpacity>
+
+                      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
+                        Set Exact Expiry
+                      </Text>
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="mm/dd/yyyy"
+                        keyboardType="visible-password"
+                      />
+                      <TouchableOpacity
+                        style={[
+                          styles.modalButton,
+                          styles.primaryButton,
+                          { marginTop: 10 },
+                        ]}
+                        onPress={() => {
+                          console.log('Exact expiry set');
+                        }}
+                      >
+                        <Text style={styles.primaryButtonText}>
+                          Save Exact Date
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* Footer with Cancel and Save buttons */}
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'flex-end',
+                          marginTop: 20,
+                          gap: 10,
+                        }}
+                      >
+                        <TouchableOpacity
+                          style={[styles.modalButton, styles.cancelButton]}
+                          onPress={() => setIsDialogOpen(false)}
+                        >
+                          <Text style={styles.cancelButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.modalButton, styles.primaryButton]}
+                          onPress={() => {
+                            console.log('Validity changes saved');
+                            setIsDialogOpen(false);
+                          }}
+                        >
+                          <Text style={styles.primaryButtonText}>
+                            Save Changes
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
+                  {selectedClient && activeTab === 'password' && (
+                    <View>
+                      <Text style={styles.sectionTitle}>Reset Password</Text>
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          marginBottom: 20,
+                        }}
+                      >
+                        <TextInput
+                          style={[styles.textInput, { flex: 1 }]}
+                          secureTextEntry={!eyeOpen}
+                          placeholder="New password"
+                          value={newPassword}
+                          onChangeText={setNewPassword}
+                          keyboardType="visible-password"
+                        />
+                        <TouchableOpacity
+                          onPress={() => setEyeOpen(!eyeOpen)}
+                          style={{ marginLeft: 10 }}
+                        >
+                          {eyeOpen ? <EyeOff size={20} /> : <Eye size={20} />}
+                        </TouchableOpacity>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.modalButton, styles.primaryButton]}
+                        onPress={confirmResetPassword}
+                      >
+                        {isSubmittingPassword ? (
+                          <ActivityIndicator color="#FFF" />
+                        ) : (
+                          <Text style={styles.primaryButtonText}>
+                            Reset Password
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </ScrollView>
+              </View>
+            </View>
+          </SafeAreaView>
+        </Modal>
+
+        {/* Delete Modal */}
+        <Modal
+          visible={isAlertOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsAlertOpen(false)}
+        >
+          <SafeAreaView style={styles.modalSafeArea}>
+            <StatusBar backgroundColor="rgba(0,0,0,0.5)" />
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Confirm Delete</Text>
+                <Text style={styles.modalText}>
+                  Are you sure you want to delete {clientToDelete?.contactName}?
+                </Text>
+                <View
+                  style={{ flexDirection: 'row', justifyContent: 'flex-end' }}
+                >
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={() => setIsAlertOpen(false)}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.deleteModalButton]}
+                    onPress={confirmDelete}
+                  >
+                    <Text style={styles.deleteModalButtonText}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </SafeAreaView>
+        </Modal>
+
+        {/* Reset Password Modal */}
+        <Modal
+          visible={isResetPasswordDialogOpen}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setIsResetPasswordDialogOpen(false)}
+        >
+          <SafeAreaView style={styles.modalSafeArea}>
+            <StatusBar backgroundColor="rgba(0,0,0,0.5)" />
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Reset Password</Text>
+                <Text style={styles.modalText}>
+                  Enter new password for {clientForPermissions?.contactName}
+                </Text>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    marginBottom: 20,
+                  }}
+                >
+                  <TextInput
+                    style={[styles.textInput, { flex: 1 }]}
+                    secureTextEntry={!eyeOpen}
+                    placeholder="New password"
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    keyboardType="visible-password"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setEyeOpen(!eyeOpen)}
+                    style={{ marginLeft: 10 }}
+                  >
+                    {eyeOpen ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </TouchableOpacity>
+                </View>
+                <View
+                  style={{ flexDirection: 'row', justifyContent: 'flex-end' }}
+                >
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={() => setIsResetPasswordDialogOpen(false)}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.primaryButton]}
+                    onPress={confirmResetPassword}
+                  >
+                    {isSubmittingPassword ? (
+                      <ActivityIndicator color="#FFF" />
+                    ) : (
+                      <Text style={styles.primaryButtonText}>
+                        Reset Password
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </SafeAreaView>
+        </Modal>
+
+        {/* Permissions Modal */}
+        <Modal
+          visible={isPermissionsDialogOpen}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setIsPermissionsDialogOpen(false)}
+        >
+          <SafeAreaView style={styles.modalSafeArea}>
+            <StatusBar backgroundColor="rgba(0,0,0,0.5)" />
+            <View style={styles.modalOverlay}>
+              <View style={styles.permissionsModal}>
+                <View style={styles.permissionsHeader}>
+                  <Text style={styles.permissionsTitle}>
+                    Permissions for {clientForPermissions?.contactName}
                   </Text>
-
-                  <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
-                    Feature Permissions
-                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setIsPermissionsDialogOpen(false)}
+                  >
+                    <X size={24} color="#666" />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={{ paddingHorizontal: 20 }}>
+                  <Text style={styles.sectionTitle}>Feature Permissions</Text>
                   {[
                     {
                       key: 'canCreateUsers',
@@ -440,12 +847,12 @@ export default function ClientManagementPage() {
                     {
                       key: 'canCreateCustomers',
                       label: 'Create Customers',
-                      icon: Contact,
+                      icon: User,
                     },
                     {
                       key: 'canCreateVendors',
                       label: 'Create Vendors',
-                      icon: Store,
+                      icon: Building,
                     },
                     {
                       key: 'canCreateProducts',
@@ -454,23 +861,13 @@ export default function ClientManagementPage() {
                     },
                     {
                       key: 'canSendInvoiceEmail',
-                      label: 'Send Invoice via Email',
+                      label: 'Send Email Invoice',
                       icon: Send,
                     },
                     {
                       key: 'canSendInvoiceWhatsapp',
-                      label: 'Send Invoice via WhatsApp',
+                      label: 'Send WhatsApp Invoice',
                       icon: MessageSquare,
-                    },
-                    {
-                      key: 'canCreateCompanies',
-                      label: 'Create Companies',
-                      icon: Building,
-                    },
-                    {
-                      key: 'canUpdateCompanies',
-                      label: 'Update Companies',
-                      icon: Users,
                     },
                   ].map(({ key, label, icon: Icon }) => (
                     <View key={key} style={styles.permissionItem}>
@@ -479,13 +876,12 @@ export default function ClientManagementPage() {
                         <Text style={styles.permissionText}>{label}</Text>
                       </View>
                       <Switch
-                        value={Boolean(currentPermissions[key])}
+                        value={currentPermissions[key] || false}
                         onValueChange={v => handlePermissionChange(key, v)}
                       />
                     </View>
                   ))}
-
-                  <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
+                  <Text style={[styles.sectionTitle, { marginTop: 20 }]}>
                     Usage Limits
                   </Text>
                   {[
@@ -508,7 +904,7 @@ export default function ClientManagementPage() {
                       </View>
                       <TextInput
                         style={styles.numberInput}
-                        keyboardType="numeric"
+                        keyboardType="visible-password"
                         value={String(currentPermissions[key] || 0)}
                         onChangeText={t =>
                           handlePermissionChange(
@@ -519,364 +915,62 @@ export default function ClientManagementPage() {
                       />
                     </View>
                   ))}
+                  <View style={{ height: 80 }} /> {/* Padding for footer */}
+                </ScrollView>
 
-                  {/* Footer with only Save button */}
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      justifyContent: 'flex-end',
-                      marginTop: 20,
-                      gap: 10,
-                    }}
+                <View style={styles.permissionsFooter}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={() => setIsPermissionsDialogOpen(false)}
                   >
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.primaryButton]}
-                      onPress={handleSavePermissions}
-                    >
-                      {isSavingPermissions ? (
-                        <ActivityIndicator color="#FFF" />
-                      ) : (
-                        <Text style={styles.primaryButtonText}>
-                          Save Changes
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-
-             {selectedClient && activeTab === 'validity' && (
-  <View>
-    <Text style={styles.sectionTitle}>Account Validity</Text>
-    <View style={styles.validityCard}>
-      <Text style={styles.validityStatus}>Active</Text>
-      <Text style={styles.validityRow}>
-        Expires On:{' '}
-        {new Date(Date.now() + 1000 * 60 * 60 * 24 * 50).toLocaleString()}
-      </Text>
-      <Text style={styles.validityRow}>Days Left: 50</Text>
-      <View style={[styles.permissionItem, { marginTop: 8 }]}>
-        <Text style={styles.permissionText}>Account Enabled</Text>
-        <Switch value={true} onValueChange={() => {}} />
-      </View>
-    </View>
-
-    <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Extend Validity</Text>
-    <View style={{ flexDirection: 'row' }}>
-      <TextInput
-        style={[styles.textInput, { flex: 1 }]}
-        placeholder="Duration"
-        defaultValue="30"
-        keyboardType="numeric"
-      />
-      <TextInput
-        style={[styles.textInput, { flex: 1, marginLeft: 10 }]}
-        placeholder="Unit (days/months/years)"
-        defaultValue="days"
-      />
-    </View>
-    <TouchableOpacity
-      style={[styles.modalButton, styles.primaryButton, { marginTop: 10 }]}
-      onPress={() => {
-        console.log('Validity extended'); // Simulate saving
-      }}
-    >
-      <Text style={styles.primaryButtonText}>Extend</Text>
-    </TouchableOpacity>
-
-    <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Set Exact Expiry</Text>
-    <TextInput style={styles.textInput} placeholder="mm/dd/yyyy" />
-    <TouchableOpacity
-      style={[styles.modalButton, styles.primaryButton, { marginTop: 10 }]}
-      onPress={() => {
-        console.log('Exact expiry set'); // Simulate saving
-      }}
-    >
-      <Text style={styles.primaryButtonText}>Save Exact Date</Text>
-    </TouchableOpacity>
-
-    {/* Footer with Cancel and Save buttons */}
-    <View
-      style={{
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        marginTop: 20,
-        gap: 10,
-      }}
-    >
-      {/* Cancel Button */}
-      <TouchableOpacity
-        style={[styles.modalButton, styles.cancelButton]}
-        onPress={() => setIsDialogOpen(false)} // Close the modal
-      >
-        <Text style={styles.cancelButtonText}>Cancel</Text>
-      </TouchableOpacity>
-
-      {/* Save Changes Button */}
-      <TouchableOpacity
-        style={[styles.modalButton, styles.primaryButton]}
-        onPress={() => {
-          console.log('Validity changes saved'); // Simulate saving changes
-          setIsDialogOpen(false); // Close the modal
-        }}
-      >
-        <Text style={styles.primaryButtonText}>Save Changes</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-)}
-
-
-              {selectedClient && activeTab === 'password' && (
-                <View>
-                  <Text style={styles.sectionTitle}>Reset Password</Text>
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      marginBottom: 20,
-                    }}
-                  >
-                    <TextInput
-                      style={[styles.textInput, { flex: 1 }]}
-                      secureTextEntry={!eyeOpen}
-                      placeholder="New password"
-                      value={newPassword}
-                      onChangeText={setNewPassword}
-                    />
-                    <TouchableOpacity
-                      onPress={() => setEyeOpen(!eyeOpen)}
-                      style={{ marginLeft: 10 }}
-                    >
-                      {eyeOpen ? <EyeOff size={20} /> : <Eye size={20} />}
-                    </TouchableOpacity>
-                  </View>
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.modalButton, styles.primaryButton]}
-                    onPress={confirmResetPassword}
+                    onPress={handleSavePermissions}
                   >
-                    {isSubmittingPassword ? (
+                    {isSavingPermissions ? (
                       <ActivityIndicator color="#FFF" />
                     ) : (
-                      <Text style={styles.primaryButtonText}>
-                        Reset Password
-                      </Text>
+                      <Text style={styles.primaryButtonText}>Save</Text>
                     )}
                   </TouchableOpacity>
                 </View>
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Delete Modal */}
-      <Modal
-        visible={isAlertOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsAlertOpen(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Confirm Delete</Text>
-            <Text style={styles.modalText}>
-              Are you sure you want to delete {clientToDelete?.contactName}?
-            </Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setIsAlertOpen(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.deleteModalButton]}
-                onPress={confirmDelete}
-              >
-                <Text style={styles.deleteModalButtonText}>Delete</Text>
-              </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Reset Password Modal */}
-      <Modal
-        visible={isResetPasswordDialogOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setIsResetPasswordDialogOpen(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Reset Password</Text>
-            <Text style={styles.modalText}>
-              Enter new password for {clientForPermissions?.contactName}
-            </Text>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                marginBottom: 20,
-              }}
-            >
-              <TextInput
-                style={[styles.textInput, { flex: 1 }]}
-                secureTextEntry={!eyeOpen}
-                placeholder="New password"
-                value={newPassword}
-                onChangeText={setNewPassword}
-              />
-              <TouchableOpacity
-                onPress={() => setEyeOpen(!eyeOpen)}
-                style={{ marginLeft: 10 }}
-              >
-                {eyeOpen ? <EyeOff size={20} /> : <Eye size={20} />}
-              </TouchableOpacity>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setIsResetPasswordDialogOpen(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.primaryButton]}
-                onPress={confirmResetPassword}
-              >
-                {isSubmittingPassword ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <Text style={styles.primaryButtonText}>Reset Password</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Permissions Modal */}
-      <Modal
-        visible={isPermissionsDialogOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setIsPermissionsDialogOpen(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.permissionsModal}>
-            <View style={styles.permissionsHeader}>
-              <Text style={styles.permissionsTitle}>
-                Permissions for {clientForPermissions?.contactName}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setIsPermissionsDialogOpen(false)}
-              >
-                <X size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={{ paddingHorizontal: 20 }}>
-              <Text style={styles.sectionTitle}>Feature Permissions</Text>
-              {[
-                { key: 'canCreateUsers', label: 'Create Users', icon: Users },
-                {
-                  key: 'canCreateCustomers',
-                  label: 'Create Customers',
-                  icon: User,
-                },
-                {
-                  key: 'canCreateVendors',
-                  label: 'Create Vendors',
-                  icon: Building,
-                },
-                {
-                  key: 'canCreateProducts',
-                  label: 'Create Products',
-                  icon: Package,
-                },
-                {
-                  key: 'canSendInvoiceEmail',
-                  label: 'Send Email Invoice',
-                  icon: Send,
-                },
-                {
-                  key: 'canSendInvoiceWhatsapp',
-                  label: 'Send WhatsApp Invoice',
-                  icon: MessageSquare,
-                },
-              ].map(({ key, label, icon: Icon }) => (
-                <View key={key} style={styles.permissionItem}>
-                  <View style={styles.permissionLabel}>
-                    <Icon size={20} color="#666" />
-                    <Text style={styles.permissionText}>{label}</Text>
-                  </View>
-                  <Switch
-                    value={currentPermissions[key] || false}
-                    onValueChange={v => handlePermissionChange(key, v)}
-                  />
-                </View>
-              ))}
-              <Text style={[styles.sectionTitle, { marginTop: 20 }]}>
-                Usage Limits
-              </Text>
-              {[
-                { key: 'maxCompanies', label: 'Max Companies', icon: Building },
-                { key: 'maxUsers', label: 'Max Users', icon: Users },
-                {
-                  key: 'maxInventories',
-                  label: 'Max Inventories',
-                  icon: Package,
-                },
-              ].map(({ key, label, icon: Icon }) => (
-                <View key={key} style={styles.limitItem}>
-                  <View style={styles.limitLabel}>
-                    <Icon size={20} color="#666" />
-                    <Text style={styles.limitText}>{label}</Text>
-                  </View>
-                  <TextInput
-                    style={styles.numberInput}
-                    keyboardType="numeric"
-                    value={String(currentPermissions[key] || 0)}
-                    onChangeText={t =>
-                      handlePermissionChange(key, Math.max(parseInt(t) || 0, 0))
-                    }
-                  />
-                </View>
-              ))}
-              <View style={{ height: 80 }} /> {/* Padding for footer */}
-            </ScrollView>
-
-            <View style={styles.permissionsFooter}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setIsPermissionsDialogOpen(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.primaryButton]}
-                onPress={handleSavePermissions}
-              >
-                {isSavingPermissions ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <Text style={styles.primaryButtonText}>Save</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </View>
+          </SafeAreaView>
+        </Modal>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
 
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { marginTop: 10, color: '#666', fontSize: 16 },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#666',
+    fontSize: 16,
+  },
 
   header: {
     flexDirection: 'row',
@@ -890,8 +984,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#000' },
-  subtitle: { fontSize: 14, color: '#666', marginTop: 4 },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+  },
 
   addButton: {
     flexDirection: 'row',
@@ -908,7 +1010,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  clientsGrid: { padding: 16 },
+  clientsGrid: {
+    padding: 16,
+  },
   filtersRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -916,10 +1020,25 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
 
-  emptyState: { alignItems: 'center', padding: 40 },
-  emptyStateText: { fontSize: 18, color: '#666', marginBottom: 8 },
-  emptyStateSubtext: { fontSize: 14, color: '#999', textAlign: 'center' },
+  emptyState: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    color: '#666',
+    marginBottom: 8,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+  },
 
+  modalSafeArea: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -931,12 +1050,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     borderRadius: 12,
     padding: 20,
-    width: '95%', // was '100%'
-    maxWidth: 480, // a little wider for tablets/web
+    width: '95%',
+    maxWidth: 480,
     maxHeight: '90%',
   },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
-  modalText: { fontSize: 14, color: '#666', marginBottom: 20 },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  modalText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+  },
 
   modalButton: {
     paddingHorizontal: 16,
@@ -946,12 +1073,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: 10,
   },
-  cancelButton: { backgroundColor: '#f8f9fa', marginLeft: 0 },
-  cancelButtonText: { color: '#666', fontWeight: '600' },
-  deleteModalButton: { backgroundColor: '#FF3B30' },
-  deleteModalButtonText: { color: '#FFF', fontWeight: '600' },
-  primaryButton: { backgroundColor: '#007AFF' },
-  primaryButtonText: { color: '#FFF', fontWeight: '600' },
+  cancelButton: {
+    backgroundColor: '#f8f9fa',
+    marginLeft: 0,
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontWeight: '600',
+  },
+  deleteModalButton: {
+    backgroundColor: '#FF3B30',
+  },
+  deleteModalButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
+  },
+  primaryButton: {
+    backgroundColor: '#007AFF',
+  },
+  primaryButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
+  },
 
   textInput: {
     borderWidth: 1,
@@ -974,8 +1117,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 8,
   },
-  permissionLabel: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  permissionText: { fontSize: 14, color: '#333', marginLeft: 8 },
+  permissionLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  permissionText: {
+    fontSize: 14,
+    color: '#333',
+    marginLeft: 8,
+  },
 
   limitItem: {
     flexDirection: 'row',
@@ -983,8 +1134,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 8,
   },
-  limitLabel: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  limitText: { fontSize: 14, color: '#333', marginLeft: 8 },
+  limitLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  limitText: {
+    fontSize: 14,
+    color: '#333',
+    marginLeft: 8,
+  },
 
   numberInput: {
     borderWidth: 1,
@@ -1008,7 +1167,11 @@ const styles = StyleSheet.create({
     color: '#16a34a',
     marginBottom: 6,
   },
-  validityRow: { fontSize: 14, color: '#333', marginVertical: 2 },
+  validityRow: {
+    fontSize: 14,
+    color: '#333',
+    marginVertical: 2,
+  },
 
   tabsRow: {
     flexDirection: 'row',
@@ -1017,10 +1180,23 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  tabBtn: { flex: 1, alignItems: 'center', paddingVertical: 10 },
-  tabBtnActive: { borderBottomWidth: 2, borderBottomColor: '#007AFF' },
-  tabText: { fontSize: 14, color: '#666' },
-  tabTextActive: { color: '#007AFF', fontWeight: '600' },
+  tabBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  tabBtnActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: '#007AFF',
+  },
+  tabText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  tabTextActive: {
+    color: '#007AFF',
+    fontWeight: '600',
+  },
 
   permissionsModal: {
     backgroundColor: '#FFF',
@@ -1039,7 +1215,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  permissionsTitle: { fontSize: 16, fontWeight: 'bold', color: '#000' },
+  permissionsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#000',
+  },
   permissionsFooter: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

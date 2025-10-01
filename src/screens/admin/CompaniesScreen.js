@@ -12,7 +12,9 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Picker } from '@react-native-picker/picker';
 import { Card, Button, Dialog, Portal, Provider } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -191,115 +193,120 @@ export default function CompaniesScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <Icon name="loading" size={32} color="#3f51b5" />
-        <Text style={styles.loadingText}>Loading companies...</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
+        <View style={styles.loadingContainer}>
+          <Icon name="loading" size={32} color="#3f51b5" />
+          <Text style={styles.loadingText}>Loading companies...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
     <Provider>
-      <KeyboardAvoidingView 
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTitle}>
-            <Text style={styles.title}>Company Management</Text>
-            <Text style={styles.subtitle}>Manage all companies across all clients.</Text>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
+        <KeyboardAvoidingView 
+          style={styles.container}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerTitle}>
+              <Text style={styles.title}>Company Management</Text>
+            </View>
+            <Button
+              mode="contained"
+              onPress={handleAddNew}
+              style={styles.addButton}
+              contentStyle={styles.addButtonContent}
+              labelStyle={styles.addButtonLabel}
+              icon="plus"
+            >
+              Create Company
+            </Button>
           </View>
-          <Button
-            mode="contained"
-            onPress={handleAddNew}
-            style={styles.addButton}
-            contentStyle={styles.addButtonContent}
-            labelStyle={styles.addButtonLabel}
-            icon="plus"
-          >
-            Create Company
-          </Button>
-        </View>
 
-        {/* Companies List */}
-        {companies.length > 0 ? (
-          <FlatList
-            data={companies}
-            renderItem={renderCompanyCard}
-            keyExtractor={item => item._id}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-          />
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Card style={styles.emptyState}>
-              <Card.Content style={styles.emptyContent}>
-                <Icon name="office-building" size={64} color="#ccc" />
-                <Text style={styles.emptyTitle}>No Companies Found</Text>
-                <Text style={styles.emptyDescription}>
-                  Get started by creating the first company.
-                </Text>
-                <Button 
-                  mode="contained" 
-                  onPress={handleAddNew} 
-                  style={styles.emptyButton}
-                  contentStyle={styles.emptyButtonContent}
+          {/* Companies List */}
+          {companies.length > 0 ? (
+            <FlatList
+              data={companies}
+              renderItem={renderCompanyCard}
+              keyExtractor={item => item._id}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+            />
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Card style={styles.emptyState}>
+                <Card.Content style={styles.emptyContent}>
+                  <Icon name="office-building" size={64} color="#ccc" />
+                  <Text style={styles.emptyTitle}>No Companies Found</Text>
+                  <Text style={styles.emptyDescription}>
+                    Get started by creating the first company.
+                  </Text>
+                  <Button 
+                    mode="contained" 
+                    onPress={handleAddNew} 
+                    style={styles.emptyButton}
+                    contentStyle={styles.emptyButtonContent}
+                  >
+                    Create Company
+                  </Button>
+                </Card.Content>
+              </Card>
+            </View>
+          )}
+
+          {/* Company Form Dialog */}
+          <Portal>
+            <Dialog
+              visible={isDialogOpen}
+              onDismiss={() => setIsDialogOpen(false)}
+              style={styles.dialog}
+            >
+              <Dialog.Title style={styles.dialogTitle}>
+                {selectedCompany ? 'Edit Company' : 'Create New Company'}
+              </Dialog.Title>
+              <Dialog.ScrollArea style={styles.dialogScrollArea}>
+                <ScrollView 
+                  contentContainerStyle={styles.dialogContent}
+                  showsVerticalScrollIndicator={false}
                 >
-                  Create Company
+                  <CompanyForm
+                    company={selectedCompany}
+                    clients={clients}
+                    onFormSubmit={onFormSubmit}
+                    onCancel={() => setIsDialogOpen(false)}
+                  />
+                </ScrollView>
+              </Dialog.ScrollArea>
+            </Dialog>
+          </Portal>
+
+          {/* Delete Confirmation Dialog */}
+          <Portal>
+            <Dialog visible={isAlertOpen} onDismiss={() => setIsAlertOpen(false)} style={styles.alertDialog}>
+              <Dialog.Title style={styles.alertTitle}>Are you absolutely sure?</Dialog.Title>
+              <Dialog.Content>
+                <Text style={styles.alertText}>
+                  This will permanently delete {companyToDelete?.businessName}. This action cannot be undone.
+                </Text>
+              </Dialog.Content>
+              <Dialog.Actions style={styles.alertActions}>
+                <Button onPress={() => setIsAlertOpen(false)} style={styles.alertButton}>
+                  Cancel
                 </Button>
-              </Card.Content>
-            </Card>
-          </View>
-        )}
-
-        {/* Company Form Dialog */}
-        <Portal>
-          <Dialog
-            visible={isDialogOpen}
-            onDismiss={() => setIsDialogOpen(false)}
-            style={styles.dialog}
-          >
-            <Dialog.Title style={styles.dialogTitle}>
-              {selectedCompany ? 'Edit Company' : 'Create New Company'}
-            </Dialog.Title>
-            <Dialog.ScrollArea style={styles.dialogScrollArea}>
-              <ScrollView 
-                contentContainerStyle={styles.dialogContent}
-                showsVerticalScrollIndicator={false}
-              >
-                <CompanyForm
-                  company={selectedCompany}
-                  clients={clients}
-                  onFormSubmit={onFormSubmit}
-                  onCancel={() => setIsDialogOpen(false)}
-                />
-              </ScrollView>
-            </Dialog.ScrollArea>
-          </Dialog>
-        </Portal>
-
-        {/* Delete Confirmation Dialog */}
-        <Portal>
-          <Dialog visible={isAlertOpen} onDismiss={() => setIsAlertOpen(false)} style={styles.alertDialog}>
-            <Dialog.Title style={styles.alertTitle}>Are you absolutely sure?</Dialog.Title>
-            <Dialog.Content>
-              <Text style={styles.alertText}>
-                This will permanently delete {companyToDelete?.businessName}. This action cannot be undone.
-              </Text>
-            </Dialog.Content>
-            <Dialog.Actions style={styles.alertActions}>
-              <Button onPress={() => setIsAlertOpen(false)} style={styles.alertButton}>
-                Cancel
-              </Button>
-              <Button onPress={confirmDelete} textColor="#ff4444" style={styles.alertButton}>
-                Delete
-              </Button>
-            </Dialog.Actions>
-          </Dialog>
-        </Portal>
-      </KeyboardAvoidingView>
+                <Button onPress={confirmDelete} textColor="#ff4444" style={styles.alertButton}>
+                  Delete
+                </Button>
+              </Dialog.Actions>
+            </Dialog>
+          </Portal>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </Provider>
   );
 }
@@ -419,6 +426,10 @@ const isSmallScreen = width < 375;
 const isLargeScreen = width > 768;
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
   container: { 
     flex: 1, 
     backgroundColor: '#f8f9fa' 
