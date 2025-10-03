@@ -9,7 +9,8 @@ import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 import UserDashboardScreen from '../screens/main/UserDashboardScreen';
 import DashboardScreen from '../screens/main/DashboardScreen';
 import HistoryPage from '../screens/admin/HistoryScreen';
-
+import ProfileScreen from '../screens/main/ProfileScreen';
+import SettingsScreen from '../screens/admin/SettingsScreen';
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
@@ -28,6 +29,8 @@ export default function AppNavigator() {
 
       {/* History Screen */}
       <Stack.Screen name="HistoryScreen" component={HistoryPage} />
+      <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
+      <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
     </Stack.Navigator>
   );
 }
