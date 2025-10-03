@@ -90,7 +90,6 @@ const VendorSettings = () => {
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [companies, setCompanies] = useState(HARDCODED_COMPANIES);
   const [vendorToDelete, setVendorToDelete] = useState(null);
-  const [expandedVendorId, setExpandedVendorId] = useState(null);
 
   // Mock permission checks
   const canShowVendors = true;
@@ -152,10 +151,6 @@ const VendorSettings = () => {
     
     setIsAlertOpen(false);
     setVendorToDelete(null);
-  };
-
-  const toggleVendorExpansion = (vendorId) => {
-    setExpandedVendorId(expandedVendorId === vendorId ? null : vendorId);
   };
 
   if (companies.length === 0) {
@@ -223,7 +218,11 @@ const VendorSettings = () => {
               </Text>
             </View>
           ) : vendors.length > 0 && canShowVendors ? (
-            <ScrollView style={styles.vendorsList}>
+            <ScrollView 
+              style={styles.vendorsList}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.vendorsListContent}
+            >
               {vendors.map((vendor) => (
                 <View key={vendor._id} style={styles.vendorCard}>
                   {/* Header */}
@@ -445,18 +444,22 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: 'white',
     borderRadius: 12,
-    margin: 16,
+    marginHorizontal: 16,
+    marginVertical: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
+    flex: 1,
   },
   cardHeader: {
-    padding: 24,
+    padding: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
   headerContent: {
     flex: 1,
@@ -470,24 +473,27 @@ const styles = StyleSheet.create({
   cardDescription: {
     fontSize: 14,
     color: '#6b7280',
+    lineHeight: 20,
   },
   cardContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
+    flex: 1,
+    paddingHorizontal: 0,
   },
   addButton: {
     backgroundColor: '#2563eb',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 8,
-    marginLeft: 16,
+    marginLeft: 12,
+    minHeight: 44,
   },
   addButtonText: {
     color: 'white',
     fontWeight: '500',
     marginLeft: 8,
+    fontSize: 14,
   },
   loadingContainer: {
     height: 160,
@@ -501,6 +507,7 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
     borderStyle: 'dashed',
     borderRadius: 12,
+    margin: 16,
   },
   noPermissionTitle: {
     fontSize: 18,
@@ -513,9 +520,14 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
     marginTop: 4,
+    lineHeight: 20,
   },
   vendorsList: {
-    maxHeight: 600,
+    flex: 1,
+  },
+  vendorsListContent: {
+    padding: 16,
+    paddingTop: 8,
   },
   vendorCard: {
     backgroundColor: 'white',
@@ -538,6 +550,7 @@ const styles = StyleSheet.create({
   },
   vendorInfo: {
     flex: 1,
+    marginRight: 8,
   },
   vendorName: {
     fontSize: 18,
@@ -584,6 +597,10 @@ const styles = StyleSheet.create({
   },
   menuButton: {
     padding: 4,
+    minWidth: 32,
+    minHeight: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   contactSection: {
     gap: 12,
@@ -601,8 +618,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   contactText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#374151',
+    flex: 1,
   },
   addressContainer: {
     flexDirection: 'row',
@@ -650,7 +668,7 @@ const styles = StyleSheet.create({
   taxItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
   },
   taxLabel: {
     fontSize: 12,
@@ -661,6 +679,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'monospace',
     color: '#1f2937',
+    flex: 1,
   },
   tdsContainer: {
     flexDirection: 'row',
@@ -694,12 +713,14 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
     borderStyle: 'dashed',
     borderRadius: 12,
+    margin: 16,
   },
   emptyStateTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#1f2937',
     marginTop: 16,
+    textAlign: 'center',
   },
   emptyStateText: {
     fontSize: 14,
@@ -707,6 +728,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
     marginBottom: 24,
+    lineHeight: 20,
   },
   noCompanyContainer: {
     flex: 1,

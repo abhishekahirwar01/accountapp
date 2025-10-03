@@ -42,7 +42,7 @@ export default function Header({ role = "master" }) {
     setShowDropdown(false);
     navigation.reset({
       index: 0,
-      routes: [{ name: "GettingStartedScreen" }],
+      routes: [{ name: "GettingStarted" }],
     });
   };
 
