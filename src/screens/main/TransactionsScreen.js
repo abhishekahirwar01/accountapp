@@ -1,7 +1,7 @@
-import { Text, View } from 'react-native'
+import { Text, StyleSheet, View } from 'react-native'
 import React, { Component } from 'react'
 
-export class TransactionsScreen extends Component {
+export default class TransactionsScreen extends Component {
   render() {
     return (
       <View>
@@ -11,4 +11,4 @@ export class TransactionsScreen extends Component {
   }
 }
 
-export default TransactionsScreen
+const styles = StyleSheet.create({})
