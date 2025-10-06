@@ -1,153 +1,192 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   Alert,
-  ScrollView,
-  StyleSheet
+  StyleSheet,
+  Modal,
+  ActivityIndicator,
+  FlatList,
 } from 'react-native';
-import { Loader2, Trash2 } from 'lucide-react-native';
-
-// Mock data for services
-const MOCK_SERVICES = [
-  { _id: '1', serviceName: 'Annual Maintenance Contract' },
-  { _id: '2', serviceName: 'IT Consulting' },
-  { _id: '3', serviceName: 'Software Development' },
-];
-
-// Mock API responses
-const mockApiCall = (success = true, delay = 1000) => {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      if (success) {
-        resolve({ success: true });
-      } else {
-        reject(new Error('Mock API error'));
-      }
-    }, delay);
-  });
-};
+import { Trash2 } from 'lucide-react-native';
 
 export function ServiceForm({
   service,
   onSuccess,
   onDelete,
+  onCancel,
+  visible = true,
 }) {
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [serviceName, setServiceName] = React.useState(service?.serviceName || '');
-  const [error, setError] = React.useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serviceName, setServiceName] = useState(service?.serviceName || '');
+  const [sacCode, setSacCode] = useState(service?.sacCode || '');
+  const [errors, setErrors] = useState({});
+  const [sacSuggestions, setSacSuggestions] = useState([]);
 
-  React.useEffect(() => {
-    if (service) {
-      setServiceName(service.serviceName || '');
-    }
+  useEffect(() => {
+    setServiceName(service?.serviceName || '');
+    setSacCode(service?.sacCode || '');
+    setErrors({});
   }, [service]);
 
-  const validateForm = () => {
-    if (!serviceName.trim() || serviceName.length < 2) {
-      setError('Service name is required and must be at least 2 characters long.');
-      return false;
+  // Simple mock SAC codes for suggestion
+  const MOCK_SAC_CODES = ['9954', '9987', '9963', '9951', '9959'];
+
+  useEffect(() => {
+    if (sacCode.length >= 2) {
+      setSacSuggestions(
+        MOCK_SAC_CODES.filter(code => code.startsWith(sacCode)),
+      );
+    } else {
+      setSacSuggestions([]);
     }
-    setError('');
-    return true;
+  }, [sacCode]);
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!serviceName.trim())
+      newErrors.serviceName = 'Service name is required.';
+    else if (serviceName.trim().length < 2)
+      newErrors.serviceName = 'Service name must be at least 2 characters.';
+
+    if (!sacCode.trim()) newErrors.sacCode = 'SAC Code is required.';
+    else if (!/^\d+$/.test(sacCode.trim()))
+      newErrors.sacCode = 'SAC Code must be numeric.';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
-  async function onSubmit() {
+  const handleSubmit = () => {
     if (!validateForm()) return;
-
     setIsSubmitting(true);
-    try {
-      await mockApiCall(true, 1500);
 
-      // Create mock response data
-      const mockService = {
-        _id: service?._id || String(Date.now()),
-        serviceName: serviceName.trim(),
-      };
+    setTimeout(() => {
+      try {
+        const newService = {
+          _id: service?._id || Date.now().toString(),
+          serviceName: serviceName.trim(),
+          sacCode: sacCode.trim(),
+        };
+        onSuccess(newService);
+        if (!service) {
+          setServiceName('');
+          setSacCode('');
+        }
+      } catch (error) {
+        Alert.alert(
+          'Operation Failed',
+          error?.message || 'Unknown error occurred.',
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
+    }, 1000);
+  };
 
-      // Show success feedback
-      Alert.alert(
-        'Success',
-        `Service ${service ? 'updated' : 'created'} successfully!`,
-        [{ text: 'OK' }]
-      );
-
-      onSuccess(mockService);
-    } catch (error) {
-      Alert.alert(
-        'Operation Failed',
-        error instanceof Error ? error.message : 'An unknown error occurred.',
-        [{ text: 'OK' }]
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  async function handleDelete() {
+  const handleDelete = () => {
     if (!service?._id || !onDelete) return;
-    
+
     Alert.alert(
-      'Confirm Delete',
+      'Delete Service',
       'Are you sure you want to delete this service?',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: async () => {
+          onPress: () => {
             setIsSubmitting(true);
-            try {
-              await mockApiCall(true, 1000);
-              
-              Alert.alert(
-                'Service Deleted',
-                `${service.serviceName} has been deleted.`,
-                [{ text: 'OK' }]
-              );
-
-              onDelete(service);
-            } catch (error) {
-              Alert.alert(
-                'Delete Failed',
-                error instanceof Error ? error.message : 'An unknown error occurred.',
-                [{ text: 'OK' }]
-              );
-            } finally {
-              setIsSubmitting(false);
-            }
+            setTimeout(() => {
+              try {
+                Alert.alert(
+                  'Service Deleted',
+                  `${service.serviceName} deleted successfully.`,
+                );
+                onDelete(service);
+              } catch (error) {
+                Alert.alert(
+                  'Delete Failed',
+                  error?.message || 'Unknown error.',
+                );
+              } finally {
+                setIsSubmitting(false);
+              }
+            }, 1000);
           },
         },
-      ]
+      ],
     );
-  }
+  };
+
+  if (!visible) return null;
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.form}>
-        {/* Service Name Input */}
-        <View style={styles.formItem}>
+        {/* Service Name */}
+        <View style={styles.formGroup}>
           <Text style={styles.label}>Service Name</Text>
           <TextInput
-            style={[styles.input, error ? styles.inputError : null]}
+            style={[styles.input, errors.serviceName && styles.inputError]}
             placeholder="e.g. Annual Maintenance Contract"
             value={serviceName}
-            onChangeText={(text) => {
-              setServiceName(text);
-              if (error) setError('');
-            }}
+            onChangeText={setServiceName}
             editable={!isSubmitting}
           />
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {errors.serviceName && (
+            <Text style={styles.errorText}>{errors.serviceName}</Text>
+          )}
+        </View>
+
+        {/* SAC Code */}
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>SAC Code</Text>
+          <TextInput
+            style={[styles.input, errors.sacCode && styles.inputError]}
+            placeholder="Search SAC code (e.g., 9954)"
+            value={sacCode}
+            onChangeText={setSacCode}
+            editable={!isSubmitting}
+            keyboardType="numeric"
+          />
+          {errors.sacCode && (
+            <Text style={styles.errorText}>{errors.sacCode}</Text>
+          )}
+
+          {/* SAC Suggestions */}
+          {sacSuggestions.length > 0 && (
+            <View style={styles.suggestions}>
+              <FlatList
+                data={sacSuggestions}
+                keyExtractor={item => item}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    onPress={() => setSacCode(item)}
+                    style={styles.suggestionItem}
+                  >
+                    <Text>{item}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          )}
         </View>
 
         {/* Buttons */}
-        <View style={styles.buttonsContainer}>
+        <View style={styles.buttonContainer}>
+          {onCancel && (
+            <TouchableOpacity
+              style={[styles.button, styles.cancelButton]}
+              onPress={onCancel}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          )}
+
           {service && onDelete && (
             <TouchableOpacity
               style={[styles.button, styles.deleteButton]}
@@ -155,66 +194,77 @@ export function ServiceForm({
               disabled={isSubmitting}
             >
               <Trash2 size={16} color="#fff" />
-              <Text style={styles.buttonText}>Delete</Text>
+              <Text style={styles.deleteButtonText}>Delete</Text>
             </TouchableOpacity>
           )}
+
           <TouchableOpacity
-            style={[styles.button, styles.submitButton, isSubmitting && styles.buttonDisabled]}
-            onPress={onSubmit}
+            style={[
+              styles.button,
+              styles.submitButton,
+              isSubmitting && styles.disabledButton,
+            ]}
+            onPress={handleSubmit}
             disabled={isSubmitting}
           >
-            {isSubmitting && <Loader2 size={16} color="#fff" style={styles.spinner} />}
-            <Text style={styles.buttonText}>
-              {service ? 'Save Changes' : 'Create Service'}
-            </Text>
+            {isSubmitting ? (
+              <>
+                <ActivityIndicator
+                  size="small"
+                  color="#fff"
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={styles.submitButtonText}>
+                  {service ? 'Saving...' : 'Creating...'}
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.submitButtonText}>
+                {service ? 'Save Changes' : 'Create Service'}
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
+// Styles (updated to include suggestions)
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  form: {
-    padding: 16,
-    maxWidth: 400,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  formItem: {
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 8,
-    color: '#374151',
-  },
+  container: { width: '100%', maxWidth: 400, alignSelf: 'center' },
+  form: { padding: 16 },
+  formGroup: { marginBottom: 20 },
+  label: { fontSize: 14, fontWeight: '500', color: '#374151', marginBottom: 8 },
   input: {
-    backgroundColor: 'white',
     borderWidth: 1,
     borderColor: '#d1d5db',
-    borderRadius: 6,
+    borderRadius: 8,
     padding: 12,
     fontSize: 16,
+    backgroundColor: '#fff',
   },
-  inputError: {
-    borderColor: '#ef4444',
-  },
-  errorText: {
-    color: '#ef4444',
-    fontSize: 14,
+  inputError: { borderColor: '#ef4444' },
+  errorText: { color: '#ef4444', fontSize: 12, marginTop: 4 },
+  suggestions: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
     marginTop: 4,
+    maxHeight: 100,
+    backgroundColor: '#fff',
   },
-  buttonsContainer: {
+  suggestionItem: {
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 12,
     marginTop: 24,
+    flexWrap: 'wrap',
   },
   button: {
     flexDirection: 'row',
@@ -222,30 +272,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 6,
-    minWidth: 120,
+    borderRadius: 8,
+    gap: 8,
+    minWidth: 100,
   },
-  submitButton: {
-    backgroundColor: '#3b82f6',
+  cancelButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
   },
-  deleteButton: {
-    backgroundColor: '#ef4444',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '500',
-    marginLeft: 8,
-  },
-  spinner: {
-    animationKeyframes: {
-      '0%': { transform: [{ rotate: '0deg' }] },
-      '100%': { transform: [{ rotate: '360deg' }] },
-    },
-    animationDuration: '1s',
-    animationIterationCount: 'infinite',
-  },
+  cancelButtonText: { color: '#6b7280', fontWeight: '500', fontSize: 14 },
+  deleteButton: { backgroundColor: '#ef4444' },
+  deleteButtonText: { color: '#fff', fontWeight: '500', fontSize: 14 },
+  submitButton: { backgroundColor: '#2563eb' },
+  disabledButton: { backgroundColor: '#9ca3af' },
+  submitButtonText: { color: '#fff', fontWeight: '500', fontSize: 14 },
 });

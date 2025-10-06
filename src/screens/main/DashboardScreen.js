@@ -4,9 +4,9 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   ActivityIndicator,
   Modal,
+  ScrollView,
 } from 'react-native';
 import { Card } from 'react-native-paper';
 import {
@@ -22,7 +22,6 @@ import BottomNav from '../../components/layout/BottomNav';
 import RecentTransactions from '../../components/dashboard/RecentTransactions';
 import TransactionForm from '../../components/transactions/TransactionForm';
 import ProductStock from '../../components/dashboard/ProductStock';
-import UpdateWalkthrough from '../../components/notifications/UpdateWalkthrough';
 import KPICard from '../../components/dashboard/KPICard';
 
 const MOCK_COMPANIES = [
@@ -36,18 +35,28 @@ const MOCK_SERVICES = [
 ];
 
 const MOCK_TRANSACTIONS = [
-  { id: '1', type: 'sales', amount: 1500, date: '2024-01-15', description: 'Product Sale' },
-  { id: '2', type: 'purchase', amount: 800, date: '2024-01-14', description: 'Office Supplies' },
+  {
+    id: '1',
+    type: 'sales',
+    amount: 1500,
+    date: '2024-01-15',
+    description: 'Product Sale',
+  },
+  {
+    id: '2',
+    type: 'purchase',
+    amount: 800,
+    date: '2024-01-14',
+    description: 'Office Supplies',
+  },
 ];
 
-const formatCurrency = (amount) => `₹${amount.toLocaleString('en-IN')}`;
+const formatCurrency = amount => `₹${amount.toLocaleString('en-IN')}`;
 
 export class DashboardScreen extends Component {
   state = {
     activeTab: 'Dashboard',
-    selectedCompanyId: null,
     companyData: null,
-    companies: MOCK_COMPANIES,
     recentTransactions: [],
     serviceNameById: new Map(),
     isLoading: false,
@@ -62,13 +71,17 @@ export class DashboardScreen extends Component {
     this.setState({ isLoading: true });
 
     setTimeout(() => {
-      const totalSales = MOCK_TRANSACTIONS.filter(t => t.type === 'sales')
-        .reduce((sum, t) => sum + t.amount, 0);
-      const totalPurchases = MOCK_TRANSACTIONS.filter(t => t.type === 'purchase')
-        .reduce((sum, t) => sum + t.amount, 0);
+      const totalSales = MOCK_TRANSACTIONS.filter(
+        t => t.type === 'sales',
+      ).reduce((sum, t) => sum + t.amount, 0);
+      const totalPurchases = MOCK_TRANSACTIONS.filter(
+        t => t.type === 'purchase',
+      ).reduce((sum, t) => sum + t.amount, 0);
 
       const serviceMap = new Map();
-      MOCK_SERVICES.forEach(service => serviceMap.set(service._id, service.serviceName));
+      MOCK_SERVICES.forEach(service =>
+        serviceMap.set(service._id, service.serviceName),
+      );
 
       this.setState({
         companyData: {
@@ -84,13 +97,22 @@ export class DashboardScreen extends Component {
     }, 1000);
   };
 
-  handleTransactionFormSubmit = (newTransaction) => {
+  handleTabChange = tab => {
+    this.setState({ activeTab: tab });
+  };
+
+  handleTransactionFormSubmit = newTransaction => {
     const { recentTransactions, companyData } = this.state;
-    const updatedTransactions = [newTransaction, ...recentTransactions.slice(0, 4)];
+    const updatedTransactions = [
+      newTransaction,
+      ...recentTransactions.slice(0, 4),
+    ];
 
     let updatedCompanyData = { ...companyData };
-    if (newTransaction.type === 'sales') updatedCompanyData.totalSales += newTransaction.amount;
-    else if (newTransaction.type === 'purchase') updatedCompanyData.totalPurchases += newTransaction.amount;
+    if (newTransaction.type === 'sales')
+      updatedCompanyData.totalSales += newTransaction.amount;
+    else if (newTransaction.type === 'purchase')
+      updatedCompanyData.totalPurchases += newTransaction.amount;
 
     this.setState({
       recentTransactions: updatedTransactions,
@@ -100,12 +122,35 @@ export class DashboardScreen extends Component {
   };
 
   renderDashboardContent() {
-    const { isLoading, companyData, recentTransactions, serviceNameById, isTransactionFormOpen } = this.state;
+    const {
+      isLoading,
+      companyData,
+      recentTransactions,
+      serviceNameById,
+      isTransactionFormOpen,
+    } = this.state;
+
     const kpiData = [
-      { title: 'Total Sales', value: formatCurrency(companyData?.totalSales || 0), icon: IndianRupee },
-      { title: 'Total Purchases', value: formatCurrency(companyData?.totalPurchases || 0), icon: CreditCard },
-      { title: 'Active Users', value: (companyData?.users || 0).toString(), icon: Users },
-      { title: 'Companies', value: (companyData?.companies || 0).toString(), icon: Building },
+      {
+        title: 'Total Sales',
+        value: formatCurrency(companyData?.totalSales || 0),
+        icon: IndianRupee,
+      },
+      {
+        title: 'Total Purchases',
+        value: formatCurrency(companyData?.totalPurchases || 0),
+        icon: CreditCard,
+      },
+      {
+        title: 'Active Users',
+        value: (companyData?.users || 0).toString(),
+        icon: Users,
+      },
+      {
+        title: 'Companies',
+        value: (companyData?.companies || 0).toString(),
+        icon: Building,
+      },
     ];
 
     if (isLoading) {
@@ -120,11 +165,8 @@ export class DashboardScreen extends Component {
     return (
       <ScrollView style={{ flex: 1, backgroundColor: '#f1f5f9' }}>
         <View style={styles.dashboardContainer}>
-
           {/* Header Buttons */}
           <View style={styles.actionRow}>
-            <UpdateWalkthrough />
-
             <TouchableOpacity style={styles.settingsButton}>
               <Settings size={18} color="#1e293b" />
               <Text style={styles.settingsText}>Settings</Text>
@@ -139,27 +181,30 @@ export class DashboardScreen extends Component {
             </TouchableOpacity>
           </View>
 
-          {/* KPI Cards */}
-          <View style={styles.kpiGrid}>
-            {kpiData.map((kpi) => (
-              <View key={kpi.title} style={styles.kpiCardWrapper}>
+          {/* KPI Cards - Horizontal Scroll */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginBottom: 16 }}
+            contentContainerStyle={{ paddingHorizontal: 8 }}
+          >
+            {kpiData.map(kpi => (
+              <View key={kpi.title} style={{ marginRight: 12 }}>
                 <KPICard {...kpi} />
               </View>
             ))}
-          </View>
+          </ScrollView>
 
-          {/* Stock and Transactions */}
+          {/* Product Stock */}
           <ProductStock />
-          <RecentTransactions transactions={recentTransactions} serviceNameById={serviceNameById} />
-        </View>
 
-        {/* Floating Button */}
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => this.setState({ isTransactionFormOpen: true })}
-        >
-          <PlusCircle size={26} color="#fff" />
-        </TouchableOpacity>
+          {/* Recent Transactions */}
+          <RecentTransactions
+            transactions={recentTransactions}
+            serviceNameById={serviceNameById}
+            scrollEnabled={false}
+          />
+        </View>
 
         {/* Transaction Modal */}
         <Modal
@@ -176,12 +221,12 @@ export class DashboardScreen extends Component {
                   Record a sales or purchase transaction.
                 </Text>
               </View>
-              <ScrollView style={styles.modalContent}>
+              <View style={styles.modalContent}>
                 <TransactionForm
                   onFormSubmit={this.handleTransactionFormSubmit}
                   serviceNameById={serviceNameById}
                 />
-              </ScrollView>
+              </View>
               <TouchableOpacity
                 onPress={() => this.setState({ isTransactionFormOpen: false })}
                 style={styles.cancelButton}
@@ -196,7 +241,7 @@ export class DashboardScreen extends Component {
   }
 
   render() {
-    const { username = 'User', role = 'user' } = this.props.route.params || {};
+    const { username = 'User', role = 'user' } = this.props.route?.params || {};
     return (
       <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
         <Header username={username} role={role} />
@@ -251,15 +296,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
   },
-  kpiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  kpiCardWrapper: {
-    width: '48%',
-    marginBottom: 12,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -269,18 +305,6 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     color: '#475569',
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 90,
-    right: 20,
-    backgroundColor: '#2563eb',
-    borderRadius: 50,
-    padding: 16,
-    elevation: 6,
-    shadowColor: '#2563eb',
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
   },
   modalOverlay: {
     flex: 1,
