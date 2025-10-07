@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
   Modal,
   ScrollView,
 } from 'react-native';
@@ -105,51 +104,55 @@ const RecentTransactions = () => {
     setIsItemsOpen(true);
   };
 
-  const TransactionCard = ({ item }) => {
-    const type = typeConfig[item.type] || typeConfig.sales;
-    return (
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={[styles.typeBadge, { backgroundColor: type.bgColor }]}>
-            <Text style={[styles.typeText, { color: type.textColor }]}>
-              {type.label}
-            </Text>
-          </View>
-          <Text style={styles.amount}>
-            {inr(item.amount || item.totalAmount)}
-          </Text>
-        </View>
-        <View style={styles.cardBody}>
-          <Text style={styles.partyName}>{item.partyName}</Text>
-          <Text style={styles.narration}>{item.narration || '—'}</Text>
-          <View style={styles.metaContainer}>
-            <Text style={styles.metaValue}>{safeDate(item.date)}</Text>
-          </View>
-        </View>
-        <TouchableOpacity
-          style={styles.itemButton}
-          onPress={() => openItemsDialog(item)}
-          disabled={!item.items || item.items.length === 0}
-        >
-          <Text style={styles.itemButtonText}>
-            {item.items?.length || 0}{' '}
-            {item.items?.length === 1 ? 'Item' : 'Items'}
-          </Text>
-          <ChevronRight width={16} height={16} color="#6b7280" />
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
   return (
     <View style={styles.wrapper}>
       <Text style={styles.title}>Recent Transactions</Text>
-      <FlatList
-        data={defaultTransactions}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => <TransactionCard item={item} />}
-        contentContainerStyle={{ gap: 12 }}
-      />
+      {defaultTransactions.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>No Transactions</Text>
+          <Text style={styles.emptyDescription}>
+            You haven't added any transactions yet.
+          </Text>
+        </View>
+      ) : (
+        defaultTransactions.map(item => {
+          const type = typeConfig[item.type] || typeConfig.sales;
+          return (
+            <View key={item.id} style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View
+                  style={[styles.typeBadge, { backgroundColor: type.bgColor }]}
+                >
+                  <Text style={[styles.typeText, { color: type.textColor }]}>
+                    {type.label}
+                  </Text>
+                </View>
+                <Text style={styles.amount}>
+                  {inr(item.amount || item.totalAmount)}
+                </Text>
+              </View>
+              <View style={styles.cardBody}>
+                <Text style={styles.partyName}>{item.partyName}</Text>
+                <Text style={styles.narration}>{item.narration || '—'}</Text>
+                <View style={styles.metaContainer}>
+                  <Text style={styles.metaValue}>{safeDate(item.date)}</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.itemButton}
+                onPress={() => openItemsDialog(item)}
+                disabled={!item.items || item.items.length === 0}
+              >
+                <Text style={styles.itemButtonText}>
+                  {item.items?.length || 0}{' '}
+                  {item.items?.length === 1 ? 'Item' : 'Items'}
+                </Text>
+                <ChevronRight width={16} height={16} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+          );
+        })
+      )}
 
       {/* Modal */}
       <Modal visible={isItemsOpen} animationType="fade" transparent={true}>
@@ -252,7 +255,7 @@ const RecentTransactions = () => {
 };
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, padding: 16, backgroundColor: '#f8fafc' },
+  wrapper: { padding: 16, backgroundColor: '#f8fafc' },
   title: { fontSize: 24, fontWeight: '700', marginBottom: 16 },
   card: {
     backgroundColor: 'white',
@@ -337,6 +340,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   closeButtonText: { color: 'white', fontWeight: '600', fontSize: 16 },
+  emptyState: { alignItems: 'center', marginTop: 20 },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 6,
+    color: '#374151',
+  },
+  emptyDescription: {
+    fontSize: 13,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginTop: 4,
+  },
 });
 
 export default RecentTransactions;

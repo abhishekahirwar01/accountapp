@@ -162,6 +162,7 @@ export class DashboardScreen extends Component {
       );
     }
 
+    // OUTER SCROLLVIEW for full dashboard scroll (no nested FlatList inside)
     return (
       <ScrollView style={{ flex: 1, backgroundColor: '#f1f5f9' }}>
         <View style={styles.dashboardContainer}>
@@ -202,7 +203,6 @@ export class DashboardScreen extends Component {
           <RecentTransactions
             transactions={recentTransactions}
             serviceNameById={serviceNameById}
-            scrollEnabled={false}
           />
         </View>
 
