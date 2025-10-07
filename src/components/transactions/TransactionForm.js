@@ -9,12 +9,14 @@ import {
   Modal,
   Switch,
   Alert,
+  Platform,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { PlusCircle, Trash2 } from 'lucide-react-native';
-import CustomerForm from '../customers/CustomerForm';
+import { CustomerForm } from '../customers/CustomerForm';
 import VendorForm from '../vendors/VendorForm';
-import ProductForm from '../products/ProductForm';
+import { ProductForm } from '../products/ProductForm';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 // --- Hardcoded Data ---
 const MOCK_COMPANIES = [
@@ -102,14 +104,17 @@ function TransactionForm({
   const [date, setDate] = useState(
     transactionToEdit?.date || new Date().toISOString().slice(0, 10),
   );
+  const [dueDate, setDueDate] = useState(transactionToEdit?.dueDate || '');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showDueDatePicker, setShowDueDatePicker] = useState(false);
   const [referenceNumber, setReferenceNumber] = useState(
     transactionToEdit?.referenceNumber || '',
   );
   const [paymentMethod, setPaymentMethod] = useState(
     transactionToEdit?.paymentMethod || 'Cash',
   );
-  const [notes, setNotes] = useState(transactionToEdit?.notes || '');
-  const [dueDate, setDueDate] = useState(transactionToEdit?.dueDate || '');
+  // Changed: notes -> description
+  const [description, setDescription] = useState(transactionToEdit?.description || '');
   const [fromAccount, setFromAccount] = useState('');
   const [toAccount, setToAccount] = useState('');
   const [amount, setAmount] = useState('');
@@ -146,7 +151,9 @@ function TransactionForm({
   const [shippingSameAsBilling, setShippingSameAsBilling] = useState(true);
   const [shippingAddress, setShippingAddress] = useState('');
   const [showPartyModal, setShowPartyModal] = useState(false);
+  const [partyModalType, setPartyModalType] = useState('customer'); // or vendor
   const [showProductModal, setShowProductModal] = useState(false);
+  const [showServiceModal, setShowServiceModal] = useState(false);
   const [creatingForIndex, setCreatingForIndex] = useState(null);
 
   // --- Derived ---
@@ -293,6 +300,25 @@ function TransactionForm({
     return null;
   };
 
+  // --- Date Handler ---
+  function showDatePickerModal(setter, value, minDate) {
+    return (
+      <DateTimePicker
+        value={value ? new Date(value) : new Date()}
+        mode="date"
+        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+        minimumDate={minDate}
+        onChange={(_, selectedDate) => {
+          if (selectedDate) {
+            setter(selectedDate.toISOString().slice(0, 10));
+          }
+          if (setter === setDate) setShowDatePicker(false);
+          if (setter === setDueDate) setShowDueDatePicker(false);
+        }}
+      />
+    );
+  }
+
   // --- Submit Handler ---
   const handleSubmit = () => {
     const error = validate();
@@ -306,9 +332,12 @@ function TransactionForm({
       party: type === 'purchases' || type === 'payment' ? undefined : partyId,
       vendor: type === 'purchases' || type === 'payment' ? vendorId : undefined,
       date,
-      referenceNumber,
+      referenceNumber:
+        type === 'receipt' || type === 'payment' ? referenceNumber : undefined,
       paymentMethod,
-      notes,
+      // Changed: notes -> description/narration, only one field
+      description: description,
+      narration: type === 'journal' ? description : undefined,
       fromAccount,
       toAccount,
       totalAmount: invoiceTotal,
@@ -337,7 +366,7 @@ function TransactionForm({
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.sectionTitle}>Transaction Details</Text>
-      {/* Horizontal Transaction Type Buttons */}
+      {/* Transaction Type Buttons */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -365,44 +394,156 @@ function TransactionForm({
           ))}
         </View>
       </ScrollView>
-      {/* Company, Transaction Date, Due Date */}
-      {type === 'sales' && (
+      {/* Company Selection always first */}
+      <View style={styles.row}>
+        <View style={styles.col}>
+          <Text style={styles.label}>Company</Text>
+          <View style={styles.pickerWrapper}>
+            <Picker selectedValue={companyId} onValueChange={v => setCompanyId(v)}>
+              {companies.map(c => (
+                <Picker.Item key={c._id} label={c.businessName} value={c._id} />
+              ))}
+            </Picker>
+          </View>
+        </View>
+      </View>
+
+      {/* TRANSACTION DATE & DUE DATE */}
+      <View style={styles.row}>
+        <View style={styles.col}>
+          <Text style={styles.label}>Transaction Date</Text>
+          <TouchableOpacity
+            onPress={() => setShowDatePicker(true)}
+            style={styles.input}
+            activeOpacity={0.7}
+          >
+            <Text style={{ color: date ? '#0f172a' : '#64748b' }}>
+              {date || 'Select date'}
+            </Text>
+          </TouchableOpacity>
+          {showDatePicker &&
+            showDatePickerModal(setDate, date)}
+        </View>
+        {(type === 'sales' || type === 'purchases') && (
+          <View style={styles.col}>
+            <Text style={styles.label}>Due Date</Text>
+            <TouchableOpacity
+              onPress={() => setShowDueDatePicker(true)}
+              style={styles.input}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: dueDate ? '#0f172a' : '#64748b' }}>
+                {dueDate || 'Select date'}
+              </Text>
+            </TouchableOpacity>
+            {showDueDatePicker &&
+              showDatePickerModal(setDueDate, dueDate)}
+          </View>
+        )}
+      </View>
+
+      {/* PAYMENT TAB */}
+      {type === 'payment' && (
         <>
           <View style={styles.row}>
             <View style={styles.col}>
-              <Text style={styles.label}>Company</Text>
+              <Text style={styles.label}>Paid To (Vendor)</Text>
               <View style={styles.pickerWrapper}>
-                <Picker selectedValue={companyId} onValueChange={setCompanyId}>
-                  {companies.map(c => (
+                <Picker
+                  selectedValue={vendorId}
+                  onValueChange={setVendorId}
+                  prompt="Select Vendor"
+                >
+                  {vendors.map(v => (
                     <Picker.Item
-                      key={c._id}
-                      label={c.businessName}
-                      value={c._id}
+                      key={v._id}
+                      label={v.vendorName}
+                      value={v._id}
                     />
                   ))}
                 </Picker>
               </View>
+              <TouchableOpacity
+                style={styles.linkButton}
+                onPress={() => {
+                  setPartyModalType('vendor');
+                  setShowPartyModal(true);
+                }}
+              >
+                <Text style={styles.linkText}>Create Vendor</Text>
+              </TouchableOpacity>
             </View>
             <View style={styles.col}>
-              <Text style={styles.label}>Transaction Date</Text>
+              <Text style={styles.label}>Payment Method</Text>
+              <View style={styles.pickerWrapper}>
+                <Picker
+                  selectedValue={paymentMethod}
+                  onValueChange={setPaymentMethod}
+                >
+                  <Picker.Item label="Cash" value="Cash" />
+                  <Picker.Item label="Credit" value="Credit" />
+                  <Picker.Item label="UPI" value="UPI" />
+                  <Picker.Item label="Bank Transfer" value="Bank Transfer" />
+                </Picker>
+              </View>
+              {paymentMethod !== 'Cash' && (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={styles.smallLabel}>Bank</Text>
+                  <View style={styles.pickerWrapper}>
+                    <Picker selectedValue={bankId} onValueChange={setBankId}>
+                      {MOCK_BANKS.filter(b => b.companyId === companyId).map(
+                        b => (
+                          <Picker.Item
+                            key={b._id}
+                            label={b.bankName}
+                            value={b._id}
+                          />
+                        ),
+                      )}
+                    </Picker>
+                  </View>
+                </View>
+              )}
+            </View>
+          </View>
+          <View style={styles.row}>
+            <View className={styles.col}>
+              <Text style={styles.label}>Amount</Text>
               <TextInput
-                value={date}
-                onChangeText={setDate}
+                value={amount}
+                onChangeText={setAmount}
                 style={styles.input}
-                placeholder="YYYY-MM-DD"
+                placeholder="0.00"
+                keyboardType="numeric"
               />
             </View>
             <View style={styles.col}>
-              <Text style={styles.label}>Due Date</Text>
+              <Text style={styles.label}>Reference No. (Optional)</Text>
               <TextInput
-                value={dueDate}
-                onChangeText={setDueDate}
+                value={referenceNumber}
+                onChangeText={setReferenceNumber}
                 style={styles.input}
-                placeholder="YYYY-MM-DD"
+                placeholder="Reference"
               />
             </View>
           </View>
-          {/* Customer, Payment Method, Bank */}
+          <View style={styles.row}>
+            <View style={styles.col}>
+              <Text style={styles.label}>Description/Narration</Text>
+              <TextInput
+                value={description}
+                onChangeText={setDescription}
+                style={styles.input}
+                placeholder="Describe your transaction"
+              />
+            </View>
+          </View>
+        </>
+      )}
+
+      {/* SALES TAB */}
+      {type === 'sales' && (
+        <>
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>Customer Name</Text>
@@ -413,6 +554,15 @@ function TransactionForm({
                   ))}
                 </Picker>
               </View>
+              <TouchableOpacity
+                style={styles.linkButton}
+                onPress={() => {
+                  setPartyModalType('customer');
+                  setShowPartyModal(true);
+                }}
+              >
+                <Text style={styles.linkText}>Create Customer</Text>
+              </TouchableOpacity>
               {getPartyBalance(partyId) > 0 && (
                 <Text style={{ color: '#dc2626', fontSize: 12, marginTop: 4 }}>
                   Balance: ₹{getPartyBalance(partyId).toFixed(2)}
@@ -647,6 +797,15 @@ function TransactionForm({
                         ))}
                       </Picker>
                     </View>
+                    <TouchableOpacity
+                      style={styles.linkButton}
+                      onPress={() => {
+                        setCreatingForIndex(index);
+                        setShowServiceModal(true);
+                      }}
+                    >
+                      <Text style={styles.linkText}>Create Service</Text>
+                    </TouchableOpacity>
                   </View>
                   <View style={styles.col}>
                     <Text style={styles.smallLabel}>Amount</Text>
@@ -738,7 +897,7 @@ function TransactionForm({
               <Text style={styles.addItemText}>Add Service</Text>
             </TouchableOpacity>
           </View>
-          {/* Totals and Notes */}
+          {/* Totals and Description */}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Subtotal</Text>
             <Text style={styles.totalValue}>₹{subTotal.toFixed(2)}</Text>
@@ -770,7 +929,7 @@ function TransactionForm({
               Don't Send Invoice
             </Text>
           </View>
-          {/* Notes */}
+          {/* Description/Narration */}
           {!showSalesNotes ? (
             <TouchableOpacity
               style={[
@@ -780,21 +939,21 @@ function TransactionForm({
               onPress={() => setShowSalesNotes(true)}
             >
               <Text style={[styles.addItemText, { color: '#0f172a' }]}>
-                Add Notes
+                Add Description/Narration
               </Text>
             </TouchableOpacity>
           ) : (
             <View style={{ marginTop: 8 }}>
-              <Text style={styles.smallLabel}>Notes</Text>
+              <Text style={styles.smallLabel}>Description/Narration</Text>
               <TextInput
                 style={[
                   styles.input,
                   { height: 100, textAlignVertical: 'top' },
                 ]}
                 multiline
-                value={notes}
-                onChangeText={setNotes}
-                placeholder="Add detailed notes..."
+                value={description}
+                onChangeText={setDescription}
+                placeholder="Describe your transaction"
               />
               <TouchableOpacity
                 style={[
@@ -804,55 +963,56 @@ function TransactionForm({
                 onPress={() => setShowSalesNotes(false)}
               >
                 <Text style={[styles.addItemText, { color: '#0f172a' }]}>
-                  Remove Notes
+                  Remove Description/Narration
                 </Text>
               </TouchableOpacity>
             </View>
           )}
         </>
       )}
-      {/* Purchases, Receipt, Payment, Journal - fallback to original layout */}
-      {type !== 'sales' && (
+
+      {/* RECEIPT TAB (reference number optional, company/date/party) */}
+      {type === 'receipt' && (
         <>
-          {/* Type, Date, Due Date */}
           <View style={styles.row}>
             <View style={styles.col}>
-              <Text style={styles.label}>Date</Text>
-              <TextInput
-                value={date}
-                onChangeText={setDate}
-                style={styles.input}
-                placeholder="YYYY-MM-DD"
-              />
-            </View>
-            <View style={styles.col}>
-              <Text style={styles.label}>Due Date</Text>
-              <TextInput
-                value={dueDate}
-                onChangeText={setDueDate}
-                style={styles.input}
-                placeholder="YYYY-MM-DD"
-              />
-            </View>
-          </View>
-          {/* Company, Reference */}
-          <View style={styles.row}>
-            <View style={styles.col}>
-              <Text style={styles.label}>Company</Text>
+              <Text style={styles.label}>Received From</Text>
               <View style={styles.pickerWrapper}>
-                <Picker selectedValue={companyId} onValueChange={setCompanyId}>
-                  {companies.map(c => (
-                    <Picker.Item
-                      key={c._id}
-                      label={c.businessName}
-                      value={c._id}
-                    />
+                <Picker selectedValue={partyId} onValueChange={setPartyId}>
+                  {parties.map(p => (
+                    <Picker.Item key={p._id} label={p.name} value={p._id} />
                   ))}
                 </Picker>
               </View>
+              <TouchableOpacity
+                style={styles.linkButton}
+                onPress={() => {
+                  setPartyModalType('customer');
+                  setShowPartyModal(true);
+                }}
+              >
+                <Text style={styles.linkText}>Create Customer</Text>
+              </TouchableOpacity>
+              {getPartyBalance(partyId) > 0 && (
+                <Text style={{ color: '#dc2626', fontSize: 12, marginTop: 4 }}>
+                  Balance: ₹{getPartyBalance(partyId).toFixed(2)}
+                </Text>
+              )}
+            </View>
+          </View>
+          <View style={styles.row}>
+            <View style={styles.col}>
+              <Text style={styles.label}>Amount</Text>
+              <TextInput
+                value={amount}
+                onChangeText={setAmount}
+                style={styles.input}
+                placeholder="0.00"
+                keyboardType="numeric"
+              />
             </View>
             <View style={styles.col}>
-              <Text style={styles.label}>Reference No.</Text>
+              <Text style={styles.label}>Reference No. (Optional)</Text>
               <TextInput
                 value={referenceNumber}
                 onChangeText={setReferenceNumber}
@@ -861,279 +1021,184 @@ function TransactionForm({
               />
             </View>
           </View>
-          {/* Party/Vendor, Payment Method, Bank */}
-          {(type === 'purchases' || type === 'payment') && (
-            <View style={styles.row}>
-              <View style={styles.col}>
-                <Text style={styles.label}>
-                  {type === 'purchases' ? 'Vendor' : 'Paid To'}
-                </Text>
-                <View style={styles.pickerWrapper}>
-                  <Picker selectedValue={vendorId} onValueChange={setVendorId}>
-                    {vendors.map(v => (
-                      <Picker.Item
-                        key={v._id}
-                        label={v.vendorName}
-                        value={v._id}
-                      />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
-              <View style={styles.col}>
-                <Text style={styles.label}>Payment Method</Text>
-                <View style={styles.pickerWrapper}>
-                  <Picker
-                    selectedValue={paymentMethod}
-                    onValueChange={setPaymentMethod}
-                  >
-                    <Picker.Item label="Cash" value="Cash" />
-                    <Picker.Item label="Credit" value="Credit" />
-                    <Picker.Item label="UPI" value="UPI" />
-                    <Picker.Item label="Bank Transfer" value="Bank Transfer" />
-                  </Picker>
-                </View>
-                {paymentMethod !== 'Cash' && (
-                  <View style={{ marginTop: 8 }}>
-                    <Text style={styles.smallLabel}>Bank</Text>
-                    <View style={styles.pickerWrapper}>
-                      <Picker selectedValue={bankId} onValueChange={setBankId}>
-                        {MOCK_BANKS.filter(b => b.companyId === companyId).map(
-                          b => (
-                            <Picker.Item
-                              key={b._id}
-                              label={b.bankName}
-                              value={b._id}
-                            />
-                          ),
-                        )}
-                      </Picker>
-                    </View>
-                  </View>
-                )}
-              </View>
+          <View style={styles.row}>
+            <View style={styles.col}>
+              <Text style={styles.label}>Description/Narration</Text>
+              <TextInput
+                value={description}
+                onChangeText={setDescription}
+                style={styles.input}
+                placeholder="Describe your transaction"
+              />
             </View>
-          )}
-          {type === 'receipt' && (
-            <View style={styles.row}>
-              <View style={styles.col}>
-                <Text style={styles.label}>Received From</Text>
-                <View style={styles.pickerWrapper}>
-                  <Picker selectedValue={partyId} onValueChange={setPartyId}>
-                    {parties.map(p => (
-                      <Picker.Item key={p._id} label={p.name} value={p._id} />
-                    ))}
-                  </Picker>
-                </View>
-                {getPartyBalance(partyId) > 0 && (
-                  <Text
-                    style={{ color: '#dc2626', fontSize: 12, marginTop: 4 }}
-                  >
-                    Balance: ₹{getPartyBalance(partyId).toFixed(2)}
-                  </Text>
-                )}
+          </View>
+        </>
+      )}
+
+      {/* Purchases, Journal fallback (company/date already at top) */}
+      {type === 'purchases' && (
+        <>
+          <View style={styles.row}>
+            <View style={styles.col}>
+              <Text style={styles.label}>Vendor</Text>
+              <View style={styles.pickerWrapper}>
+                <Picker selectedValue={vendorId} onValueChange={setVendorId}>
+                  {vendors.map(v => (
+                    <Picker.Item
+                      key={v._id}
+                      label={v.vendorName}
+                      value={v._id}
+                    />
+                  ))}
+                </Picker>
               </View>
-              <View style={styles.col}>
-                <Text style={styles.label}>Payment Method</Text>
-                <View style={styles.pickerWrapper}>
-                  <Picker
-                    selectedValue={paymentMethod}
-                    onValueChange={setPaymentMethod}
-                  >
-                    <Picker.Item label="Cash" value="Cash" />
-                    <Picker.Item label="Credit" value="Credit" />
-                    <Picker.Item label="UPI" value="UPI" />
-                    <Picker.Item label="Bank Transfer" value="Bank Transfer" />
-                  </Picker>
-                </View>
-                {paymentMethod !== 'Cash' && (
-                  <View style={{ marginTop: 8 }}>
-                    <Text style={styles.smallLabel}>Bank</Text>
-                    <View style={styles.pickerWrapper}>
-                      <Picker selectedValue={bankId} onValueChange={setBankId}>
-                        {MOCK_BANKS.filter(b => b.companyId === companyId).map(
-                          b => (
-                            <Picker.Item
-                              key={b._id}
-                              label={b.bankName}
-                              value={b._id}
-                            />
-                          ),
-                        )}
-                      </Picker>
-                    </View>
-                  </View>
-                )}
-              </View>
+              <TouchableOpacity
+                style={styles.linkButton}
+                onPress={() => {
+                  setPartyModalType('vendor');
+                  setShowPartyModal(true);
+                }}
+              >
+                <Text style={styles.linkText}>Create Vendor</Text>
+              </TouchableOpacity>
             </View>
-          )}
-          {/* Journal */}
-          {type === 'journal' && (
-            <View>
-              <View style={styles.row}>
-                <View style={styles.col}>
-                  <Text style={styles.label}>Debit Account</Text>
-                  <TextInput
-                    value={fromAccount}
-                    onChangeText={setFromAccount}
-                    style={styles.input}
-                    placeholder="e.g., Rent Expense"
-                  />
-                </View>
-                <View style={styles.col}>
-                  <Text style={styles.label}>Credit Account</Text>
-                  <TextInput
-                    value={toAccount}
-                    onChangeText={setToAccount}
-                    style={styles.input}
-                    placeholder="e.g., Cash"
-                  />
-                </View>
+            <View style={styles.col}>
+              <Text style={styles.label}>Payment Method</Text>
+              <View style={styles.pickerWrapper}>
+                <Picker
+                  selectedValue={paymentMethod}
+                  onValueChange={setPaymentMethod}
+                >
+                  <Picker.Item label="Cash" value="Cash" />
+                  <Picker.Item label="Credit" value="Credit" />
+                  <Picker.Item label="UPI" value="UPI" />
+                  <Picker.Item label="Bank Transfer" value="Bank Transfer" />
+                </Picker>
               </View>
-              <View style={styles.row}>
-                <View style={styles.col}>
-                  <Text style={styles.label}>Amount</Text>
-                  <TextInput
-                    value={amount}
-                    onChangeText={setAmount}
-                    style={styles.input}
-                    placeholder="0.00"
-                    keyboardType="numeric"
-                  />
-                </View>
-              </View>
-            </View>
-          )}
-          {/* Receipt/Payment Amount/Notes */}
-          {(type === 'receipt' || type === 'payment') && (
-            <View style={styles.row}>
-              <View style={styles.col}>
-                <Text style={styles.label}>Amount</Text>
-                <TextInput
-                  value={amount}
-                  onChangeText={setAmount}
-                  style={styles.input}
-                  placeholder="0.00"
-                  keyboardType="numeric"
-                />
-              </View>
-              <View style={styles.col}>
-                <Text style={styles.label}>Notes</Text>
-                <TextInput
-                  value={notes}
-                  onChangeText={setNotes}
-                  style={styles.input}
-                  placeholder="Optional"
-                />
-              </View>
-            </View>
-          )}
-          {/* Items Table for Purchases */}
-          {type === 'purchases' && (
-            <>
-              <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
-                Items
-              </Text>
-              {items.map((item, index) => (
-                <View key={item.id} style={styles.itemRow}>
-                  <View style={[styles.col, { flex: 0.9 }]}>
-                    <Text style={styles.smallLabel}>Type</Text>
-                    <View style={styles.pickerWrapper}>
-                      <Picker
-                        selectedValue={item.itemType}
-                        onValueChange={v => updateItem(index, 'itemType', v)}
-                      >
-                        <Picker.Item label="Product" value="product" />
-                        <Picker.Item label="Service" value="service" />
-                      </Picker>
-                    </View>
-                  </View>
-                  {item.itemType === 'product' ? (
-                    <>
-                      <View style={[styles.col, { flex: 1.5 }]}>
-                        <Text style={styles.smallLabel}>Product</Text>
-                        <View style={styles.pickerWrapper}>
-                          <Picker
-                            selectedValue={item.product}
-                            onValueChange={v => updateItem(index, 'product', v)}
-                          >
-                            {products.map(p => (
-                              <Picker.Item
-                                key={p._id}
-                                label={p.name}
-                                value={p._id}
-                              />
-                            ))}
-                          </Picker>
-                        </View>
-                        <TouchableOpacity
-                          style={styles.linkButton}
-                          onPress={() => {
-                            setCreatingForIndex(index);
-                            setShowProductModal(true);
-                          }}
-                        >
-                          <Text style={styles.linkText}>Create Product</Text>
-                        </TouchableOpacity>
-                      </View>
-                      <View style={styles.col}>
-                        <Text style={styles.smallLabel}>Qty</Text>
-                        <TextInput
-                          value={String(item.quantity)}
-                          onChangeText={v => updateItem(index, 'quantity', v)}
-                          style={styles.input}
-                          keyboardType="numeric"
-                          placeholder="0"
-                        />
-                      </View>
-                      <View style={styles.col}>
-                        <Text style={styles.smallLabel}>Unit</Text>
-                        <View style={styles.pickerWrapper}>
-                          <Picker
-                            selectedValue={item.unitType || 'Piece'}
-                            onValueChange={v =>
-                              updateItem(index, 'unitType', v)
-                            }
-                          >
-                            {UNIT_TYPES.map(u => (
-                              <Picker.Item key={u} label={u} value={u} />
-                            ))}
-                          </Picker>
-                        </View>
-                        {item.unitType === 'Other' && (
-                          <TextInput
-                            style={[styles.input, { marginTop: 6 }]}
-                            placeholder="Specify unit"
-                            value={item.otherUnit || ''}
-                            onChangeText={v =>
-                              updateItem(index, 'otherUnit', v)
-                            }
+              {paymentMethod !== 'Cash' && (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={styles.smallLabel}>Bank</Text>
+                  <View style={styles.pickerWrapper}>
+                    <Picker selectedValue={bankId} onValueChange={setBankId}>
+                      {MOCK_BANKS.filter(b => b.companyId === companyId).map(
+                        b => (
+                          <Picker.Item
+                            key={b._id}
+                            label={b.bankName}
+                            value={b._id}
                           />
-                        )}
+                        ),
+                      )}
+                    </Picker>
+                  </View>
+                </View>
+              )}
+            </View>
+          </View>
+          {/* Items Table for Purchases */}
+          <>
+            <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Items</Text>
+            {items.map((item, index) => (
+              <View key={item.id} style={styles.itemRow}>
+                <View style={[styles.col, { flex: 0.9 }]}>
+                  <Text style={styles.smallLabel}>Type</Text>
+                  <View style={styles.pickerWrapper}>
+                    <Picker
+                      selectedValue={item.itemType}
+                      onValueChange={v => updateItem(index, 'itemType', v)}
+                    >
+                      <Picker.Item label="Product" value="product" />
+                      <Picker.Item label="Service" value="service" />
+                    </Picker>
+                  </View>
+                </View>
+                {item.itemType === 'product' ? (
+                  <>
+                    <View style={[styles.col, { flex: 1.5 }]}>
+                      <Text style={styles.smallLabel}>Product</Text>
+                      <View style={styles.pickerWrapper}>
+                        <Picker
+                          selectedValue={item.product}
+                          onValueChange={v => updateItem(index, 'product', v)}
+                        >
+                          {products.map(p => (
+                            <Picker.Item
+                              key={p._id}
+                              label={p.name}
+                              value={p._id}
+                            />
+                          ))}
+                        </Picker>
                       </View>
-                      <View style={styles.col}>
-                        <Text style={styles.smallLabel}>Rate</Text>
-                        <TextInput
-                          value={String(item.pricePerUnit)}
-                          onChangeText={v =>
-                            updateItem(index, 'pricePerUnit', v)
+                      <TouchableOpacity
+                        style={styles.linkButton}
+                        onPress={() => {
+                          setCreatingForIndex(index);
+                          setShowProductModal(true);
+                        }}
+                      >
+                        <Text style={styles.linkText}>Create Product</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.col}>
+                      <Text style={styles.smallLabel}>Qty</Text>
+                      <TextInput
+                        value={String(item.quantity)}
+                        onChangeText={v => updateItem(index, 'quantity', v)}
+                        style={styles.input}
+                        keyboardType="numeric"
+                        placeholder="0"
+                      />
+                    </View>
+                    <View style={styles.col}>
+                      <Text style={styles.smallLabel}>Unit</Text>
+                      <View style={styles.pickerWrapper}>
+                        <Picker
+                          selectedValue={item.unitType || 'Piece'}
+                          onValueChange={v =>
+                            updateItem(index, 'unitType', v)
                           }
-                          style={styles.input}
-                          keyboardType="numeric"
-                          placeholder="0"
-                        />
+                        >
+                          {UNIT_TYPES.map(u => (
+                            <Picker.Item key={u} label={u} value={u} />
+                          ))}
+                        </Picker>
                       </View>
-                      <View style={styles.col}>
-                        <Text style={styles.smallLabel}>HSN Code</Text>
+                      {item.unitType === 'Other' && (
                         <TextInput
-                          value={String(item.hsnCode || '-')}
-                          onChangeText={v => updateItem(index, 'hsnCode', v)}
-                          style={styles.input}
-                          placeholder="-"
+                          style={[styles.input, { marginTop: 6 }]}
+                          placeholder="Specify unit"
+                          value={item.otherUnit || ''}
+                          onChangeText={v =>
+                            updateItem(index, 'otherUnit', v)
+                          }
                         />
-                      </View>
-                    </>
-                  ) : (
+                      )}
+                    </View>
+                    <View style={styles.col}>
+                      <Text style={styles.smallLabel}>Rate</Text>
+                      <TextInput
+                        value={String(item.pricePerUnit)}
+                        onChangeText={v =>
+                          updateItem(index, 'pricePerUnit', v)
+                        }
+                        style={styles.input}
+                        keyboardType="numeric"
+                        placeholder="0"
+                      />
+                    </View>
+                    <View style={styles.col}>
+                      <Text style={styles.smallLabel}>HSN Code</Text>
+                      <TextInput
+                        value={String(item.hsnCode || '-')}
+                        onChangeText={v => updateItem(index, 'hsnCode', v)}
+                        style={styles.input}
+                        placeholder="-"
+                      />
+                    </View>
+                  </>
+                ) : (
+                  <>
                     <View style={[styles.col, { flex: 1.5 }]}>
                       <Text style={styles.smallLabel}>Service</Text>
                       <View style={styles.pickerWrapper}>
@@ -1150,91 +1215,148 @@ function TransactionForm({
                           ))}
                         </Picker>
                       </View>
+                      <TouchableOpacity
+                        style={styles.linkButton}
+                        onPress={() => {
+                          setCreatingForIndex(index);
+                          setShowServiceModal(true);
+                        }}
+                      >
+                        <Text style={styles.linkText}>Create Service</Text>
+                      </TouchableOpacity>
                     </View>
-                  )}
-                  {gstEnabled && (
-                    <View style={styles.col}>
-                      <Text style={styles.smallLabel}>GST %</Text>
-                      <View style={styles.pickerWrapper}>
-                        <Picker
-                          selectedValue={Number(item.gstPercentage || 0)}
-                          onValueChange={v =>
-                            updateItem(index, 'gstPercentage', v)
-                          }
-                        >
-                          {GST_OPTIONS.map(opt => (
-                            <Picker.Item
-                              key={opt.value}
-                              label={opt.label}
-                              value={opt.value}
-                            />
-                          ))}
-                        </Picker>
-                      </View>
-                    </View>
-                  )}
-                  <View style={[styles.col, { flex: 0.9 }]}>
-                    <Text style={styles.smallLabel}>Amt</Text>
-                    <View style={[styles.input, styles.amountBox]}>
-                      <Text style={styles.amountText}>
-                        ₹{Number(item.amount).toFixed(2)}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={[styles.col, { flex: 0.9 }]}>
-                    <Text style={styles.smallLabel}>Total</Text>
-                    <View style={[styles.input, styles.amountBox]}>
-                      <Text style={styles.amountText}>
-                        ₹{Number(item.lineTotal || item.amount).toFixed(2)}
-                      </Text>
+                  </>
+                )}
+                {gstEnabled && (
+                  <View style={styles.col}>
+                    <Text style={styles.smallLabel}>GST %</Text>
+                    <View style={styles.pickerWrapper}>
+                      <Picker
+                        selectedValue={Number(item.gstPercentage || 0)}
+                        onValueChange={v =>
+                          updateItem(index, 'gstPercentage', v)
+                        }
+                      >
+                        {GST_OPTIONS.map(opt => (
+                          <Picker.Item
+                            key={opt.value}
+                            label={opt.label}
+                            value={opt.value}
+                          />
+                        ))}
+                      </Picker>
                     </View>
                   </View>
-                  <TouchableOpacity
-                    style={styles.removeBtn}
-                    onPress={() => removeItem(index)}
-                  >
-                    <Trash2 size={18} color="#ef4444" />
-                  </TouchableOpacity>
+                )}
+                <View style={[styles.col, { flex: 0.9 }]}>
+                  <Text style={styles.smallLabel}>Amt</Text>
+                  <View style={[styles.input, styles.amountBox]}>
+                    <Text style={styles.amountText}>
+                      ₹{Number(item.amount).toFixed(2)}
+                    </Text>
+                  </View>
                 </View>
-              ))}
-              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={[styles.col, { flex: 0.9 }]}>
+                  <Text style={styles.smallLabel}>Total</Text>
+                  <View style={[styles.input, styles.amountBox]}>
+                    <Text style={styles.amountText}>
+                      ₹{Number(item.lineTotal || item.amount).toFixed(2)}
+                    </Text>
+                  </View>
+                </View>
                 <TouchableOpacity
-                  style={styles.addItemBtn}
-                  onPress={addProductRow}
-                  activeOpacity={0.8}
+                  style={styles.removeBtn}
+                  onPress={() => removeItem(index)}
                 >
-                  <PlusCircle size={18} color="#fff" />
-                  <Text style={styles.addItemText}>Add Product</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.addItemBtn, { backgroundColor: '#16a34a' }]}
-                  onPress={addServiceRow}
-                  activeOpacity={0.8}
-                >
-                  <PlusCircle size={18} color="#fff" />
-                  <Text style={styles.addItemText}>Add Service</Text>
+                  <Trash2 size={18} color="#ef4444" />
                 </TouchableOpacity>
               </View>
+            ))}
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={styles.addItemBtn}
+                onPress={addProductRow}
+                activeOpacity={0.8}
+              >
+                <PlusCircle size={18} color="#fff" />
+                <Text style={styles.addItemText}>Add Product</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.addItemBtn, { backgroundColor: '#16a34a' }]}
+                onPress={addServiceRow}
+                activeOpacity={0.8}
+              >
+                <PlusCircle size={18} color="#fff" />
+                <Text style={styles.addItemText}>Add Service</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Subtotal</Text>
+              <Text style={styles.totalValue}>₹{subTotal.toFixed(2)}</Text>
+            </View>
+            {gstEnabled && (
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Subtotal</Text>
-                <Text style={styles.totalValue}>₹{subTotal.toFixed(2)}</Text>
+                <Text style={styles.totalLabel}>GST</Text>
+                <Text style={styles.totalValue}>₹{totalTax.toFixed(2)}</Text>
               </View>
-              {gstEnabled && (
-                <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>GST</Text>
-                  <Text style={styles.totalValue}>₹{totalTax.toFixed(2)}</Text>
-                </View>
-              )}
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Invoice Total</Text>
-                <Text style={styles.totalValue}>
-                  ₹{invoiceTotal.toFixed(2)}
-                </Text>
-              </View>
-            </>
-          )}
+            )}
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Invoice Total</Text>
+              <Text style={styles.totalValue}>
+                ₹{invoiceTotal.toFixed(2)}
+              </Text>
+            </View>
+          </>
         </>
       )}
+
+      {/* JOURNAL TAB */}
+      {type === 'journal' && (
+        <View>
+          <View style={styles.row}>
+            <View style={styles.col}>
+              <Text style={styles.label}>Debit Account</Text>
+              <TextInput
+                value={fromAccount}
+                onChangeText={setFromAccount}
+                style={styles.input}
+                placeholder="e.g., Rent Expense"
+              />
+            </View>
+            <View style={styles.col}>
+              <Text style={styles.label}>Credit Account</Text>
+              <TextInput
+                value={toAccount}
+                onChangeText={setToAccount}
+                style={styles.input}
+                placeholder="e.g., Cash"
+              />
+            </View>
+          </View>
+          <View style={styles.row}>
+            <View style={styles.col}>
+              <Text style={styles.label}>Amount</Text>
+              <TextInput
+                value={amount}
+                onChangeText={setAmount}
+                style={styles.input}
+                placeholder="0.00"
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={styles.col}>
+              <Text style={styles.label}>Narration</Text>
+              <TextInput
+                value={description}
+                onChangeText={setDescription}
+                style={styles.input}
+                placeholder="Describe your transaction"
+              />
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* Submit */}
       <TouchableOpacity
         style={styles.submitBtn}
@@ -1245,7 +1367,8 @@ function TransactionForm({
           {transactionToEdit ? 'Update Transaction' : 'Save Transaction'}
         </Text>
       </TouchableOpacity>
-      {/* Create Party Modal */}
+
+      {/* Create Customer/Vendor Modal */}
       <Modal
         visible={showPartyModal}
         animationType="slide"
@@ -1256,17 +1379,14 @@ function TransactionForm({
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                Create{' '}
-                {type === 'purchases' || type === 'payment'
-                  ? 'Vendor'
-                  : 'Customer'}
+                {partyModalType === 'vendor' ? 'Create Vendor' : 'Create Customer'}
               </Text>
               <TouchableOpacity onPress={() => setShowPartyModal(false)}>
                 <Text style={styles.modalClose}>✕</Text>
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ paddingVertical: 8 }}>
-              {type === 'purchases' || type === 'payment' ? (
+              {partyModalType === 'vendor' ? (
                 <VendorForm
                   onSuccess={newVendor => {
                     setVendors(prev => [...prev, newVendor]);
@@ -1287,6 +1407,7 @@ function TransactionForm({
           </View>
         </View>
       </Modal>
+
       {/* Create Product Modal */}
       <Modal
         visible={showProductModal}
@@ -1320,6 +1441,44 @@ function TransactionForm({
           </View>
         </View>
       </Modal>
+
+      {/* Create Service Modal */}
+      <Modal
+        visible={showServiceModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowServiceModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Create Service</Text>
+              <TouchableOpacity onPress={() => setShowServiceModal(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ paddingVertical: 8 }}>
+              {/* You should create a ServiceForm component similar to ProductForm */}
+              {/* <ServiceForm
+                onSuccess={newService => {
+                  setServices(prev => [...prev, newService]);
+                  if (
+                    creatingForIndex !== null &&
+                    creatingForIndex !== undefined
+                  ) {
+                    updateItem(creatingForIndex, 'service', newService._id);
+                  }
+                  setShowServiceModal(false);
+                  setCreatingForIndex(null);
+                }}
+              /> */}
+              <Text style={{ color: '#0f172a', padding: 12 }}>
+                ServiceForm component not implemented. Please implement ServiceForm to enable service creation.
+              </Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -1343,6 +1502,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: '#fff',
+    minHeight: 40,
+    justifyContent: 'center',
   },
   pickerWrapper: {
     borderWidth: 1,
