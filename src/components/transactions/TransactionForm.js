@@ -90,6 +90,404 @@ const getPartyBalance = partyId => {
   return 0;
 };
 
+// --- ItemsCard: reusable for both sales and purchases ---
+function ItemsCard({
+  items,
+  products,
+  services,
+  gstEnabled,
+  updateItem,
+  removeItem,
+  addProductRow,
+  addServiceRow,
+  creatingForIndex,
+  setCreatingForIndex,
+  setShowProductModal,
+  setShowServiceModal,
+  subTotal,
+  totalTax,
+  invoiceTotal,
+  showTotals = true,
+  showDescription = false,
+  description,
+  setDescription,
+  dontSendInvoice,
+  setDontSendInvoice,
+  showSalesNotes,
+  setShowSalesNotes,
+  UNIT_TYPES,
+  GST_OPTIONS,
+  cardTitle = 'Items & Services',
+}) {
+  return (
+    <View style={styles.card}>
+      <Text style={[styles.sectionTitle, { marginTop: 0, marginBottom: 12 }]}>{cardTitle}</Text>
+      {items.map((item, index) => (
+        <View key={item.id} style={[styles.verticalItemBox, {marginBottom: 12}]}>
+          <View style={{flexDirection: 'row', alignItems: 'center'}}>
+            <Text style={styles.smallLabel}>Type</Text>
+            <View style={[styles.pickerWrapper, {flex: 1, marginLeft: 8}]}>
+              <Picker
+                selectedValue={item.itemType}
+                onValueChange={v => updateItem(index, 'itemType', v)}
+              >
+                <Picker.Item label="Product" value="product" />
+                <Picker.Item label="Service" value="service" />
+              </Picker>
+            </View>
+            <TouchableOpacity
+              style={[styles.removeBtn, {marginLeft: 'auto'}]}
+              onPress={() => removeItem(index)}
+            >
+              <Trash2 size={18} color="#ef4444" />
+            </TouchableOpacity>
+          </View>
+          {item.itemType === 'product' ? (
+            <>
+              <View style={styles.itemFieldRow}>
+                <Text style={styles.smallLabel}>Product</Text>
+                <View style={[styles.pickerWrapper, {flex: 1, marginLeft: 8}]}>
+                  <Picker
+                    selectedValue={item.product}
+                    onValueChange={v => updateItem(index, 'product', v)}
+                  >
+                    {products.map(p => (
+                      <Picker.Item
+                        key={p._id}
+                        label={p.name}
+                        value={p._id}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+                <TouchableOpacity
+                  style={[styles.linkButton, {marginLeft: 8}]}
+                  onPress={() => {
+                    setCreatingForIndex(index);
+                    setShowProductModal(true);
+                  }}
+                >
+                  <Text style={styles.linkText}>Create Product</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.itemFieldRow}>
+                <View style={{flex: 1, marginRight: 8}}>
+                  <Text style={styles.smallLabel}>Qty</Text>
+                  <TextInput
+                    value={String(item.quantity)}
+                    onChangeText={v => updateItem(index, 'quantity', v)}
+                    style={styles.input}
+                    keyboardType="numeric"
+                    placeholder="0"
+                  />
+                </View>
+                <View style={{flex: 1, marginRight: 8}}>
+                  <Text style={styles.smallLabel}>Unit</Text>
+                  <View style={styles.pickerWrapper}>
+                    <Picker
+                      selectedValue={item.unitType || 'Piece'}
+                      onValueChange={v => updateItem(index, 'unitType', v)}
+                    >
+                      {UNIT_TYPES.map(u => (
+                        <Picker.Item key={u} label={u} value={u} />
+                      ))}
+                    </Picker>
+                  </View>
+                  {item.unitType === 'Other' && (
+                    <TextInput
+                      style={[styles.input, { marginTop: 6 }]}
+                      placeholder="Specify unit"
+                      value={item.otherUnit || ''}
+                      onChangeText={v => updateItem(index, 'otherUnit', v)}
+                    />
+                  )}
+                </View>
+                <View style={{flex: 1, marginRight: 8}}>
+                  <Text style={styles.smallLabel}>Price/Unit</Text>
+                  <TextInput
+                    value={String(item.pricePerUnit)}
+                    onChangeText={v => updateItem(index, 'pricePerUnit', v)}
+                    style={styles.input}
+                    keyboardType="numeric"
+                    placeholder="0"
+                  />
+                </View>
+              </View>
+              <View style={styles.itemFieldRow}>
+                <View style={{flex: 1, marginRight: 8}}>
+                  <Text style={styles.smallLabel}>Amount</Text>
+                  <TextInput
+                    value={String(item.amount || 0)}
+                    editable={false}
+                    style={styles.input}
+                    keyboardType="numeric"
+                    placeholder="0"
+                  />
+                </View>
+                <View style={{flex: 1, marginRight: 8}}>
+                  <Text style={styles.smallLabel}>HSN Code</Text>
+                  <TextInput
+                    value={String(item.hsnCode || '-')}
+                    onChangeText={v => updateItem(index, 'hsnCode', v)}
+                    style={styles.input}
+                    placeholder="-"
+                  />
+                </View>
+                {gstEnabled && (
+                  <>
+                    <View style={{flex: 1, marginRight: 8}}>
+                      <Text style={styles.smallLabel}>GST %</Text>
+                      <View style={styles.pickerWrapper}>
+                        <Picker
+                          selectedValue={Number(item.gstPercentage || 0)}
+                          onValueChange={v =>
+                            updateItem(index, 'gstPercentage', v)
+                          }
+                        >
+                          {GST_OPTIONS.map(opt => (
+                            <Picker.Item
+                              key={opt.value}
+                              label={opt.label}
+                              value={opt.value}
+                            />
+                          ))}
+                        </Picker>
+                      </View>
+                    </View>
+                    <View style={{flex: 1}}>
+                      <Text style={styles.smallLabel}>Tax</Text>
+                      <TextInput
+                        value={String(item.lineTax || 0)}
+                        editable={false}
+                        style={styles.input}
+                        keyboardType="numeric"
+                        placeholder="0"
+                      />
+                    </View>
+                  </>
+                )}
+              </View>
+              {gstEnabled && (
+                <View style={styles.itemFieldRow}>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.smallLabel}>Total</Text>
+                    <TextInput
+                      value={String(item.lineTotal || 0)}
+                      editable={false}
+                      style={styles.input}
+                      keyboardType="numeric"
+                      placeholder="0"
+                    />
+                  </View>
+                </View>
+              )}
+            </>
+          ) : (
+            <>
+              <View style={styles.itemFieldRow}>
+                <Text style={styles.smallLabel}>Service</Text>
+                <View style={[styles.pickerWrapper, {flex: 1, marginLeft: 8}]}>
+                  <Picker
+                    selectedValue={item.service}
+                    onValueChange={v => updateItem(index, 'service', v)}
+                  >
+                    {services.map(s => (
+                      <Picker.Item
+                        key={s._id}
+                        label={s.serviceName}
+                        value={s._id}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+                <TouchableOpacity
+                  style={[styles.linkButton, {marginLeft: 8}]}
+                  onPress={() => {
+                    setCreatingForIndex(index);
+                    setShowServiceModal(true);
+                  }}
+                >
+                  <Text style={styles.linkText}>Create Service</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.itemFieldRow}>
+                <View style={{flex: 1, marginRight: 8}}>
+                  <Text style={styles.smallLabel}>Amount</Text>
+                  <TextInput
+                    value={String(item.amount || 0)}
+                    onChangeText={v => updateItem(index, 'amount', v)}
+                    style={styles.input}
+                    keyboardType="numeric"
+                    placeholder="0"
+                  />
+                </View>
+                <View style={{flex: 2, marginRight: 8}}>
+                  <Text style={styles.smallLabel}>Description</Text>
+                  <TextInput
+                    value={item.description || ''}
+                    onChangeText={v => updateItem(index, 'description', v)}
+                    style={styles.input}
+                    placeholder="Service description"
+                  />
+                </View>
+                {gstEnabled && (
+                  <>
+                    <View style={{flex: 1, marginRight: 8}}>
+                      <Text style={styles.smallLabel}>GST %</Text>
+                      <View style={styles.pickerWrapper}>
+                        <Picker
+                          selectedValue={Number(item.gstPercentage || 0)}
+                          onValueChange={v =>
+                            updateItem(index, 'gstPercentage', v)
+                          }
+                        >
+                          {GST_OPTIONS.map(opt => (
+                            <Picker.Item
+                              key={opt.value}
+                              label={opt.label}
+                              value={opt.value}
+                            />
+                          ))}
+                        </Picker>
+                      </View>
+                    </View>
+                    <View style={{flex: 1}}>
+                      <Text style={styles.smallLabel}>Tax</Text>
+                      <TextInput
+                        value={String(item.lineTax || 0)}
+                        editable={false}
+                        style={styles.input}
+                        keyboardType="numeric"
+                        placeholder="0"
+                      />
+                    </View>
+                  </>
+                )}
+              </View>
+              {gstEnabled && (
+                <View style={styles.itemFieldRow}>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.smallLabel}>Total</Text>
+                    <TextInput
+                      value={String(item.lineTotal || 0)}
+                      editable={false}
+                      style={styles.input}
+                      keyboardType="numeric"
+                      placeholder="0"
+                    />
+                  </View>
+                </View>
+              )}
+            </>
+          )}
+        </View>
+      ))}
+      {/* Add buttons */}
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+        <TouchableOpacity
+          style={styles.addItemBtn}
+          onPress={addProductRow}
+          activeOpacity={0.8}
+        >
+          <PlusCircle size={18} color="#fff" />
+          <Text style={styles.addItemText}>Add Product</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.addItemBtn, { backgroundColor: '#16a34a' }]}
+          onPress={addServiceRow}
+          activeOpacity={0.8}
+        >
+          <PlusCircle size={18} color="#fff" />
+          <Text style={styles.addItemText}>Add Service</Text>
+        </TouchableOpacity>
+      </View>
+      {/* Totals */}
+      {showTotals && (
+        <>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Subtotal</Text>
+            <Text style={styles.totalValue}>₹{subTotal.toFixed(2)}</Text>
+          </View>
+          {gstEnabled && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>GST</Text>
+              <Text style={styles.totalValue}>₹{totalTax.toFixed(2)}</Text>
+            </View>
+          )}
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Invoice Total (GST incl.)</Text>
+            <Text style={[styles.totalValue, { fontWeight: 'bold' }]}>
+              ₹{invoiceTotal.toFixed(2)}
+            </Text>
+          </View>
+        </>
+      )}
+      {/* Don't Send Invoice (for sales) */}
+      {typeof dontSendInvoice !== 'undefined' && (
+        <View
+          style={{
+            marginTop: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: '#f1f5f9',
+            borderRadius: 8,
+            padding: 10,
+          }}
+        >
+          <Switch
+            value={dontSendInvoice}
+            onValueChange={setDontSendInvoice}
+          />
+          <Text style={{ marginLeft: 12, fontWeight: '600' }}>
+            Don't Send Invoice
+          </Text>
+        </View>
+      )}
+      {/* Description/Narration (for sales) */}
+      {showDescription && (
+        !showSalesNotes ? (
+          <TouchableOpacity
+            style={[
+              styles.addItemBtn,
+              { backgroundColor: '#e2e8f0', marginTop: 16 },
+            ]}
+            onPress={() => setShowSalesNotes(true)}
+          >
+            <Text style={[styles.addItemText, { color: '#0f172a' }]}>
+              Add Description/Narration
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={{ marginTop: 8 }}>
+            <Text style={styles.smallLabel}>Description/Narration</Text>
+            <TextInput
+              style={[
+                styles.input,
+                { height: 100, textAlignVertical: 'top' },
+              ]}
+              multiline
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Describe your transaction"
+            />
+            <TouchableOpacity
+              style={[
+                styles.addItemBtn,
+                { backgroundColor: '#e2e8f0', marginTop: 8 },
+              ]}
+              onPress={() => setShowSalesNotes(false)}
+            >
+              <Text style={[styles.addItemText, { color: '#0f172a' }]}>
+                Remove Description/Narration
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )
+      )}
+    </View>
+  );
+}
+
 // --- Main Form Component ---
 function TransactionForm({
   onFormSubmit = () => {},
@@ -113,7 +511,6 @@ function TransactionForm({
   const [paymentMethod, setPaymentMethod] = useState(
     transactionToEdit?.paymentMethod || 'Cash',
   );
-  // Changed: notes -> description
   const [description, setDescription] = useState(transactionToEdit?.description || '');
   const [fromAccount, setFromAccount] = useState('');
   const [toAccount, setToAccount] = useState('');
@@ -335,7 +732,6 @@ function TransactionForm({
       referenceNumber:
         type === 'receipt' || type === 'payment' ? referenceNumber : undefined,
       paymentMethod,
-      // Changed: notes -> description/narration, only one field
       description: description,
       narration: type === 'journal' ? description : undefined,
       fromAccount,
@@ -629,345 +1025,35 @@ function TransactionForm({
               />
             )}
           </View>
-          {/* Items & Services */}
-          <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
-            Items & Services
-          </Text>
-          {items.map((item, index) => (
-            <View key={item.id} style={styles.itemRow}>
-              <View style={[styles.col, { flex: 0.9 }]}>
-                <Text style={styles.smallLabel}>Type</Text>
-                <View style={styles.pickerWrapper}>
-                  <Picker
-                    selectedValue={item.itemType}
-                    onValueChange={v => updateItem(index, 'itemType', v)}
-                  >
-                    <Picker.Item label="Product" value="product" />
-                    <Picker.Item label="Service" value="service" />
-                  </Picker>
-                </View>
-              </View>
-              {item.itemType === 'product' ? (
-                <>
-                  <View style={[styles.col, { flex: 1.5 }]}>
-                    <Text style={styles.smallLabel}>Product</Text>
-                    <View style={styles.pickerWrapper}>
-                      <Picker
-                        selectedValue={item.product}
-                        onValueChange={v => updateItem(index, 'product', v)}
-                      >
-                        {products.map(p => (
-                          <Picker.Item
-                            key={p._id}
-                            label={p.name}
-                            value={p._id}
-                          />
-                        ))}
-                      </Picker>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.linkButton}
-                      onPress={() => {
-                        setCreatingForIndex(index);
-                        setShowProductModal(true);
-                      }}
-                    >
-                      <Text style={styles.linkText}>Create Product</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.col}>
-                    <Text style={styles.smallLabel}>Qty</Text>
-                    <TextInput
-                      value={String(item.quantity)}
-                      onChangeText={v => updateItem(index, 'quantity', v)}
-                      style={styles.input}
-                      keyboardType="numeric"
-                      placeholder="0"
-                    />
-                  </View>
-                  <View style={styles.col}>
-                    <Text style={styles.smallLabel}>Unit</Text>
-                    <View style={styles.pickerWrapper}>
-                      <Picker
-                        selectedValue={item.unitType || 'Piece'}
-                        onValueChange={v => updateItem(index, 'unitType', v)}
-                      >
-                        {UNIT_TYPES.map(u => (
-                          <Picker.Item key={u} label={u} value={u} />
-                        ))}
-                      </Picker>
-                    </View>
-                    {item.unitType === 'Other' && (
-                      <TextInput
-                        style={[styles.input, { marginTop: 6 }]}
-                        placeholder="Specify unit"
-                        value={item.otherUnit || ''}
-                        onChangeText={v => updateItem(index, 'otherUnit', v)}
-                      />
-                    )}
-                  </View>
-                  <View style={styles.col}>
-                    <Text style={styles.smallLabel}>Price/Unit</Text>
-                    <TextInput
-                      value={String(item.pricePerUnit)}
-                      onChangeText={v => updateItem(index, 'pricePerUnit', v)}
-                      style={styles.input}
-                      keyboardType="numeric"
-                      placeholder="0"
-                    />
-                  </View>
-                  <View style={styles.col}>
-                    <Text style={styles.smallLabel}>Amount</Text>
-                    <TextInput
-                      value={String(item.amount || 0)}
-                      editable={false}
-                      style={styles.input}
-                      keyboardType="numeric"
-                      placeholder="0"
-                    />
-                  </View>
-                  <View style={styles.col}>
-                    <Text style={styles.smallLabel}>HSN Code</Text>
-                    <TextInput
-                      value={String(item.hsnCode || '-')}
-                      onChangeText={v => updateItem(index, 'hsnCode', v)}
-                      style={styles.input}
-                      placeholder="-"
-                    />
-                  </View>
-                  {gstEnabled && (
-                    <>
-                      <View style={styles.col}>
-                        <Text style={styles.smallLabel}>GST %</Text>
-                        <View style={styles.pickerWrapper}>
-                          <Picker
-                            selectedValue={Number(item.gstPercentage || 0)}
-                            onValueChange={v =>
-                              updateItem(index, 'gstPercentage', v)
-                            }
-                          >
-                            {GST_OPTIONS.map(opt => (
-                              <Picker.Item
-                                key={opt.value}
-                                label={opt.label}
-                                value={opt.value}
-                              />
-                            ))}
-                          </Picker>
-                        </View>
-                      </View>
-                      <View style={styles.col}>
-                        <Text style={styles.smallLabel}>Tax</Text>
-                        <TextInput
-                          value={String(item.lineTax || 0)}
-                          editable={false}
-                          style={styles.input}
-                          keyboardType="numeric"
-                          placeholder="0"
-                        />
-                      </View>
-                      <View style={styles.col}>
-                        <Text style={styles.smallLabel}>Total</Text>
-                        <TextInput
-                          value={String(item.lineTotal || 0)}
-                          editable={false}
-                          style={styles.input}
-                          keyboardType="numeric"
-                          placeholder="0"
-                        />
-                      </View>
-                    </>
-                  )}
-                </>
-              ) : (
-                <>
-                  <View style={[styles.col, { flex: 1.5 }]}>
-                    <Text style={styles.smallLabel}>Service</Text>
-                    <View style={styles.pickerWrapper}>
-                      <Picker
-                        selectedValue={item.service}
-                        onValueChange={v => updateItem(index, 'service', v)}
-                      >
-                        {services.map(s => (
-                          <Picker.Item
-                            key={s._id}
-                            label={s.serviceName}
-                            value={s._id}
-                          />
-                        ))}
-                      </Picker>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.linkButton}
-                      onPress={() => {
-                        setCreatingForIndex(index);
-                        setShowServiceModal(true);
-                      }}
-                    >
-                      <Text style={styles.linkText}>Create Service</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.col}>
-                    <Text style={styles.smallLabel}>Amount</Text>
-                    <TextInput
-                      value={String(item.amount || 0)}
-                      onChangeText={v => updateItem(index, 'amount', v)}
-                      style={styles.input}
-                      keyboardType="numeric"
-                      placeholder="0"
-                    />
-                  </View>
-                  <View style={styles.col}>
-                    <Text style={styles.smallLabel}>Description</Text>
-                    <TextInput
-                      value={item.description || ''}
-                      onChangeText={v => updateItem(index, 'description', v)}
-                      style={styles.input}
-                      placeholder="Service description"
-                    />
-                  </View>
-                  {gstEnabled && (
-                    <>
-                      <View style={styles.col}>
-                        <Text style={styles.smallLabel}>GST %</Text>
-                        <View style={styles.pickerWrapper}>
-                          <Picker
-                            selectedValue={Number(item.gstPercentage || 0)}
-                            onValueChange={v =>
-                              updateItem(index, 'gstPercentage', v)
-                            }
-                          >
-                            {GST_OPTIONS.map(opt => (
-                              <Picker.Item
-                                key={opt.value}
-                                label={opt.label}
-                                value={opt.value}
-                              />
-                            ))}
-                          </Picker>
-                        </View>
-                      </View>
-                      <View style={styles.col}>
-                        <Text style={styles.smallLabel}>Tax</Text>
-                        <TextInput
-                          value={String(item.lineTax || 0)}
-                          editable={false}
-                          style={styles.input}
-                          keyboardType="numeric"
-                          placeholder="0"
-                        />
-                      </View>
-                      <View style={styles.col}>
-                        <Text style={styles.smallLabel}>Total</Text>
-                        <TextInput
-                          value={String(item.lineTotal || 0)}
-                          editable={false}
-                          style={styles.input}
-                          keyboardType="numeric"
-                          placeholder="0"
-                        />
-                      </View>
-                    </>
-                  )}
-                </>
-              )}
-              <TouchableOpacity
-                style={styles.removeBtn}
-                onPress={() => removeItem(index)}
-              >
-                <Trash2 size={18} color="#ef4444" />
-              </TouchableOpacity>
-            </View>
-          ))}
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity
-              style={styles.addItemBtn}
-              onPress={addProductRow}
-              activeOpacity={0.8}
-            >
-              <PlusCircle size={18} color="#fff" />
-              <Text style={styles.addItemText}>Add Product</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.addItemBtn, { backgroundColor: '#16a34a' }]}
-              onPress={addServiceRow}
-              activeOpacity={0.8}
-            >
-              <PlusCircle size={18} color="#fff" />
-              <Text style={styles.addItemText}>Add Service</Text>
-            </TouchableOpacity>
-          </View>
-          {/* Totals and Description */}
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Subtotal</Text>
-            <Text style={styles.totalValue}>₹{subTotal.toFixed(2)}</Text>
-          </View>
-          {gstEnabled && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>GST</Text>
-              <Text style={styles.totalValue}>₹{totalTax.toFixed(2)}</Text>
-            </View>
-          )}
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Invoice Total (GST incl.)</Text>
-            <Text style={[styles.totalValue, { fontWeight: 'bold' }]}>
-              ₹{invoiceTotal.toFixed(2)}
-            </Text>
-          </View>
-          {/* Don't Send Invoice */}
-          <View
-            style={[
-              styles.card,
-              { marginTop: 8, flexDirection: 'row', alignItems: 'center' },
-            ]}
-          >
-            <Switch
-              value={dontSendInvoice}
-              onValueChange={setDontSendInvoice}
-            />
-            <Text style={{ marginLeft: 12, fontWeight: '600' }}>
-              Don't Send Invoice
-            </Text>
-          </View>
-          {/* Description/Narration */}
-          {!showSalesNotes ? (
-            <TouchableOpacity
-              style={[
-                styles.addItemBtn,
-                { backgroundColor: '#e2e8f0', marginTop: 16 },
-              ]}
-              onPress={() => setShowSalesNotes(true)}
-            >
-              <Text style={[styles.addItemText, { color: '#0f172a' }]}>
-                Add Description/Narration
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={{ marginTop: 8 }}>
-              <Text style={styles.smallLabel}>Description/Narration</Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  { height: 100, textAlignVertical: 'top' },
-                ]}
-                multiline
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Describe your transaction"
-              />
-              <TouchableOpacity
-                style={[
-                  styles.addItemBtn,
-                  { backgroundColor: '#e2e8f0', marginTop: 8 },
-                ]}
-                onPress={() => setShowSalesNotes(false)}
-              >
-                <Text style={[styles.addItemText, { color: '#0f172a' }]}>
-                  Remove Description/Narration
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          {/* Unified Items & Services Card */}
+          <ItemsCard
+            items={items}
+            products={products}
+            services={services}
+            gstEnabled={gstEnabled}
+            updateItem={updateItem}
+            removeItem={removeItem}
+            addProductRow={addProductRow}
+            addServiceRow={addServiceRow}
+            creatingForIndex={creatingForIndex}
+            setCreatingForIndex={setCreatingForIndex}
+            setShowProductModal={setShowProductModal}
+            setShowServiceModal={setShowServiceModal}
+            subTotal={subTotal}
+            totalTax={totalTax}
+            invoiceTotal={invoiceTotal}
+            UNIT_TYPES={UNIT_TYPES}
+            GST_OPTIONS={GST_OPTIONS}
+            showTotals={true}
+            showDescription={true}
+            description={description}
+            setDescription={setDescription}
+            dontSendInvoice={dontSendInvoice}
+            setDontSendInvoice={setDontSendInvoice}
+            showSalesNotes={showSalesNotes}
+            setShowSalesNotes={setShowSalesNotes}
+            cardTitle="Items & Services"
+          />
         </>
       )}
 
@@ -1095,218 +1181,29 @@ function TransactionForm({
               )}
             </View>
           </View>
-          {/* Items Table for Purchases */}
-          <>
-            <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Items</Text>
-            {items.map((item, index) => (
-              <View key={item.id} style={styles.itemRow}>
-                <View style={[styles.col, { flex: 0.9 }]}>
-                  <Text style={styles.smallLabel}>Type</Text>
-                  <View style={styles.pickerWrapper}>
-                    <Picker
-                      selectedValue={item.itemType}
-                      onValueChange={v => updateItem(index, 'itemType', v)}
-                    >
-                      <Picker.Item label="Product" value="product" />
-                      <Picker.Item label="Service" value="service" />
-                    </Picker>
-                  </View>
-                </View>
-                {item.itemType === 'product' ? (
-                  <>
-                    <View style={[styles.col, { flex: 1.5 }]}>
-                      <Text style={styles.smallLabel}>Product</Text>
-                      <View style={styles.pickerWrapper}>
-                        <Picker
-                          selectedValue={item.product}
-                          onValueChange={v => updateItem(index, 'product', v)}
-                        >
-                          {products.map(p => (
-                            <Picker.Item
-                              key={p._id}
-                              label={p.name}
-                              value={p._id}
-                            />
-                          ))}
-                        </Picker>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.linkButton}
-                        onPress={() => {
-                          setCreatingForIndex(index);
-                          setShowProductModal(true);
-                        }}
-                      >
-                        <Text style={styles.linkText}>Create Product</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <View style={styles.col}>
-                      <Text style={styles.smallLabel}>Qty</Text>
-                      <TextInput
-                        value={String(item.quantity)}
-                        onChangeText={v => updateItem(index, 'quantity', v)}
-                        style={styles.input}
-                        keyboardType="numeric"
-                        placeholder="0"
-                      />
-                    </View>
-                    <View style={styles.col}>
-                      <Text style={styles.smallLabel}>Unit</Text>
-                      <View style={styles.pickerWrapper}>
-                        <Picker
-                          selectedValue={item.unitType || 'Piece'}
-                          onValueChange={v =>
-                            updateItem(index, 'unitType', v)
-                          }
-                        >
-                          {UNIT_TYPES.map(u => (
-                            <Picker.Item key={u} label={u} value={u} />
-                          ))}
-                        </Picker>
-                      </View>
-                      {item.unitType === 'Other' && (
-                        <TextInput
-                          style={[styles.input, { marginTop: 6 }]}
-                          placeholder="Specify unit"
-                          value={item.otherUnit || ''}
-                          onChangeText={v =>
-                            updateItem(index, 'otherUnit', v)
-                          }
-                        />
-                      )}
-                    </View>
-                    <View style={styles.col}>
-                      <Text style={styles.smallLabel}>Rate</Text>
-                      <TextInput
-                        value={String(item.pricePerUnit)}
-                        onChangeText={v =>
-                          updateItem(index, 'pricePerUnit', v)
-                        }
-                        style={styles.input}
-                        keyboardType="numeric"
-                        placeholder="0"
-                      />
-                    </View>
-                    <View style={styles.col}>
-                      <Text style={styles.smallLabel}>HSN Code</Text>
-                      <TextInput
-                        value={String(item.hsnCode || '-')}
-                        onChangeText={v => updateItem(index, 'hsnCode', v)}
-                        style={styles.input}
-                        placeholder="-"
-                      />
-                    </View>
-                  </>
-                ) : (
-                  <>
-                    <View style={[styles.col, { flex: 1.5 }]}>
-                      <Text style={styles.smallLabel}>Service</Text>
-                      <View style={styles.pickerWrapper}>
-                        <Picker
-                          selectedValue={item.service}
-                          onValueChange={v => updateItem(index, 'service', v)}
-                        >
-                          {services.map(s => (
-                            <Picker.Item
-                              key={s._id}
-                              label={s.serviceName}
-                              value={s._id}
-                            />
-                          ))}
-                        </Picker>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.linkButton}
-                        onPress={() => {
-                          setCreatingForIndex(index);
-                          setShowServiceModal(true);
-                        }}
-                      >
-                        <Text style={styles.linkText}>Create Service</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                )}
-                {gstEnabled && (
-                  <View style={styles.col}>
-                    <Text style={styles.smallLabel}>GST %</Text>
-                    <View style={styles.pickerWrapper}>
-                      <Picker
-                        selectedValue={Number(item.gstPercentage || 0)}
-                        onValueChange={v =>
-                          updateItem(index, 'gstPercentage', v)
-                        }
-                      >
-                        {GST_OPTIONS.map(opt => (
-                          <Picker.Item
-                            key={opt.value}
-                            label={opt.label}
-                            value={opt.value}
-                          />
-                        ))}
-                      </Picker>
-                    </View>
-                  </View>
-                )}
-                <View style={[styles.col, { flex: 0.9 }]}>
-                  <Text style={styles.smallLabel}>Amt</Text>
-                  <View style={[styles.input, styles.amountBox]}>
-                    <Text style={styles.amountText}>
-                      ₹{Number(item.amount).toFixed(2)}
-                    </Text>
-                  </View>
-                </View>
-                <View style={[styles.col, { flex: 0.9 }]}>
-                  <Text style={styles.smallLabel}>Total</Text>
-                  <View style={[styles.input, styles.amountBox]}>
-                    <Text style={styles.amountText}>
-                      ₹{Number(item.lineTotal || item.amount).toFixed(2)}
-                    </Text>
-                  </View>
-                </View>
-                <TouchableOpacity
-                  style={styles.removeBtn}
-                  onPress={() => removeItem(index)}
-                >
-                  <Trash2 size={18} color="#ef4444" />
-                </TouchableOpacity>
-              </View>
-            ))}
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity
-                style={styles.addItemBtn}
-                onPress={addProductRow}
-                activeOpacity={0.8}
-              >
-                <PlusCircle size={18} color="#fff" />
-                <Text style={styles.addItemText}>Add Product</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.addItemBtn, { backgroundColor: '#16a34a' }]}
-                onPress={addServiceRow}
-                activeOpacity={0.8}
-              >
-                <PlusCircle size={18} color="#fff" />
-                <Text style={styles.addItemText}>Add Service</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Subtotal</Text>
-              <Text style={styles.totalValue}>₹{subTotal.toFixed(2)}</Text>
-            </View>
-            {gstEnabled && (
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>GST</Text>
-                <Text style={styles.totalValue}>₹{totalTax.toFixed(2)}</Text>
-              </View>
-            )}
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Invoice Total</Text>
-              <Text style={styles.totalValue}>
-                ₹{invoiceTotal.toFixed(2)}
-              </Text>
-            </View>
-          </>
+          {/* Unified Items & Services Card */}
+          <ItemsCard
+            items={items}
+            products={products}
+            services={services}
+            gstEnabled={gstEnabled}
+            updateItem={updateItem}
+            removeItem={removeItem}
+            addProductRow={addProductRow}
+            addServiceRow={addServiceRow}
+            creatingForIndex={creatingForIndex}
+            setCreatingForIndex={setCreatingForIndex}
+            setShowProductModal={setShowProductModal}
+            setShowServiceModal={setShowServiceModal}
+            subTotal={subTotal}
+            totalTax={totalTax}
+            invoiceTotal={invoiceTotal}
+            UNIT_TYPES={UNIT_TYPES}
+            GST_OPTIONS={GST_OPTIONS}
+            showTotals={true}
+            showDescription={false}
+            cardTitle="Items & Services"
+          />
         </>
       )}
 
@@ -1364,7 +1261,7 @@ function TransactionForm({
         activeOpacity={0.9}
       >
         <Text style={styles.submitText}>
-          {transactionToEdit ? 'Update Transaction' : 'Save Transaction'}
+          {transactionToEdit ? 'Update Transaction' : 'Create Transaction'}
         </Text>
       </TouchableOpacity>
 
@@ -1519,6 +1416,19 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 8,
     marginBottom: 10,
+  },
+  verticalItemBox: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 4,
+  },
+  itemFieldRow: {
+    flexDirection: 'row',
+    marginTop: 8,
+    alignItems: 'center',
   },
   amountBox: { justifyContent: 'center', alignItems: 'flex-end' },
   amountText: { fontWeight: '600', color: '#0f172a' },

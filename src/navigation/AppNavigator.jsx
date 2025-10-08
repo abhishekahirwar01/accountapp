@@ -29,7 +29,9 @@ export default function AppNavigator() {
 
       {/* History Screen */}
       <Stack.Screen name="HistoryScreen" component={HistoryPage} />
-      <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
+      
+      {/* ProfileScreen acts as user settings for non-master users */}
+      <Stack.Screen name="ProfileScreen" component={ProfileScreen} /> 
       <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
     </Stack.Navigator>
   );

@@ -101,6 +101,11 @@ export class DashboardScreen extends Component {
     this.setState({ activeTab: tab });
   };
 
+  handleSettingsPress = () => {
+  const { navigation } = this.props;
+  navigation.navigate('ProfileScreen');
+}
+
   handleTransactionFormSubmit = newTransaction => {
     const { recentTransactions, companyData } = this.state;
     const updatedTransactions = [
@@ -168,10 +173,13 @@ export class DashboardScreen extends Component {
         <View style={styles.dashboardContainer}>
           {/* Header Buttons */}
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.settingsButton}>
-              <Settings size={18} color="#1e293b" />
-              <Text style={styles.settingsText}>Settings</Text>
-            </TouchableOpacity>
+            <TouchableOpacity 
+  style={styles.settingsButton}
+  onPress={this.handleSettingsPress}
+>
+  <Settings size={18} color="#1e293b" />
+  <Text style={styles.settingsText}>Settings</Text>
+</TouchableOpacity>
 
             <TouchableOpacity
               style={styles.addButton}
