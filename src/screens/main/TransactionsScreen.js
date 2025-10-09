@@ -402,31 +402,46 @@ export default function TransactionsScreen() {
       </ScrollView>
 
       {/* Transaction Form Modal */}
-      <Modal visible={isFormOpen} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.formModal}>
-            <TransactionForm
-              transactionToEdit={transactionToEdit}
-              onFormSubmit={handleUpdateTransaction}
-              defaultType={
-                transactionToEdit
-                  ? transactionToEdit.type
-                  : allowedTypes[0] || 'sales'
-              }
-              transaction={transactionToEdit}
-              company={
-                companies.find(c => c._id === transactionToEdit?.company) ||
-                null
-              }
-              party={
-                parties.find(p => p._id === transactionToEdit?.party) || null
-              }
-              serviceNameById={serviceNameById}
-              onClose={() => setIsFormOpen(false)}
-            />
-          </View>
+<Modal visible={isFormOpen} transparent animationType="fade">
+  <View style={styles.modalOverlay}>
+    <View style={styles.modalCard}>
+      {/* External Header */}
+      <View style={styles.modalHeader}>
+        <View>
+          <Text style={styles.modalTitle}>
+            {transactionToEdit ? 'Edit Transaction' : 'Create Transaction'}
+          </Text>
+          <Text style={styles.modalDescription}>
+            {transactionToEdit 
+              ? 'Update transaction details' 
+              : 'Record a new sales, purchase, or other transaction'
+            }
+          </Text>
         </View>
-      </Modal>
+        <TouchableOpacity 
+          style={styles.modalCloseButton}
+          onPress={() => setIsFormOpen(false)}
+        >
+          <Text style={styles.modalCloseText}>✕</Text>
+        </TouchableOpacity>
+      </View>
+      
+      {/* Form Content */}
+      <View style={styles.modalContent}>
+        <TransactionForm
+          transactionToEdit={transactionToEdit}
+          onFormSubmit={handleUpdateTransaction}
+          onClose={() => setIsFormOpen(false)}
+          defaultType={
+            transactionToEdit
+              ? transactionToEdit.type
+              : allowedTypes[0] || 'sales'
+          }
+        />
+      </View>
+    </View>
+  </View>
+</Modal>
 
       {/* Delete Dialog */}
       <Modal visible={isAlertOpen} transparent animationType="fade">
@@ -731,4 +746,48 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   ctaButtonOutlineText: { color: '#2563eb', fontWeight: 'bold', marginLeft: 8 },
+   modalCard: {
+    width: '100%',
+    maxWidth: 500,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    backgroundColor: '#f8fafc',
+  },
+  modalTitle: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  modalDescription: { 
+    color: '#64748b', 
+    fontSize: 14,
+  },
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#e2e8f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  modalCloseText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#64748b',
+  },
+  modalContent: {
+    maxHeight: 600, // Adjust as needed
+  },
 });

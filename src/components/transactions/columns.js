@@ -41,7 +41,7 @@ const Icons = {
   WhatsApp: 'whatsapp',
 };
 
-// DropdownMenu using Modal for proper overlay and positioning
+// Enhanced DropdownMenu with better positioning and responsiveness
 const DropdownMenu = ({ trigger, children }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [triggerLayout, setTriggerLayout] = useState(null);
@@ -64,17 +64,19 @@ const DropdownMenu = ({ trigger, children }) => {
 
   // Calculate dropdown position
   let dropdownStyle = {};
+  const dropdownWidth = screenWidth < 500 ? 300 : 380;
+const dropdownMaxHeight = screenHeight < 700 ? 320 : 420;
+
   if (triggerLayout) {
     // Default below the trigger
-    dropdownStyle.top = triggerLayout.y + triggerLayout.height;
+    dropdownStyle.top = triggerLayout.y + triggerLayout.height + 2;
     dropdownStyle.left = Math.min(
       triggerLayout.x,
-      screenWidth - 240 - 16, // 240 = minWidth, 16 = margin
+      screenWidth - dropdownWidth - 8
     );
     // If dropdown goes below screen, show above
-    if (dropdownStyle.top + 260 > screenHeight) {
-      // 260 = approx dropdown height
-      dropdownStyle.top = Math.max(triggerLayout.y - 260, 16);
+    if (dropdownStyle.top + dropdownMaxHeight > screenHeight) {
+      dropdownStyle.top = Math.max(triggerLayout.y - dropdownMaxHeight, 8);
     }
   }
 
@@ -99,9 +101,16 @@ const DropdownMenu = ({ trigger, children }) => {
           activeOpacity={1}
           onPress={handleClose}
         />
-        <View style={[styles.dropdownModalContent, dropdownStyle]}>
+        <View style={[
+          styles.dropdownModalContent,
+          {
+            ...dropdownStyle,
+            minWidth: dropdownWidth,
+            maxHeight: dropdownMaxHeight,
+          }
+        ]}>
           <ScrollView
-            style={{ maxHeight: 260 }}
+            style={{ maxHeight: dropdownMaxHeight }}
             contentContainerStyle={{ flexGrow: 1 }}
             keyboardShouldPersistTaps="handled"
           >
@@ -180,7 +189,11 @@ const Tooltip = ({ content, children }) => {
       >
         {children}
       </TouchableOpacity>
-      {showTooltip && <View style={styles.tooltip}>{content}</View>}
+      {showTooltip && (
+        <View style={styles.tooltip}>
+          {content}
+        </View>
+      )}
     </View>
   );
 };
@@ -219,6 +232,7 @@ export const columns = ({
   companyMap = mockCompanies,
   serviceNameById,
   hideActions = false,
+  
 }) => {
   const customFilterFn = makeCustomFilterFn(serviceNameById);
 
@@ -638,7 +652,6 @@ const styles = StyleSheet.create({
   },
   dropdownModalContent: {
     position: 'absolute',
-    minWidth: 240,
     backgroundColor: 'white',
     borderRadius: 12,
     shadowColor: '#000',
@@ -649,10 +662,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
     zIndex: 1002,
-    right: 16,
-  },
-  dropdownContent: {
-    backgroundColor: 'transparent',
+    overflow: 'hidden',
   },
 
   // Menu styles
@@ -702,6 +712,38 @@ const styles = StyleSheet.create({
     color: '#dc2626',
   },
 
+  // Cell container styles
+  cellContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    flex: 1,
+  },
+  cellTextContainer: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  cellPrimary: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 2,
+  },
+  cellSecondary: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+
+  // Company cell
+  companyCell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    flex: 1,
+  },
+
   // Badge Styles
   badge: {
     paddingHorizontal: 12,
@@ -737,9 +779,19 @@ const styles = StyleSheet.create({
   // Avatar Styles
   journalAvatar: {
     backgroundColor: '#8b5cf6',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   partyAvatar: {
     backgroundColor: '#3b82f6',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   avatarText: {
     color: 'white',
@@ -763,6 +815,9 @@ const styles = StyleSheet.create({
     borderColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   stackedAvatarOverlap: {
     marginLeft: -8,

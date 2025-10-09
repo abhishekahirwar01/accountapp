@@ -11,6 +11,7 @@ import DashboardScreen from '../screens/main/DashboardScreen';
 import HistoryPage from '../screens/admin/HistoryScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import SettingsScreen from '../screens/admin/SettingsScreen';
+import InvoicePreview from '../components/invoices/InvoicePreview';
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
@@ -33,6 +34,7 @@ export default function AppNavigator() {
       {/* ProfileScreen acts as user settings for non-master users */}
       <Stack.Screen name="ProfileScreen" component={ProfileScreen} /> 
       <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
+      <Stack.Screen name="InvoicePreview" component={InvoicePreview} />
     </Stack.Navigator>
   );
 }
