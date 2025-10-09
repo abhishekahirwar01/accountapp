@@ -180,6 +180,7 @@ const DataTable = ({
     </View>
   );
 
+  // Updated mobile card renderer
   const renderMobileCard = item => (
     <View
       key={item.id || item._id}
@@ -188,8 +189,9 @@ const DataTable = ({
         selectedRows.includes(item.id || item._id) && styles.selectedCard,
       ]}
     >
+      {/* Checkbox on left */}
       <TouchableOpacity
-        style={styles.mobileCheckbox}
+        style={styles.mobileCheckboxLeft}
         onPress={() => toggleRowSelection(item.id || item._id)}
       >
         <Text style={styles.checkbox}>
@@ -197,17 +199,26 @@ const DataTable = ({
         </Text>
       </TouchableOpacity>
 
-      {columns.map((column, colIdx) => (
-        <View
-          key={`${item.id || item._id}-${
-            column.accessorKey || column.key || column.id || colIdx
-          }`}
-          style={styles.mobileCardRow}
-        >
-          {column.id === 'actions' ? (
-            column.cell({ original: item, ...restProps }) // Only show the cell (three dots)
-          ) : (
-            <>
+      {/* Actions (three dots) on top right */}
+      <View style={styles.mobileActionsRight}>
+        {columns
+          .filter(col => col.id === 'actions')
+          .map((col, idx) => (
+            <View key={idx}>
+              {col.cell({ original: item, ...restProps })}
+            </View>
+          ))}
+      </View>
+
+      {/* Card content */}
+      <View style={styles.mobileCardContent}>
+        {columns
+          .filter(col => col.id !== 'actions')
+          .map((column, colIdx) => (
+            <View
+              key={`${item.id || item._id}-${column.accessorKey || column.key || column.id || colIdx}`}
+              style={styles.mobileCardRow}
+            >
               <Text style={styles.mobileLabel}>
                 {column.header || column.label}:
               </Text>
@@ -220,10 +231,9 @@ const DataTable = ({
                   {item[column.accessorKey || column.key]}
                 </Text>
               )}
-            </>
-          )}
-        </View>
-      ))}
+            </View>
+          ))}
+      </View>
     </View>
   );
 
@@ -282,8 +292,8 @@ const DataTable = ({
         </ScrollView>
       )}
 
-      {/* Pagination */}
-      {sortedData.length > 0 && (
+      {/* Pagination: hide on mobile */}
+      {isDesktop && sortedData.length > 0 && (
         <View style={styles.pagination}>
           <Text style={styles.paginationInfo}>
             Page {currentPage} of {totalPages} • {sortedData.length} items
@@ -434,53 +444,81 @@ const styles = StyleSheet.create({
   },
   mobileView: {
     flex: 1,
+    paddingHorizontal: 0,
   },
   mobileCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginVertical: 8,
-    marginHorizontal: 4,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 18,
+    marginVertical: 10,
+    marginHorizontal: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+    width: '100%', // Full width
+    minWidth: '100%',
+    position: 'relative',
     overflow: 'visible',
   },
   selectedCard: {
-    backgroundColor: '#dbeafe',
+    backgroundColor: '#e0f2fe',
     borderColor: '#2563eb',
     borderWidth: 1,
   },
-  mobileCheckbox: {
+  mobileCheckboxLeft: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    zIndex: 1,
+    top: 16,
+    left: 16,
+    zIndex: 2,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 20,
+    width: 28,
+    height: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  mobileActionsRight: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 2,
+  },
+  mobileCardContent: {
+    marginTop: 16,
+    marginBottom: 8,
+    marginLeft: 0,
+    marginRight: 0,
   },
   mobileCardRow: {
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
     overflow: 'visible',
   },
   mobileLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#6b7280',
+    color: '#64748b',
     flex: 1,
+    textAlign: 'left',
   },
   mobileValue: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
-    color: '#374151',
+    color: '#334155',
     flex: 2,
     textAlign: 'right',
   },
