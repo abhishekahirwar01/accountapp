@@ -1,10 +1,13 @@
+const getInitialDate = () => new Date();
+
 export const Product = {
   _id: '',
   name: '',
-  type: 'product', // 'product' or 'service'
+  type: 'product', // ItemProductServiceType
   stocks: 0,
   unit: '',
-  createdByClient: '',   // required
+  hsn: '',
+  createdByClient: '', // required
   createdAt: '',
   updatedAt: '',
   stock: '',
@@ -14,24 +17,24 @@ export const Product = {
 export const Service = {
   _id: '',
   serviceName: '',
+  sac: '',
   createdByClient: '',
   createdAt: '',
   updatedAt: '',
 };
 
 export const Item = {
-  itemType: 'product', // 'product' or 'service'
-  // Product fields
+  itemType: 'product', // ItemProductServiceType
   product: null,
   name: '',
   quantity: 0,
-  unitType: "Piece", // "Kg", "Litre", "Piece", "Box", "Meter", "Dozen", "Pack", "Other"
+  unitType: "Piece", // UnitType
   pricePerUnit: 0,
-  // Service fields
   service: null,
   serviceName: null,
   description: '',
-  // Common field
+  sacCode: '',
+  hsnCode: '',
   amount: 0,
 };
 
@@ -39,28 +42,29 @@ export const Transaction = {
   _id: '',
   invoiceNumber: null,
   invoiceYearYY: null,
-  date: new Date(),
-  party: null, // { email: false, _id: '', name: '' } or string
-  vendor: null, // { _id: '', vendorName: '' } or string
+  date: getInitialDate(),
+  dueDate: getInitialDate(),
+  party: null,
+  vendor: null,
   description: '',
-  amount: 0, // Fallback for old transactions, new ones use totalAmount
+  amount: 0,
   totalAmount: 0,
   items: [],
   quantity: 0,
   pricePerUnit: 0,
-  type: "sales", // "sales", "purchases", "receipt", "payment", "journal"
-  unitType: "Piece", // "Kg", "Litre", "Piece", "Box", "Meter", "Dozen", "Pack", "Other"
+  type: "sales", // TransactionType
+  unitType: "Piece", // UnitType
   category: '',
   product: null,
-  company: null, // { businessName: null, _id: '', companyName: '' }
+  company: null,
   voucher: '',
-  // For Journal Entries
   debitAccount: '',
   creditAccount: '',
   narration: '',
-  // For Receipts/Payments
   referenceNumber: '',
   notes: '',
+  fromState: null,
+  toState: null,
 };
 
 export const Kpi = {
@@ -68,7 +72,7 @@ export const Kpi = {
   value: '',
   change: '',
   changeType: "increase", // "increase" or "decrease"
-  icon: null, // LucideIcon component
+  icon: null, // LucideIcon placeholder
 };
 
 export const User = {
@@ -78,12 +82,12 @@ export const User = {
   contactNumber: '',
   address: '',
   password: '',
-  name: '', // For compatibility
-  username: '', // For compatibility
+  name: '',
+  username: '',
   email: '',
   avatar: '',
   initials: '',
-  role: "user", // "master", "customer", "Manager", "Accountant", "Viewer", "admin", "manager", "user"
+  role: "user", // UserRole
   token: '',
   status: "Active", // "Active" or "Inactive"
   companies: [],
@@ -100,7 +104,7 @@ export const Client = {
   createdAt: '',
   companyName: '',
   subscriptionPlan: "Basic", // "Premium", "Standard", "Basic"
-  status: "Active", // "Active" or "Inactive"
+  status: "Active",
   revenue: 0,
   users: 0,
   companies: 0,
@@ -138,29 +142,29 @@ export const Invoice = {
   companyName: '',
   customerName: '',
   customerEmail: '',
-  invoiceDate: new Date(),
-  dueDate: new Date(),
+  invoiceDate: getInitialDate(),
+  dueDate: getInitialDate(),
   items: [], // { description: '', amount: 0 }[]
   status: "Pending", // "Paid", "Pending", "Overdue"
 };
 
 export const ProfitLossStatement = {
-  revenue: [], // { name: '', amount: 0 }[]
+  revenue: [],
   totalRevenue: 0,
-  expenses: [], // { name: '', amount: 0 }[]
+  expenses: [],
   totalExpenses: 0,
   netIncome: 0,
 };
 
 export const BalanceSheet = {
   assets: {
-    current: [], // { name: '', amount: 0 }[]
-    nonCurrent: [], // { name: '', amount: 0 }[]
+    current: [],
+    nonCurrent: [],
     total: 0,
   },
   liabilities: {
-    current: [], // { name: '', amount: 0 }[]
-    nonCurrent: [], // { name: '', amount: 0 }[]
+    current: [],
+    nonCurrent: [],
     total: 0,
   },
   equity: {
@@ -199,9 +203,8 @@ export const Company = {
   DeductorType: '',
   TDSLoginUsername: '',
   TDSLoginPassword: '',
-  client: null, // Client object or string
-  selectedClient: null, // Client object or string
-  // Deprecated fields - use new fields above
+  client: null,
+  selectedClient: null,
   companyName: '',
   companyType: '',
   companyOwner: '',
@@ -219,13 +222,14 @@ export const Party = {
   address: '',
   city: '',
   state: '',
+  pincode: '',
   gstin: '',
-  gstRegistrationType: "Regular", // "Regular", "Composition", "Unregistered", "Consumer", "Overseas", "Special Economic Zone", "Unknown"
+  gstRegistrationType: "Regular", // GstRegistrationType
   pan: '',
   isTDSApplicable: false,
   tdsRate: 0,
   tdsSection: '',
-  vendorName: '', // For vendor compatibility
+  vendorName: '',
 };
 
 export const Vendor = {
@@ -234,14 +238,50 @@ export const Vendor = {
   city: '',
   state: '',
   gstin: '',
-  gstRegistrationType: "Regular",
+  gstRegistrationType: "Regular", // GstRegistrationType
   pan: '',
   isTDSApplicable: false,
+  contactNumber: '',
+  email: '',
 };
 
+export const ShippingAddress = {
+  _id: '',
+  party: '',
+  label: '',
+  address: '',
+  city: '',
+  state: '',
+  pincode: '',
+  contactNumber: '',
+  createdByClient: '',
+  createdByUser: '',
+  createdAt: '',
+  updatedAt: '',
+  __v: 0,
+};
 
+export const Bank = {
+  _id: '',
+  client: '',
+  user: '',
+  company: '',
+  bankName: '',
+  managerName: '',
+  contactNumber: '',
+  email: '',
+  city: '',
+  ifscCode: '',
+  branchAddress: '',
+  accountNumber: '',
+  upiId: '',
+  createdAt: '',
+  updatedAt: '',
+  __v: 0,
+};
 
-// Mock data
+// --- Mock Data ---
+
 export const mockTransactions = [
   {
     _id: '1',
