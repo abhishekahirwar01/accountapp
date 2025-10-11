@@ -210,7 +210,6 @@ const InventoryScreen = () => {
     }
   };
 
-  // ... (Rest of your existing handlers remain the same)
   const handleServiceDelete = (serviceToDelete) => {
     setServices(prev => prev.filter(s => s._id !== serviceToDelete._id));
     setIsServiceFormOpen(false);
@@ -298,36 +297,53 @@ const InventoryScreen = () => {
   const canDeleteItems = userRole !== 'user';
   const canEditItems = userRole !== 'user';
 
-  // Render functions (same as before)
+  // Format date function
+  const formatDate = (dateString) => {
+    if (!dateString) return '—';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+
+  // Render functions - UPDATED LAYOUT
   const renderProductItem = ({ item }) => (
     <Card style={styles.itemCard} key={item._id}>
       <Card.Content>
         <View style={styles.itemHeader}>
-          {canDeleteItems && (
-            <View style={styles.productSelection}>
-              <Checkbox.Android
-                status={selectedProducts.includes(item._id) ? 'checked' : 'unchecked'}
-                onPress={() => handleSelectProduct(item._id)}
-                disabled={userRole === 'user'}
-              />
+          <View style={styles.itemLeft}>
+            {canDeleteItems && (
+              <View style={styles.productSelection}>
+                <Checkbox.Android
+                  status={selectedProducts.includes(item._id) ? 'checked' : 'unchecked'}
+                  onPress={() => handleSelectProduct(item._id)}
+                  disabled={userRole === 'user'}
+                />
+              </View>
+            )}
+            <View style={styles.itemIcon}>
+              <Icon name="package-variant" size={24} color="#3b82f6" />
             </View>
-          )}
-          <View style={styles.itemInfo}>
-            <Icon name="package-variant" size={20} color="#666" />
             <View style={styles.itemTextContainer}>
               <Text style={styles.itemName}>{item.name}</Text>
-              <View style={styles.detailsRow}>
-                <Text style={styles.stockText}>Stock: {item.stocks || 0} {item.unit || 'Piece'}</Text>
+              <View style={styles.dateContainer}>
+                <Text style={styles.dateLabel}>Created: </Text>
+                <Text style={styles.dateValue}>{formatDate(item.createdAt)}</Text>
               </View>
             </View>
           </View>
-          <View style={styles.stockInfo}>
+          
+          <View style={styles.stockContainer}>
+            <Text style={styles.stockLabel}>Stock</Text>
             <Text style={[
               styles.stockValue,
               { color: (item.stocks || 0) > 0 ? '#22c55e' : '#ef4444' }
             ]}>
               {item.stocks || 0}
             </Text>
+            <Text style={styles.unitText}>{item.unit || 'Piece'}</Text>
           </View>
         </View>
         
@@ -336,9 +352,6 @@ const InventoryScreen = () => {
             <Text style={styles.metaLabel}>HSN:</Text>
             <Text style={styles.metaValue}>{item.hsn || 'N/A'}</Text>
           </View>
-          <Text style={styles.createdDate}>
-            {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}
-          </Text>
         </View>
 
         {canEditItems && (
@@ -369,16 +382,23 @@ const InventoryScreen = () => {
     <Card style={styles.itemCard} key={item._id}>
       <Card.Content>
         <View style={styles.itemHeader}>
-          <View style={styles.itemInfo}>
-            <Icon name="server" size={20} color="#666" />
+          <View style={styles.itemLeft}>
+            <View style={styles.itemIcon}>
+              <Icon name="server" size={24} color="#3b82f6" />
+            </View>
             <View style={styles.itemTextContainer}>
               <Text style={styles.itemName}>{item.serviceName}</Text>
+              <View style={styles.dateContainer}>
+                <Text style={styles.dateLabel}>Created: </Text>
+                <Text style={styles.dateValue}>{formatDate(item.createdAt)}</Text>
+              </View>
               {item.description && (
                 <Text style={styles.itemDescription}>{item.description}</Text>
               )}
             </View>
-            <Chip mode="outlined" style={styles.serviceChip}>Service</Chip>
           </View>
+          
+          <Chip mode="outlined" style={styles.serviceChip}>Service</Chip>
         </View>
         
         <View style={styles.metaInfo}>
@@ -386,9 +406,6 @@ const InventoryScreen = () => {
             <Text style={styles.metaLabel}>SAC:</Text>
             <Text style={styles.metaValue}>{item.sac || 'N/A'}</Text>
           </View>
-          <Text style={styles.createdDate}>
-            {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}
-          </Text>
         </View>
 
         {canEditItems && (
@@ -753,7 +770,7 @@ const InventoryScreen = () => {
   );
 };
 
-// ... (Your existing styles remain the same)
+// Updated Styles
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -761,7 +778,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#ffffff',
   },
   centerContainer: {
     flex: 1,
@@ -820,6 +837,7 @@ const styles = StyleSheet.create({
   mainCard: {
     margin: 16,
     marginTop: 8,
+    backgroundColor:"#ffffff"
   },
   tabs: {
     flexDirection: 'row',
@@ -854,47 +872,66 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  productSelection: {
-    marginRight: 8,
-  },
-  itemInfo: {
+  itemLeft: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     flex: 1,
-    flexWrap: 'wrap',
+  },
+  productSelection: {
+    marginRight: 8,
+    marginTop: 2,
+  },
+  itemIcon: {
+    marginRight: 12,
+    marginTop: 2,
   },
   itemTextContainer: {
     flex: 1,
-    marginLeft: 8,
-    marginRight: 8,
   },
   itemName: {
     fontSize: 16,
     fontWeight: 'bold',
+    marginBottom: 4,
   },
-  detailsRow: {
+  dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
-    gap: 12,
   },
-  stockText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  itemDescription: {
+  dateLabel: {
     fontSize: 12,
     color: '#666',
+    fontWeight: '500',
+  },
+  dateValue: {
+    fontSize: 12,
+    color: '#374151',
+    fontWeight: '600',
+  },
+  itemDescription: {
+    fontSize: 14,
+    color: '#666',
     marginTop: 4,
   },
-  stockInfo: {
+  stockContainer: {
     alignItems: 'flex-end',
+    minWidth: 80,
+  },
+  stockLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 2,
   },
   stockValue: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  unitText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
   },
   metaInfo: {
     flexDirection: 'row',
@@ -917,10 +954,6 @@ const styles = StyleSheet.create({
     color: '#374151',
     fontWeight: '600',
   },
-  createdDate: {
-    fontSize: 12,
-    color: '#666',
-  },
   actions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -933,7 +966,6 @@ const styles = StyleSheet.create({
     borderColor: '#ef4444',
   },
   serviceChip: {
-    marginLeft: 8,
     height: 24,
   },
   emptyStateCard: {
