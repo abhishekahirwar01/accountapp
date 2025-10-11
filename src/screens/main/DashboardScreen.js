@@ -26,6 +26,8 @@ import KPICard from '../../components/dashboard/KPICard';
 import TransactionsScreen from './TransactionsScreen';
 import InventoryScreen from './InventoryScreen';
 import UsersScreen from './UsersScreen';
+import CompaniesScreen from './CompaniesScreen';
+import Reports from './reports/Reports';
 
 // --- Mock Data ---
 const MOCK_COMPANIES = [
@@ -197,6 +199,11 @@ const DashboardScreen = ({ navigation, route }) => {
         return <InventoryScreen navigation={navigation} />;
       case 'Users':
         return <UsersScreen navigation={navigation} />;
+      case 'Companies':
+        return <CompaniesScreen navigation={navigation} />;
+      case 'Reports':
+        return <Reports navigation={navigation} />;
+      case 'Dashboard':
       default:
         return renderDashboard();
     }

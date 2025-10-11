@@ -9,9 +9,10 @@ import {
   useWindowDimensions,
   RefreshControl,
   Modal,
-  Clipboard,
   ActivityIndicator,
 } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
