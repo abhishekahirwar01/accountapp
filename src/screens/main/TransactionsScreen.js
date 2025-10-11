@@ -709,7 +709,7 @@ const styles = StyleSheet.create({
   companyCard: {
     backgroundColor: '#ecf2fe',
     borderRadius: 16,
-    padding: 22,
+    padding: 10,
     alignItems: 'center',
     maxWidth: 320,
   },
