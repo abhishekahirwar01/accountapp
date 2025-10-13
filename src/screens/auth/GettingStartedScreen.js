@@ -7,51 +7,46 @@ import {
   Image,
   Dimensions,
   StatusBar,
+  PixelRatio,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-// ✅ Correct logo path (webp in assets/images)
-const logoPath = require('../../../assets/images/logogettingStarted.png');
+
+const logoPath = require('../../../assets/images/account_app_logo.png');
+const { width, height } = Dimensions.get('window');
+
+// Responsive font scaling helper
+const scaleFont = size => size * (width / 375); // base iPhone 11 width ~375
 
 export default function GettingStartedScreen({ navigation }) {
-  const { height } = Dimensions.get('window');
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1e3a8a" />
-      <LinearGradient
-        colors={['#ffffff', '#e0e7ff']} // White to blue gradient
-        style={[styles.background, { minHeight: height }]}
-      >
+      <LinearGradient colors={['#ffffff', '#e0e7ff']} style={styles.background}>
         <View style={styles.content}>
-          {/* Header with Logo */}
+          {/* Logo Section */}
           <View style={styles.logoContainer}>
             <Image source={logoPath} style={styles.logo} resizeMode="contain" />
           </View>
 
+          {/* App Name */}
           <Text style={styles.title}>AccountTech Pro</Text>
           <Text style={styles.subtitle}>Professional Accounting Services</Text>
 
-          {/* Feature Highlights */}
+          {/* Features */}
           <View style={styles.featuresContainer}>
-            <View style={styles.featureItem}>
-              <View style={styles.featureIcon}>
-                <Text style={styles.featureIconText}>✓</Text>
+            {[
+              'Enterprise-Grade Security',
+              'Real-Time Financial Insights',
+              'Compliance Guaranteed',
+            ].map((item, idx) => (
+              <View key={idx} style={styles.featureItem}>
+                <View style={styles.featureIcon}>
+                  <Text style={styles.featureIconText}>✓</Text>
+                </View>
+                <Text style={styles.featureText}>{item}</Text>
               </View>
-              <Text style={styles.featureText}>Enterprise-Grade Security</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <View style={styles.featureIcon}>
-                <Text style={styles.featureIconText}>✓</Text>
-              </View>
-              <Text style={styles.featureText}>Real-Time Financial Insights</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <View style={styles.featureIcon}>
-                <Text style={styles.featureIconText}>✓</Text>
-              </View>
-              <Text style={styles.featureText}>Compliance Guaranteed</Text>
-            </View>
+            ))}
           </View>
 
           {/* CTA Button */}
@@ -70,7 +65,7 @@ export default function GettingStartedScreen({ navigation }) {
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* Trust Indicator */}
+          {/* Trust Text */}
           <Text style={styles.trustText}>
             Trusted by 10,000+ accounting professionals
           </Text>
@@ -80,15 +75,17 @@ export default function GettingStartedScreen({ navigation }) {
   );
 }
 
+// Responsive styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#fff',
   },
   background: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: width * 0.08, // 8% of screen width
   },
   content: {
     alignItems: 'center',
@@ -96,102 +93,88 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   logoContainer: {
-    marginBottom: 32,
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 12,
+    marginBottom: height * 0.015,
+    elevation: 10,
   },
   logo: {
-    width: 140,
-    height: 140,
+    width: width * 0.55,
+    height: height * 0.25,
   },
   title: {
-  fontSize: 36,
-  fontWeight: '800',
-  color: '#1e3a8a', // Professional deep blue
-  marginBottom: 8,
-  letterSpacing: 1,
-  textAlign: 'center',
-  textShadowColor: 'rgba(0, 0, 0, 0.1)', // softer shadow
-  textShadowOffset: { width: 0, height: 1 },
-  textShadowRadius: 2,
-},
-
+    fontSize: scaleFont(30),
+    fontWeight: '800',
+    color: '#1e3a8a',
+    marginBottom: 8,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
   subtitle: {
-    fontSize: 17,
+    fontSize: scaleFont(16),
     color: '#4b5563',
     textAlign: 'center',
-    letterSpacing: 0.6,
     fontWeight: '500',
-    marginBottom: 48,
-    lineHeight: 24,
+    marginBottom: height * 0.05,
+    lineHeight: scaleFont(22),
   },
   featuresContainer: {
-    marginBottom: 48,
+    marginBottom: height * 0.06,
     width: '100%',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
-    paddingHorizontal: 16,
+    marginBottom: height * 0.02,
     width: '100%',
-    justifyContent: 'flex-start',
   },
   featureIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    width: width * 0.08,
+    height: width * 0.08,
+    borderRadius: (width * 0.08) / 2,
+    backgroundColor: '#2563eb20',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: '#2563eb40',
   },
   featureIconText: {
-    color: '#fff',
+    color: '#2563eb',
     fontWeight: '700',
-    fontSize: 16,
+    fontSize: scaleFont(16),
   },
   featureText: {
     color: '#000',
-    fontSize: 16,
+    fontSize: scaleFont(15),
     fontWeight: '500',
-    letterSpacing: 0.3,
-    flex: 1,
+    flexShrink: 1,
   },
   buttonWrapper: {
-    width: '85%',
+    width: '90%',
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
     elevation: 8,
-    marginBottom: 32,
+    marginBottom: height * 0.04,
   },
   button: {
-    paddingVertical: 18,
+    paddingVertical: height * 0.022,
     borderRadius: 16,
     alignItems: 'center',
   },
   buttonText: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: 18,
-    letterSpacing: 1,
+    fontSize: scaleFont(18),
+    letterSpacing: 0.8,
   },
   trustText: {
     color: 'rgba(0, 0, 0, 0.7)',
-    fontSize: 14,
+    fontSize: scaleFont(13),
     textAlign: 'center',
     fontWeight: '400',
-    letterSpacing: 0.4,
     fontStyle: 'italic',
+    paddingHorizontal: 20,
   },
 });
