@@ -40,10 +40,7 @@ const roleMenus = {
     { name: 'Dashboard', icon: 'grid-outline' },
     { name: 'Transactions', icon: 'swap-horizontal-outline' },
     { name: 'Inventory', icon: 'cube-outline' },
-    { name: 'Users', icon: 'people-outline' },
-    { name: 'Companies', icon: 'business-outline' },
-    { name: 'Reports', icon: 'document-text-outline' },
-    { name: 'Profile', icon: 'person-outline' },
+     { name: 'Settings', icon: 'settings-outline' },
   ],
 };
 
