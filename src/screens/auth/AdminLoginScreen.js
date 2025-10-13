@@ -11,6 +11,7 @@ import {
   ScrollView,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
@@ -28,7 +29,7 @@ export default function AdminLoginScreen({ navigation }) {
         type: 'custom_error',
         text1: 'Validation Error',
         text2: 'Please enter username and password',
-        visibilityTime: 2500,
+        visibilityTime: 500,
       });
       return;
     }
@@ -53,145 +54,155 @@ export default function AdminLoginScreen({ navigation }) {
           type: 'custom_success',
           text1: 'Login Successful',
           text2: `Welcome, ${username}!`,
-          visibilityTime: 2000,
+          visibilityTime: 500,
         });
 
         // Navigate after toast disappears
         setTimeout(() => {
           navigateByRole(navigation, role);
-        }, 2100);
+        }, 500);
       } else {
         Toast.show({
           type: 'custom_error',
           text1: 'Login Failed',
           text2: 'Invalid username or password',
-          visibilityTime: 2500,
+          visibilityTime: 500,
         });
       }
     }, 500);
   };
 
   return (
-    <LinearGradient
-      colors={['#4f46e5', '#6366f1', '#a5b4fc']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={{ flex: 1 }}
-    >
-      <StatusBar barStyle="light-content" backgroundColor="#4f46e5" />
-      <KeyboardAvoidingView
+    <SafeAreaView style={{ flex: 1 }}>
+      <LinearGradient
+        colors={['#4f46e5', '#6366f1', '#a5b4fc']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled"
+        <StatusBar barStyle="light-content" backgroundColor="#4f46e5" />
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <View style={styles.card}>
-            <Text style={styles.title}>Master Sign In</Text>
-
-            {/* Username */}
-            <Text style={styles.label}>Username</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter username"
-              value={username}
-              onChangeText={setUsername}
-              editable={!loading}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="visible-password"
-              placeholderTextColor="#94a3b8"
-            />
-
-            {/* Password */}
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.passwordContainer}>
+          <ScrollView
+            contentContainerStyle={styles.container}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.card}>
+              {/* Shield Icon + Title */}
+              <View style={styles.titleContainer}>
+                <Ionicons
+                  name="shield-checkmark"
+                  size={28}
+                  color="#2563eb"
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={styles.title}>Master Sign In</Text>
+              </View>
+              {/* Username */}
+              <Text style={styles.label}>Username</Text>
               <TextInput
-                style={[styles.input, { flex: 1 }]}
-                placeholder="Enter password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
+                style={styles.input}
+                placeholder="Enter username"
+                value={username}
+                onChangeText={setUsername}
                 editable={!loading}
                 autoCapitalize="none"
                 autoCorrect={false}
+                keyboardType="visible-password"
                 placeholderTextColor="#94a3b8"
               />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeButton}
-              >
-                <Ionicons
-                  name={showPassword ? 'eye-off' : 'eye'}
-                  size={22}
-                  color="#64748b"
+
+              {/* Password */}
+              <Text style={styles.label}>Password</Text>
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="Enter password"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  editable={!loading}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholderTextColor="#94a3b8"
                 />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeButton}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off' : 'eye'}
+                    size={22}
+                    color="#64748b"
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Forgot Password */}
+              <TouchableOpacity style={styles.forgotPassword}>
+                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              </TouchableOpacity>
+
+              {/* Sign In Button */}
+              <TouchableOpacity
+                style={[styles.button, loading && styles.buttonDisabled]}
+                onPress={handleSubmit}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" size={24} />
+                ) : (
+                  <LinearGradient
+                    colors={['#2563eb', '#1d4ed8', '#1e40af']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.gradientButton}
+                  >
+                    <Text style={styles.buttonText}>Sign In </Text>
+                  </LinearGradient>
+                )}
               </TouchableOpacity>
             </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
 
-            {/* Forgot Password */}
-            <TouchableOpacity style={styles.forgotPassword}>
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </TouchableOpacity>
-
-            {/* Sign In Button */}
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleSubmit}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" size={24} />
-              ) : (
-                <LinearGradient
-                  colors={['#2563eb', '#1d4ed8', '#1e40af']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.gradientButton}
-                >
-                  <Text style={styles.buttonText}>Sign In</Text>
-                </LinearGradient>
-              )}
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-
-      {/* Toast */}
-      <Toast
-        config={{
-          custom_success: props => (
-            <BaseToast
-              {...props}
-              style={{
-                borderLeftColor: '#10b981',
-                borderRadius: 12,
-                backgroundColor: '#ecfdf5',
-                paddingHorizontal: 16,
-              }}
-              contentContainerStyle={{ paddingHorizontal: 12 }}
-              text1Style={{ fontSize: 16, fontWeight: '700', color: '#065f46' }}
-              text2Style={{ fontSize: 14, color: '#065f46' }}
-            />
-          ),
-          custom_error: props => (
-            <ErrorToast
-              {...props}
-              style={{
-                borderLeftColor: '#ef4444',
-                borderRadius: 12,
-                backgroundColor: '#fee2e2',
-                paddingHorizontal: 16,
-              }}
-              contentContainerStyle={{ paddingHorizontal: 12 }}
-              text1Style={{ fontSize: 16, fontWeight: '700', color: '#b91c1c' }}
-              text2Style={{ fontSize: 14, color: '#b91c1c' }}
-            />
-          ),
-        }}
-      />
-    </LinearGradient>
+        {/* Toast */}
+        <Toast
+          config={{
+            custom_success: props => (
+              <BaseToast
+                {...props}
+                style={{
+                  borderLeftColor: '#10b981',
+                  borderRadius: 12,
+                  backgroundColor: '#ecfdf5',
+                  paddingHorizontal: 16,
+                }}
+                contentContainerStyle={{ paddingHorizontal: 12 }}
+                text1Style={{ fontSize: 16, fontWeight: '700', color: '#065f46' }}
+                text2Style={{ fontSize: 14, color: '#065f46' }}
+              />
+            ),
+            custom_error: props => (
+              <ErrorToast
+                {...props}
+                style={{
+                  borderLeftColor: '#ef4444',
+                  borderRadius: 12,
+                  backgroundColor: '#fee2e2',
+                  paddingHorizontal: 16,
+                }}
+                contentContainerStyle={{ paddingHorizontal: 12 }}
+                text1Style={{ fontSize: 16, fontWeight: '700', color: '#b91c1c' }}
+                text2Style={{ fontSize: 14, color: '#b91c1c' }}
+              />
+            ),
+          }}
+        />
+      </LinearGradient>
+    </SafeAreaView>
   );
 }
 
@@ -203,41 +214,37 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 24,
+    borderRadius: 24,
+    padding: 32,
     shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 10 },
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 12 },
+    shadowRadius: 24,
+    elevation: 12,
+    marginBottom: 24,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 32,
-    color: '#1e3a8a',
+    color: '#1e293b',
+    letterSpacing: -0.5,
   },
-  label: {
-    fontSize: 14,
-    color: '#475569',
-    fontWeight: '600',
-    marginBottom: 8,
-  },
+  label: { fontSize: 14, color: '#475569', fontWeight: '600', marginBottom: 8 },
   input: {
-    backgroundColor: 'rgba(243,244,246,0.95)',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
+    backgroundColor: '#f8fafc',
+    padding: 18,
+    borderRadius: 14,
     fontSize: 16,
-    color: '#111827',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
-    elevation: 2,
+    color: '#0f172a',
+    borderWidth: 2,
+    borderColor: '#f1f5f9',
+    marginBottom: 20,
   },
   passwordContainer: {
     flexDirection: 'row',
