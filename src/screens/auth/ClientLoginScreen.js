@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
+import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 import { navigateByRole } from '../../utils/roleNavigation';
 
 export default function ClientLoginScreen({ navigation }) {
@@ -26,9 +27,6 @@ export default function ClientLoginScreen({ navigation }) {
   const [sendingOtp, setSendingOtp] = useState(false);
   const [resendIn, setResendIn] = useState(0);
 
-  const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState(''); // 'success' or 'error'
-
   const HARD_USERNAME = 'client';
   const HARD_PASSWORD = '123';
   const HARD_OTP = '321';
@@ -41,52 +39,92 @@ export default function ClientLoginScreen({ navigation }) {
   }, [resendIn]);
 
   const handleLoginSuccess = () => {
-    setMessageType('success');
-    setMessage(`Welcome back, ${username}!`);
-    setTimeout(() => navigateByRole(navigation, ROLE), 1000);
+    Toast.show({
+      type: 'custom_success',
+      text1: 'Login Successful',
+      text2: `Welcome back, ${username}!`,
+      visibilityTime: 2000,
+    });
+    setTimeout(() => navigateByRole(navigation, ROLE), 2100);
   };
 
   // Password login
   const onSubmit = () => {
+    if (!username || !password) {
+      Toast.show({
+        type: 'custom_error',
+        text1: 'Validation Error',
+        text2: 'Please enter username and password',
+        visibilityTime: 2500,
+      });
+      return;
+    }
+
     setIsLoading(true);
     setTimeout(() => {
+      setIsLoading(false);
       if (username === HARD_USERNAME && password === HARD_PASSWORD) {
         handleLoginSuccess();
       } else {
-        setMessageType('error');
-        setMessage('Invalid username or password');
+        Toast.show({
+          type: 'custom_error',
+          text1: 'Login Failed',
+          text2: 'Invalid username or password',
+          visibilityTime: 2500,
+        });
       }
-      setIsLoading(false);
     }, 1000);
   };
 
   // Send OTP
   const onSendOtp = () => {
     if (!username) {
-      setMessageType('error');
-      setMessage('Enter your username first');
+      Toast.show({
+        type: 'custom_error',
+        text1: 'Validation Error',
+        text2: 'Enter your username first',
+        visibilityTime: 2500,
+      });
       return;
     }
     setSendingOtp(true);
     setTimeout(() => {
-      setMessageType('success');
-      setMessage(`OTP Sent: ${HARD_OTP}`);
-      setResendIn(30);
       setSendingOtp(false);
+      setResendIn(30);
+      Toast.show({
+        type: 'custom_success',
+        text1: 'OTP Sent',
+        text2: `Your OTP is: ${HARD_OTP}`,
+        visibilityTime: 2500,
+      });
     }, 500);
   };
 
   // OTP login
   const onSubmitOtp = () => {
+    if (!otp) {
+      Toast.show({
+        type: 'custom_error',
+        text1: 'Validation Error',
+        text2: 'Enter the OTP',
+        visibilityTime: 2500,
+      });
+      return;
+    }
+
     setIsLoading(true);
     setTimeout(() => {
+      setIsLoading(false);
       if (username === HARD_USERNAME && otp === HARD_OTP) {
         handleLoginSuccess();
       } else {
-        setMessageType('error');
-        setMessage('Invalid OTP');
+        Toast.show({
+          type: 'custom_error',
+          text1: 'Login Failed',
+          text2: 'Invalid OTP',
+          visibilityTime: 2000,
+        });
       }
-      setIsLoading(false);
     }, 1000);
   };
 
@@ -106,7 +144,6 @@ export default function ClientLoginScreen({ navigation }) {
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Card Container */}
           <View style={styles.card}>
             <Text style={styles.title}>Client Sign In</Text>
 
@@ -114,7 +151,10 @@ export default function ClientLoginScreen({ navigation }) {
             <View style={styles.tabContainer}>
               <TouchableOpacity
                 onPress={() => setTab('password')}
-                style={[styles.tabButton, tab === 'password' && styles.activeTab]}
+                style={[
+                  styles.tabButton,
+                  tab === 'password' && styles.activeTab,
+                ]}
               >
                 <Text
                   style={[
@@ -130,26 +170,15 @@ export default function ClientLoginScreen({ navigation }) {
                 style={[styles.tabButton, tab === 'otp' && styles.activeTab]}
               >
                 <Text
-                  style={[styles.tabText, tab === 'otp' && styles.activeTabText]}
+                  style={[
+                    styles.tabText,
+                    tab === 'otp' && styles.activeTabText,
+                  ]}
                 >
                   OTP
                 </Text>
               </TouchableOpacity>
             </View>
-
-            {/* Message */}
-            {message ? (
-              <Text
-                style={{
-                  color: messageType === 'success' ? 'green' : 'red',
-                  marginBottom: 16,
-                  textAlign: 'center',
-                  fontWeight: '600',
-                }}
-              >
-                {message}
-              </Text>
-            ) : null}
 
             {/* Password Login */}
             {tab === 'password' && (
@@ -230,7 +259,7 @@ export default function ClientLoginScreen({ navigation }) {
                   placeholder="Enter OTP"
                   value={otp}
                   onChangeText={setOtp}
-                 keyboardType="visible-password"
+                  keyboardType="visible-password"
                   style={styles.input}
                   editable={!isLoading}
                   placeholderTextColor="#94a3b8"
@@ -256,6 +285,40 @@ export default function ClientLoginScreen({ navigation }) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Toast */}
+      <Toast
+        config={{
+          custom_success: props => (
+            <BaseToast
+              {...props}
+              style={{
+                borderLeftColor: '#10b981',
+                borderRadius: 12,
+                backgroundColor: '#ecfdf5',
+                paddingHorizontal: 16,
+              }}
+              contentContainerStyle={{ paddingHorizontal: 12 }}
+              text1Style={{ fontSize: 16, fontWeight: '700', color: '#065f46' }}
+              text2Style={{ fontSize: 14, color: '#065f46' }}
+            />
+          ),
+          custom_error: props => (
+            <ErrorToast
+              {...props}
+              style={{
+                borderLeftColor: '#ef4444',
+                borderRadius: 12,
+                backgroundColor: '#fee2e2',
+                paddingHorizontal: 16,
+              }}
+              contentContainerStyle={{ paddingHorizontal: 12 }}
+              text1Style={{ fontSize: 16, fontWeight: '700', color: '#b91c1c' }}
+              text2Style={{ fontSize: 14, color: '#b91c1c' }}
+            />
+          ),
+        }}
+      />
     </LinearGradient>
   );
 }

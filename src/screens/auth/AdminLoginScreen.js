@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
+import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 import { navigateByRole } from '../../utils/roleNavigation';
 
 export default function AdminLoginScreen({ navigation }) {
@@ -23,27 +23,53 @@ export default function AdminLoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = () => {
-  setLoading(true);
+    if (!username.trim() || !password.trim()) {
+      Toast.show({
+        type: 'custom_error',
+        text1: 'Validation Error',
+        text2: 'Please enter username and password',
+        visibilityTime: 2500,
+      });
+      return;
+    }
 
-  const role =
-    username === 'master' && password === '123'
-      ? 'master'
-      : username === 'user' && password === '123'
-      ? 'user'
-      : username === 'client' && password === '123'
-      ? 'client'
-      : null;
+    setLoading(true);
 
-  if (role) {
-    Alert.alert('Login Successful', `Welcome, ${username}!`);
-    navigateByRole(navigation, role);
-  } else {
-    Alert.alert('Login Failed', 'Invalid username or password');
-  }
+    // Mock authentication logic
+    const role =
+      username === 'master' && password === '123'
+        ? 'master'
+        : username === 'user' && password === '123'
+        ? 'user'
+        : username === 'client' && password === '123'
+        ? 'client'
+        : null;
 
-  setLoading(false);
-};
+    setTimeout(() => {
+      setLoading(false);
 
+      if (role) {
+        Toast.show({
+          type: 'custom_success',
+          text1: 'Login Successful',
+          text2: `Welcome, ${username}!`,
+          visibilityTime: 2000,
+        });
+
+        // Navigate after toast disappears
+        setTimeout(() => {
+          navigateByRole(navigation, role);
+        }, 2100);
+      } else {
+        Toast.show({
+          type: 'custom_error',
+          text1: 'Login Failed',
+          text2: 'Invalid username or password',
+          visibilityTime: 2500,
+        });
+      }
+    }, 500);
+  };
 
   return (
     <LinearGradient
@@ -61,11 +87,10 @@ export default function AdminLoginScreen({ navigation }) {
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Card Container */}
           <View style={styles.card}>
             <Text style={styles.title}>Master Sign In</Text>
 
-            {/* Username Input */}
+            {/* Username */}
             <Text style={styles.label}>Username</Text>
             <TextInput
               style={styles.input}
@@ -76,11 +101,10 @@ export default function AdminLoginScreen({ navigation }) {
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="visible-password"
-              textContentType="username"
               placeholderTextColor="#94a3b8"
             />
 
-            {/* Password Input */}
+            {/* Password */}
             <Text style={styles.label}>Password</Text>
             <View style={styles.passwordContainer}>
               <TextInput
@@ -118,7 +142,7 @@ export default function AdminLoginScreen({ navigation }) {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color="#fff" size={24} />
               ) : (
                 <LinearGradient
                   colors={['#2563eb', '#1d4ed8', '#1e40af']}
@@ -133,6 +157,40 @@ export default function AdminLoginScreen({ navigation }) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Toast */}
+      <Toast
+        config={{
+          custom_success: props => (
+            <BaseToast
+              {...props}
+              style={{
+                borderLeftColor: '#10b981',
+                borderRadius: 12,
+                backgroundColor: '#ecfdf5',
+                paddingHorizontal: 16,
+              }}
+              contentContainerStyle={{ paddingHorizontal: 12 }}
+              text1Style={{ fontSize: 16, fontWeight: '700', color: '#065f46' }}
+              text2Style={{ fontSize: 14, color: '#065f46' }}
+            />
+          ),
+          custom_error: props => (
+            <ErrorToast
+              {...props}
+              style={{
+                borderLeftColor: '#ef4444',
+                borderRadius: 12,
+                backgroundColor: '#fee2e2',
+                paddingHorizontal: 16,
+              }}
+              contentContainerStyle={{ paddingHorizontal: 12 }}
+              text1Style={{ fontSize: 16, fontWeight: '700', color: '#b91c1c' }}
+              text2Style={{ fontSize: 14, color: '#b91c1c' }}
+            />
+          ),
+        }}
+      />
     </LinearGradient>
   );
 }
@@ -148,7 +206,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 24,
     shadowColor: '#000',
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 10 },
     shadowRadius: 20,
     elevation: 10,
@@ -181,14 +239,14 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
-  passwordContainer: { 
-    flexDirection: 'row', 
+  passwordContainer: {
+    flexDirection: 'row',
     position: 'relative',
     marginBottom: 12,
   },
-  eyeButton: { 
-    position: 'absolute', 
-    right: 16, 
+  eyeButton: {
+    position: 'absolute',
+    right: 16,
     top: 16,
   },
   forgotPassword: {
