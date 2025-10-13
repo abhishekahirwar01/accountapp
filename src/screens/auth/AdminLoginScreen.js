@@ -75,12 +75,11 @@ export default function AdminLoginScreen({ navigation }) {
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <LinearGradient
-        colors={['#4f46e5', '#6366f1', '#a5b4fc']}
+        colors={['#e0e7ff', '#e0e7ff']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{ flex: 1 }}
       >
-        <StatusBar barStyle="light-content" backgroundColor="#4f46e5" />
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -160,7 +159,8 @@ export default function AdminLoginScreen({ navigation }) {
                     end={{ x: 1, y: 0 }}
                     style={styles.gradientButton}
                   >
-                    <Text style={styles.buttonText}>Sign In </Text>
+                    <Text style={styles.buttonText}>Sign In</Text>
+                    <Ionicons name="arrow-forward" size={20} color="#fff" style={styles.buttonIcon} />
                   </LinearGradient>
                 )}
               </TouchableOpacity>
@@ -274,16 +274,21 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 6,
   },
-  gradientButton: {
-    paddingVertical: 16,
+   gradientButton: {
+    paddingVertical: 18,
     borderRadius: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
   },
   buttonText: {
-    color: '#fff',
+    color: '#ffffff',
     fontWeight: '700',
     fontSize: 18,
-    letterSpacing: 1,
+    letterSpacing: 0.5,
+  },
+  buttonIcon: {
+    marginLeft: 8,
   },
   buttonDisabled: {
     opacity: 0.7,

@@ -23,24 +23,9 @@ export default function OTPVerificationScreen({ navigation }) {
   const [otpTimer, setOtpTimer] = useState(0);
 
   const USERS = [
-    {
-      role: 'master',
-      email: 'master01@gmail.com',
-      mobile: '1111111111',
-      otp: '111111',
-    },
-    {
-      role: 'client',
-      email: 'client01@gmail.com',
-      mobile: '2222222222',
-      otp: '222222',
-    },
-    {
-      role: 'user',
-      email: 'user01@gmail.com',
-      mobile: '3333333333',
-      otp: '333333',
-    },
+    { role: 'master', email: 'master01@gmail.com', mobile: '1111111111', otp: '111111' },
+    { role: 'client', email: 'client01@gmail.com', mobile: '2222222222', otp: '222222' },
+    { role: 'user', email: 'user01@gmail.com', mobile: '3333333333', otp: '333333' },
   ];
 
   const isInputEditable = !otpSent || otpTimer <= 0;
@@ -59,7 +44,6 @@ export default function OTPVerificationScreen({ navigation }) {
           return 0;
         }
 
-        // Safe toast update outside render
         setTimeout(() => {
           Toast.show({
             type: 'custom_otp',
@@ -80,14 +64,12 @@ export default function OTPVerificationScreen({ navigation }) {
   const handleSendOtp = () => {
     setOtp('');
     const identifier = method === 'email' ? email.trim() : mobile.trim();
-    const user = USERS.find(
-      u => (method === 'email' ? u.email : u.mobile) === identifier,
-    );
+    const user = USERS.find(u => (method === 'email' ? u.email : u.mobile) === identifier);
 
     if (user) {
-      setOtp(user.otp); // For toast display
+      setOtp(user.otp);
       setOtpSent(true);
-      setOtpTimer(30); // 30-second resend timer
+      setOtpTimer(30);
     } else {
       setOtpSent(false);
       Toast.show({
@@ -102,9 +84,7 @@ export default function OTPVerificationScreen({ navigation }) {
   const handleVerify = () => {
     const identifier = method === 'email' ? email.trim() : mobile.trim();
     const user = USERS.find(
-      u =>
-        (method === 'email' ? u.email : u.mobile) === identifier &&
-        u.otp === otp,
+      u => (method === 'email' ? u.email : u.mobile) === identifier && u.otp === otp,
     );
 
     if (user) {
@@ -118,8 +98,7 @@ export default function OTPVerificationScreen({ navigation }) {
 
       setTimeout(() => {
         if (user.role === 'master') navigation.replace('AdminLoginScreen');
-        else if (user.role === 'client')
-          navigation.replace('ClientLoginScreen');
+        else if (user.role === 'client') navigation.replace('ClientLoginScreen');
         else navigation.replace('UserLoginScreen');
       }, 800);
     } else {
@@ -139,14 +118,15 @@ export default function OTPVerificationScreen({ navigation }) {
   };
 
   return (
-    <LinearGradient
-      colors={['#4f46e5', '#6366f1', '#a5b4fc']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={{ flex: 1 }}
-    >
-      <StatusBar barStyle="light-content" backgroundColor="#4f46e5" />
-      <SafeAreaView style={{ flex: 1 }}>
+    <SafeAreaView style={{ flex: 1}}>
+      <LinearGradient
+        colors={['#e0e7ff', '#e0e7ff']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ flex: 1 }}
+      >
+       
+
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -277,56 +257,68 @@ export default function OTPVerificationScreen({ navigation }) {
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
 
-      {/* Toast Messages */}
-      <Toast
-        config={{
-          custom_otp: props => (
-            <BaseToast
-              {...props}
-              style={{
-                borderLeftColor: '#4f46e5',
-                borderRadius: 12,
-                backgroundColor: '#e0e7ff',
-                paddingHorizontal: 16,
-              }}
-              contentContainerStyle={{ paddingHorizontal: 12 }}
-              text1Style={{ fontSize: 16, fontWeight: '700', color: '#4338ca' }}
-              text2Style={{ fontSize: 14, color: '#4338ca' }}
-            />
-          ),
-          custom_success: props => (
-            <BaseToast
-              {...props}
-              style={{
-                borderLeftColor: '#10b981',
-                borderRadius: 12,
-                backgroundColor: '#ecfdf5',
-                paddingHorizontal: 16,
-              }}
-              contentContainerStyle={{ paddingHorizontal: 12 }}
-              text1Style={{ fontSize: 16, fontWeight: '700', color: '#065f46' }}
-              text2Style={{ fontSize: 14, color: '#065f46' }}
-            />
-          ),
-          custom_error: props => (
-            <ErrorToast
-              {...props}
-              style={{
-                borderLeftColor: '#ef4444',
-                borderRadius: 12,
-                backgroundColor: '#fee2e2',
-                paddingHorizontal: 16,
-              }}
-              contentContainerStyle={{ paddingHorizontal: 12 }}
-              text1Style={{ fontSize: 16, fontWeight: '700', color: '#b91c1c' }}
-              text2Style={{ fontSize: 14, color: '#b91c1c' }}
-            />
-          ),
-        }}
-      />
-    </LinearGradient>
+        {/* Toast Config */}
+        <Toast
+          config={{
+            custom_otp: props => (
+              <BaseToast
+                {...props}
+                style={{
+                  borderLeftColor: '#4f46e5',
+                  borderRadius: 12,
+                  backgroundColor: '#e0e7ff',
+                  paddingHorizontal: 16,
+                }}
+                contentContainerStyle={{ paddingHorizontal: 12 }}
+                text1Style={{
+                  fontSize: 16,
+                  fontWeight: '700',
+                  color: '#4338ca',
+                }}
+                text2Style={{ fontSize: 14, color: '#4338ca' }}
+              />
+            ),
+            custom_success: props => (
+              <BaseToast
+                {...props}
+                style={{
+                  borderLeftColor: '#10b981',
+                  borderRadius: 12,
+                  backgroundColor: '#ecfdf5',
+                  paddingHorizontal: 16,
+                }}
+                contentContainerStyle={{ paddingHorizontal: 12 }}
+                text1Style={{
+                  fontSize: 16,
+                  fontWeight: '700',
+                  color: '#065f46',
+                }}
+                text2Style={{ fontSize: 14, color: '#065f46' }}
+              />
+            ),
+            custom_error: props => (
+              <ErrorToast
+                {...props}
+                style={{
+                  borderLeftColor: '#ef4444',
+                  borderRadius: 12,
+                  backgroundColor: '#fee2e2',
+                  paddingHorizontal: 16,
+                }}
+                contentContainerStyle={{ paddingHorizontal: 12 }}
+                text1Style={{
+                  fontSize: 16,
+                  fontWeight: '700',
+                  color: '#b91c1c',
+                }}
+                text2Style={{ fontSize: 14, color: '#b91c1c' }}
+              />
+            ),
+          }}
+        />
+      </LinearGradient>
+    </SafeAreaView>
   );
 }
 
@@ -355,11 +347,7 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginBottom: 20,
   },
-  toggleRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
+  toggleRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: 16 },
   toggleButton: {
     flex: 1,
     paddingVertical: 12,
@@ -377,15 +365,9 @@ const styles = StyleSheet.create({
     padding: 14,
     color: '#111827',
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: 'transparent',
   },
   disabledInput: { backgroundColor: 'rgba(243,244,246,0.6)', color: '#9ca3af' },
-  otpInputContainer: {
-    position: 'relative',
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  otpInputContainer: { flexDirection: 'row', alignItems: 'center' },
   otpInput: {
     backgroundColor: 'rgba(243,244,246,0.9)',
     borderRadius: 12,
@@ -396,7 +378,6 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontWeight: '700',
     flex: 1,
-    paddingRight: 16,
   },
   label: { fontSize: 14, color: '#111827', marginBottom: 6 },
   primaryButton: {
@@ -408,5 +389,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryButtonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  buttonDisabled: { backgroundColor: 'rgba(79, 70, 229, 0.6)' },
+  buttonDisabled: { backgroundColor: 'rgba(79,70,229,0.6)' },
 });

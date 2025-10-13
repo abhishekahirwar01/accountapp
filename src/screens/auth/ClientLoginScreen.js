@@ -130,7 +130,7 @@ export default function ClientLoginScreen({ navigation }) {
 
   return (
     <LinearGradient
-      colors={['#4f46e5', '#6366f1', '#a5b4fc']}
+      colors={['#e0e7ff', '#e0e7ff']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={{ flex: 1 }}

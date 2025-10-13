@@ -13,6 +13,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const logoPath = require('../../../assets/images/account_app_logo.png');
+const logoPath2 = require('../../../assets/images/vinimay.png');
 const { width, height } = Dimensions.get('window');
 
 // Responsive font scaling helper
@@ -26,11 +27,13 @@ export default function GettingStartedScreen({ navigation }) {
         <View style={styles.content}>
           {/* Logo Section */}
           <View style={styles.logoContainer}>
-            <Image source={logoPath} style={styles.logo} resizeMode="contain" />
+            <Image
+              source={logoPath2}
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </View>
 
-          {/* App Name */}
-          <Text style={styles.title}>AccountTech Pro</Text>
           <Text style={styles.subtitle}>Professional Accounting Services</Text>
 
           {/* Features */}

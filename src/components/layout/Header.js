@@ -10,10 +10,13 @@ import {
   Modal,
   Pressable,
   Platform,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
+
+const logoPath2 = require("../../../assets/images/vinimay.png");
 
 export default function Header({ role = "master" }) {
   const [showSearch, setShowSearch] = useState(false);
@@ -98,7 +101,12 @@ export default function Header({ role = "master" }) {
             </View>
           ) : (
             <>
-              <Text style={styles.appName}>AccounTech Pro</Text>
+              {/* ✅ Logo replaces text title */}
+              <Image
+                source={logoPath2}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
 
               <View style={styles.rightContainer}>
                 <TouchableOpacity
@@ -215,10 +223,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: "#FFFFFF",
   },
-  appName: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1E293B",
+  logoImage: {
+    width: 80, // adjust as needed
+    height: 40,
   },
   rightContainer: {
     flexDirection: "row",
