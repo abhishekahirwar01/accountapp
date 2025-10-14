@@ -8,11 +8,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ImageBackground,
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import LinearGradient from 'react-native-linear-gradient';
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
+
+// ✅ Use same background as GettingStarted
+const backgroundPath = require('../../../assets/images/bg1.png');
 
 export default function OTPVerificationScreen({ navigation }) {
   const [method, setMethod] = useState('email');
@@ -31,7 +34,6 @@ export default function OTPVerificationScreen({ navigation }) {
   const isInputEditable = !otpSent || otpTimer <= 0;
   const isToggleDisabled = otpTimer > 0;
 
-  // OTP resend timer and toast update
   useEffect(() => {
     if (!otpSent || otpTimer <= 0) return;
 
@@ -44,15 +46,13 @@ export default function OTPVerificationScreen({ navigation }) {
           return 0;
         }
 
-        setTimeout(() => {
-          Toast.show({
-            type: 'custom_otp',
-            text1: `OTP sent to ${method === 'email' ? email : mobile}`,
-            text2: `OTP: ${otp} (Resend in ${next}s)`,
-            position: 'top',
-            autoHide: false,
-          });
-        }, 0);
+        Toast.show({
+          type: 'custom_otp',
+          text1: `OTP sent to ${method === 'email' ? email : mobile}`,
+          text2: `OTP: ${otp} (Resend in ${next}s)`,
+          position: 'top',
+          autoHide: false,
+        });
 
         return next;
       });
@@ -118,15 +118,15 @@ export default function OTPVerificationScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1}}>
-      <LinearGradient
-        colors={['#e0e7ff', '#e0e7ff']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{ flex: 1 }}
-      >
-       
+    <SafeAreaView style={{ flex: 1 }}>
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
+      {/* ✅ Background Image Same as GettingStartedScreen */}
+      <ImageBackground
+        source={backgroundPath}
+        style={styles.background}
+        resizeMode="cover"
+      >
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -147,35 +147,23 @@ export default function OTPVerificationScreen({ navigation }) {
               {/* Toggle Buttons */}
               <View style={styles.toggleRow}>
                 <TouchableOpacity
-                  style={[
-                    styles.toggleButton,
-                    method === 'email' && styles.active,
-                  ]}
+                  style={[styles.toggleButton, method === 'email' && styles.active]}
                   onPress={() => switchMethod('email')}
                   disabled={isToggleDisabled}
                 >
                   <Text
-                    style={[
-                      styles.toggleText,
-                      method === 'email' && styles.activeText,
-                    ]}
+                    style={[styles.toggleText, method === 'email' && styles.activeText]}
                   >
                     Email
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[
-                    styles.toggleButton,
-                    method === 'mobile' && styles.active,
-                  ]}
+                  style={[styles.toggleButton, method === 'mobile' && styles.active]}
                   onPress={() => switchMethod('mobile')}
                   disabled={isToggleDisabled}
                 >
                   <Text
-                    style={[
-                      styles.toggleText,
-                      method === 'mobile' && styles.activeText,
-                    ]}
+                    style={[styles.toggleText, method === 'mobile' && styles.activeText]}
                   >
                     Mobile
                   </Text>
@@ -188,21 +176,16 @@ export default function OTPVerificationScreen({ navigation }) {
                   {method === 'email' ? 'Email Address' : 'Mobile Number'}
                 </Text>
                 <TextInput
-                  style={[
-                    styles.input,
-                    !isInputEditable && styles.disabledInput,
-                  ]}
+                  style={[styles.input, !isInputEditable && styles.disabledInput]}
                   placeholder={
-                    method === 'email' ? 'name@company.com' : '+1 555 000 0000'
+                    method === 'email' ? 'name@company.com' : '+91 9876543210'
                   }
                   value={method === 'email' ? email : mobile}
                   onChangeText={method === 'email' ? setEmail : setMobile}
-                  keyboardType="visible-password"
+                  keyboardType={method === 'email' ? 'email-address' : 'phone-pad'}
                   autoCapitalize="none"
                   editable={isInputEditable}
                   placeholderTextColor="#6b7280"
-                  importantForAutofill="yes"
-                  autoComplete={method === 'email' ? 'email' : 'tel'}
                 />
               </View>
 
@@ -210,14 +193,12 @@ export default function OTPVerificationScreen({ navigation }) {
               <TouchableOpacity
                 style={[
                   styles.primaryButton,
-                  ((method === 'email' ? !email.trim() : !mobile.trim()) ||
-                    otpTimer > 0) &&
+                  ((method === 'email' ? !email.trim() : !mobile.trim()) || otpTimer > 0) &&
                     styles.buttonDisabled,
                 ]}
                 onPress={handleSendOtp}
                 disabled={
-                  (method === 'email' ? !email.trim() : !mobile.trim()) ||
-                  otpTimer > 0
+                  (method === 'email' ? !email.trim() : !mobile.trim()) || otpTimer > 0
                 }
               >
                 <Text style={styles.primaryButtonText}>
@@ -228,27 +209,21 @@ export default function OTPVerificationScreen({ navigation }) {
               {/* OTP Input */}
               <View style={{ marginTop: 16 }}>
                 <Text style={styles.label}>Enter OTP</Text>
-                <View style={styles.otpInputContainer}>
-                  <TextInput
-                    style={styles.otpInput}
-                    value={otp}
-                    onChangeText={setOtp}
-                    placeholder="• • • • • •"
-                    keyboardType="visible-password"
-                    maxLength={6}
-                    placeholderTextColor="#9ca3af"
-                    autoComplete="one-time-code"
-                    importantForAutofill="yes"
-                  />
-                </View>
+                <TextInput
+                  style={styles.otpInput}
+                  value={otp}
+                  onChangeText={setOtp}
+                  placeholder="• • • • • •"
+                  keyboardType="numeric"
+                  maxLength={6}
+                  placeholderTextColor="#9ca3af"
+                  textAlign="center"
+                />
               </View>
 
               {/* Verify Button */}
               <TouchableOpacity
-                style={[
-                  styles.primaryButton,
-                  otp.length !== 6 && styles.buttonDisabled,
-                ]}
+                style={[styles.primaryButton, otp.length !== 6 && styles.buttonDisabled]}
                 onPress={handleVerify}
                 disabled={otp.length !== 6}
               >
@@ -317,12 +292,14 @@ export default function OTPVerificationScreen({ navigation }) {
             ),
           }}
         />
-      </LinearGradient>
+      </ImageBackground>
     </SafeAreaView>
   );
 }
 
+// ✅ Styles
 const styles = StyleSheet.create({
+  background: { flex: 1, width: '100%', height: '100%' },
   container: { flexGrow: 1, justifyContent: 'center', padding: 24 },
   card: {
     backgroundColor: '#fff',
@@ -367,17 +344,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   disabledInput: { backgroundColor: 'rgba(243,244,246,0.6)', color: '#9ca3af' },
-  otpInputContainer: { flexDirection: 'row', alignItems: 'center' },
   otpInput: {
     backgroundColor: 'rgba(243,244,246,0.9)',
     borderRadius: 12,
     padding: 16,
     fontSize: 22,
     letterSpacing: 12,
-    textAlign: 'center',
     color: '#111827',
     fontWeight: '700',
-    flex: 1,
+    marginTop: 6,
   },
   label: { fontSize: 14, color: '#111827', marginBottom: 6 },
   primaryButton: {

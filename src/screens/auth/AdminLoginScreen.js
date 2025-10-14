@@ -9,13 +9,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ImageBackground,
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import LinearGradient from 'react-native-linear-gradient';
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 import { navigateByRole } from '../../utils/roleNavigation';
+
+// ✅ Background image (same as GettingStartedScreen)
+const backgroundPath = require('../../../assets/images/bg1.png');
 
 export default function AdminLoginScreen({ navigation }) {
   const [username, setUsername] = useState('');
@@ -36,7 +39,7 @@ export default function AdminLoginScreen({ navigation }) {
 
     setLoading(true);
 
-    // Mock authentication logic
+    // Mock authentication
     const role =
       username === 'master' && password === '123'
         ? 'master'
@@ -57,7 +60,6 @@ export default function AdminLoginScreen({ navigation }) {
           visibilityTime: 500,
         });
 
-        // Navigate after toast disappears
         setTimeout(() => {
           navigateByRole(navigation, role);
         }, 500);
@@ -74,11 +76,17 @@ export default function AdminLoginScreen({ navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      <LinearGradient
-        colors={['#e0e7ff', '#e0e7ff']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{ flex: 1 }}
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
+      />
+
+      {/* ✅ Background same as GettingStartedScreen */}
+      <ImageBackground
+        source={backgroundPath}
+        style={styles.background}
+        resizeMode="cover"
       >
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -87,6 +95,7 @@ export default function AdminLoginScreen({ navigation }) {
           <ScrollView
             contentContainerStyle={styles.container}
             keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
             <View style={styles.card}>
               {/* Shield Icon + Title */}
@@ -99,6 +108,7 @@ export default function AdminLoginScreen({ navigation }) {
                 />
                 <Text style={styles.title}>Master Sign In</Text>
               </View>
+
               {/* Username */}
               <Text style={styles.label}>Username</Text>
               <TextInput
@@ -153,22 +163,22 @@ export default function AdminLoginScreen({ navigation }) {
                 {loading ? (
                   <ActivityIndicator color="#fff" size={24} />
                 ) : (
-                  <LinearGradient
-                    colors={['#2563eb', '#1d4ed8', '#1e40af']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.gradientButton}
-                  >
+                  <View style={styles.gradientButton}>
                     <Text style={styles.buttonText}>Sign In</Text>
-                    <Ionicons name="arrow-forward" size={20} color="#fff" style={styles.buttonIcon} />
-                  </LinearGradient>
+                    <Ionicons
+                      name="arrow-forward"
+                      size={20}
+                      color="#fff"
+                      style={styles.buttonIcon}
+                    />
+                  </View>
                 )}
               </TouchableOpacity>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
 
-        {/* Toast */}
+        {/* Toast Messages */}
         <Toast
           config={{
             custom_success: props => (
@@ -181,7 +191,11 @@ export default function AdminLoginScreen({ navigation }) {
                   paddingHorizontal: 16,
                 }}
                 contentContainerStyle={{ paddingHorizontal: 12 }}
-                text1Style={{ fontSize: 16, fontWeight: '700', color: '#065f46' }}
+                text1Style={{
+                  fontSize: 16,
+                  fontWeight: '700',
+                  color: '#065f46',
+                }}
                 text2Style={{ fontSize: 14, color: '#065f46' }}
               />
             ),
@@ -195,25 +209,34 @@ export default function AdminLoginScreen({ navigation }) {
                   paddingHorizontal: 16,
                 }}
                 contentContainerStyle={{ paddingHorizontal: 12 }}
-                text1Style={{ fontSize: 16, fontWeight: '700', color: '#b91c1c' }}
+                text1Style={{
+                  fontSize: 16,
+                  fontWeight: '700',
+                  color: '#b91c1c',
+                }}
                 text2Style={{ fontSize: 14, color: '#b91c1c' }}
               />
             ),
           }}
         />
-      </LinearGradient>
+      </ImageBackground>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
   container: {
     flexGrow: 1,
     justifyContent: 'center',
     padding: 24,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffff',
     borderRadius: 24,
     padding: 32,
     shadowColor: '#000',
@@ -235,7 +258,12 @@ const styles = StyleSheet.create({
     color: '#1e293b',
     letterSpacing: -0.5,
   },
-  label: { fontSize: 14, color: '#475569', fontWeight: '600', marginBottom: 8 },
+  label: {
+    fontSize: 14,
+    color: '#475569',
+    fontWeight: '600',
+    marginBottom: 8,
+  },
   input: {
     backgroundColor: '#f8fafc',
     padding: 18,
@@ -274,7 +302,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 6,
   },
-   gradientButton: {
+  gradientButton: {
+    backgroundColor: '#2563eb',
     paddingVertical: 18,
     borderRadius: 16,
     alignItems: 'center',

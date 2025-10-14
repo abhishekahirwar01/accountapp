@@ -9,13 +9,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ImageBackground,
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import LinearGradient from 'react-native-linear-gradient';
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 import { navigateByRole } from '../../utils/roleNavigation';
+
+// ✅ Same background as AdminLoginScreen
+const backgroundPath = require('../../../assets/images/bg1.png');
 
 export default function UserLoginScreen({ navigation }) {
   const [userId, setUserId] = useState('');
@@ -25,7 +28,12 @@ export default function UserLoginScreen({ navigation }) {
 
   const HARD_USERS = [
     { userId: 'admin', password: '123', role: 'admin', name: 'Admin User' },
-    { userId: 'customer', password: '123', role: 'customer', name: 'Customer Demo' },
+    {
+      userId: 'customer',
+      password: '123',
+      role: 'customer',
+      name: 'Customer Demo',
+    },
     { userId: 'client', password: '123', role: 'client', name: 'Client Demo' },
     { userId: 'user', password: '123', role: 'user', name: 'Regular User' },
   ];
@@ -45,7 +53,7 @@ export default function UserLoginScreen({ navigation }) {
 
     setTimeout(() => {
       const foundUser = HARD_USERS.find(
-        u => u.userId === userId && u.password === password
+        u => u.userId === userId && u.password === password,
       );
 
       setLoading(false);
@@ -74,13 +82,18 @@ export default function UserLoginScreen({ navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      <LinearGradient
-        colors={['#e0e7ff', '#e0e7ff']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{ flex: 1 }}
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
+      />
+
+      {/* ✅ Background same as AdminLoginScreen */}
+      <ImageBackground
+        source={backgroundPath}
+        style={styles.background}
+        resizeMode="cover"
       >
-       
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -155,15 +168,15 @@ export default function UserLoginScreen({ navigation }) {
                 {loading ? (
                   <ActivityIndicator color="#fff" size={24} />
                 ) : (
-                  <LinearGradient
-                    colors={['#2563eb', '#1d4ed8', '#1e40af']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.gradientButton}
-                  >
+                  <View style={styles.gradientButton}>
                     <Text style={styles.buttonText}>Sign In</Text>
-                    <Ionicons name="arrow-forward" size={20} color="#fff" style={styles.buttonIcon} />
-                  </LinearGradient>
+                    <Ionicons
+                      name="arrow-forward"
+                      size={20}
+                      color="#fff"
+                      style={styles.buttonIcon}
+                    />
+                  </View>
                 )}
               </TouchableOpacity>
             </View>
@@ -183,7 +196,11 @@ export default function UserLoginScreen({ navigation }) {
                   paddingHorizontal: 16,
                 }}
                 contentContainerStyle={{ paddingHorizontal: 12 }}
-                text1Style={{ fontSize: 16, fontWeight: '700', color: '#065f46' }}
+                text1Style={{
+                  fontSize: 16,
+                  fontWeight: '700',
+                  color: '#065f46',
+                }}
                 text2Style={{ fontSize: 14, color: '#065f46' }}
               />
             ),
@@ -197,18 +214,27 @@ export default function UserLoginScreen({ navigation }) {
                   paddingHorizontal: 16,
                 }}
                 contentContainerStyle={{ paddingHorizontal: 12 }}
-                text1Style={{ fontSize: 16, fontWeight: '700', color: '#b91c1c' }}
+                text1Style={{
+                  fontSize: 16,
+                  fontWeight: '700',
+                  color: '#b91c1c',
+                }}
                 text2Style={{ fontSize: 14, color: '#b91c1c' }}
               />
             ),
           }}
         />
-      </LinearGradient>
+      </ImageBackground>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
   container: {
     flexGrow: 1,
     justifyContent: 'center',
@@ -282,6 +308,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   gradientButton: {
+    backgroundColor: '#2563eb',
     paddingVertical: 18,
     borderRadius: 16,
     alignItems: 'center',
