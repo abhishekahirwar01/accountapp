@@ -140,7 +140,6 @@ export default function ClientLoginScreen({ navigation }) {
         backgroundColor="transparent"
       />
 
-      {/* ✅ Background same as AdminLoginScreen */}
       <ImageBackground
         source={backgroundPath}
         style={styles.background}
@@ -155,6 +154,14 @@ export default function ClientLoginScreen({ navigation }) {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
+            {/* ✅ Back Arrow */}
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Ionicons name="arrow-back" size={24} color="#111827" />
+            </TouchableOpacity>
+
             <View style={styles.card}>
               <Text style={styles.title}>Client Sign In</Text>
 
@@ -353,6 +360,13 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     padding: 24,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    zIndex: 10,
+    padding: 8,
   },
   card: {
     backgroundColor: '#ffffff',

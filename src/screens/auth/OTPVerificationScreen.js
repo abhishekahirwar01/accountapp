@@ -10,9 +10,12 @@ import {
   ScrollView,
   ImageBackground,
   StatusBar,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 // ✅ Use same background as GettingStarted
 const backgroundPath = require('../../../assets/images/bg1.png');
@@ -26,9 +29,24 @@ export default function OTPVerificationScreen({ navigation }) {
   const [otpTimer, setOtpTimer] = useState(0);
 
   const USERS = [
-    { role: 'master', email: 'master01@gmail.com', mobile: '1111111111', otp: '111111' },
-    { role: 'client', email: 'client01@gmail.com', mobile: '2222222222', otp: '222222' },
-    { role: 'user', email: 'user01@gmail.com', mobile: '3333333333', otp: '333333' },
+    {
+      role: 'master',
+      email: 'master01@gmail.com',
+      mobile: '1111111111',
+      otp: '111111',
+    },
+    {
+      role: 'client',
+      email: 'client01@gmail.com',
+      mobile: '2222222222',
+      otp: '222222',
+    },
+    {
+      role: 'user',
+      email: 'user01@gmail.com',
+      mobile: '3333333333',
+      otp: '333333',
+    },
   ];
 
   const isInputEditable = !otpSent || otpTimer <= 0;
@@ -64,7 +82,9 @@ export default function OTPVerificationScreen({ navigation }) {
   const handleSendOtp = () => {
     setOtp('');
     const identifier = method === 'email' ? email.trim() : mobile.trim();
-    const user = USERS.find(u => (method === 'email' ? u.email : u.mobile) === identifier);
+    const user = USERS.find(
+      u => (method === 'email' ? u.email : u.mobile) === identifier,
+    );
 
     if (user) {
       setOtp(user.otp);
@@ -84,7 +104,9 @@ export default function OTPVerificationScreen({ navigation }) {
   const handleVerify = () => {
     const identifier = method === 'email' ? email.trim() : mobile.trim();
     const user = USERS.find(
-      u => (method === 'email' ? u.email : u.mobile) === identifier && u.otp === otp,
+      u =>
+        (method === 'email' ? u.email : u.mobile) === identifier &&
+        u.otp === otp,
     );
 
     if (user) {
@@ -97,9 +119,10 @@ export default function OTPVerificationScreen({ navigation }) {
       setOtpTimer(0);
 
       setTimeout(() => {
-        if (user.role === 'master') navigation.replace('AdminLoginScreen');
-        else if (user.role === 'client') navigation.replace('ClientLoginScreen');
-        else navigation.replace('UserLoginScreen');
+        if (user.role === 'master') navigation.navigate('AdminLoginScreen');
+        else if (user.role === 'client')
+          navigation.navigate('ClientLoginScreen');
+        else navigation.navigate('UserLoginScreen');
       }, 800);
     } else {
       Toast.show({
@@ -119,9 +142,12 @@ export default function OTPVerificationScreen({ navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
+      />
 
-      {/* ✅ Background Image Same as GettingStartedScreen */}
       <ImageBackground
         source={backgroundPath}
         style={styles.background}
@@ -132,105 +158,139 @@ export default function OTPVerificationScreen({ navigation }) {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          <ScrollView
-            contentContainerStyle={styles.container}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.card}>
-              <Text style={styles.header}>OTP Verification</Text>
-              <Text style={styles.subHeader}>
-                Enter the OTP sent to your{' '}
-                {method === 'email' ? 'email' : 'mobile number'}.
-              </Text>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <ScrollView
+              contentContainerStyle={styles.container}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Back Arrow */}
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => navigation.goBack()}
+              >
+                <Ionicons name="arrow-back" size={24} color="#111827" />
+              </TouchableOpacity>
 
-              {/* Toggle Buttons */}
-              <View style={styles.toggleRow}>
-                <TouchableOpacity
-                  style={[styles.toggleButton, method === 'email' && styles.active]}
-                  onPress={() => switchMethod('email')}
-                  disabled={isToggleDisabled}
-                >
-                  <Text
-                    style={[styles.toggleText, method === 'email' && styles.activeText]}
-                  >
-                    Email
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.toggleButton, method === 'mobile' && styles.active]}
-                  onPress={() => switchMethod('mobile')}
-                  disabled={isToggleDisabled}
-                >
-                  <Text
-                    style={[styles.toggleText, method === 'mobile' && styles.activeText]}
-                  >
-                    Mobile
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Email/Mobile Input */}
-              <View style={{ marginBottom: 12 }}>
-                <Text style={styles.label}>
-                  {method === 'email' ? 'Email Address' : 'Mobile Number'}
+              <View style={styles.card}>
+                <Text style={styles.header}>OTP Verification</Text>
+                <Text style={styles.subHeader}>
+                  Enter the OTP sent to your{' '}
+                  {method === 'email' ? 'email' : 'mobile number'}.
                 </Text>
-                <TextInput
-                  style={[styles.input, !isInputEditable && styles.disabledInput]}
-                  placeholder={
-                    method === 'email' ? 'name@company.com' : '+91 9876543210'
+
+                {/* Toggle Buttons */}
+                <View style={styles.toggleRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.toggleButton,
+                      method === 'email' && styles.active,
+                    ]}
+                    onPress={() => switchMethod('email')}
+                    disabled={isToggleDisabled}
+                  >
+                    <Text
+                      style={[
+                        styles.toggleText,
+                        method === 'email' && styles.activeText,
+                      ]}
+                    >
+                      Email
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.toggleButton,
+                      method === 'mobile' && styles.active,
+                    ]}
+                    onPress={() => switchMethod('mobile')}
+                    disabled={isToggleDisabled}
+                  >
+                    <Text
+                      style={[
+                        styles.toggleText,
+                        method === 'mobile' && styles.activeText,
+                      ]}
+                    >
+                      Mobile
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Email/Mobile Input */}
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={styles.label}>
+                    {method === 'email' ? 'Email Address' : 'Mobile Number'}
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      !isInputEditable && styles.disabledInput,
+                    ]}
+                    placeholder={
+                      method === 'email' ? 'name@company.com' : '+91 9876543210'
+                    }
+                    value={method === 'email' ? email : mobile}
+                    onChangeText={method === 'email' ? setEmail : setMobile}
+                    keyboardType={
+                      method === 'email' ? 'email-address' : 'phone-pad'
+                    }
+                    autoCapitalize="none"
+                    editable={isInputEditable}
+                    placeholderTextColor="#6b7280"
+                  />
+                </View>
+
+                {/* Send OTP Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.primaryButton,
+                    ((method === 'email' ? !email.trim() : !mobile.trim()) ||
+                      otpTimer > 0) &&
+                      styles.buttonDisabled,
+                  ]}
+                  onPress={handleSendOtp}
+                  disabled={
+                    (method === 'email' ? !email.trim() : !mobile.trim()) ||
+                    otpTimer > 0
                   }
-                  value={method === 'email' ? email : mobile}
-                  onChangeText={method === 'email' ? setEmail : setMobile}
-                  keyboardType={method === 'email' ? 'email-address' : 'phone-pad'}
-                  autoCapitalize="none"
-                  editable={isInputEditable}
-                  placeholderTextColor="#6b7280"
-                />
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {otpSent ? 'Send Again' : 'Send OTP'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* OTP Input */}
+                <View style={{ marginTop: 16 }}>
+                  <Text style={styles.label}>Enter OTP</Text>
+                  <TextInput
+                    style={styles.otpInput}
+                    value={otp}
+                    onChangeText={setOtp}
+                    placeholder="• • • • • •"
+                    keyboardType="numeric"
+                    maxLength={6}
+                    placeholderTextColor="#9ca3af"
+                    textAlign="center"
+                  />
+                </View>
+
+                {/* Verify Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.primaryButton,
+                    otp.length !== 6 && styles.buttonDisabled,
+                  ]}
+                  onPress={handleVerify}
+                  disabled={otp.length !== 6}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    Verify & Continue
+                  </Text>
+                </TouchableOpacity>
               </View>
-
-              {/* Send OTP Button */}
-              <TouchableOpacity
-                style={[
-                  styles.primaryButton,
-                  ((method === 'email' ? !email.trim() : !mobile.trim()) || otpTimer > 0) &&
-                    styles.buttonDisabled,
-                ]}
-                onPress={handleSendOtp}
-                disabled={
-                  (method === 'email' ? !email.trim() : !mobile.trim()) || otpTimer > 0
-                }
-              >
-                <Text style={styles.primaryButtonText}>
-                  {otpSent ? 'Send Again' : 'Send OTP'}
-                </Text>
-              </TouchableOpacity>
-
-              {/* OTP Input */}
-              <View style={{ marginTop: 16 }}>
-                <Text style={styles.label}>Enter OTP</Text>
-                <TextInput
-                  style={styles.otpInput}
-                  value={otp}
-                  onChangeText={setOtp}
-                  placeholder="• • • • • •"
-                  keyboardType="numeric"
-                  maxLength={6}
-                  placeholderTextColor="#9ca3af"
-                  textAlign="center"
-                />
-              </View>
-
-              {/* Verify Button */}
-              <TouchableOpacity
-                style={[styles.primaryButton, otp.length !== 6 && styles.buttonDisabled]}
-                onPress={handleVerify}
-                disabled={otp.length !== 6}
-              >
-                <Text style={styles.primaryButtonText}>Verify & Continue</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
+            </ScrollView>
+          </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
 
         {/* Toast Config */}
@@ -301,6 +361,13 @@ export default function OTPVerificationScreen({ navigation }) {
 const styles = StyleSheet.create({
   background: { flex: 1, width: '100%', height: '100%' },
   container: { flexGrow: 1, justifyContent: 'center', padding: 24 },
+  backButton: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    zIndex: 10,
+    padding: 8,
+  },
   card: {
     backgroundColor: '#fff',
     borderRadius: 20,
@@ -324,7 +391,11 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginBottom: 20,
   },
-  toggleRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: 16 },
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
   toggleButton: {
     flex: 1,
     paddingVertical: 12,

@@ -11,6 +11,8 @@ import {
   ScrollView,
   ImageBackground,
   StatusBar,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -88,7 +90,6 @@ export default function UserLoginScreen({ navigation }) {
         backgroundColor="transparent"
       />
 
-      {/* ✅ Background same as AdminLoginScreen */}
       <ImageBackground
         source={backgroundPath}
         style={styles.background}
@@ -97,90 +98,107 @@ export default function UserLoginScreen({ navigation }) {
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
         >
-          <ScrollView
-            contentContainerStyle={styles.container}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={styles.card}>
-              {/* Icon + Title */}
-              <View style={styles.titleContainer}>
-                <Ionicons
-                  name="person-circle-outline"
-                  size={28}
-                  color="#2563eb"
-                  style={{ marginRight: 8 }}
-                />
-                <Text style={styles.title}>User Sign In</Text>
-              </View>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <ScrollView
+              contentContainerStyle={styles.container}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* ✅ Back Arrow */}
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => navigation.goBack()}
+              >
+                <Ionicons name="arrow-back" size={24} color="#111827" />
+              </TouchableOpacity>
 
-              {/* User ID */}
-              <Text style={styles.label}>User ID</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter User ID"
-                value={userId}
-                onChangeText={setUserId}
-                editable={!loading}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="visible-password"
-                placeholderTextColor="#94a3b8"
-              />
+              <View style={styles.card}>
+                {/* Icon + Title */}
+                <View style={styles.titleContainer}>
+                  <Ionicons
+                    name="person-circle-outline"
+                    size={28}
+                    color="#2563eb"
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text style={styles.title}>User Sign In</Text>
+                </View>
 
-              {/* Password */}
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.passwordContainer}>
+                {/* User ID */}
+                <Text style={styles.label}>User ID</Text>
                 <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  placeholder="Enter password"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
+                  style={styles.input}
+                  placeholder="Enter User ID"
+                  value={userId}
+                  onChangeText={setUserId}
                   editable={!loading}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  keyboardType="default"
                   placeholderTextColor="#94a3b8"
+                  returnKeyType="next"
                 />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeButton}
-                >
-                  <Ionicons
-                    name={showPassword ? 'eye-off' : 'eye'}
-                    size={22}
-                    color="#64748b"
+
+                {/* Password */}
+                <Text style={styles.label}>Password</Text>
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    placeholder="Enter password"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    editable={!loading}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="default"
+                    textContentType="password"
+                    returnKeyType="done"
                   />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeButton}
+                  >
+                    <Ionicons
+                      name={showPassword ? 'eye-off' : 'eye'}
+                      size={22}
+                      color="#64748b"
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Forgot Password */}
+                <TouchableOpacity style={styles.forgotPassword}>
+                  <Text style={styles.forgotPasswordText}>
+                    Forgot Password?
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Sign In Button */}
+                <TouchableOpacity
+                  style={[styles.button, loading && styles.buttonDisabled]}
+                  onPress={handleSubmit}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" size={24} />
+                  ) : (
+                    <View style={styles.gradientButton}>
+                      <Text style={styles.buttonText}>Sign In</Text>
+                      <Ionicons
+                        name="arrow-forward"
+                        size={20}
+                        color="#fff"
+                        style={styles.buttonIcon}
+                      />
+                    </View>
+                  )}
                 </TouchableOpacity>
               </View>
-
-              {/* Forgot Password */}
-              <TouchableOpacity style={styles.forgotPassword}>
-                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-              </TouchableOpacity>
-
-              {/* Sign In Button */}
-              <TouchableOpacity
-                style={[styles.button, loading && styles.buttonDisabled]}
-                onPress={handleSubmit}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" size={24} />
-                ) : (
-                  <View style={styles.gradientButton}>
-                    <Text style={styles.buttonText}>Sign In</Text>
-                    <Ionicons
-                      name="arrow-forward"
-                      size={20}
-                      color="#fff"
-                      style={styles.buttonIcon}
-                    />
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
+            </ScrollView>
+          </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
 
         {/* Toast Config */}
@@ -239,6 +257,13 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     padding: 24,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    zIndex: 10,
+    padding: 8,
   },
   card: {
     backgroundColor: '#fff',
