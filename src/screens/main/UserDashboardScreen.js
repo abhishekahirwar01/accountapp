@@ -29,8 +29,10 @@ import InventoryScreen from './InventoryScreen';
 import UpdateWalkthrough from '../../components/notifications/UpdateWalkthrough';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const formatCurrency = (amount) =>
-  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount || 0);
+const formatCurrency = amount =>
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(
+    amount || 0,
+  );
 
 export default function UserDashboardScreen({ navigation, route }) {
   const { username = 'User', role = 'user' } = route?.params || {};
@@ -47,8 +49,11 @@ export default function UserDashboardScreen({ navigation, route }) {
   const selectedCompanyId = null;
 
   const selectedCompany = useMemo(
-    () => (selectedCompanyId ? companies.find((c) => c._id === selectedCompanyId) || null : null),
-    [companies, selectedCompanyId]
+    () =>
+      selectedCompanyId
+        ? companies.find(c => c._id === selectedCompanyId) || null
+        : null,
+    [companies, selectedCompanyId],
   );
 
   const serviceNameById = useMemo(() => {
@@ -60,17 +65,60 @@ export default function UserDashboardScreen({ navigation, route }) {
   }, []);
 
   const allTransactions = [
-    { id: 't1', type: 'sales', date: '2025-09-25', amount: 25000, serviceId: 's3', partyName: 'Aparajita Logistics Pvt Ltd', narration: 'DPR fees received' },
-    { id: 't2', type: 'purchases', date: '2025-09-23', totalAmount: 8000, serviceId: 's2', partyName: 'AWS (infra)', narration: 'Server cost' },
-    { id: 't3', type: 'receipt', date: '2025-09-22', amount: 12000, serviceId: 's1', partyName: 'Kailash Real Estate', narration: 'Advance for GST' },
-    { id: 't4', type: 'payment', date: '2025-09-20', amount: 4500, serviceId: 's1', partyName: 'Tally Prime License', narration: 'Monthly fee' },
-    { id: 't5', type: 'journal', date: '2025-09-18', narration: 'Year-end adjustments' },
+    {
+      id: 't1',
+      type: 'sales',
+      date: '2025-09-25',
+      amount: 25000,
+      serviceId: 's3',
+      partyName: 'Aparajita Logistics Pvt Ltd',
+      narration: 'DPR fees received',
+    },
+    {
+      id: 't2',
+      type: 'purchases',
+      date: '2025-09-23',
+      totalAmount: 8000,
+      serviceId: 's2',
+      partyName: 'AWS (infra)',
+      narration: 'Server cost',
+    },
+    {
+      id: 't3',
+      type: 'receipt',
+      date: '2025-09-22',
+      amount: 12000,
+      serviceId: 's1',
+      partyName: 'Kailash Real Estate',
+      narration: 'Advance for GST',
+    },
+    {
+      id: 't4',
+      type: 'payment',
+      date: '2025-09-20',
+      amount: 4500,
+      serviceId: 's1',
+      partyName: 'Tally Prime License',
+      narration: 'Monthly fee',
+    },
+    {
+      id: 't5',
+      type: 'journal',
+      date: '2025-09-18',
+      narration: 'Year-end adjustments',
+    },
   ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  const [recentTransactions, setRecentTransactions] = useState(allTransactions.slice(0, 5));
+  const [recentTransactions, setRecentTransactions] = useState(
+    allTransactions.slice(0, 5),
+  );
 
-  const totalSales = allTransactions.filter(t => t.type === 'sales').reduce((a, t) => a + (t.amount || t.totalAmount || 0), 0);
-  const totalPurchases = allTransactions.filter(t => t.type === 'purchases').reduce((a, t) => a + (t.amount || t.totalAmount || 0), 0);
+  const totalSales = allTransactions
+    .filter(t => t.type === 'sales')
+    .reduce((a, t) => a + (t.amount || t.totalAmount || 0), 0);
+  const totalPurchases = allTransactions
+    .filter(t => t.type === 'purchases')
+    .reduce((a, t) => a + (t.amount || t.totalAmount || 0), 0);
 
   const isAdmin = role === 'admin';
   const companyData = {
@@ -82,19 +130,51 @@ export default function UserDashboardScreen({ navigation, route }) {
 
   // --- KPI Cards
   const kpis = [
-    { key: 'sales', title: 'Total Sales', value: formatCurrency(companyData.totalSales), icon: IndianRupee, description: selectedCompanyId ? 'For selected company' : 'Across all companies', show: true },
-    { key: 'purchases', title: 'Total Purchases', value: formatCurrency(companyData.totalPurchases), icon: CreditCard, show: true },
-    { key: 'users', title: 'Active Users', value: companyData.users.toString(), icon: Users, show: isAdmin },
-    { key: 'companies', title: 'Companies', value: companyData.companies.toString(), icon: Building, show: true },
+    {
+      key: 'sales',
+      title: 'Total Sales',
+      value: formatCurrency(companyData.totalSales),
+      icon: IndianRupee,
+      description: selectedCompanyId
+        ? 'For selected company'
+        : 'Across all companies',
+      show: true,
+    },
+    {
+      key: 'purchases',
+      title: 'Total Purchases',
+      value: formatCurrency(companyData.totalPurchases),
+      icon: CreditCard,
+      show: true,
+    },
+    {
+      key: 'users',
+      title: 'Active Users',
+      value: companyData.users.toString(),
+      icon: Users,
+      show: isAdmin,
+    },
+    {
+      key: 'companies',
+      title: 'Companies',
+      value: companyData.companies.toString(),
+      icon: Building,
+      show: true,
+    },
   ].filter(k => k.show);
 
   // --- Handlers
-  const handleTransactionFormSubmit = (newTransaction) => {
+  const handleTransactionFormSubmit = newTransaction => {
     if (newTransaction) {
       const updated = [newTransaction, ...recentTransactions.slice(0, 4)];
       setRecentTransactions(updated);
     }
-    Toast.show({ type: 'success', text1: 'Transaction Saved', text2: 'Your transaction has been successfully recorded!', position: 'bottom' });
+    Toast.show({
+      type: 'success',
+      text1: 'Transaction Saved',
+      text2: 'Your transaction has been successfully recorded!',
+      position: 'bottom',
+    });
     setIsTransactionFormOpen(false);
   };
 
@@ -111,20 +191,34 @@ export default function UserDashboardScreen({ navigation, route }) {
       </View>
       <View style={styles.cardContent}>
         <Text style={styles.cardValue}>{value}</Text>
-        {description && <Text style={styles.cardDescription}>{description}</Text>}
+        {description && (
+          <Text style={styles.cardDescription}>{description}</Text>
+        )}
       </View>
     </View>
   );
 
   const SolidButton = ({ onPress, children }) => (
-    <TouchableOpacity onPress={onPress} style={[styles.btn, styles.btnSolid]} activeOpacity={0.85}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>{children}</View>
+    <TouchableOpacity
+      onPress={onPress}
+      style={[styles.btn, styles.btnSolid]}
+      activeOpacity={0.85}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        {children}
+      </View>
     </TouchableOpacity>
   );
 
   const OutlineButton = ({ onPress, children }) => (
-    <TouchableOpacity onPress={onPress} style={[styles.btn, styles.btnOutline]} activeOpacity={0.85}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>{children}</View>
+    <TouchableOpacity
+      onPress={onPress}
+      style={[styles.btn, styles.btnOutline]}
+      activeOpacity={0.85}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        {children}
+      </View>
     </TouchableOpacity>
   );
 
@@ -134,7 +228,9 @@ export default function UserDashboardScreen({ navigation, route }) {
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.subtitle}>
-            {selectedCompany ? `An overview of ${selectedCompany.businessName}.` : 'An overview across your accessible companies.'}
+            {selectedCompany
+              ? `An overview of ${selectedCompany.businessName}.`
+              : 'An overview across your accessible companies.'}
           </Text>
         </View>
         <View style={styles.headerActions}>
@@ -153,9 +249,19 @@ export default function UserDashboardScreen({ navigation, route }) {
       </View>
 
       {/* KPI Cards */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginBottom: 24 }}
+      >
         {kpis.map(k => (
-          <KPICard key={k.key} title={k.title} value={k.value} Icon={k.icon} description={k.description} />
+          <KPICard
+            key={k.key}
+            title={k.title}
+            value={k.value}
+            Icon={k.icon}
+            description={k.description}
+          />
         ))}
       </ScrollView>
 
@@ -168,7 +274,10 @@ export default function UserDashboardScreen({ navigation, route }) {
             { id: 'p3', name: 'Printer Ink', qty: 12, unit: 'bottles' },
           ]}
         />
-        <RecentTransactions transactions={recentTransactions} serviceNameById={serviceNameById} />
+        <RecentTransactions
+          transactions={recentTransactions}
+          serviceNameById={serviceNameById}
+        />
       </View>
     </ScrollView>
   );
@@ -210,7 +319,10 @@ export default function UserDashboardScreen({ navigation, route }) {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { width: SCREEN_WIDTH * 0.95 }]}>
             <ScrollView style={styles.modalBody}>
-              <TransactionForm onFormSubmit={handleTransactionFormSubmit} serviceNameById={serviceNameById} />
+              <TransactionForm
+                onFormSubmit={handleTransactionFormSubmit}
+                serviceNameById={serviceNameById}
+              />
             </ScrollView>
             <View style={styles.modalFooter}>
               <OutlineButton onPress={() => setIsTransactionFormOpen(false)}>
@@ -229,12 +341,34 @@ export default function UserDashboardScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#f9fafb' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
   loadingText: { marginTop: 12, fontSize: 16, color: '#666' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 16 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    marginBottom: 16,
+  },
   subtitle: { fontSize: 14, color: '#666', flexShrink: 1 },
-  headerActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 8 },
-  btn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8, marginLeft: 8, marginTop: 4 },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginTop: 8,
+  },
+  btn: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    marginLeft: 8,
+    marginTop: 4,
+  },
   btnSolid: { backgroundColor: '#0f62fe' },
   btnOutline: { borderWidth: 1, borderColor: '#ccc', backgroundColor: 'white' },
   kpiCard: {
@@ -248,14 +382,42 @@ const styles = StyleSheet.create({
     elevation: 2,
     marginRight: 12,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   cardTitle: { fontSize: 14, fontWeight: '500', color: '#666' },
   cardContent: { flex: 1 },
   cardValue: { fontSize: 20, fontWeight: 'bold', marginBottom: 4 },
   cardDescription: { fontSize: 12, color: '#666' },
   contentGrid: { marginBottom: 24 },
-  modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 10 },
-  modalContent: { backgroundColor: 'white', borderRadius: 12, maxHeight: '80%', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: 10,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
   modalBody: { maxHeight: 400, paddingHorizontal: 8, paddingVertical: 8 },
-  modalFooter: { flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 8, padding: 16, borderTopWidth: 1, borderTopColor: '#eee' },
+  modalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
+    gap: 8,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
 });
