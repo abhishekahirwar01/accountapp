@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
-  ImageBackground,
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,428 +15,287 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 import { navigateByRole } from '../../utils/roleNavigation';
 
-// ✅ Background image same as AdminLoginScreen
-const backgroundPath = require('../../../assets/images/bg1.png');
-
 export default function ClientLoginScreen({ navigation }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const [tab, setTab] = useState('password'); // "password" or "otp"
-  const [otp, setOtp] = useState('');
-  const [sendingOtp, setSendingOtp] = useState(false);
-  const [resendIn, setResendIn] = useState(0);
-
-  const HARD_USERNAME = 'client';
-  const HARD_PASSWORD = '123';
-  const HARD_OTP = '321';
-  const ROLE = 'client';
-
-  useEffect(() => {
-    if (resendIn <= 0) return;
-    const interval = setInterval(() => setResendIn(n => n - 1), 1000);
-    return () => clearInterval(interval);
-  }, [resendIn]);
-
-  const handleLoginSuccess = () => {
-    Toast.show({
-      type: 'custom_success',
-      text1: 'Login Successful',
-      text2: `Welcome back, ${username}!`,
-      visibilityTime: 2000,
-    });
-    setTimeout(() => navigateByRole(navigation, ROLE), 2100);
-  };
-
-  // Password login
-  const onSubmit = () => {
-    if (!username || !password) {
+  const handleSubmit = () => {
+    if (!username.trim() || !password.trim()) {
       Toast.show({
         type: 'custom_error',
         text1: 'Validation Error',
         text2: 'Please enter username and password',
-        visibilityTime: 2500,
+        visibilityTime: 2000,
       });
       return;
     }
 
-    setIsLoading(true);
+    setLoading(true);
+
+    // Mock authentication for client
+    const isValidClient = username === 'client' && password === '123';
+
+    // Simulate network delay
     setTimeout(() => {
-      setIsLoading(false);
-      if (username === HARD_USERNAME && password === HARD_PASSWORD) {
-        handleLoginSuccess();
+      setLoading(false);
+
+      if (isValidClient) {
+        Toast.show({
+          type: 'custom_success',
+          text1: 'Login Successful',
+          text2: `Welcome, ${username}!`,
+          visibilityTime: 2000,
+        });
+
+        setTimeout(() => {
+          navigateByRole(navigation, 'client');
+        }, 500);
       } else {
         Toast.show({
           type: 'custom_error',
           text1: 'Login Failed',
           text2: 'Invalid username or password',
-          visibilityTime: 2500,
-        });
-      }
-    }, 1000);
-  };
-
-  // Send OTP
-  const onSendOtp = () => {
-    if (!username) {
-      Toast.show({
-        type: 'custom_error',
-        text1: 'Validation Error',
-        text2: 'Enter your username first',
-        visibilityTime: 2500,
-      });
-      return;
-    }
-    setSendingOtp(true);
-    setTimeout(() => {
-      setSendingOtp(false);
-      setResendIn(30);
-      Toast.show({
-        type: 'custom_success',
-        text1: 'OTP Sent',
-        text2: `Your OTP is: ${HARD_OTP}`,
-        visibilityTime: 2500,
-      });
-    }, 500);
-  };
-
-  // OTP login
-  const onSubmitOtp = () => {
-    if (!otp) {
-      Toast.show({
-        type: 'custom_error',
-        text1: 'Validation Error',
-        text2: 'Enter the OTP',
-        visibilityTime: 2500,
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      if (username === HARD_USERNAME && otp === HARD_OTP) {
-        handleLoginSuccess();
-      } else {
-        Toast.show({
-          type: 'custom_error',
-          text1: 'Login Failed',
-          text2: 'Invalid OTP',
           visibilityTime: 2000,
         });
       }
-    }, 1000);
+    }, 1500);
+  };
+
+  // Custom Toast configurations
+  const toastConfig = {
+    custom_success: props => (
+      <BaseToast
+        {...props}
+        style={{
+          borderLeftColor: '#10b981',
+          borderRadius: 8,
+          backgroundColor: '#ecfdf5',
+          paddingHorizontal: 16,
+        }}
+        contentContainerStyle={{ paddingHorizontal: 12 }}
+        text1Style={{
+          fontSize: 16,
+          fontWeight: '700',
+          color: '#065f46',
+        }}
+        text2Style={{ fontSize: 14, color: '#065f46' }}
+      />
+    ),
+    custom_error: props => (
+      <ErrorToast
+        {...props}
+        style={{
+          borderLeftColor: '#ef4444',
+          borderRadius: 8,
+          backgroundColor: '#fee2e2',
+          paddingHorizontal: 16,
+        }}
+        contentContainerStyle={{ paddingHorizontal: 12 }}
+        text1Style={{
+          fontSize: 16,
+          fontWeight: '700',
+          color: '#b91c1c',
+        }}
+        text2Style={{ fontSize: 14, color: '#b91c1c' }}
+      />
+    ),
   };
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-      <StatusBar
-        barStyle="dark-content"
-        translucent
-        backgroundColor="transparent"
-      />
-
-      <ImageBackground
-        source={backgroundPath}
-        style={styles.background}
-        resizeMode="cover"
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      
+      {/* Back Button */}
+      <TouchableOpacity
+        style={styles.backButtonAbsolute}
+        onPress={() => navigation.goBack()}
+        disabled={loading}
       >
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <ScrollView
-            contentContainerStyle={styles.container}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* ✅ Back Arrow */}
+        <Ionicons name="arrow-back" size={26} color="#000" />
+      </TouchableOpacity>
+
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {/* Main content container for centering */}
+        <View style={styles.contentContainer}>
+          
+          {/* Title and Icon - Clean centered design */}
+          <View style={styles.headerContainer}>
+            <Ionicons
+              name="briefcase"
+              size={56}
+              color="#2563eb" // Professional blue color for client
+            />
+            <Text style={styles.title}>Sign in to Client Account</Text>
+          </View>
+
+          {/* Username Input */}
+          <Text style={styles.label}>Username</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter username"
+            value={username}
+            onChangeText={setUsername}
+            editable={!loading}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            placeholderTextColor="#94a3b8"
+            returnKeyType="next"
+          />
+
+          {/* Password Input */}
+          <Text style={styles.label}>Password</Text>
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={[styles.input, styles.passwordInput]}
+              placeholder="Enter password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              editable={!loading}
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholderTextColor="#94a3b8"
+              returnKeyType="done"
+              onSubmitEditing={handleSubmit}
+            />
             <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
+              onPress={() => setShowPassword(!showPassword)}
+              style={styles.eyeButton}
+              disabled={loading}
             >
-              <Ionicons name="arrow-back" size={24} color="#111827" />
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={24}
+                color="#64748b"
+              />
             </TouchableOpacity>
+          </View>
 
-            <View style={styles.card}>
-              <Text style={styles.title}>Client Sign In</Text>
+          {/* Forgot Password */}
+          <TouchableOpacity style={styles.forgotPassword}>
+            <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+          </TouchableOpacity>
 
-              {/* Tab Switch */}
-              <View style={styles.tabContainer}>
-                <TouchableOpacity
-                  onPress={() => setTab('password')}
-                  style={[
-                    styles.tabButton,
-                    tab === 'password' && styles.activeTab,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.tabText,
-                      tab === 'password' && styles.activeTabText,
-                    ]}
-                  >
-                    Password
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setTab('otp')}
-                  style={[styles.tabButton, tab === 'otp' && styles.activeTab]}
-                >
-                  <Text
-                    style={[
-                      styles.tabText,
-                      tab === 'otp' && styles.activeTabText,
-                    ]}
-                  >
-                    OTP
-                  </Text>
-                </TouchableOpacity>
-              </View>
+          {/* Sign In Button */}
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleSubmit}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.buttonText}>Sign In</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
 
-              {/* Password Login */}
-              {tab === 'password' && (
-                <View style={styles.form}>
-                  <TextInput
-                    placeholder="Username"
-                    value={username}
-                    onChangeText={setUsername}
-                    style={styles.input}
-                    editable={!isLoading}
-                    autoCapitalize="none"
-                    placeholderTextColor="#94a3b8"
-                    keyboardType="visible-password"
-                  />
-                  <View style={styles.passwordContainer}>
-                    <TextInput
-                      placeholder="Password"
-                      value={password}
-                      onChangeText={setPassword}
-                      secureTextEntry={!showPassword}
-                      style={styles.input}
-                      editable={!isLoading}
-                      placeholderTextColor="#94a3b8"
-                      keyboardType="visible-password"
-                    />
-                    <TouchableOpacity
-                      onPress={() => setShowPassword(!showPassword)}
-                      style={styles.eyeButton}
-                    >
-                      <Ionicons
-                        name={showPassword ? 'eye-off' : 'eye'}
-                        size={22}
-                        color="#64748b"
-                      />
-                    </TouchableOpacity>
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.button, isLoading && styles.buttonDisabled]}
-                    onPress={onSubmit}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text style={styles.buttonText}>Sign In</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* OTP Login */}
-              {tab === 'otp' && (
-                <View style={styles.form}>
-                  <TextInput
-                    placeholder="Username"
-                    value={username}
-                    onChangeText={setUsername}
-                    style={styles.input}
-                    editable={!isLoading && !sendingOtp}
-                    autoCapitalize="none"
-                    placeholderTextColor="#94a3b8"
-                    keyboardType="visible-password"
-                  />
-                  <TouchableOpacity
-                    style={[
-                      styles.button,
-                      (sendingOtp || resendIn > 0 || !username) &&
-                        styles.buttonDisabled,
-                    ]}
-                    onPress={onSendOtp}
-                    disabled={sendingOtp || resendIn > 0 || !username}
-                  >
-                    <Text style={styles.buttonText}>
-                      {resendIn > 0 ? `Resend in ${resendIn}s` : 'Send OTP'}
-                    </Text>
-                  </TouchableOpacity>
-                  <TextInput
-                    placeholder="Enter OTP"
-                    value={otp}
-                    onChangeText={setOtp}
-                    keyboardType="visible-password"
-                    style={styles.input}
-                    editable={!isLoading}
-                    placeholderTextColor="#94a3b8"
-                    maxLength={HARD_OTP.length}
-                  />
-                  <TouchableOpacity
-                    style={[
-                      styles.button,
-                      (isLoading || otp.length !== HARD_OTP.length) &&
-                        styles.buttonDisabled,
-                    ]}
-                    onPress={onSubmitOtp}
-                    disabled={isLoading || otp.length !== HARD_OTP.length}
-                  >
-                    {isLoading ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text style={styles.buttonText}>Verify & Sign In</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-
-        {/* Toast Messages */}
-        <Toast
-          config={{
-            custom_success: props => (
-              <BaseToast
-                {...props}
-                style={{
-                  borderLeftColor: '#10b981',
-                  borderRadius: 12,
-                  backgroundColor: '#ecfdf5',
-                  paddingHorizontal: 16,
-                }}
-                contentContainerStyle={{ paddingHorizontal: 12 }}
-                text1Style={{
-                  fontSize: 16,
-                  fontWeight: '700',
-                  color: '#065f46',
-                }}
-                text2Style={{ fontSize: 14, color: '#065f46' }}
-              />
-            ),
-            custom_error: props => (
-              <ErrorToast
-                {...props}
-                style={{
-                  borderLeftColor: '#ef4444',
-                  borderRadius: 12,
-                  backgroundColor: '#fee2e2',
-                  paddingHorizontal: 16,
-                }}
-                contentContainerStyle={{ paddingHorizontal: 12 }}
-                text1Style={{
-                  fontSize: 16,
-                  fontWeight: '700',
-                  color: '#b91c1c',
-                }}
-                text2Style={{ fontSize: 14, color: '#b91c1c' }}
-              />
-            ),
-          }}
-        />
-      </ImageBackground>
+      {/* Toast Messages */}
+      <Toast config={toastConfig} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  background: {
+  safeArea: {
     flex: 1,
-    width: '100%',
-    height: '100%',
+    backgroundColor: '#ffffff',
   },
-  container: {
-    flexGrow: 1,
+  keyboardAvoidingContainer: {
+    flex: 1,
+    paddingHorizontal: 24,
     justifyContent: 'center',
-    padding: 24,
   },
-  backButton: {
+  contentContainer: {
+    width: '100%',
+    maxWidth: 400,
+    alignSelf: 'center',
+    paddingTop: 50, // Ensure content doesn't collide with back button
+  },
+  backButtonAbsolute: {
     position: 'absolute',
-    top: 16,
-    left: 16,
+    top: Platform.OS === 'android' ? StatusBar.currentHeight + 10 : 20,
+    left: 24,
     zIndex: 10,
     padding: 8,
   },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
-    padding: 32,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 12 },
-    shadowRadius: 24,
-    elevation: 12,
-    marginBottom: 24,
+  headerContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
+    marginTop: 20,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#000',
+    marginTop: 10,
     textAlign: 'center',
-    marginBottom: 32,
-    color: '#1e293b',
   },
-  tabContainer: {
-    flexDirection: 'row',
-    marginBottom: 24,
-    backgroundColor: '#e2e8f0',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  activeTab: {
-    backgroundColor: '#2563eb',
-  },
-  tabText: {
+  label: {
     fontSize: 16,
-    color: '#475569',
+    color: '#333',
     fontWeight: '600',
+    marginBottom: 8,
+    marginTop: 10,
   },
-  activeTabText: {
-    color: '#fff',
-  },
-  form: {},
   input: {
-    backgroundColor: '#f1f5f9',
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 16,
+    backgroundColor: '#f1f1f1',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 8,
     fontSize: 16,
-    color: '#334155',
+    color: '#000',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    marginBottom: 16,
+    width: '100%',
   },
   passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
     position: 'relative',
+  },
+  passwordInput: {
+    flex: 1,
+    marginBottom: 0,
+    paddingRight: 50,
   },
   eyeButton: {
     position: 'absolute',
-    right: 14,
-    top: 14,
+    right: 15,
+    padding: 5,
+  },
+  forgotPassword: {
+    alignSelf: 'flex-start',
+    marginBottom: 30,
+  },
+  forgotPasswordText: {
+    color: '#1a73e8',
+    fontWeight: '600',
+    fontSize: 15,
   },
   button: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 16,
-    borderRadius: 10,
+    backgroundColor: '#2563eb', // Professional blue for client
+    paddingVertical: 14,
+    borderRadius: 8,
     alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    backgroundColor: '#93c5fd',
+    justifyContent: 'center',
+    marginTop: 12,
   },
   buttonText: {
-    color: '#fff',
+    color: '#ffffff',
     fontWeight: '700',
-    fontSize: 18,
+    fontSize: 17,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });
