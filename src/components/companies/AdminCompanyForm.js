@@ -56,6 +56,23 @@ const HARDCODED_DATA = {
       { label: 'Surat', value: 'Surat' },
     ],
   },
+  registrationTypes: [
+    'Regular',
+    'Composition',
+    'Unregistered',
+    'Input Service Distributor',
+    'Casual Taxable Person',
+    'Non-Resident Taxable Person'
+  ],
+  periodicityTypes: [
+    'Monthly',
+    'Quarterly'
+  ],
+  deductorTypes: [
+    'Government',
+    'Corporate',
+    'Other'
+  ]
 };
 
 const FIELD_LABELS = {
@@ -169,6 +186,9 @@ export function AdminCompanyForm({ company, clients, onFormSubmit }) {
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [showStateModal, setShowStateModal] = useState(false);
   const [showCityModal, setShowCityModal] = useState(false);
+  const [showRegistrationTypeModal, setShowRegistrationTypeModal] = useState(false);
+  const [showPeriodicityModal, setShowPeriodicityModal] = useState(false);
+  const [showDeductorTypeModal, setShowDeductorTypeModal] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState('IN');
   const [selectedState, setSelectedState] = useState('');
 
@@ -181,22 +201,43 @@ export function AdminCompanyForm({ company, clients, onFormSubmit }) {
 
   const validateStep = (stepNumber) => {
     const fields = stepFields[stepNumber];
+    
     for (const field of fields) {
-      if (field === 'mobileNumber' && formData[field] && formData[field].length !== 10) {
+      const value = formData[field];
+      
+      // Required field validation
+      if (!value && field !== 'emailId' && field !== 'Website' && 
+          field !== 'IncomeTaxLoginPassword' && field !== 'GSTUsername' && 
+          field !== 'GSTPassword' && field !== 'EWBBillUsername' && 
+          field !== 'EWBBillPassword' && field !== 'TDSLoginUsername' && 
+          field !== 'TDSLoginPassword') {
+        Alert.alert('Validation Error', `${FIELD_LABELS[field]} is required`);
+        return false;
+      }
+
+      // Specific field validations
+      if (field === 'mobileNumber' && value && value.length !== 10) {
         Alert.alert('Validation Error', 'Mobile number must be 10 digits');
         return false;
       }
-      if (field === 'client' && !formData[field]) {
-        Alert.alert('Validation Error', 'Please select a client');
+
+      if (field === 'emailId' && value && !/\S+@\S+\.\S+/.test(value)) {
+        Alert.alert('Validation Error', 'Please enter a valid email address');
         return false;
       }
-      if (field === 'businessType' && !formData[field]) {
-        Alert.alert('Validation Error', 'Please select business type');
+
+      if (field === 'Pincode' && value && value.length !== 6) {
+        Alert.alert('Validation Error', 'Pincode must be 6 digits');
         return false;
       }
-      if (field !== 'client' && field !== 'businessType' && !formData[field] && 
-          field !== 'emailId' && field !== 'Website' && field !== 'IncomeTaxLoginPassword') {
-        Alert.alert('Validation Error', `${FIELD_LABELS[field]} is required`);
+
+      if (field === 'PANNumber' && value && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(value)) {
+        Alert.alert('Validation Error', 'Please enter a valid PAN number');
+        return false;
+      }
+
+      if (field === 'gstin' && value && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(value)) {
+        Alert.alert('Validation Error', 'Please enter a valid GSTIN');
         return false;
       }
     }
@@ -208,27 +249,50 @@ export function AdminCompanyForm({ company, clients, onFormSubmit }) {
     
     setIsSubmitting(true);
     
-    // Simulate API call
+    // Simulate API call with hardcoded data
     setTimeout(() => {
       setIsSubmitting(false);
+      
+      // Prepare final data
+      const finalData = {
+        ...formData,
+        ewayBillApplicable: formData.ewayBillApplicable === 'true',
+        logo: logoPreview,
+        _id: company?._id || `comp_${Date.now()}`,
+        createdAt: company?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      console.log('Submitting Company Data:', finalData);
+      
       Alert.alert(
         'Success',
         company ? 'Company updated successfully!' : 'Company created successfully!',
-        [{ text: 'OK', onPress: onFormSubmit }]
+        [{ text: 'OK', onPress: () => onFormSubmit(finalData) }]
       );
-      
-      // Log the form data (replace with actual submission)
-      console.log('Form Data:', {
-        ...formData,
-        ewayBillApplicable: formData.ewayBillApplicable === 'true',
-        clients: clients
-      });
-    }, 2000);
+    }, 1500);
+  };
+
+  const handleLogoUpload = () => {
+    // Simulate file upload - in real app, use ImagePicker
+    const mockLogoUrl = 'https://via.placeholder.com/150';
+    setLogoPreview(mockLogoUrl);
+    Alert.alert('Success', 'Logo uploaded successfully');
   };
 
   const handleRemoveLogo = () => {
     setLogoPreview(null);
     Alert.alert('Success', 'Logo removed successfully');
+  };
+
+  const handleNextStep = () => {
+    if (validateStep(step)) {
+      setStep(step + 1);
+    }
+  };
+
+  const handlePreviousStep = () => {
+    setStep(step - 1);
   };
 
   const renderInputField = (name) => {
@@ -327,6 +391,57 @@ export function AdminCompanyForm({ company, clients, onFormSubmit }) {
       );
     }
 
+    if (name === 'RegistrationType') {
+      return (
+        <View style={styles.formItem}>
+          <Text style={styles.label}>{label}</Text>
+          <TouchableOpacity
+            style={styles.selectTrigger}
+            onPress={() => setShowRegistrationTypeModal(true)}
+          >
+            <Text style={!value ? styles.placeholder : styles.selectValue}>
+              {value || 'Select registration type'}
+            </Text>
+            <ChevronRight size={20} color="#666" />
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (name === 'PeriodicityofGSTReturns') {
+      return (
+        <View style={styles.formItem}>
+          <Text style={styles.label}>{label}</Text>
+          <TouchableOpacity
+            style={styles.selectTrigger}
+            onPress={() => setShowPeriodicityModal(true)}
+          >
+            <Text style={!value ? styles.placeholder : styles.selectValue}>
+              {value || 'Select periodicity'}
+            </Text>
+            <ChevronRight size={20} color="#666" />
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (name === 'DeductorType') {
+      return (
+        <View style={styles.formItem}>
+          <Text style={styles.label}>{label}</Text>
+          <TouchableOpacity
+            style={styles.selectTrigger}
+            onPress={() => setShowDeductorTypeModal(true)}
+          >
+            <Text style={!value ? styles.placeholder : styles.selectValue}>
+              {value || 'Select deductor type'}
+            </Text>
+            <ChevronRight size={20} color="#666" />
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     if (name === 'ewayBillApplicable') {
       return (
         <View style={styles.formItem}>
@@ -388,9 +503,14 @@ export function AdminCompanyForm({ company, clients, onFormSubmit }) {
           {/* Logo Upload */}
           <View style={styles.formItem}>
             <Text style={styles.label}>Company Logo</Text>
-            <TouchableOpacity style={styles.uploadButton}>
+            <TouchableOpacity 
+              style={styles.uploadButton}
+              onPress={handleLogoUpload}
+            >
               <Upload size={20} color="#666" />
-              <Text style={styles.uploadText}>Choose Logo</Text>
+              <Text style={styles.uploadText}>
+                {logoPreview ? 'Change Logo' : 'Choose Logo'}
+              </Text>
             </TouchableOpacity>
             {logoPreview && (
               <View style={styles.logoPreview}>
@@ -525,7 +645,7 @@ export function AdminCompanyForm({ company, clients, onFormSubmit }) {
         {step > 1 && (
           <TouchableOpacity
             style={styles.navButton}
-            onPress={() => setStep(step - 1)}
+            onPress={handlePreviousStep}
           >
             <ChevronLeft size={20} color="#3b82f6" />
             <Text style={styles.navButtonText}>Previous</Text>
@@ -535,11 +655,7 @@ export function AdminCompanyForm({ company, clients, onFormSubmit }) {
         {step < 3 ? (
           <TouchableOpacity
             style={[styles.navButton, styles.navButtonPrimary]}
-            onPress={() => {
-              if (validateStep(step)) {
-                setStep(step + 1);
-              }
-            }}
+            onPress={handleNextStep}
           >
             <Text style={styles.navButtonPrimaryText}>Next</Text>
             <ChevronRight size={20} color="#fff" />
@@ -615,6 +731,30 @@ export function AdminCompanyForm({ company, clients, onFormSubmit }) {
         HARDCODED_DATA.cities[selectedState] || [],
         (value) => updateFormData('City', value)
       )}
+
+      {renderModal(
+        showRegistrationTypeModal,
+        () => setShowRegistrationTypeModal(false),
+        'Select Registration Type',
+        HARDCODED_DATA.registrationTypes,
+        (value) => updateFormData('RegistrationType', value)
+      )}
+
+      {renderModal(
+        showPeriodicityModal,
+        () => setShowPeriodicityModal(false),
+        'Select Periodicity',
+        HARDCODED_DATA.periodicityTypes,
+        (value) => updateFormData('PeriodicityofGSTReturns', value)
+      )}
+
+      {renderModal(
+        showDeductorTypeModal,
+        () => setShowDeductorTypeModal(false),
+        'Select Deductor Type',
+        HARDCODED_DATA.deductorTypes,
+        (value) => updateFormData('DeductorType', value)
+      )}
     </View>
   );
 }
@@ -635,6 +775,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+    backgroundColor: '#f8fafc',
   },
   stepperItem: {
     alignItems: 'center',
@@ -649,6 +790,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
+    backgroundColor: '#fff',
   },
   stepCircleActive: {
     borderColor: '#3b82f6',
@@ -673,6 +815,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6b7280',
     textAlign: 'center',
+    fontWeight: '500',
   },
   stepLabelActive: {
     color: '#3b82f6',
@@ -735,6 +878,7 @@ const styles = StyleSheet.create({
   uploadText: {
     fontSize: 16,
     color: '#6b7280',
+    fontWeight: '500',
   },
   logoPreview: {
     marginTop: 8,
@@ -801,6 +945,14 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
     backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 5,
   },
   navButton: {
     flexDirection: 'row',
@@ -812,6 +964,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d1d5db',
     backgroundColor: '#fff',
+    minWidth: 120,
+    justifyContent: 'center',
   },
   navButtonText: {
     fontSize: 16,
@@ -867,3 +1021,6 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
 });
+
+// Export for use in other components
+export default AdminCompanyForm;
