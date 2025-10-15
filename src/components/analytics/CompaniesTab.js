@@ -1,4 +1,4 @@
-// CompaniesTab.js
+// CompaniesTab.js (Modified to use a FIXED Header View)
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -10,22 +10,23 @@ import {
   Modal,
   RefreshControl,
   ActivityIndicator,
+  FlatList,
+  Pressable,
 } from 'react-native';
-import { 
-  Loader2, 
-  Phone, 
-  Hash, 
-  FileText, 
-  MoreHorizontal, 
-  Edit, 
-  Trash2, 
-  Mail, 
+import {
+  Phone,
+  Hash,
+  FileText,
+  MoreHorizontal,
+  Edit,
+  Trash2,
+  Mail,
   PlusCircle,
-  X
+  X,
 } from 'lucide-react-native';
 import AdminCompanyForm from '../companies/AdminCompanyForm';
 
-// Hardcoded data for demonstration
+// Hardcoded data remains the same
 const HARDCODED_COMPANIES = [
   {
     _id: '1',
@@ -43,7 +44,7 @@ const HARDCODED_COMPANIES = [
     Telephone: '022-12345678',
     Website: 'www.techsolutions.com',
     PANNumber: 'AABCU9603R',
-    logo: 'https://via.placeholder.com/150'
+    logo: 'https://via.placeholder.com/150',
   },
   {
     _id: '2',
@@ -61,8 +62,44 @@ const HARDCODED_COMPANIES = [
     Telephone: '011-87654321',
     Website: 'www.globaltraders.com',
     PANNumber: 'AABCT4321M',
-    logo: null
-  }
+    logo: null,
+  },
+  {
+    _id: '3',
+    businessName: 'Web Innovators Co.',
+    businessType: 'LLP',
+    mobileNumber: '9900011122',
+    emailId: 'contact@web.com',
+    gstin: '33BBCCU1111A1Z3',
+    registrationNumber: 'LLP12345',
+  },
+  {
+    _id: '4',
+    businessName: 'Alpha Logistics',
+    businessType: 'Sole Proprietorship',
+    mobileNumber: '9900011133',
+    emailId: 'logistics@alpha.com',
+    gstin: '09AAABG5432A1Z5',
+    registrationNumber: 'PROP54321',
+  },
+  {
+    _id: '5',
+    businessName: 'Creative Designs',
+    businessType: 'Partnership',
+    mobileNumber: '9900011144',
+    emailId: 'designs@creative.com',
+    gstin: '19ZZZZA9876B1Z7',
+    registrationNumber: 'PART98765',
+  },
+  {
+    _id: '6',
+    businessName: 'Future Retail',
+    businessType: 'Private Limited Company',
+    mobileNumber: '9900011155',
+    emailId: 'sales@future.com',
+    gstin: '24BBCCA1234C1Z4',
+    registrationNumber: 'U72900MH2024PTC654321',
+  },
 ];
 
 const HARDCODED_CLIENTS = [
@@ -70,14 +107,14 @@ const HARDCODED_CLIENTS = [
     _id: 'client1',
     contactName: 'Rahul Sharma',
     email: 'rahul@example.com',
-    phone: '9876543210'
+    phone: '9876543210',
   },
   {
-    _id: 'client2', 
+    _id: 'client2',
     contactName: 'Priya Patel',
     email: 'priya@example.com',
-    phone: '9876543211'
-  }
+    phone: '9876543211',
+  },
 ];
 
 export function CompaniesTab({ selectedClientId, selectedClient }) {
@@ -90,12 +127,12 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [companyToDelete, setCompanyToDelete] = useState(null);
-  const [showActionsMenu, setShowActionsMenu] = useState(null);
+  const [showActionsMenu, setShowActionsMenu] = useState(null); // Holds company._id of the open menu
 
-  const fetchCompaniesAndClients = async (clientId) => {
+  const fetchCompaniesAndClients = async clientId => {
     if (!clientId) return;
     setIsCompaniesLoading(true);
-    
+
     // Simulate API call with hardcoded data
     setTimeout(() => {
       setCompanies(HARDCODED_COMPANIES);
@@ -119,13 +156,13 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
     setIsFormOpen(true);
   };
 
-  const handleEdit = (company) => {
+  const handleEdit = company => {
     setSelectedCompany(company);
     setIsFormOpen(true);
     setShowActionsMenu(null);
   };
 
-  const handleDelete = (company) => {
+  const handleDelete = company => {
     setCompanyToDelete(company);
     setIsAlertOpen(true);
     setShowActionsMenu(null);
@@ -133,13 +170,15 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
 
   const confirmDelete = async () => {
     if (!companyToDelete) return;
-    
+
     // Simulate delete operation
     setTimeout(() => {
-      setCompanies(prev => prev.filter(comp => comp._id !== companyToDelete._id));
+      setCompanies(prev =>
+        prev.filter(comp => comp._id !== companyToDelete._id),
+      );
       Alert.alert(
-        'Success', 
-        `${companyToDelete.businessName} has been successfully deleted.`
+        'Success',
+        `${companyToDelete.businessName} has been successfully deleted.`,
       );
       setIsAlertOpen(false);
       setCompanyToDelete(null);
@@ -148,16 +187,16 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
 
   const onFormSubmit = (newCompanyData = null) => {
     setIsFormOpen(false);
-    
+
     if (newCompanyData) {
       if (selectedCompany) {
         // Update existing company
-        setCompanies(prev => 
-          prev.map(comp => 
-            comp._id === selectedCompany._id 
+        setCompanies(prev =>
+          prev.map(comp =>
+            comp._id === selectedCompany._id
               ? { ...comp, ...newCompanyData }
-              : comp
-          )
+              : comp,
+          ),
         );
         Alert.alert('Success', 'Company updated successfully!');
       } else {
@@ -165,17 +204,23 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
         const newCompany = {
           ...newCompanyData,
           _id: `comp_${Date.now()}`,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
         };
         setCompanies(prev => [...prev, newCompany]);
         Alert.alert('Success', 'Company created successfully!');
       }
     }
-    
+
     setSelectedCompany(null);
   };
 
-  const renderCompanyCard = (company) => (
+  const closeActionsMenu = () => {
+    if (showActionsMenu) {
+      setShowActionsMenu(null);
+    }
+  };
+
+  const renderCompanyCard = ({ item: company }) => (
     <View key={company._id} style={styles.companyCard}>
       {/* Header Section */}
       <View style={styles.cardHeader}>
@@ -183,9 +228,13 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
           <Text style={styles.companyName}>{company.businessName}</Text>
           <Text style={styles.businessType}>{company.businessType}</Text>
         </View>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.menuButton}
-          onPress={() => setShowActionsMenu(showActionsMenu === company._id ? null : company._id)}
+          onPress={() =>
+            setShowActionsMenu(
+              showActionsMenu === company._id ? null : company._id,
+            )
+          }
         >
           <MoreHorizontal size={20} color="#666" />
         </TouchableOpacity>
@@ -194,14 +243,14 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
       {/* Actions Menu */}
       {showActionsMenu === company._id && (
         <View style={styles.actionsMenu}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.menuItem}
             onPress={() => handleEdit(company)}
           >
             <Edit size={16} color="#3b82f6" />
             <Text style={styles.menuText}>Edit</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.menuItem}
             onPress={() => handleDelete(company)}
           >
@@ -220,7 +269,7 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
           </View>
           <Text style={styles.contactValue}>{company.mobileNumber}</Text>
         </View>
-        
+
         <View style={styles.contactItem}>
           <View style={styles.contactLabel}>
             <Mail size={16} color="#666" />
@@ -243,7 +292,7 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
             <Text style={styles.tagText}>{company.registrationNumber}</Text>
           </View>
         </View>
-        
+
         <View style={styles.identifierItem}>
           <View style={styles.identifierLabel}>
             <FileText size={16} color="#666" />
@@ -254,31 +303,15 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
           </View>
         </View>
       </View>
-
-      {/* Quick Actions */}
-      <View style={styles.quickActions}>
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.editButton]}
-          onPress={() => handleEdit(company)}
-        >
-          <Edit size={16} color="#3b82f6" />
-          <Text style={[styles.actionText, styles.editText]}>Edit</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.deleteButton]}
-          onPress={() => handleDelete(company)}
-        >
-          <Trash2 size={16} color="#ef4444" />
-          <Text style={[styles.actionText, styles.deleteActionText]}>Delete</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
+  
+  // Removed renderHeaderComponent function
 
   return (
     <View style={styles.container}>
-      {/* Header Card */}
-      <View style={styles.headerCard}>
+      {/* 1. FIXED HEADER VIEW */}
+      <View style={styles.fixedHeader}>
         <View style={styles.headerContent}>
           <View>
             <Text style={styles.title}>Companies</Text>
@@ -293,38 +326,47 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
         </View>
       </View>
 
-      {/* Content */}
-      <ScrollView 
-        style={styles.scrollView}
+      {/* 2. OVERLAY for Action Menu (Must be below the Fixed Header to cover the FlatList) */}
+      {showActionsMenu && (
+        <Pressable
+          style={styles.overlay}
+          onPress={closeActionsMenu}
+        />
+      )}
+
+      {/* 3. SCROLLABLE FLATLIST */}
+      <FlatList
+        data={companies}
+        renderItem={renderCompanyCard}
+        keyExtractor={item => item._id}
+        // ListHeaderComponent is removed to make the header fixed
+        contentContainerStyle={styles.companiesList} // Apply padding/gap here
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={onRefresh}
             colors={['#3b82f6']}
             tintColor="#3b82f6"
           />
         }
-      >
-        {isCompaniesLoading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color="#3b82f6" />
-            <Text style={styles.loadingText}>Loading companies...</Text>
-          </View>
-        ) : companies.length > 0 ? (
-          <View style={styles.companiesList}>
-            {companies.map(renderCompanyCard)}
-          </View>
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No companies found for this client.</Text>
-          </View>
-        )}
-        
-        {/* Spacer for bottom padding */}
-        <View style={styles.spacer} />
-      </ScrollView>
+        ListEmptyComponent={
+          isCompaniesLoading ? (
+            <View style={[styles.loaderContainer, styles.listEmptyContainer]}>
+              <ActivityIndicator size="large" color="#3b82f6" />
+              <Text style={styles.loadingText}>Loading companies...</Text>
+            </View>
+          ) : (
+            <View style={[styles.emptyState, styles.listEmptyContainer]}>
+              <Text style={styles.emptyText}>
+                No companies found for this client.
+              </Text>
+            </View>
+          )
+        }
+        ListFooterComponent={<View style={styles.spacer} />}
+      />
 
-      {/* Company Form Modal */}
+      {/* Modals (No change in functionality) */}
       <Modal
         visible={isFormOpen}
         animationType="slide"
@@ -335,15 +377,17 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
           <View style={styles.modalHeader}>
             <View>
               <Text style={styles.modalTitle}>
-                {selectedCompany ? "Edit Company" : "Create New Company"}
+                {selectedCompany ? 'Edit Company' : 'Create New Company'}
               </Text>
               <Text style={styles.modalDescription}>
                 {selectedCompany
                   ? `Update the details for ${selectedCompany.businessName}.`
-                  : `Fill in the form to create a new company for ${selectedClient?.contactName || 'the client'}.`}
+                  : `Fill in the form to create a new company for ${
+                      selectedClient?.contactName || 'the client'
+                    }.`}
               </Text>
             </View>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.closeButton}
               onPress={() => setIsFormOpen(false)}
             >
@@ -362,7 +406,6 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
         </View>
       </Modal>
 
-      {/* Delete Confirmation Alert */}
       <Modal
         visible={isAlertOpen}
         transparent
@@ -374,16 +417,17 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
             <Text style={styles.alertTitle}>Are you absolutely sure?</Text>
             <Text style={styles.alertDescription}>
               This action cannot be undone. This will permanently delete the
-              company and all associated data for {companyToDelete?.businessName}.
+              company and all associated data for{' '}
+              {companyToDelete?.businessName}.
             </Text>
             <View style={styles.alertButtons}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.alertButton, styles.cancelButton]}
                 onPress={() => setIsAlertOpen(false)}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.alertButton, styles.confirmButton]}
                 onPress={confirmDelete}
               >
@@ -402,7 +446,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-  headerCard: {
+  // --- NEW/MODIFIED HEADER STYLES ---
+  fixedHeader: { // This replaces the old headerCard being used as ListHeaderComponent
     backgroundColor: '#fff',
     padding: 16,
     borderBottomWidth: 1,
@@ -412,6 +457,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 1,
     elevation: 2,
+    zIndex: 1, // Ensure the fixed header is above the scrolling content
+    width: '100%', // Full width as requested
   },
   headerContent: {
     flexDirection: 'row',
@@ -442,9 +489,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-  scrollView: {
-    flex: 1,
+  // --- OVERLAY STYLE ---
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+    zIndex: 9, // Must be lower than the menu (zIndex: 10) but higher than the FlatList (zIndex: 0/default)
   },
+  // -------------------------
   loaderContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -455,9 +506,17 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     fontSize: 14,
   },
+  // companiesList style is now for the scrollable area
   companiesList: {
-    padding: 16,
-    gap: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16, // Added vertical padding for spacing around the list
+    gap: 16, 
+  },
+  // Added style for Empty/Loading component to center it visually
+  listEmptyContainer: {
+    flexGrow: 1, 
+    minHeight: 200, // Give it a minimum height to be visible
+    justifyContent: 'center',
   },
   companyCard: {
     backgroundColor: '#fff',
@@ -506,7 +565,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
-    zIndex: 10,
+    zIndex: 10, 
   },
   menuItem: {
     flexDirection: 'row',
@@ -582,56 +641,23 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     fontWeight: '500',
   },
-  quickActions: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingTop: 12,
-    marginTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  editButton: {
-    borderColor: '#3b82f6',
-    backgroundColor: '#fff',
-  },
-  deleteButton: {
-    borderColor: '#fecaca',
-    backgroundColor: '#fef2f2',
-  },
-  actionText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  editText: {
-    color: '#3b82f6',
-  },
-  deleteActionText: {
-    color: '#ef4444',
+  spacer: {
+    height: 20,
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
     padding: 40,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    marginHorizontal: 16,
   },
   emptyText: {
     fontSize: 16,
     color: '#6b7280',
     textAlign: 'center',
   },
-  spacer: {
-    height: 20,
-  },
-  // Modal Styles
+  // Modal & Alert Styles (Unchanged)
   modalContainer: {
     flex: 1,
     backgroundColor: '#fff',
@@ -657,7 +683,6 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 4,
   },
-  // Alert Styles
   alertOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

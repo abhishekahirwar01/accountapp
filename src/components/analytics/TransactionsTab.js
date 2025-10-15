@@ -29,6 +29,7 @@ export default function TransactionsTab({
   selectedCompanyId,
   companyMap,
 }) {
+  // ... (Hardcoded data and memoizations remain the same)
   // Hardcoded data for demonstration - matching web structure
   const hardcodedProducts = [
     { _id: 'prod1', name: 'Beauty Gel', hsn: '330499', price: 5000 },
@@ -214,7 +215,10 @@ export default function TransactionsTab({
           itemType: 'product',
           name: productName,
           quantity: p.quantity ?? '',
-          unitType: p.unitType === 'Other' ? p.otherUnit || 'Other' : p.unitType || 'Piece',
+          unitType:
+            p.unitType === 'Other'
+              ? p.otherUnit || 'Other'
+              : p.unitType || 'Piece',
           pricePerUnit: p.pricePerUnit ?? '',
           description: '',
           amount: Number(p.amount) || 0,
@@ -303,7 +307,6 @@ export default function TransactionsTab({
 
     const data = getTabData();
 
-    // For mobile, use TransactionsTable component
     if (isMobile) {
       return (
         <TransactionsTable
@@ -463,7 +466,8 @@ export default function TransactionsTab({
                   <Text style={styles.itemName}>{item.name}</Text>
                   <View style={styles.itemMeta}>
                     <Text style={styles.itemType}>
-                      {item.itemType?.charAt(0).toUpperCase() + item.itemType?.slice(1)}
+                      {item.itemType?.charAt(0).toUpperCase() +
+                        item.itemType?.slice(1)}
                     </Text>
                     <Text style={styles.hsnSac}>
                       {item.itemType === 'service' ? 'SAC' : 'HSN'}:{' '}
@@ -506,11 +510,17 @@ export default function TransactionsTab({
 
   return (
     <View style={styles.container}>
-      <TabNavigation />
-
-      <View style={styles.content}>
-        {renderContent()}
+      <View style={styles.tabSectionWrapper}>
+        <TabNavigation />
       </View>
+
+      <ScrollView
+        style={styles.contentScrollView}
+        contentContainerStyle={styles.contentScrollContainer}
+      >
+        {renderContent()}
+      </ScrollView>
+
       <ItemsModal />
     </View>
   );
@@ -519,8 +529,22 @@ export default function TransactionsTab({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
     backgroundColor: '#f8f9fa',
+    paddingTop: 16,
+  },
+  tabSectionWrapper: {
+    paddingHorizontal: 16,
+    backgroundColor: '#f8f9fa',
+    zIndex: 1,
+  },
+
+  contentScrollView: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  contentScrollContainer: {
+    paddingBottom: 40,
+    minHeight: '100%',
   },
   // Tab Navigation Styles
   tabContainer: {
@@ -529,6 +553,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
+
   tabList: {
     flex: 1,
   },
@@ -612,58 +637,18 @@ const styles = StyleSheet.create({
   },
   // Content Styles
   content: {
-    flex: 1,
-    marginBottom: 20,
+    // Removed flex: 1 and margin from here.
+    // The margin is now in contentScrollContainer.
   },
   loadingContainer: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'white',
     borderRadius: 8,
     padding: 20,
+    minHeight: 200, // Ensure a minimum height for visibility
   },
-  // Summary Styles
-  summarySection: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: '#333',
-  },
-  summaryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  summaryItem: {
-    width: '48%',
-    marginBottom: 12,
-    padding: 12,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
-    fontWeight: '500',
-  },
-  summaryValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#007AFF',
-  },
-  // Modal Styles
+  // ... (Modal styles remain the same)
   modalContainer: {
     flex: 1,
     backgroundColor: 'white',
