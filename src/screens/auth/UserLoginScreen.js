@@ -135,7 +135,7 @@ export default function UserLoginScreen({ navigation }) {
                   editable={!loading}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  keyboardType="default"
+                  keyboardType="visible-password"
                   placeholderTextColor="#94a3b8"
                   returnKeyType="next"
                 />
@@ -153,7 +153,7 @@ export default function UserLoginScreen({ navigation }) {
                     autoCapitalize="none"
                     autoCorrect={false}
                     placeholderTextColor="#94a3b8"
-                    keyboardType="default"
+                    keyboardType="visible-password"
                     textContentType="password"
                     returnKeyType="done"
                   />

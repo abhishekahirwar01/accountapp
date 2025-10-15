@@ -9,13 +9,15 @@ import {
   Dimensions,
 } from 'react-native';
 
-import { Transaction, Company, Party } from '../../lib/types';
-
 const DataTable = ({
-  data,
-  columns,
+  data = [],
+  companyMap,
+  serviceNameById,
+  onViewItems,
+  onPreview,
+  onEdit,
+  onDelete,
   pageSize = 10,
-  ...restProps // for passing companyMap, partyMap, etc.
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchText, setSearchText] = useState('');
@@ -25,27 +27,132 @@ const DataTable = ({
     Dimensions.get('window').width,
   );
 
+  // Define columns matching web structure
+  const columns = [
+    {
+      key: 'date',
+      header: 'Date',
+      width: 100,
+      render: (item) => (
+        <Text style={styles.cellText}>
+          {new Date(item.date).toLocaleDateString('en-IN')}
+        </Text>
+      ),
+    },
+    {
+      key: 'type',
+      header: 'Type',
+      width: 100,
+      render: (item) => (
+        <Text style={[styles.cellText, styles.typeCell]}>
+          {item.type?.charAt(0).toUpperCase() + item.type?.slice(1)}
+        </Text>
+      ),
+    },
+    {
+      key: 'invoiceNumber',
+      header: 'Invoice No',
+      width: 120,
+      render: (item) => (
+        <Text style={styles.cellText}>
+          {item.invoiceNumber || '—'}
+        </Text>
+      ),
+    },
+    {
+      key: 'party',
+      header: 'Party',
+      width: 150,
+      render: (item) => (
+        <Text style={styles.cellText}>
+          {item.party || item.description || '—'}
+        </Text>
+      ),
+    },
+    {
+      key: 'amount',
+      header: 'Amount',
+      width: 120,
+      render: (item) => (
+        <Text style={[styles.cellText, styles.amountCell]}>
+          {new Intl.NumberFormat('en-IN', {
+            style: 'currency',
+            currency: 'INR',
+          }).format(item.amount || 0)}
+        </Text>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      width: 100,
+      render: (item) => (
+        <View style={[
+          styles.statusBadge,
+          item.status === 'Paid' && styles.statusPaid,
+          item.status === 'Pending' && styles.statusPending,
+          item.status === 'Completed' && styles.statusCompleted,
+        ]}>
+          <Text style={styles.statusText}>
+            {item.status || '—'}
+          </Text>
+        </View>
+      ),
+    },
+    {
+      key: 'company',
+      header: 'Company',
+      width: 120,
+      render: (item) => (
+        <Text style={styles.cellText}>
+          {companyMap?.get(item.company) || '—'}
+        </Text>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      width: 120,
+      render: (item) => (
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.viewButton]}
+            onPress={() => onViewItems?.(item)}
+          >
+            <Text style={styles.actionButtonText}>View Items</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.previewButton]}
+            onPress={() => onPreview?.(item)}
+          >
+            <Text style={styles.actionButtonText}>Preview</Text>
+          </TouchableOpacity>
+        </View>
+      ),
+    },
+  ];
+
   // Filtered and sorted data
-  const filteredData = data
-    ? data.filter(item =>
-        columns.some(column => {
-          // If column has a filterFn, use it
-          if (column.filterFn) {
-            return column.filterFn(item, searchText);
-          }
-          return String(item[column.accessorKey || column.key] || '')
-            .toLowerCase()
-            .includes(searchText.toLowerCase());
-        }),
-      )
-    : [];
+  const filteredData = data.filter(item =>
+    columns.some(column => {
+      if (column.key === 'actions') return false;
+      const value = item[column.key];
+      return String(value || '').toLowerCase().includes(searchText.toLowerCase());
+    }),
+  );
 
   // Sorted data
   const sortedData = [...filteredData].sort((a, b) => {
     if (!sortConfig.key) return 0;
-    const key = sortConfig.key;
-    const aValue = a[key];
-    const bValue = b[key];
+    const aValue = a[sortConfig.key];
+    const bValue = b[sortConfig.key];
+    
+    if (sortConfig.key === 'date') {
+      return sortConfig.direction === 'asc' 
+        ? new Date(aValue) - new Date(bValue)
+        : new Date(bValue) - new Date(aValue);
+    }
+    
     if (aValue < bValue) {
       return sortConfig.direction === 'asc' ? -1 : 1;
     }
@@ -122,17 +229,19 @@ const DataTable = ({
         style={[styles.headerCell, { width: 50 }]}
         onPress={toggleSelectAll}
       >
-        <Text style={styles.headerText}>✓</Text>
+        <Text style={styles.headerText}>
+          {selectedRows.length === paginatedData.length ? '✓' : '☐'}
+        </Text>
       </TouchableOpacity>
       {columns.map((column, colIdx) => (
         <TouchableOpacity
-          key={column.accessorKey || column.key || column.id || colIdx}
+          key={column.key || colIdx}
           style={[styles.headerCell, { width: column.width || 120 }]}
-          onPress={() => handleSort(column.accessorKey || column.key)}
+          onPress={() => handleSort(column.key)}
         >
           <Text style={styles.headerText}>
-            {column.header || column.label}
-            {sortConfig.key === (column.accessorKey || column.key) && (
+            {column.header}
+            {sortConfig.key === column.key && (
               <Text style={styles.sortIndicator}>
                 {sortConfig.direction === 'asc' ? ' ↑' : ' ↓'}
               </Text>
@@ -157,22 +266,18 @@ const DataTable = ({
           onPress={() => toggleRowSelection(item.id || item._id)}
         >
           <Text style={styles.checkbox}>
-            {selectedRows.includes(item.id || item._id) ? '✓' : ''}
+            {selectedRows.includes(item.id || item._id) ? '✓' : '☐'}
           </Text>
         </TouchableOpacity>
       </View>
       {columns.map((column, colIdx) => (
         <View
-          key={column.accessorKey || column.key || column.id || colIdx}
+          key={column.key || colIdx}
           style={[styles.tableCell, { width: column.width || 120 }]}
         >
-          {column.cell ? (
-            column.cell({ original: item, ...restProps })
-          ) : column.render ? (
-            column.render(item, restProps)
-          ) : (
+          {column.render ? column.render(item) : (
             <Text style={styles.cellText}>
-              {item[column.accessorKey || column.key]}
+              {item[column.key]}
             </Text>
           )}
         </View>
@@ -180,7 +285,7 @@ const DataTable = ({
     </View>
   );
 
-  // Updated mobile card renderer
+  // Mobile card renderer
   const renderMobileCard = item => (
     <View
       key={item.id || item._id}
@@ -191,7 +296,7 @@ const DataTable = ({
     >
       {/* Checkbox on left */}
       <TouchableOpacity
-        style={styles.mobileCheckboxLeft}
+        style={styles.mobileCheckbox}
         onPress={() => toggleRowSelection(item.id || item._id)}
       >
         <Text style={styles.checkbox}>
@@ -199,40 +304,43 @@ const DataTable = ({
         </Text>
       </TouchableOpacity>
 
-      {/* Actions (three dots) on top right */}
-      <View style={styles.mobileActionsRight}>
-        {columns
-          .filter(col => col.id === 'actions')
-          .map((col, idx) => (
-            <View key={idx}>
-              {col.cell({ original: item, ...restProps })}
-            </View>
-          ))}
-      </View>
-
       {/* Card content */}
       <View style={styles.mobileCardContent}>
         {columns
-          .filter(col => col.id !== 'actions')
+          .filter(col => col.key !== 'actions')
           .map((column, colIdx) => (
             <View
-              key={`${item.id || item._id}-${column.accessorKey || column.key || column.id || colIdx}`}
+              key={`${item.id || item._id}-${column.key}`}
               style={styles.mobileCardRow}
             >
               <Text style={styles.mobileLabel}>
-                {column.header || column.label}:
+                {column.header}:
               </Text>
-              {column.cell ? (
-                column.cell({ original: item, ...restProps })
-              ) : column.render ? (
-                column.render(item, restProps)
-              ) : (
-                <Text style={styles.mobileValue}>
-                  {item[column.accessorKey || column.key]}
-                </Text>
-              )}
+              <View style={styles.mobileValueContainer}>
+                {column.render ? column.render(item) : (
+                  <Text style={styles.mobileValue}>
+                    {item[column.key] || '—'}
+                  </Text>
+                )}
+              </View>
             </View>
           ))}
+        
+        {/* Action buttons for mobile */}
+        <View style={styles.mobileActions}>
+          <TouchableOpacity
+            style={[styles.mobileActionButton, styles.viewButton]}
+            onPress={() => onViewItems?.(item)}
+          >
+            <Text style={styles.mobileActionButtonText}>View Items</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.mobileActionButton, styles.previewButton]}
+            onPress={() => onPreview?.(item)}
+          >
+            <Text style={styles.mobileActionButtonText}>Preview</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -243,7 +351,7 @@ const DataTable = ({
       <View style={styles.filterContainer}>
         <TextInput
           style={styles.filterInput}
-          placeholder="Search by party, product, or description..."
+          placeholder="Filter by party, product, or description..."
           value={searchText}
           onChangeText={setSearchText}
         />
@@ -260,20 +368,18 @@ const DataTable = ({
 
       {/* Desktop Table View */}
       {isDesktop ? (
-        <ScrollView horizontal style={styles.desktopTable}>
-          <View>
-            {renderTableHeader()}
-            <ScrollView style={styles.tableBody}>
-              {paginatedData.length > 0 ? (
-                paginatedData.map(renderTableRow)
-              ) : (
-                <View style={styles.noResults}>
-                  <Text style={styles.noResultsText}>No results found.</Text>
-                </View>
-              )}
-            </ScrollView>
-          </View>
-        </ScrollView>
+        <View style={styles.desktopContainer}>
+          {renderTableHeader()}
+          <ScrollView style={styles.tableBody}>
+            {paginatedData.length > 0 ? (
+              paginatedData.map(renderTableRow)
+            ) : (
+              <View style={styles.noResults}>
+                <Text style={styles.noResultsText}>No results found.</Text>
+              </View>
+            )}
+          </ScrollView>
+        </View>
       ) : (
         /* Mobile Card View */
         <ScrollView style={styles.mobileView}>
@@ -284,16 +390,15 @@ const DataTable = ({
               <Text style={styles.noResultsIcon}>📊</Text>
               <Text style={styles.noResultsTitle}>No records found</Text>
               <Text style={styles.noResultsDescription}>
-                We couldn't find any matching records. Try adjusting your
-                search.
+                We couldn't find any matching records. Try adjusting your search.
               </Text>
             </View>
           )}
         </ScrollView>
       )}
 
-      {/* Pagination: hide on mobile */}
-      {isDesktop && sortedData.length > 0 && (
+      {/* Pagination */}
+      {sortedData.length > 0 && (
         <View style={styles.pagination}>
           <Text style={styles.paginationInfo}>
             Page {currentPage} of {totalPages} • {sortedData.length} items
@@ -358,14 +463,19 @@ const DataTable = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'white',
     borderRadius: 12,
-    padding: 16,
-    margin: 8,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   filterContainer: {
     padding: 16,
-    paddingTop: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
   filterInput: {
     height: 40,
@@ -378,10 +488,10 @@ const styles = StyleSheet.create({
   },
   selectionInfo: {
     backgroundColor: '#dbeafe',
-    padding: 8,
-    borderRadius: 6,
+    padding: 12,
     marginHorizontal: 16,
-    marginBottom: 8,
+    marginVertical: 8,
+    borderRadius: 6,
   },
   selectionText: {
     color: '#1e40af',
@@ -389,19 +499,19 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
   },
-  desktopTable: {
+  desktopContainer: {
     flex: 1,
   },
   headerRow: {
     flexDirection: 'row',
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#f8fafc',
     borderBottomWidth: 2,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: '#e2e8f0',
   },
   headerCell: {
     padding: 12,
     borderRightWidth: 1,
-    borderRightColor: '#e5e7eb',
+    borderRightColor: '#e2e8f0',
     minHeight: 50,
     justifyContent: 'center',
   },
@@ -412,9 +522,10 @@ const styles = StyleSheet.create({
   },
   sortIndicator: {
     color: '#2563eb',
+    marginLeft: 4,
   },
   tableBody: {
-    maxHeight: 400,
+    flex: 1,
   },
   tableRow: {
     flexDirection: 'row',
@@ -423,7 +534,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   selectedRow: {
-    backgroundColor: '#dbeafe',
+    backgroundColor: '#f0f9ff',
   },
   tableCell: {
     padding: 12,
@@ -436,6 +547,57 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#374151',
   },
+  typeCell: {
+    fontWeight: '500',
+    textTransform: 'capitalize',
+  },
+  amountCell: {
+    fontWeight: '600',
+    color: '#059669',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#6b7280',
+  },
+  statusPaid: {
+    backgroundColor: '#10b981',
+  },
+  statusPending: {
+    backgroundColor: '#f59e0b',
+  },
+  statusCompleted: {
+    backgroundColor: '#3b82f6',
+  },
+  statusText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  actionButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    minWidth: 60,
+  },
+  viewButton: {
+    backgroundColor: '#3b82f6',
+  },
+  previewButton: {
+    backgroundColor: '#8b5cf6',
+  },
+  actionButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
   checkbox: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -444,86 +606,80 @@ const styles = StyleSheet.create({
   },
   mobileView: {
     flex: 1,
-    paddingHorizontal: 0,
+    padding: 16,
   },
   mobileCard: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 18,
-    marginVertical: 10,
-    marginHorizontal: 0,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 2,
-    width: '100%', // Full width
-    minWidth: '100%',
-    position: 'relative',
-    overflow: 'visible',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    flexDirection: 'row',
   },
   selectedCard: {
-    backgroundColor: '#e0f2fe',
-    borderColor: '#2563eb',
-    borderWidth: 1,
+    backgroundColor: '#f0f9ff',
+    borderColor: '#bae6fd',
   },
-  mobileCheckboxLeft: {
-    position: 'absolute',
-    top: 16,
-    left: 16,
-    zIndex: 2,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 20,
-    width: 28,
-    height: 28,
+  mobileCheckbox: {
+    marginRight: 12,
     justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#dbeafe',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  mobileActionsRight: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    zIndex: 2,
   },
   mobileCardContent: {
-    marginTop: 16,
-    marginBottom: 8,
-    marginLeft: 0,
-    marginRight: 0,
+    flex: 1,
   },
   mobileCardRow: {
-    width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 6,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-    overflow: 'visible',
+    borderBottomColor: '#f8fafc',
   },
   mobileLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     color: '#64748b',
     flex: 1,
-    textAlign: 'left',
+  },
+  mobileValueContainer: {
+    flex: 2,
+    alignItems: 'flex-end',
   },
   mobileValue: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '500',
     color: '#334155',
-    flex: 2,
     textAlign: 'right',
   },
+  mobileActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+  },
+  mobileActionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    minWidth: 80,
+  },
+  mobileActionButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
   noResults: {
-    padding: 24,
+    padding: 40,
     alignItems: 'center',
     backgroundColor: 'white',
   },
@@ -533,10 +689,9 @@ const styles = StyleSheet.create({
   },
   noResultsMobile: {
     alignItems: 'center',
-    padding: 32,
+    padding: 40,
     backgroundColor: 'white',
     borderRadius: 12,
-    margin: 16,
   },
   noResultsIcon: {
     fontSize: 48,
@@ -559,9 +714,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#f9fafb',
-    borderRadius: 8,
-    marginTop: 16,
+    backgroundColor: '#f8fafc',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
     flexWrap: 'wrap',
   },
   paginationInfo: {
