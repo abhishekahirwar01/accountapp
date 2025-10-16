@@ -1,102 +1,204 @@
-import React from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   Image,
-  ImageBackground,
+  FlatList,
   Dimensions,
-  Platform, // Use Platform for more precise styling
+  Platform,
+  Animated,
+  Easing,
+  StatusBar, // 👈 IMPORT STATUSBAR
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// --- Assets ---
-const backgroundPath = require('../../../assets/images/bg1.png');
 const logoPath2 = require('../../../assets/images/vinimay.png');
+const carouselImages = [
+  require('../../../assets/images/firstimage.jpg'),
+  require('../../../assets/images/secondimage.jpg'),
+  require('../../../assets/images/thirdimage.png'),
+];
+const featureItems = [
+  'Enterprise-Grade Security & Encryption',
+  'Real-Time Financial Insights & Reporting',
+  'Create and Send Invoices in Seconds',
+];
 
-// --- Responsive Utilities ---
 const { width, height } = Dimensions.get('window');
-
-// Standard reference dimensions (e.g., iPhone 8/X)
 const BASE_WIDTH = 375;
-const BASE_HEIGHT = 812; // A common taller screen height
+const BASE_HEIGHT = 812;
 
-// Scaling factors for font and general size
+// Scaling functions for responsiveness
 const horizontalScale = size => (width / BASE_WIDTH) * size;
 const verticalScale = size => (height / BASE_HEIGHT) * size;
 const moderateScale = (size, factor = 0.5) =>
   size + (horizontalScale(size) - size) * factor;
 
-// Custom color palette for a professional look
 const COLORS = {
-  primary: '#1D4ED8', // Deep Blue
-  primaryLight: '#2563EB',
-  backgroundOverlay: 'rgba(255, 255, 255, 0.95)', // Slight white overlay for contrast
-  textDark: '#1F2937', // Dark Slate Gray
-  textMuted: '#6B7280',
-  successLight: '#EFF6FF', // Very light blue for icon background
-  successBorder: '#93C5FD',
+  primary: '#007AFF', // Standard Blue
+  primaryDark: '#005AC1',
+  background: '#FFFFFF',
+  textDark: '#1C1C1E', // Very dark grey, almost black
+  textMuted: '#6A6A6A', // Darker muted text for professionalism
+  success: '#34C759', // Green for success/check
+  border: '#E5E5EA',
+  lightGray: '#F5F5F5', // Lighter background for features
 };
 
-// --- Component ---
 export default function GettingStartedScreen({ navigation }) {
+  const imageListRef = useRef(null);
+  const featureAnimation = useRef(new Animated.Value(0)).current;
+  const [imageIndex, setImageIndex] = useState(0);
+  const [featureIndex, setFeatureIndex] = useState(0);
+
+  // --- Image Auto-scroll ---
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const nextIndex = (imageIndex + 1) % carouselImages.length;
+      setImageIndex(nextIndex);
+      imageListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+    }, 3000); // 3 seconds
+    return () => clearInterval(interval);
+  }, [imageIndex]);
+
+  // --- Feature Auto-scroll/Animation (Improved) ---
+  useEffect(() => {
+    const animateFeature = () => {
+      // Fade out
+      Animated.timing(featureAnimation, {
+        toValue: 0,
+        duration: 300,
+        easing: Easing.ease,
+        useNativeDriver: true,
+      }).start(() => {
+        // Change text
+        const nextFeature = (featureIndex + 1) % featureItems.length;
+        setFeatureIndex(nextFeature);
+
+        // Fade in
+        Animated.timing(featureAnimation, {
+          toValue: 1,
+          duration: 400,
+          easing: Easing.ease,
+          delay: 50, // Short delay after index change
+          useNativeDriver: true,
+        }).start();
+      });
+    };
+
+    // Auto-scroll logic
+    const interval = setInterval(animateFeature, 3500); // 3.5 seconds
+    
+    // Initial fade-in
+    Animated.timing(featureAnimation, {
+        toValue: 1,
+        duration: 500,
+        easing: Easing.ease,
+        useNativeDriver: true,
+      }).start();
+
+    return () => clearInterval(interval);
+  }, [featureIndex, featureAnimation]);
+
+  const currentFeatureText = featureItems[featureIndex];
+
+  // Feature Dot Indicator for Image Carousel
+  const renderDotIndicator = () => (
+    <View style={styles.dotIndicatorContainer}>
+      {carouselImages.map((_, index) => (
+        <View
+          key={`dot-${index}`}
+          style={[
+            styles.dot,
+            {
+              backgroundColor: index === imageIndex ? COLORS.primary : COLORS.border,
+              width: index === imageIndex ? horizontalScale(14) : horizontalScale(6),
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ImageBackground
-        source={backgroundPath}
-        style={styles.background}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay}>
-          {/* Main Content Container */}
-          <View style={styles.content}>
-            {/* Logo and Title Section */}
-            <View style={styles.headerSection}>
-              <Image
-                source={logoPath2}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-              <Text style={styles.subtitle}>
-                Professional Accounting Services
-              </Text>
-            </View>
-
-            {/* Features List */}
-            <View style={styles.featuresContainer}>
-              {[
-                'Enterprise-Grade Security & Encryption',
-                'Real-Time Financial Insights & Reporting',
-                'Tax and Regulatory Compliance Guaranteed',
-              ].map((item, idx) => (
-                <View key={idx} style={styles.featureItem}>
-                  <View style={styles.featureIcon}>
-                    <Text style={styles.featureIconText}>✓</Text>
-                  </View>
-                  <Text style={styles.featureText}>{item}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* CTA Button */}
-            <TouchableOpacity
-              style={styles.buttonWrapper}
-              activeOpacity={0.8}
-              onPress={() => navigation.navigate('OTPVerification')}
-            >
-              <View style={styles.button}>
-                <Text style={styles.buttonText}>Get Started Now</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Trust Text */}
-            <Text style={styles.trustText}>
-              Trusted by **10,000+** accounting professionals worldwide.
-            </Text>
-          </View>
+      {/* 👈 STATUS BAR CONFIGURATION */}
+      <StatusBar 
+        barStyle="dark-content" // Light icons/text on a white background (iOS default, good for Android white background)
+        backgroundColor={COLORS.background} // Sets the background color of the status bar on Android
+        translucent={false} // Ensures the view starts below the status bar on Android
+      />
+      
+      <View style={styles.mainContainer}>
+        {/* Logo and Title Section */}
+        <View style={styles.headerSection}>
+          <Image
+            source={logoPath2}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>
+            Your Accounting <Text style={styles.titleHighlight}>Made Easy</Text>
+          </Text>
+          <Text style={styles.subtitle}>
+            Professional services with enterprise-grade security.
+          </Text>
         </View>
-      </ImageBackground>
+        
+        {/* --- Image Carousel --- */}
+        <View style={styles.carouselContainer}>
+          <FlatList
+            ref={imageListRef}
+            data={carouselImages}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            pagingEnabled
+            onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { x: new Animated.Value(0) } } }],
+                { useNativeDriver: false }
+            )}
+            onMomentumScrollEnd={e => {
+                const newIndex = Math.round(e.nativeEvent.contentOffset.x / width);
+                setImageIndex(newIndex);
+            }}
+            keyExtractor={(_, idx) => `img-${idx}`}
+            renderItem={({ item }) => (
+              <Image
+                source={item}
+                style={styles.carouselImage}
+                resizeMode="cover"
+              />
+            )}
+          />
+          {renderDotIndicator()}
+        </View>
+
+        {/* --- Animated Feature Display --- */}
+        <View style={styles.featureDisplayContainer}>
+            <Animated.View style={[styles.featureItemAnimated, { opacity: featureAnimation, transform: [{ translateY: featureAnimation.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }]}>
+                <Text style={styles.featureIconText}>✓</Text>
+                <Text style={styles.featureTextAnimated}>{currentFeatureText}</Text>
+            </Animated.View>
+        </View>
+
+        {/* --- Footer/CTA Section --- */}
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={styles.buttonWrapper}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate('SendOtpScreen')}
+          >
+            <View style={styles.button}>
+              <Text style={styles.buttonText}>Get Started Now</Text>
+            </View>
+          </TouchableOpacity>
+          <Text style={styles.trustText}>
+            Trusted by **10,000+** accounting professionals worldwide.
+          </Text>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -105,116 +207,126 @@ export default function GettingStartedScreen({ navigation }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+    backgroundColor: COLORS.background,
   },
-  background: {
+  mainContainer: {
     flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-  // Added a slight semi-transparent white overlay for contrast
-  overlay: {
-    flex: 1,
-    backgroundColor: COLORS.backgroundOverlay,
-    alignItems: 'center',
-    justifyContent: 'flex-end', // Align content to the bottom half
     paddingHorizontal: horizontalScale(24),
-    paddingBottom: verticalScale(50), // Responsive padding from the bottom
-  },
-  content: {
-    alignItems: 'center',
-    width: '100%',
-    maxWidth: 500, // Max width for tablet and large screen
+    justifyContent: 'space-between',
+    paddingTop: verticalScale(20),
+    paddingBottom: verticalScale(30),
   },
   headerSection: {
     alignItems: 'center',
-    marginBottom: verticalScale(30),
-  },
-  logo: {
-    // Increased logo size slightly, using verticalScale for height
-    width: horizontalScale(220),
-    height: verticalScale(140),
     marginBottom: verticalScale(10),
   },
-  subtitle: {
-    fontSize: moderateScale(18),
-    color: COLORS.primary,
+  logo: {
+    width: horizontalScale(120),
+    height: verticalScale(80),
+    marginBottom: verticalScale(5),
+  },
+  title: {
+    fontSize: moderateScale(28, 0.7),
+    color: COLORS.textDark,
     textAlign: 'center',
-    fontWeight: '700', // Made subtitle bolder
-    lineHeight: moderateScale(24),
+    fontWeight: '800',
+    lineHeight: moderateScale(38, 0.7),
+    marginBottom: verticalScale(5),
     paddingHorizontal: horizontalScale(10),
   },
-  featuresContainer: {
-    marginBottom: verticalScale(40),
+  titleHighlight: {
+    color: COLORS.primary,
+  },
+  subtitle: {
+    fontSize: moderateScale(15),
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    fontWeight: '400',
+    lineHeight: moderateScale(22),
+    paddingHorizontal: horizontalScale(10),
+  },
+  
+  // Carousel Styles
+  carouselContainer: {
+    height: verticalScale(200),
+    marginBottom: verticalScale(30),
+    marginHorizontal: horizontalScale(-24), // Extends to screen edges
+  },
+  carouselImage: {
+    width: width, // Full width
+    height: verticalScale(200),
+    // Removed border radius here to make it full bleed.
+  },
+  dotIndicatorContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: verticalScale(10),
+    position: 'absolute',
+    bottom: verticalScale(10),
     width: '100%',
-    alignItems: 'flex-start',
-    paddingHorizontal: horizontalScale(10),
   },
-  featureItem: {
+  dot: {
+    height: horizontalScale(6),
+    borderRadius: horizontalScale(3),
+    marginHorizontal: horizontalScale(3),
+    transitionProperty: 'width, background-color',
+    transitionDuration: '300ms',
+  },
+
+  // Animated Feature Styles
+  featureDisplayContainer: {
+    height: verticalScale(50), // Reserve space for the feature display
+    justifyContent: 'center',
+    marginBottom: verticalScale(20),
+  },
+  featureItemAnimated: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: verticalScale(18), // Responsive spacing
-    width: '100%',
-  },
-  featureIcon: {
-    width: horizontalScale(30),
-    height: horizontalScale(30),
-    borderRadius: horizontalScale(15),
-    backgroundColor: COLORS.successLight, // Light blue background
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: horizontalScale(15),
-    borderWidth: 1,
-    borderColor: COLORS.successBorder, // Muted border
-    // Added a slight shadow for elevation (optional, can be removed)
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.2,
-        shadowRadius: 1.41,
-      },
-      android: { elevation: 2 },
-    }),
+    justifyContent: 'center', // Center the animated feature text
+    paddingHorizontal: horizontalScale(10),
   },
   featureIconText: {
-    color: COLORS.primaryLight,
-    fontWeight: '900',
-    fontSize: moderateScale(16),
+    color: COLORS.success,
+    fontWeight: '700',
+    fontSize: moderateScale(20),
+    marginRight: horizontalScale(10),
   },
-  featureText: {
+  featureTextAnimated: {
     color: COLORS.textDark,
-    fontSize: moderateScale(15),
-    fontWeight: '500',
-    flexShrink: 1, // Allows text to wrap
-    lineHeight: moderateScale(22),
+    fontSize: moderateScale(16),
+    fontWeight: '600', // Slightly bolder for prominence
+    textAlign: 'center',
+  },
+
+  // Footer/CTA Styles
+  footer: {
+    alignItems: 'center',
+    width: '100%',
   },
   buttonWrapper: {
     width: '100%',
-    borderRadius: 16,
-    overflow: 'hidden',
-    // Removed default elevation for a cleaner button look, used shadows instead
-    marginBottom: verticalScale(30),
+    marginBottom: verticalScale(15),
   },
   button: {
     backgroundColor: COLORS.primary,
-    paddingVertical: verticalScale(18),
+    paddingVertical: verticalScale(16),
     borderRadius: 12,
     alignItems: 'center',
-    // Enhanced button shadow for a modern 3D effect
+    // Better shadow for professional feel
     ...Platform.select({
       ios: {
         shadowColor: COLORS.primary,
         shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.35,
+        shadowOpacity: 0.25,
         shadowRadius: 10,
       },
-      android: { elevation: 15, shadowColor: COLORS.primary },
+      android: { elevation: 15, shadowColor: COLORS.primaryDark },
     }),
   },
   buttonText: {
     color: '#fff',
-    fontWeight: '800', // Extra bold text
-    fontSize: moderateScale(18),
+    fontWeight: '700',
+    fontSize: moderateScale(17),
     letterSpacing: 0.5,
   },
   trustText: {
@@ -222,7 +334,6 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(12),
     textAlign: 'center',
     fontWeight: '400',
-    fontStyle: 'italic',
     lineHeight: moderateScale(18),
   },
 });

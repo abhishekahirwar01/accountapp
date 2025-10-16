@@ -12,13 +12,15 @@ import HistoryPage from '../screens/admin/HistoryScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import SettingsScreen from '../screens/admin/SettingsScreen';
 import InvoicePreview from '../components/invoices/InvoicePreview';
+import SendOtpScreen from '../screens/auth/SendOtpScreen';
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="GettingStarted" component={GettingStartedScreen} />
-      <Stack.Screen name="OTPVerification" component={OTPVerificationScreen} />
+      <Stack.Screen name="SendOtpScreen" component={SendOtpScreen} />
+      <Stack.Screen name="OTPVerificationScreen" component={OTPVerificationScreen} />
       <Stack.Screen name="AdminLoginScreen" component={AdminLoginScreen} />
       <Stack.Screen name="UserLoginScreen" component={UserLoginScreen} />
       <Stack.Screen name="ClientLoginScreen" component={ClientLoginScreen} />
