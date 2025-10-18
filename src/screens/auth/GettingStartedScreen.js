@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,10 +10,11 @@ import {
   Platform,
   Animated,
   Easing,
-  StatusBar, // 👈 IMPORT STATUSBAR
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+// WARNING NOTE: These paths must be correct in your project structure for the code to run
 const logoPath2 = require('../../../assets/images/vinimay.png');
 const carouselImages = [
   require('../../../assets/images/firstimage.jpg'),
@@ -30,21 +31,21 @@ const { width, height } = Dimensions.get('window');
 const BASE_WIDTH = 375;
 const BASE_HEIGHT = 812;
 
-// Scaling functions for responsiveness
+// Custom scaling functions for responsive design
 const horizontalScale = size => (width / BASE_WIDTH) * size;
 const verticalScale = size => (height / BASE_HEIGHT) * size;
 const moderateScale = (size, factor = 0.5) =>
   size + (horizontalScale(size) - size) * factor;
 
 const COLORS = {
-  primary: '#007AFF', // Standard Blue
+  primary: '#007AFF',
   primaryDark: '#005AC1',
   background: '#FFFFFF',
-  textDark: '#1C1C1E', // Very dark grey, almost black
-  textMuted: '#6A6A6A', // Darker muted text for professionalism
-  success: '#34C759', // Green for success/check
+  textDark: '#1C1C1E',
+  textMuted: '#6A6A6A',
+  success: '#34C759',
   border: '#E5E5EA',
-  lightGray: '#F5F5F5', // Lighter background for features
+  lightGray: '#F5F5F5',
 };
 
 export default function GettingStartedScreen({ navigation }) {
@@ -53,68 +54,90 @@ export default function GettingStartedScreen({ navigation }) {
   const [imageIndex, setImageIndex] = useState(0);
   const [featureIndex, setFeatureIndex] = useState(0);
 
+  // Dot animation refs
+  const dotWidths = useRef(carouselImages.map(() => new Animated.Value(horizontalScale(6)))).current;
+
   // --- Image Auto-scroll ---
   useEffect(() => {
     const interval = setInterval(() => {
       const nextIndex = (imageIndex + 1) % carouselImages.length;
       setImageIndex(nextIndex);
+      // Use requestAnimationFrame for smoother scrolling if possible, but standard scrollToIndex is fine
       imageListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
-    }, 3000); // 3 seconds
+    }, 3000);
     return () => clearInterval(interval);
-  }, [imageIndex]);
+  }, [imageIndex]); // Dependency is correct: re-runs when index changes to set up the next scroll
 
-  // --- Feature Auto-scroll/Animation (Improved) ---
+  // --- Feature Auto-scroll/Animation ---
   useEffect(() => {
+    // Initial fade in for the first feature
+    Animated.timing(featureAnimation, {
+      toValue: 1,
+      duration: 500,
+      easing: Easing.ease,
+      useNativeDriver: true,
+    }).start();
+
     const animateFeature = () => {
-      // Fade out
+      // 1. Fade out the current feature
       Animated.timing(featureAnimation, {
         toValue: 0,
         duration: 300,
         easing: Easing.ease,
         useNativeDriver: true,
       }).start(() => {
-        // Change text
+        // 2. Update the text (state change)
         const nextFeature = (featureIndex + 1) % featureItems.length;
         setFeatureIndex(nextFeature);
 
-        // Fade in
+        // 3. Fade in the new feature
         Animated.timing(featureAnimation, {
           toValue: 1,
           duration: 400,
           easing: Easing.ease,
-          delay: 50, // Short delay after index change
+          delay: 50,
           useNativeDriver: true,
         }).start();
       });
     };
 
-    // Auto-scroll logic
-    const interval = setInterval(animateFeature, 3500); // 3.5 seconds
-    
-    // Initial fade-in
-    Animated.timing(featureAnimation, {
-        toValue: 1,
-        duration: 500,
-        easing: Easing.ease,
-        useNativeDriver: true,
-      }).start();
+    const interval = setInterval(animateFeature, 3500);
 
     return () => clearInterval(interval);
-  }, [featureIndex, featureAnimation]);
+  }, [featureIndex, featureAnimation]); // Dependency array is clean
+
+  // --- Dot Indicator Animation ---
+  useEffect(() => {
+    carouselImages.forEach((_, idx) => {
+      Animated.timing(dotWidths[idx], {
+        toValue: idx === imageIndex ? horizontalScale(14) : horizontalScale(6),
+        duration: 300,
+        // The `width` property can sometimes require `useNativeDriver: false`
+        useNativeDriver: false,
+      }).start();
+    });
+  }, [imageIndex, dotWidths]); // Dependency array is clean
 
   const currentFeatureText = featureItems[featureIndex];
 
-  // Feature Dot Indicator for Image Carousel
+  // Callback for when the user manually scrolls the FlatList
+  const handleScrollEnd = useCallback(e => {
+    const newIndex = Math.round(e.nativeEvent.contentOffset.x / width);
+    if (newIndex !== imageIndex) {
+      setImageIndex(newIndex);
+    }
+  }, [imageIndex]);
+
   const renderDotIndicator = () => (
     <View style={styles.dotIndicatorContainer}>
-      {carouselImages.map((_, index) => (
-        <View
-          key={`dot-${index}`}
+      {carouselImages.map((_, idx) => (
+        <Animated.View
+          key={`dot-${idx}`}
           style={[
             styles.dot,
             {
-              backgroundColor: index === imageIndex ? COLORS.primary : COLORS.border,
-              width: index === imageIndex ? horizontalScale(14) : horizontalScale(6),
+              width: dotWidths[idx],
+              backgroundColor: idx === imageIndex ? COLORS.primary : COLORS.border,
             },
           ]}
         />
@@ -124,21 +147,16 @@ export default function GettingStartedScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* 👈 STATUS BAR CONFIGURATION */}
-      <StatusBar 
-        barStyle="dark-content" // Light icons/text on a white background (iOS default, good for Android white background)
-        backgroundColor={COLORS.background} // Sets the background color of the status bar on Android
-        translucent={false} // Ensures the view starts below the status bar on Android
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={COLORS.background}
+        translucent={Platform.OS === 'ios'} // iOS handles translucent status bar differently
       />
-      
+
       <View style={styles.mainContainer}>
-        {/* Logo and Title Section */}
+        {/* Header Section */}
         <View style={styles.headerSection}>
-          <Image
-            source={logoPath2}
-            style={styles.logo}
-            resizeMode="contain"
-          />
+          <Image source={logoPath2} style={styles.logo} resizeMode="contain" />
           <Text style={styles.title}>
             Your Accounting <Text style={styles.titleHighlight}>Made Easy</Text>
           </Text>
@@ -146,8 +164,8 @@ export default function GettingStartedScreen({ navigation }) {
             Professional services with enterprise-grade security.
           </Text>
         </View>
-        
-        {/* --- Image Carousel --- */}
+
+        {/* Carousel Section */}
         <View style={styles.carouselContainer}>
           <FlatList
             ref={imageListRef}
@@ -155,35 +173,42 @@ export default function GettingStartedScreen({ navigation }) {
             horizontal
             showsHorizontalScrollIndicator={false}
             pagingEnabled
-            onScroll={Animated.event(
-                [{ nativeEvent: { contentOffset: { x: new Animated.Value(0) } } }],
-                { useNativeDriver: false }
-            )}
-            onMomentumScrollEnd={e => {
-                const newIndex = Math.round(e.nativeEvent.contentOffset.x / width);
-                setImageIndex(newIndex);
-            }}
+            // Removed onScroll={Animated.event(...)} as it was unused and can cause warnings
+            onMomentumScrollEnd={handleScrollEnd}
             keyExtractor={(_, idx) => `img-${idx}`}
             renderItem={({ item }) => (
-              <Image
-                source={item}
-                style={styles.carouselImage}
-                resizeMode="cover"
-              />
+              // Ensure this image is correctly sized to prevent aspect ratio warnings
+              <Image source={item} style={styles.carouselImage} resizeMode="cover" />
             )}
           />
           {renderDotIndicator()}
         </View>
 
-        {/* --- Animated Feature Display --- */}
+        {/* Dynamic Feature Section */}
         <View style={styles.featureDisplayContainer}>
-            <Animated.View style={[styles.featureItemAnimated, { opacity: featureAnimation, transform: [{ translateY: featureAnimation.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }]}>
-                <Text style={styles.featureIconText}>✓</Text>
-                <Text style={styles.featureTextAnimated}>{currentFeatureText}</Text>
-            </Animated.View>
+          <Animated.View
+            style={[
+              styles.featureItemAnimated,
+              {
+                opacity: featureAnimation,
+                transform: [
+                  {
+                    translateY: featureAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [10, 0], // Smooth slide up effect
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            {/* The text string is correctly wrapped in a <Text> component here */}
+            <Text style={styles.featureIconText}>✓</Text>
+            <Text style={styles.featureTextAnimated}>{currentFeatureText}</Text>
+          </Animated.View>
         </View>
 
-        {/* --- Footer/CTA Section --- */}
+        {/* Footer Section */}
         <View style={styles.footer}>
           <TouchableOpacity
             style={styles.buttonWrapper}
@@ -195,7 +220,7 @@ export default function GettingStartedScreen({ navigation }) {
             </View>
           </TouchableOpacity>
           <Text style={styles.trustText}>
-            Trusted by **10,000+** accounting professionals worldwide.
+            Trusted by <Text style={{ fontWeight: '700' }}>10,000+</Text> accounting professionals worldwide.
           </Text>
         </View>
       </View>
@@ -203,12 +228,8 @@ export default function GettingStartedScreen({ navigation }) {
   );
 }
 
-// --- Styles ---
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
   mainContainer: {
     flex: 1,
     paddingHorizontal: horizontalScale(24),
@@ -216,15 +237,8 @@ const styles = StyleSheet.create({
     paddingTop: verticalScale(20),
     paddingBottom: verticalScale(30),
   },
-  headerSection: {
-    alignItems: 'center',
-    marginBottom: verticalScale(10),
-  },
-  logo: {
-    width: horizontalScale(120),
-    height: verticalScale(80),
-    marginBottom: verticalScale(5),
-  },
+  headerSection: { alignItems: 'center', marginBottom: verticalScale(10) },
+  logo: { width: horizontalScale(120), height: verticalScale(80), marginBottom: verticalScale(5) },
   title: {
     fontSize: moderateScale(28, 0.7),
     color: COLORS.textDark,
@@ -234,9 +248,7 @@ const styles = StyleSheet.create({
     marginBottom: verticalScale(5),
     paddingHorizontal: horizontalScale(10),
   },
-  titleHighlight: {
-    color: COLORS.primary,
-  },
+  titleHighlight: { color: COLORS.primary },
   subtitle: {
     fontSize: moderateScale(15),
     color: COLORS.textMuted,
@@ -245,18 +257,12 @@ const styles = StyleSheet.create({
     lineHeight: moderateScale(22),
     paddingHorizontal: horizontalScale(10),
   },
-  
-  // Carousel Styles
   carouselContainer: {
     height: verticalScale(200),
     marginBottom: verticalScale(30),
-    marginHorizontal: horizontalScale(-24), // Extends to screen edges
+    marginHorizontal: horizontalScale(-24),
   },
-  carouselImage: {
-    width: width, // Full width
-    height: verticalScale(200),
-    // Removed border radius here to make it full bleed.
-  },
+  carouselImage: { width: width, height: verticalScale(200) },
   dotIndicatorContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -269,71 +275,48 @@ const styles = StyleSheet.create({
     height: horizontalScale(6),
     borderRadius: horizontalScale(3),
     marginHorizontal: horizontalScale(3),
-    transitionProperty: 'width, background-color',
-    transitionDuration: '300ms',
   },
-
-  // Animated Feature Styles
   featureDisplayContainer: {
-    height: verticalScale(50), // Reserve space for the feature display
+    height: verticalScale(50),
     justifyContent: 'center',
     marginBottom: verticalScale(20),
   },
   featureItemAnimated: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center', // Center the animated feature text
+    justifyContent: 'center',
     paddingHorizontal: horizontalScale(10),
   },
-  featureIconText: {
-    color: COLORS.success,
-    fontWeight: '700',
-    fontSize: moderateScale(20),
-    marginRight: horizontalScale(10),
+  featureIconText: { 
+    color: COLORS.success, 
+    fontWeight: '700', 
+    fontSize: moderateScale(20), 
+    marginRight: horizontalScale(10) 
   },
-  featureTextAnimated: {
-    color: COLORS.textDark,
-    fontSize: moderateScale(16),
-    fontWeight: '600', // Slightly bolder for prominence
-    textAlign: 'center',
+  featureTextAnimated: { 
+    color: COLORS.textDark, 
+    fontSize: moderateScale(16), 
+    fontWeight: '600', 
+    textAlign: 'center' 
   },
-
-  // Footer/CTA Styles
-  footer: {
-    alignItems: 'center',
-    width: '100%',
-  },
-  buttonWrapper: {
-    width: '100%',
-    marginBottom: verticalScale(15),
-  },
+  footer: { alignItems: 'center', width: '100%' },
+  buttonWrapper: { width: '100%', marginBottom: verticalScale(15) },
   button: {
     backgroundColor: COLORS.primary,
     paddingVertical: verticalScale(16),
     borderRadius: 12,
     alignItems: 'center',
-    // Better shadow for professional feel
     ...Platform.select({
-      ios: {
-        shadowColor: COLORS.primary,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.25,
-        shadowRadius: 10,
-      },
+      ios: { shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 10 },
       android: { elevation: 15, shadowColor: COLORS.primaryDark },
     }),
   },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: moderateScale(17),
-    letterSpacing: 0.5,
-  },
-  trustText: {
-    color: COLORS.textMuted,
-    fontSize: moderateScale(12),
-    textAlign: 'center',
-    fontWeight: '400',
-    lineHeight: moderateScale(18),
+  buttonText: { color: '#fff', fontWeight: '700', fontSize: moderateScale(17), letterSpacing: 0.5 },
+  trustText: { 
+    color: COLORS.textMuted, 
+    fontSize: moderateScale(12), 
+    textAlign: 'center', 
+    fontWeight: '400', 
+    lineHeight: moderateScale(18) 
   },
 });

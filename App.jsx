@@ -1,18 +1,20 @@
-import React, { useState } from "react";
-import { StatusBar } from "react-native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { NavigationContainer } from "@react-navigation/native";
-import { Provider as PaperProvider, MD3LightTheme as DefaultTheme } from "react-native-paper";
+import React, { useState } from 'react';
+import { StatusBar } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { NavigationContainer } from '@react-navigation/native';
+import {
+  Provider as PaperProvider,
+  MD3LightTheme as DefaultTheme,
+} from 'react-native-paper';
+import AppNavigator from './src/navigation/AppNavigator';
+import { navigationRef } from './src/navigation/RootNavigation';
 
-import AppNavigator from "./src/navigation/AppNavigator";
-
-// Custom theme (optional)
 const theme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    primary: "#0A66C2", // LinkedIn blue
-    secondary: "#FF4081",
+    primary: '#0A66C2', // LinkedIn blue
+    secondary: '#FF4081',
   },
 };
 
@@ -22,7 +24,7 @@ export default function App() {
   return (
     <PaperProvider theme={theme}>
       <SafeAreaProvider>
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
           <StatusBar barStyle="dark-content" backgroundColor="#fff" />
           <AppNavigator role={role} setRole={setRole} />
         </NavigationContainer>
