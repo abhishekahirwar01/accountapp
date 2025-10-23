@@ -2,7 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from './api';
 import { navigationRef } from '../navigation/RootNavigation';
-// Storage keys
+
 const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
 const ROLE_KEY = 'role';
@@ -17,6 +17,7 @@ export const normalizeRole = (r = '') => {
   return s;
 };
 
+// Save & clear session
 export const saveSession = async (token, user) => {
   await AsyncStorage.setItem(TOKEN_KEY, token);
   await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
@@ -25,34 +26,35 @@ export const saveSession = async (token, user) => {
 };
 
 export const clearSession = async () => {
-  await AsyncStorage.removeItem(TOKEN_KEY);
-  await AsyncStorage.removeItem(USER_KEY);
-  await AsyncStorage.removeItem(ROLE_KEY);
-  await AsyncStorage.removeItem(CLIENT_SLUG_KEY);
+  await AsyncStorage.multiRemove([
+    TOKEN_KEY,
+    USER_KEY,
+    ROLE_KEY,
+    CLIENT_SLUG_KEY,
+  ]);
 };
 
-// Get current user from AsyncStorage
 export const getCurrentUser = async () => {
   const userStr = await AsyncStorage.getItem(USER_KEY);
   if (!userStr) return null;
-  return JSON.parse(userStr);
+  try {
+    return JSON.parse(userStr);
+  } catch {
+    return null;
+  }
 };
 
 // -----------------------------
-// Login Functions
+// LOGIN FUNCTIONS
 // -----------------------------
 
-// Master Admin login
+// 🔹 Master Admin Login
 export const loginMasterAdmin = async (username, password) => {
-  console.log("Calling API:", `/api/master-admin/login`);
-  console.log("Payload:", { username, password });
-
+  console.log('🌍 [API] Master Admin login', { username });
   if (!username || !password) throw new Error('Username and password required');
 
   try {
     const res = await api.post('/api/master-admin/login', { username, password });
-    console.log("Server response:", res.data);
-
     const data = res.data;
 
     const user = {
@@ -68,22 +70,50 @@ export const loginMasterAdmin = async (username, password) => {
     await saveSession(user.token, user);
     return user;
   } catch (err) {
-    if (err.response) {
-      console.error('Server responded with status:', err.response.status);
-      console.error('Server response data:', err.response.data);
-    } else if (err.request) {
-      console.error('No response received:', err.request);
-    } else {
-      console.error('Axios error:', err.message);
-    }
+    console.error('❌ Master Admin login failed:', err);
     throw err;
   }
 };
 
-
-// Client login (password)
+// 🔹 Client Login by Username
 export const loginClient = async (clientUsername, password) => {
-  if (!clientUsername || !password) throw new Error('Username and password required');
+  console.log('🌍 [API] Client login', { clientUsername });
+
+  if (!clientUsername || !password)
+    throw new Error('Username and password required');
+
+  try {
+    const res = await api.post('/api/clients/login', { clientUsername, password });
+    const data = res.data;
+
+    if (!data?.client || !data?.token)
+      throw new Error('Invalid server response');
+
+    const user = {
+      name: data.client.contactName,
+      username: data.client.clientUsername,
+      email: data.client.email,
+      role: 'customer',
+      token: data.token,
+      slug: data.client.slug,
+      avatar: '/avatars/02.png',
+      initials: data.client.contactName?.substring(0, 2)?.toUpperCase() || 'CU',
+    };
+
+    await saveSession(user.token, user);
+    return user;
+  } catch (err) {
+    console.error('❌ Client login failed:', err);
+    throw err;
+  }
+};
+
+// 🔹 Client Login by Slug (added from Next.js)
+export const loginClientBySlug = async (clientUsername, password) => {
+  console.log('🌍 [API] Client login by slug', { clientUsername });
+
+  if (!clientUsername || !password)
+    throw new Error('Username and password required');
 
   try {
     const res = await api.post('/api/clients/login', { clientUsername, password });
@@ -103,12 +133,24 @@ export const loginClient = async (clientUsername, password) => {
     await saveSession(user.token, user);
     return user;
   } catch (err) {
-    console.error('Client login failed:', err);
+    console.error('❌ loginClientBySlug failed:', err);
     throw err;
   }
 };
 
-// Client login via OTP
+// 🔹 Request OTP for client
+export const requestClientOtp = async (clientUsername) => {
+  if (!clientUsername) throw new Error('Username required');
+  try {
+    const res = await api.post('/api/clients/request-otp', { clientUsername });
+    return res.data;
+  } catch (err) {
+    console.error('❌ Request OTP failed:', err);
+    throw err;
+  }
+};
+
+// 🔹 Client login with OTP (alias for loginClientBySlugWithOtp)
 export const loginClientWithOtp = async (clientUsername, otp) => {
   if (!clientUsername || !otp) throw new Error('Username and OTP required');
 
@@ -130,26 +172,14 @@ export const loginClientWithOtp = async (clientUsername, otp) => {
     await saveSession(user.token, user);
     return user;
   } catch (err) {
-    console.error('Client OTP login failed:', err);
+    console.error('❌ Client OTP login failed:', err);
     throw err;
   }
 };
 
-// Request OTP for client
-export const requestClientOtp = async (clientUsername) => {
-  if (!clientUsername) throw new Error('Username required');
-
-  try {
-    const res = await api.post('/api/clients/request-otp', { clientUsername });
-    return res.data;
-  } catch (err) {
-    console.error('Request OTP failed:', err);
-    throw err;
-  }
-};
-
-// Employee/User login (admin / manager / user)
+// 🔹 Employee/User Login (admin / manager / user)
 export const loginUser = async (userId, password) => {
+  console.log('🌍 [API] User login', { userId });
   if (!userId || !password) throw new Error('User ID and password required');
 
   try {
@@ -157,12 +187,17 @@ export const loginUser = async (userId, password) => {
     const data = res.data;
 
     const role = normalizeRole(data.user.role || data.roleName || '');
-    const username = data.user.username || data.user.userName || data.user.userId || '';
+    const username =
+      data.user.username ||
+      data.user.userName ||
+      data.user.userId ||
+      '';
 
     const user = {
       ...data.user,
       role,
       username,
+      token: data.token,
       avatar: '/avatars/03.png',
       initials: (data.user.name || username).substring(0, 2).toUpperCase(),
     };
@@ -170,19 +205,18 @@ export const loginUser = async (userId, password) => {
     await saveSession(data.token, user);
     return user;
   } catch (err) {
-    console.error('User login failed:', err);
+    console.error('❌ User login failed:', err);
     throw err;
   }
 };
 
 // -----------------------------
-// Logout
+// LOGOUT
 // -----------------------------
 export const logout = async () => {
   await clearSession();
-  console.log('User logged out');
-  
-  // Direct navigation using ref
+  console.log('👋 User logged out');
+
   if (navigationRef.isReady()) {
     navigationRef.navigate('GettingStarted');
   }

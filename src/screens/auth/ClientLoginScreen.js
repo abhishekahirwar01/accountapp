@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,201 +13,465 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
+import {
+  loginClientBySlug,
+  loginClientBySlugWithOtp,
+  requestClientOtp,
+} from '../../lib/auth';
+import {
+  getCurrentUserNew as getSession,
+  saveSession,
+  scheduleAutoLogout,
+  clearSession,
+} from '../../lib/authSession';
 import { navigateByRole } from '../../utils/roleNavigation';
+import { jwtDecode } from 'jwt-decode';
 
 export default function ClientLoginScreen({ navigation }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
+  const [tab, setTab] = useState('password');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
+  const [checkingSession, setCheckingSession] = useState(true);
 
-  const handleSubmit = () => {
+  // -----------------------------
+  // Check session on mount
+  // -----------------------------
+  useEffect(() => {
+  // TEMP: Disable auto-login for manual testing
+  setCheckingSession(false);
+
+  // If you want to re-enable later, uncomment:
+  /*
+  const checkSession = async () => {
+    try {
+      const session = await getSession();
+      if (session?.user?.role?.toLowerCase() === 'customer') {
+        navigateByRole(navigation, 'customer');
+      } else if (session?.user?.role) {
+        await clearSession();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCheckingSession(false);
+    }
+  };
+  checkSession();
+  */
+}, [navigation]);
+
+
+  // -----------------------------
+  // OTP resend countdown
+  // -----------------------------
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = setInterval(() => setResendIn(n => n - 1), 1000);
+    return () => clearInterval(timer);
+  }, [resendIn]);
+
+  // -----------------------------
+  // Password login - FIXED
+  // -----------------------------
+  const handlePasswordLogin = async () => {
     if (!username.trim() || !password.trim()) {
       Toast.show({
-        type: 'custom_error',
+        type: 'error',
         text1: 'Validation Error',
         text2: 'Please enter username and password',
-        visibilityTime: 2000,
+        position: 'top',
       });
       return;
     }
 
     setLoading(true);
+    try {
+      console.log('🟡 Attempting login with:', { username, password });
 
-    // Mock authentication for client
-    const isValidClient = username === 'client' && password === '123';
+      const user = await loginClientBySlug(username, password);
+      console.log('🟢 Server response:', user);
 
-    // Simulate network delay
-    setTimeout(() => {
-      setLoading(false);
+      // ✅ FIX: Check for both 'customer' and 'client' roles
+      const userRole = String(user?.role || '').toLowerCase();
+      const isValidCustomer = userRole === 'customer' || userRole === 'client';
 
-      if (isValidClient) {
-        Toast.show({
-          type: 'custom_success',
-          text1: 'Login Successful',
-          text2: `Welcome, ${username}!`,
-          visibilityTime: 2000,
-        });
-
-        setTimeout(() => {
-          navigateByRole(navigation, 'client');
-        }, 500);
-      } else {
-        Toast.show({
-          type: 'custom_error',
-          text1: 'Login Failed',
-          text2: 'Invalid username or password',
-          visibilityTime: 2000,
-        });
+      if (!user?.token || !isValidCustomer) {
+        console.log('🔴 Invalid role or token missing:', user?.role);
+        throw new Error('Invalid customer credentials.');
       }
-    }, 1500);
+
+      let decoded;
+      try {
+        decoded = jwtDecode(user.token);
+        console.log('🧩 Decoded Token:', decoded);
+      } catch (err) {
+        console.error('❌ JWT Decode failed:', err);
+        throw new Error('Failed to decode token.');
+      }
+
+      const userId = decoded.id || '';
+
+      // Save session
+      console.log('💾 Saving session with:', {
+        token: user.token,
+        role: 'customer',
+        username: user.username,
+        name: user.name,
+        email: user.email,
+        id: userId,
+        slug: user.slug,
+      });
+
+      await saveSession(user.token, {
+        role: 'customer',
+        username: user.username,
+        name: user.name,
+        email: user.email,
+        id: userId,
+        slug: user.slug,
+      });
+
+      console.log('🕒 Scheduling auto logout...');
+      scheduleAutoLogout(user.token, async () => {
+        console.log('⚠️ Session expired — clearing...');
+        await clearSession();
+        navigation.replace('ClientLogin');
+        Toast.show({
+          type: 'info',
+          text1: 'Session expired',
+          text2: 'Please login again',
+          position: 'top',
+        });
+      });
+
+      console.log('✅ Login successful for:', user.username);
+      Toast.show({
+        type: 'success',
+        text1: 'Login Successful',
+        text2: `Welcome, ${user.name}!`,
+        position: 'top',
+      });
+
+      navigateByRole(navigation, 'customer');
+    } catch (error) {
+      console.log('❌ Login error:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Login Failed',
+        text2: error instanceof Error ? error.message : 'Something went wrong',
+        position: 'top',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Custom Toast configurations
-  const toastConfig = {
-    custom_success: props => (
-      <BaseToast
-        {...props}
-        style={{
-          borderLeftColor: '#10b981',
-          borderRadius: 8,
-          backgroundColor: '#ecfdf5',
-          paddingHorizontal: 16,
-        }}
-        contentContainerStyle={{ paddingHorizontal: 12 }}
-        text1Style={{
-          fontSize: 16,
-          fontWeight: '700',
-          color: '#065f46',
-        }}
-        text2Style={{ fontSize: 14, color: '#065f46' }}
-      />
-    ),
-    custom_error: props => (
-      <ErrorToast
-        {...props}
-        style={{
-          borderLeftColor: '#ef4444',
-          borderRadius: 8,
-          backgroundColor: '#fee2e2',
-          paddingHorizontal: 16,
-        }}
-        contentContainerStyle={{ paddingHorizontal: 12 }}
-        text1Style={{
-          fontSize: 16,
-          fontWeight: '700',
-          color: '#b91c1c',
-        }}
-        text2Style={{ fontSize: 14, color: '#b91c1c' }}
-      />
-    ),
+  // -----------------------------
+  // Send OTP
+  // -----------------------------
+  const handleSendOtp = async () => {
+    if (!username.trim()) {
+      Toast.show({
+        type: 'error',
+        text1: 'Username required',
+        text2: 'Enter your username first',
+        position: 'top',
+      });
+      return;
+    }
+
+    if (resendIn > 0) return;
+
+    setSendingOtp(true);
+    try {
+      await requestClientOtp(username);
+      setResendIn(45);
+      Toast.show({
+        type: 'success',
+        text1: 'OTP sent',
+        text2: 'Check your registered email for OTP',
+        position: 'top',
+      });
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Failed to send OTP',
+        text2: error instanceof Error ? error.message : 'Something went wrong',
+        position: 'top',
+      });
+    } finally {
+      setSendingOtp(false);
+    }
   };
+
+  // -----------------------------
+  // OTP login - FIXED
+  // -----------------------------
+  const handleOtpLogin = async () => {
+    if (!username.trim() || otp.length !== 6) {
+      Toast.show({
+        type: 'error',
+        text1: 'Validation Error',
+        text2: 'Enter username and valid OTP',
+        position: 'top',
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const user = await loginClientBySlugWithOtp(username, otp);
+      
+      // ✅ FIX: Check for both 'customer' and 'client' roles
+      const userRole = String(user?.role || '').toLowerCase();
+      const isValidCustomer = userRole === 'customer' || userRole === 'client';
+
+      if (!user?.token || !isValidCustomer) {
+        throw new Error('Invalid OTP.');
+      }
+
+      let decoded;
+      try {
+        decoded = jwtDecode(user.token);
+      } catch (err) {
+        throw new Error('Failed to decode token.');
+      }
+
+      const userId = decoded.id || '';
+
+      await saveSession(user.token, {
+        role: 'customer',
+        username: user.username,
+        name: user.name,
+        email: user.email,
+        id: userId,
+        slug: user.slug,
+      });
+
+      scheduleAutoLogout(user.token, async () => {
+        await clearSession();
+        navigation.replace('ClientLoginScreen');
+        Toast.show({
+          type: 'info',
+          text1: 'Session expired',
+          text2: 'Please login again',
+          position: 'top',
+        });
+      });
+
+      Toast.show({
+        type: 'success',
+        text1: 'Login Successful',
+        text2: `Welcome, ${user.name}!`,
+        position: 'top',
+      });
+
+      navigateByRole(navigation, 'customer');
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'OTP Login Failed',
+        text2: error instanceof Error ? error.message : 'Something went wrong',
+        position: 'top',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (checkingSession) {
+    return (
+      <View style={styles.loaderContainer}>
+        <ActivityIndicator size="large" color="#2563eb" />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      
-      {/* Back Button */}
-      <TouchableOpacity
-        style={styles.backButtonAbsolute}
-        onPress={() => navigation.goBack()}
-        disabled={loading}
-      >
-        <Ionicons name="arrow-back" size={26} color="#000" />
-      </TouchableOpacity>
 
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Main content container for centering */}
         <View style={styles.contentContainer}>
-          
-          {/* Title and Icon - Clean centered design */}
           <View style={styles.headerContainer}>
-            <Ionicons
-              name="briefcase"
-              size={56}
-              color="#2563eb" // Professional blue color for client
-            />
+            <Ionicons name="briefcase" size={56} color="#2563eb" />
             <Text style={styles.title}>Sign in to Client Account</Text>
           </View>
 
-          {/* Username Input */}
-          <Text style={styles.label}>Username</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter username"
-            value={username}
-            onChangeText={setUsername}
-            editable={!loading}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            placeholderTextColor="#94a3b8"
-            returnKeyType="next"
-          />
-
-          {/* Password Input */}
-          <Text style={styles.label}>Password</Text>
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={[styles.input, styles.passwordInput]}
-              placeholder="Enter password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              editable={!loading}
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholderTextColor="#94a3b8"
-              returnKeyType="done"
-              onSubmitEditing={handleSubmit}
-            />
+          {/* Tabs */}
+          <View style={styles.tabContainer}>
             <TouchableOpacity
-              onPress={() => setShowPassword(!showPassword)}
-              style={styles.eyeButton}
-              disabled={loading}
+              style={[
+                styles.tabButton,
+                tab === 'password' && styles.tabButtonActive,
+              ]}
+              onPress={() => setTab('password')}
             >
-              <Ionicons
-                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                size={24}
-                color="#64748b"
-              />
+              <Text style={styles.tabText}>Password</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.tabButton,
+                tab === 'otp' && styles.tabButtonActive,
+              ]}
+              onPress={() => setTab('otp')}
+            >
+              <Text style={styles.tabText}>OTP</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Forgot Password */}
-          <TouchableOpacity style={styles.forgotPassword}>
-            <Text style={styles.forgotPasswordText}>Forgot password?</Text>
-          </TouchableOpacity>
+          {tab === 'password' ? (
+            <>
+              <Text style={styles.label}>Username</Text>
+              <TextInput
+                style={styles.input}
+                value={username}
+                onChangeText={setUsername}
+                editable={!loading}
+                placeholder="Enter username"
+                autoCapitalize="none"
+              />
 
-          {/* Sign In Button */}
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
-            )}
-          </TouchableOpacity>
+              <Text style={styles.label}>Password</Text>
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={[styles.input, styles.passwordInput]}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  editable={!loading}
+                  placeholder="Enter password"
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeButton}
+                  disabled={loading}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={24}
+                    color="#64748b"
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.button, loading && styles.buttonDisabled]}
+                onPress={handlePasswordLogin}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.buttonText}>Sign In</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={styles.label}>Username</Text>
+              <TextInput
+                style={styles.input}
+                value={username}
+                onChangeText={setUsername}
+                editable={!loading && !sendingOtp}
+                placeholder="Enter username"
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                style={[styles.button, sendingOtp && { opacity: 0.6 }]}
+                onPress={handleSendOtp}
+                disabled={sendingOtp || resendIn > 0}
+              >
+                <Text style={styles.buttonText}>
+                  {resendIn > 0 ? `Resend in ${resendIn}s` : 'Send OTP'}
+                </Text>
+              </TouchableOpacity>
+
+              <Text style={styles.label}>Enter OTP</Text>
+              <TextInput
+                style={styles.input}
+                value={otp}
+                onChangeText={t => setOtp(t.replace(/\D/g, ''))}
+                maxLength={6}
+                keyboardType="numeric"
+                editable={!loading}
+                placeholder="6-digit OTP"
+              />
+              <TouchableOpacity
+                style={[
+                  styles.button,
+                  (loading || otp.length !== 6) && styles.buttonDisabled,
+                ]}
+                onPress={handleOtpLogin}
+                disabled={loading || otp.length !== 6}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.buttonText}>Verify & Sign In</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </KeyboardAvoidingView>
 
-      {/* Toast Messages */}
-      <Toast config={toastConfig} />
+      <Toast
+        config={{
+          success: props => (
+            <BaseToast
+              {...props}
+              style={{
+                borderLeftColor: '#10b981',
+                borderRadius: 12,
+                backgroundColor: '#ecfdf5',
+              }}
+              text1Style={{ fontSize: 16, fontWeight: '700', color: '#065f46' }}
+              text2Style={{ fontSize: 14, color: '#065f46' }}
+            />
+          ),
+          error: props => (
+            <ErrorToast
+              {...props}
+              style={{
+                borderLeftColor: '#ef4444',
+                borderRadius: 12,
+                backgroundColor: '#fee2e2',
+              }}
+              text1Style={{ fontSize: 16, fontWeight: '700', color: '#b91c1c' }}
+              text2Style={{ fontSize: 14, color: '#b91c1c' }}
+            />
+          ),
+          info: props => (
+            <BaseToast
+              {...props}
+              style={{
+                borderLeftColor: '#2563eb',
+                borderRadius: 12,
+                backgroundColor: '#eff6ff',
+              }}
+              text1Style={{ fontSize: 16, fontWeight: '700', color: '#1e40af' }}
+              text2Style={{ fontSize: 14, color: '#1e40af' }}
+            />
+          ),
+        }}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
+  safeArea: { flex: 1, backgroundColor: '#ffffff' },
   keyboardAvoidingContainer: {
     flex: 1,
     paddingHorizontal: 24,
@@ -217,26 +481,21 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     alignSelf: 'center',
-    paddingTop: 50, // Ensure content doesn't collide with back button
+    paddingTop: 50,
   },
-  backButtonAbsolute: {
-    position: 'absolute',
-    top: Platform.OS === 'android' ? StatusBar.currentHeight + 10 : 20,
-    left: 24,
-    zIndex: 10,
-    padding: 8,
-  },
-  headerContainer: {
+  loaderContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 40,
-    marginTop: 20,
+    backgroundColor: '#fff',
   },
+  headerContainer: { alignItems: 'center', marginBottom: 40 },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#000',
     marginTop: 10,
     textAlign: 'center',
+    color: '#000',
   },
   label: {
     fontSize: 16,
@@ -263,39 +522,26 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     position: 'relative',
   },
-  passwordInput: {
-    flex: 1,
-    marginBottom: 0,
-    paddingRight: 50,
-  },
-  eyeButton: {
-    position: 'absolute',
-    right: 15,
-    padding: 5,
-  },
-  forgotPassword: {
-    alignSelf: 'flex-start',
-    marginBottom: 30,
-  },
-  forgotPasswordText: {
-    color: '#1a73e8',
-    fontWeight: '600',
-    fontSize: 15,
-  },
+  passwordInput: { flex: 1, marginBottom: 0, paddingRight: 50 },
+  eyeButton: { position: 'absolute', right: 15, padding: 5 },
   button: {
-    backgroundColor: '#2563eb', // Professional blue for client
+    backgroundColor: '#2563eb',
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 12,
   },
-  buttonText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 17,
+  buttonText: { color: '#fff', fontWeight: '700', fontSize: 17 },
+  buttonDisabled: { opacity: 0.6 },
+  tabContainer: { flexDirection: 'row', marginBottom: 16 },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
+  tabButtonActive: { borderBottomColor: '#2563eb' },
+  tabText: { fontSize: 16, fontWeight: '600', color: '#000' },
 });

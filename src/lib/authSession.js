@@ -1,9 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { jwtDecode } from "jwt-decode"; // ✅ named import for v4+
-
-const TOKEN_KEY = 'token';
+import { jwtDecode } from "jwt-decode"; // ✅ named import for v4+const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
-
+const TOKEN_KEY = 'token';
 let logoutTimer = null;
 
 export async function saveSession(token, user) {
