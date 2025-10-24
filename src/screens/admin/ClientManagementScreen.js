@@ -12,9 +12,11 @@ import {
   Switch,
   ActivityIndicator,
   StatusBar,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Clipboard from '@react-native-clipboard/clipboard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   PlusCircle,
   Eye,
@@ -29,6 +31,7 @@ import {
   Contact,
   Store,
   Mail,
+  Phone,
   Calendar,
   Globe,
   Copy,
@@ -36,56 +39,22 @@ import {
   Trash2,
   ShieldCheck,
   KeyRound,
+  Filter,
+  MoreHorizontal,
+  ExternalLink,
 } from 'lucide-react-native';
 import ClientCard from '../../components/clients/ClientCard';
 import ClientForm from '../../components/clients/ClientForm';
+import { useToast } from '../../components/hooks/useToast';
+import { BASE_URL } from '../../config';
 
 const { width, height } = Dimensions.get('window');
 
-const hardcodedClients = [
-  {
-    _id: '1',
-    contactName: 'John Doe',
-    email: 'john.doe@example.com',
-    phone: '+1-555-0101',
-    clientUsername: 'johndoe',
-    slug: 'john-doe',
-    maxCompanies: 5,
-    maxUsers: 10,
-    maxInventories: 50,
-    canSendInvoiceEmail: true,
-    canSendInvoiceWhatsapp: false,
-    canCreateUsers: true,
-    canCreateCustomers: true,
-    canCreateVendors: true,
-    canCreateProducts: true,
-    canCreateCompanies: false,
-    canUpdateCompanies: true,
-  },
-  {
-    _id: '2',
-    contactName: 'Jane Smith',
-    email: 'jane.smith@example.com',
-    phone: '+1-555-0102',
-    clientUsername: 'janesmith',
-    slug: 'jane-smith',
-    maxCompanies: 3,
-    maxUsers: 5,
-    maxInventories: 25,
-    canSendInvoiceEmail: false,
-    canSendInvoiceWhatsapp: true,
-    canCreateUsers: false,
-    canCreateCustomers: true,
-    canCreateVendors: false,
-    canCreateProducts: true,
-    canCreateCompanies: true,
-    canUpdateCompanies: false,
-  },
-];
-
-const getAppOrigin = () => 'https://yourapp.com';
+const getAppOrigin = () => BASE_URL || 'https://yourapp.com';
 const getAppLoginUrl = slug =>
   slug ? `${getAppOrigin()}/client-login/${slug}` : '';
+const getApiLoginUrl = (slug, base = BASE_URL) =>
+  slug ? `${base}/api/clients/${slug}/login` : '';
 
 export default function ClientManagementPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -99,96 +68,219 @@ export default function ClientManagementPage() {
   const [isSavingPermissions, setIsSavingPermissions] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [newPassword, setNewPassword] = useState('');
-  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] =
-    useState(false);
+  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
+  const [clientToResetPassword, setClientToResetPassword] = useState(null);
   const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
   const [eyeOpen, setEyeOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('general'); // general | permissions | validity | password
   const [contactNameFilter, setContactNameFilter] = useState('');
   const [usernameFilter, setUsernameFilter] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const { showToast } = useToast();
+
+  // Fetch clients from API
+  const fetchClients = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const response = await fetch(`${BASE_URL}/api/clients`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch clients.');
+      }
+
+      const data = await response.json();
+      setClients(data);
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Failed to load clients',
+        message: error.message || 'Something went wrong.',
+      });
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setClients(hardcodedClients);
-      setIsLoading(false);
-    }, 1000);
-    return () => clearTimeout(timer);
+    fetchClients();
   }, []);
 
-  // Load permissions when switching to permissions tab
-  useEffect(() => {
-    if (activeTab === 'permissions' && selectedClient) {
-      setCurrentPermissions({
-        maxCompanies: selectedClient.maxCompanies || 5,
-        maxUsers: selectedClient.maxUsers || 10,
-        maxInventories: selectedClient.maxInventories || 50,
-        canSendInvoiceEmail: selectedClient.canSendInvoiceEmail || false,
-        canSendInvoiceWhatsapp: selectedClient.canSendInvoiceWhatsapp || false,
-        canCreateUsers: selectedClient.canCreateUsers || true,
-        canCreateCustomers: selectedClient.canCreateCustomers || true,
-        canCreateVendors: selectedClient.canCreateVendors || true,
-        canCreateProducts: selectedClient.canCreateProducts || true,
-        canCreateCompanies: selectedClient.canCreateCompanies || false,
-        canUpdateCompanies: selectedClient.canUpdateCompanies || false,
-      });
-    }
-  }, [activeTab, selectedClient]);
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchClients();
+  };
 
+  // Delete client
   const handleDelete = client => {
     setClientToDelete(client);
     setIsAlertOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!clientToDelete) return;
-    setTimeout(() => {
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const response = await fetch(`${BASE_URL}/api/clients/${clientToDelete._id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete client.');
+      }
+
+      showToast({
+        type: 'success',
+        title: 'Client Deleted',
+        message: `${clientToDelete.contactName} has been successfully deleted.`,
+      });
+
       setClients(clients.filter(c => c._id !== clientToDelete._id));
-      Alert.alert(
-        'Deleted',
-        `${clientToDelete.contactName} deleted successfully.`,
-      );
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Deletion Failed',
+        message: error.message || 'Something went wrong.',
+      });
+    } finally {
       setIsAlertOpen(false);
       setClientToDelete(null);
-    }, 500);
+    }
   };
 
+  // Reset password
   const handleResetPassword = client => {
-    setClientForPermissions(client);
+    setClientToResetPassword(client);
     setIsResetPasswordDialogOpen(true);
   };
 
-  const confirmResetPassword = () => {
-    if (!newPassword) {
-      Alert.alert('Error', 'Password cannot be empty.');
+  const confirmResetPassword = async () => {
+    if (!clientToResetPassword || !newPassword) {
+      showToast({
+        type: 'error',
+        title: 'Validation Error',
+        message: 'New password cannot be empty.',
+      });
       return;
     }
+
     setIsSubmittingPassword(true);
-    setTimeout(() => {
-      Alert.alert(
-        'Success',
-        `Password for ${clientForPermissions.contactName} reset.`,
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const response = await fetch(
+        `${BASE_URL}/api/clients/reset-password/${clientToResetPassword._id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ newpassword: newPassword }),
+        }
       );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to reset password.');
+      }
+
+      showToast({
+        type: 'success',
+        title: 'Password Reset Successful',
+        message: `Password for ${clientToResetPassword.contactName} has been updated.`,
+      });
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Password Reset Failed',
+        message: error.message || 'Something went wrong.',
+      });
+    } finally {
       setIsSubmittingPassword(false);
       setNewPassword('');
       setIsResetPasswordDialogOpen(false);
-    }, 1000);
+      setClientToResetPassword(null);
+    }
   };
 
-  const handleManagePermissions = client => {
+  // Manage permissions
+  const handleManagePermissions = async client => {
     setClientForPermissions(client);
-    setCurrentPermissions({
-      maxCompanies: client.maxCompanies || 5,
-      maxUsers: client.maxUsers || 10,
-      maxInventories: client.maxInventories || 50,
-      canSendInvoiceEmail: client.canSendInvoiceEmail || false,
-      canSendInvoiceWhatsapp: client.canSendInvoiceWhatsapp || false,
-      canCreateUsers: client.canCreateUsers || true,
-      canCreateCustomers: client.canCreateCustomers || true,
-      canCreateVendors: client.canCreateVendors || true,
-      canCreateProducts: client.canCreateProducts || true,
-      canCreateCompanies: client.canCreateCompanies || false,
-      canUpdateCompanies: client.canUpdateCompanies || false,
-    });
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const response = await fetch(
+        `${BASE_URL}/api/clients/${client._id}/permissions`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentPermissions({
+          maxCompanies: data.maxCompanies,
+          maxUsers: data.maxUsers,
+          maxInventories: data.maxInventories,
+          canSendInvoiceEmail: data.canSendInvoiceEmail,
+          canSendInvoiceWhatsapp: data.canSendInvoiceWhatsapp,
+          canCreateUsers: data.canCreateUsers,
+          canCreateCustomers: data.canCreateCustomers,
+          canCreateVendors: data.canCreateVendors,
+          canCreateProducts: data.canCreateProducts,
+          canCreateCompanies: data.canCreateCompanies,
+          canUpdateCompanies: data.canUpdateCompanies,
+        });
+      } else {
+        // Fallback to client data
+        setCurrentPermissions({
+          maxCompanies: client.maxCompanies || 5,
+          maxUsers: client.maxUsers || 10,
+          maxInventories: client.maxInventories || 50,
+          canSendInvoiceEmail: client.canSendInvoiceEmail || false,
+          canSendInvoiceWhatsapp: client.canSendInvoiceWhatsapp || false,
+          canCreateUsers: client.canCreateUsers || true,
+          canCreateCustomers: client.canCreateCustomers || true,
+          canCreateVendors: client.canCreateVendors || true,
+          canCreateProducts: client.canCreateProducts || true,
+          canCreateCompanies: client.canCreateCompanies || false,
+          canUpdateCompanies: client.canUpdateCompanies || false,
+        });
+      }
+    } catch (error) {
+      // Fallback in case of error
+      setCurrentPermissions({
+        maxCompanies: client.maxCompanies || 5,
+        maxUsers: client.maxUsers || 10,
+        maxInventories: client.maxInventories || 50,
+        canSendInvoiceEmail: client.canSendInvoiceEmail || false,
+        canSendInvoiceWhatsapp: client.canSendInvoiceWhatsapp || false,
+        canCreateUsers: client.canCreateUsers || true,
+        canCreateCustomers: client.canCreateCustomers || true,
+        canCreateVendors: client.canCreateVendors || true,
+        canCreateProducts: client.canCreateProducts || true,
+        canCreateCompanies: client.canCreateCompanies || false,
+        canUpdateCompanies: client.canUpdateCompanies || false,
+      });
+    }
     setIsPermissionsDialogOpen(true);
   };
 
@@ -196,48 +288,79 @@ export default function ClientManagementPage() {
     setCurrentPermissions(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSavePermissions = () => {
-    if (!selectedClient) return;
+  const handleSavePermissions = async () => {
+    if (!clientForPermissions) return;
     setIsSavingPermissions(true);
-    setTimeout(() => {
-      setClients(
-        clients.map(c =>
-          c._id === selectedClient._id ? { ...c, ...currentPermissions } : c,
-        ),
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const payload = {
+        maxCompanies: currentPermissions.maxCompanies,
+        maxUsers: currentPermissions.maxUsers,
+        maxInventories: currentPermissions.maxInventories,
+        canSendInvoiceEmail: currentPermissions.canSendInvoiceEmail,
+        canSendInvoiceWhatsapp: currentPermissions.canSendInvoiceWhatsapp,
+        canCreateUsers: currentPermissions.canCreateUsers,
+        canCreateCustomers: currentPermissions.canCreateCustomers,
+        canCreateVendors: currentPermissions.canCreateVendors,
+        canCreateProducts: currentPermissions.canCreateProducts,
+        canCreateCompanies: currentPermissions.canCreateCompanies,
+        canUpdateCompanies: currentPermissions.canUpdateCompanies,
+      };
+
+      const response = await fetch(
+        `${BASE_URL}/api/clients/${clientForPermissions._id}/permissions`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        }
       );
-      Alert.alert('Success', 'Permissions updated successfully.');
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update permissions.');
+      }
+
+      await fetchClients(); // Refresh client list
+      showToast({
+        type: 'success',
+        title: 'Permissions Updated',
+        message: `Permissions for ${clientForPermissions.contactName} have been saved.`,
+      });
+      setIsPermissionsDialogOpen(false);
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Update Failed',
+        message: error.message || 'Something went wrong.',
+      });
+    } finally {
       setIsSavingPermissions(false);
-      setIsDialogOpen(false);
-    }, 1000);
+    }
   };
 
   const handleEdit = client => {
     setSelectedClient(client);
-    setActiveTab('general');
     setIsDialogOpen(true);
   };
 
   const handleAddNew = () => {
     setSelectedClient(null);
-    setActiveTab('general');
     setIsDialogOpen(true);
   };
 
-  const handleResetPasswordTab = client => {
-    setSelectedClient(client);
-    setActiveTab('password');
-    setIsDialogOpen(true);
-  };
-
-  const handleManagePermissionsTab = client => {
-    setSelectedClient(client);
-    setActiveTab('permissions');
-    setIsDialogOpen(true);
-  };
-
-  const copyToClipboardTab = text => {
+  const copyToClipboard = text => {
     Clipboard.setString(text);
-    Alert.alert('Copied', 'URL copied to clipboard');
+    showToast({
+      type: 'success',
+      title: 'Copied',
+      message: 'URL copied to clipboard',
+    });
   };
 
   const filteredClients = clients.filter(
@@ -250,38 +373,14 @@ export default function ClientManagementPage() {
         : true),
   );
 
-  const onFormSubmit = clientData => {
-    if (selectedClient) {
-      setClients(
-        clients.map(c =>
-          c._id === selectedClient._id ? { ...c, ...clientData } : c,
-        ),
-      );
-    } else {
-      const newClient = {
-        _id: Date.now().toString(),
-        ...clientData,
-        slug: clientData.contactName.toLowerCase().replace(/\s+/g, '-'),
-        maxCompanies: 5,
-        maxUsers: 10,
-        maxInventories: 50,
-        canSendInvoiceEmail: false,
-        canSendInvoiceWhatsapp: false,
-        canCreateUsers: true,
-        canCreateCustomers: true,
-        canCreateVendors: true,
-        canCreateProducts: true,
-        canCreateCompanies: false,
-        canUpdateCompanies: false,
-      };
-      setClients([...clients, newClient]);
-    }
+  const onFormSubmit = () => {
     setIsDialogOpen(false);
+    fetchClients(); // Refresh the list
   };
 
-  const copyToClipboard = text => {
-    Clipboard.setString(text);
-    Alert.alert('Copied', 'URL copied to clipboard');
+  const handleClearFilters = () => {
+    setContactNameFilter('');
+    setUsernameFilter('');
   };
 
   if (isLoading)
@@ -302,21 +401,19 @@ export default function ClientManagementPage() {
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>Client Management</Text>
               <Text style={styles.subtitle}>Manage your clients</Text>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity
-                style={[styles.addButton, { marginLeft: 12 }]}
-                onPress={handleAddNew}
-              >
-                <PlusCircle size={20} color="#FFF" />
-                <Text style={styles.addButtonText}>Add Client</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity style={styles.addButton} onPress={handleAddNew}>
+              <PlusCircle size={20} color="#FFF" />
+              <Text style={styles.addButtonText}>Add Client</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Filters */}
@@ -326,13 +423,11 @@ export default function ClientManagementPage() {
               placeholder="Filter by name"
               value={contactNameFilter}
               onChangeText={setContactNameFilter}
-              keyboardType="visible-password"
             />
             <TextInput
               style={[styles.textInput, { flex: 1, marginLeft: 10 }]}
               placeholder="Filter by username"
               value={usernameFilter}
-              keyboardType="visible-password"
               onChangeText={setUsernameFilter}
             />
             <TouchableOpacity
@@ -341,15 +436,13 @@ export default function ClientManagementPage() {
                 styles.cancelButton,
                 { marginLeft: 10 },
               ]}
-              onPress={() => {
-                setContactNameFilter('');
-                setUsernameFilter('');
-              }}
+              onPress={handleClearFilters}
             >
               <Text style={styles.cancelButtonText}>Clear</Text>
             </TouchableOpacity>
           </View>
 
+          {/* Only Card View - No Toggle */}
           <View style={styles.clientsGrid}>
             {filteredClients.map(client => (
               <ClientCard
@@ -357,24 +450,26 @@ export default function ClientManagementPage() {
                 client={client}
                 onEdit={() => handleEdit(client)}
                 onDelete={() => handleDelete(client)}
-                onResetPassword={() => handleResetPasswordTab(client)}
-                onManagePermissions={() => handleManagePermissionsTab(client)}
-                copyToClipboard={copyToClipboardTab}
+                onResetPassword={() => handleResetPassword(client)}
+                onManagePermissions={() => handleManagePermissions(client)}
+                copyToClipboard={copyToClipboard}
                 getAppLoginUrl={getAppLoginUrl}
+                getApiLoginUrl={(slug) => getApiLoginUrl(slug, BASE_URL)}
               />
             ))}
-            {filteredClients.length === 0 && (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>No clients found</Text>
-                <Text style={styles.emptyStateSubtext}>
-                  Add your first client to get started
-                </Text>
-              </View>
-            )}
           </View>
+
+          {filteredClients.length === 0 && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No clients found</Text>
+              <Text style={styles.emptyStateSubtext}>
+                {clients.length === 0 ? 'Add your first client to get started' : 'Try changing your filters'}
+              </Text>
+            </View>
+          )}
         </ScrollView>
 
-        {/* Add/Edit Modal with Tabs */}
+        {/* Add/Edit Modal */}
         <Modal
           visible={isDialogOpen}
           transparent
@@ -385,330 +480,32 @@ export default function ClientManagementPage() {
             <StatusBar backgroundColor="rgba(0,0,0,0.5)" />
             <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
-                {/* Header */}
-                <Text style={styles.modalTitle}>
-                  {selectedClient ? 'Edit Client' : 'Add New Client'}
-                </Text>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>
+                    {selectedClient ? 'Edit Client' : 'Add New Client'}
+                  </Text>
+                  <TouchableOpacity onPress={() => setIsDialogOpen(false)}>
+                    <X size={24} color="#666" />
+                  </TouchableOpacity>
+                </View>
                 <Text style={styles.modalText}>
                   {selectedClient
                     ? `Update the details for ${selectedClient.contactName}.`
                     : 'Fill in the form below to add a new client.'}
                 </Text>
 
-                {/* Tabs (only in edit) */}
-                {selectedClient && (
-                  <View style={styles.tabsRow}>
-                    {['general', 'permissions', 'validity', 'password'].map(
-                      tab => (
-                        <TouchableOpacity
-                          key={tab}
-                          onPress={() => setActiveTab(tab)}
-                          style={[
-                            styles.tabBtn,
-                            activeTab === tab && styles.tabBtnActive,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.tabText,
-                              activeTab === tab && styles.tabTextActive,
-                            ]}
-                          >
-                            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                          </Text>
-                        </TouchableOpacity>
-                      ),
-                    )}
-                  </View>
-                )}
-
-                {/* BODY: scrollable + keyboard avoiding */}
                 <ScrollView
-                  style={{ flexGrow: 0, maxHeight: 380 }}
+                  style={{ flexGrow: 0, maxHeight: 500 }}
                   contentContainerStyle={{ paddingBottom: 16 }}
                   keyboardShouldPersistTaps="handled"
                 >
-                  {(!selectedClient || activeTab === 'general') && (
-                    <ClientForm
-                      client={selectedClient}
-                      onSubmit={onFormSubmit}
-                      onCancel={() => setIsDialogOpen(false)}
-                      hideAdvanced={false}
-                    />
-                  )}
-
-                  {selectedClient && activeTab === 'permissions' && (
-                    <View>
-                      <Text style={styles.sectionTitle}>
-                        Manage Permissions
-                      </Text>
-                      <Text style={styles.modalText}>
-                        Modify usage limits and feature access for this client.
-                      </Text>
-
-                      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
-                        Feature Permissions
-                      </Text>
-                      {[
-                        {
-                          key: 'canCreateUsers',
-                          label: 'Create Users',
-                          icon: Users,
-                        },
-                        {
-                          key: 'canCreateCustomers',
-                          label: 'Create Customers',
-                          icon: Contact,
-                        },
-                        {
-                          key: 'canCreateVendors',
-                          label: 'Create Vendors',
-                          icon: Store,
-                        },
-                        {
-                          key: 'canCreateProducts',
-                          label: 'Create Products',
-                          icon: Package,
-                        },
-                        {
-                          key: 'canSendInvoiceEmail',
-                          label: 'Send Invoice via Email',
-                          icon: Send,
-                        },
-                        {
-                          key: 'canSendInvoiceWhatsapp',
-                          label: 'Send Invoice via WhatsApp',
-                          icon: MessageSquare,
-                        },
-                        {
-                          key: 'canCreateCompanies',
-                          label: 'Create Companies',
-                          icon: Building,
-                        },
-                        {
-                          key: 'canUpdateCompanies',
-                          label: 'Update Companies',
-                          icon: Users,
-                        },
-                      ].map(({ key, label, icon: Icon }) => (
-                        <View key={key} style={styles.permissionItem}>
-                          <View style={styles.permissionLabel}>
-                            <Icon size={20} color="#666" />
-                            <Text style={styles.permissionText}>{label}</Text>
-                          </View>
-                          <Switch
-                            value={Boolean(currentPermissions[key])}
-                            onValueChange={v => handlePermissionChange(key, v)}
-                          />
-                        </View>
-                      ))}
-
-                      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
-                        Usage Limits
-                      </Text>
-                      {[
-                        {
-                          key: 'maxCompanies',
-                          label: 'Max Companies',
-                          icon: Building,
-                        },
-                        { key: 'maxUsers', label: 'Max Users', icon: Users },
-                        {
-                          key: 'maxInventories',
-                          label: 'Max Inventories',
-                          icon: Package,
-                        },
-                      ].map(({ key, label, icon: Icon }) => (
-                        <View key={key} style={styles.limitItem}>
-                          <View style={styles.limitLabel}>
-                            <Icon size={20} color="#666" />
-                            <Text style={styles.limitText}>{label}</Text>
-                          </View>
-                          <TextInput
-                            style={styles.numberInput}
-                            keyboardType="visible-password"
-                            value={String(currentPermissions[key] || 0)}
-                            onChangeText={t =>
-                              handlePermissionChange(
-                                key,
-                                Math.max(parseInt(t) || 0, 0),
-                              )
-                            }
-                          />
-                        </View>
-                      ))}
-
-                      {/* Footer with only Save button */}
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          justifyContent: 'flex-end',
-                          marginTop: 20,
-                          gap: 10,
-                        }}
-                      >
-                        <TouchableOpacity
-                          style={[styles.modalButton, styles.primaryButton]}
-                          onPress={handleSavePermissions}
-                        >
-                          {isSavingPermissions ? (
-                            <ActivityIndicator color="#FFF" />
-                          ) : (
-                            <Text style={styles.primaryButtonText}>
-                              Save Changes
-                            </Text>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
-
-                  {selectedClient && activeTab === 'validity' && (
-                    <View>
-                      <Text style={styles.sectionTitle}>Account Validity</Text>
-                      <View style={styles.validityCard}>
-                        <Text style={styles.validityStatus}>Active</Text>
-                        <Text style={styles.validityRow}>
-                          Expires On:{' '}
-                          {new Date(
-                            Date.now() + 1000 * 60 * 60 * 24 * 50,
-                          ).toLocaleString()}
-                        </Text>
-                        <Text style={styles.validityRow}>Days Left: 50</Text>
-                        <View style={[styles.permissionItem, { marginTop: 8 }]}>
-                          <Text style={styles.permissionText}>
-                            Account Enabled
-                          </Text>
-                          <Switch value={true} onValueChange={() => {}} />
-                        </View>
-                      </View>
-
-                      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
-                        Extend Validity
-                      </Text>
-                      <View style={{ flexDirection: 'row' }}>
-                        <TextInput
-                          style={[styles.textInput, { flex: 1 }]}
-                          placeholder="Duration"
-                          defaultValue="30"
-                          keyboardType="visible-password"
-                        />
-                        <TextInput
-                          style={[
-                            styles.textInput,
-                            { flex: 1, marginLeft: 10 },
-                          ]}
-                          placeholder="Unit (days/months/years)"
-                          defaultValue="days"
-                          keyboardType="visible-password"
-                        />
-                      </View>
-                      <TouchableOpacity
-                        style={[
-                          styles.modalButton,
-                          styles.primaryButton,
-                          { marginTop: 10 },
-                        ]}
-                        onPress={() => {
-                          console.log('Validity extended');
-                        }}
-                      >
-                        <Text style={styles.primaryButtonText}>Extend</Text>
-                      </TouchableOpacity>
-
-                      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
-                        Set Exact Expiry
-                      </Text>
-                      <TextInput
-                        style={styles.textInput}
-                        placeholder="mm/dd/yyyy"
-                        keyboardType="visible-password"
-                      />
-                      <TouchableOpacity
-                        style={[
-                          styles.modalButton,
-                          styles.primaryButton,
-                          { marginTop: 10 },
-                        ]}
-                        onPress={() => {
-                          console.log('Exact expiry set');
-                        }}
-                      >
-                        <Text style={styles.primaryButtonText}>
-                          Save Exact Date
-                        </Text>
-                      </TouchableOpacity>
-
-                      {/* Footer with Cancel and Save buttons */}
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          justifyContent: 'flex-end',
-                          marginTop: 20,
-                          gap: 10,
-                        }}
-                      >
-                        <TouchableOpacity
-                          style={[styles.modalButton, styles.cancelButton]}
-                          onPress={() => setIsDialogOpen(false)}
-                        >
-                          <Text style={styles.cancelButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={[styles.modalButton, styles.primaryButton]}
-                          onPress={() => {
-                            console.log('Validity changes saved');
-                            setIsDialogOpen(false);
-                          }}
-                        >
-                          <Text style={styles.primaryButtonText}>
-                            Save Changes
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
-
-                  {selectedClient && activeTab === 'password' && (
-                    <View>
-                      <Text style={styles.sectionTitle}>Reset Password</Text>
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          marginBottom: 20,
-                        }}
-                      >
-                        <TextInput
-                          style={[styles.textInput, { flex: 1 }]}
-                          secureTextEntry={!eyeOpen}
-                          placeholder="New password"
-                          value={newPassword}
-                          onChangeText={setNewPassword}
-                          keyboardType="visible-password"
-                        />
-                        <TouchableOpacity
-                          onPress={() => setEyeOpen(!eyeOpen)}
-                          style={{ marginLeft: 10 }}
-                        >
-                          {eyeOpen ? <EyeOff size={20} /> : <Eye size={20} />}
-                        </TouchableOpacity>
-                      </View>
-                      <TouchableOpacity
-                        style={[styles.modalButton, styles.primaryButton]}
-                        onPress={confirmResetPassword}
-                      >
-                        {isSubmittingPassword ? (
-                          <ActivityIndicator color="#FFF" />
-                        ) : (
-                          <Text style={styles.primaryButtonText}>
-                            Reset Password
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  )}
+                  <ClientForm
+                    client={selectedClient}
+                    onSubmit={onFormSubmit}
+                    onCancel={() => setIsDialogOpen(false)}
+                    hideAdvanced={false}
+                    baseURL={BASE_URL}
+                  />
                 </ScrollView>
               </View>
             </View>
@@ -730,9 +527,7 @@ export default function ClientManagementPage() {
                 <Text style={styles.modalText}>
                   Are you sure you want to delete {clientToDelete?.contactName}?
                 </Text>
-                <View
-                  style={{ flexDirection: 'row', justifyContent: 'flex-end' }}
-                >
+                <View style={styles.modalFooter}>
                   <TouchableOpacity
                     style={[styles.modalButton, styles.cancelButton]}
                     onPress={() => setIsAlertOpen(false)}
@@ -764,22 +559,15 @@ export default function ClientManagementPage() {
               <View style={styles.modalContent}>
                 <Text style={styles.modalTitle}>Reset Password</Text>
                 <Text style={styles.modalText}>
-                  Enter new password for {clientForPermissions?.contactName}
+                  Enter new password for {clientToResetPassword?.contactName}
                 </Text>
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    marginBottom: 20,
-                  }}
-                >
+                <View style={styles.passwordInputContainer}>
                   <TextInput
                     style={[styles.textInput, { flex: 1 }]}
                     secureTextEntry={!eyeOpen}
                     placeholder="New password"
                     value={newPassword}
                     onChangeText={setNewPassword}
-                    keyboardType="visible-password"
                   />
                   <TouchableOpacity
                     onPress={() => setEyeOpen(!eyeOpen)}
@@ -788,9 +576,7 @@ export default function ClientManagementPage() {
                     {eyeOpen ? <EyeOff size={20} /> : <Eye size={20} />}
                   </TouchableOpacity>
                 </View>
-                <View
-                  style={{ flexDirection: 'row', justifyContent: 'flex-end' }}
-                >
+                <View style={styles.modalFooter}>
                   <TouchableOpacity
                     style={[styles.modalButton, styles.cancelButton]}
                     onPress={() => setIsResetPasswordDialogOpen(false)}
@@ -904,7 +690,7 @@ export default function ClientManagementPage() {
                       </View>
                       <TextInput
                         style={styles.numberInput}
-                        keyboardType="visible-password"
+                        keyboardType="numeric"
                         value={String(currentPermissions[key] || 0)}
                         onChangeText={t =>
                           handlePermissionChange(
@@ -915,7 +701,7 @@ export default function ClientManagementPage() {
                       />
                     </View>
                   ))}
-                  <View style={{ height: 80 }} /> {/* Padding for footer */}
+                  <View style={{ height: 80 }} />
                 </ScrollView>
 
                 <View style={styles.permissionsFooter}>
@@ -1012,27 +798,36 @@ const styles = StyleSheet.create({
 
   clientsGrid: {
     padding: 16,
+    gap: 16,
   },
+
   filtersRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
 
   emptyState: {
     alignItems: 'center',
     padding: 40,
+    marginTop: 20,
   },
   emptyStateText: {
     fontSize: 18,
     color: '#666',
     marginBottom: 8,
+    fontWeight: '600',
   },
   emptyStateSubtext: {
     fontSize: 14,
     color: '#999',
     textAlign: 'center',
+    lineHeight: 20,
   },
 
   modalSafeArea: {
@@ -1053,16 +848,32 @@ const styles = StyleSheet.create({
     width: '95%',
     maxWidth: 480,
     maxHeight: '90%',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
+  
+  // Modal Header
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 8,
+    color: '#000',
   },
   modalText: {
     fontSize: 14,
     color: '#666',
     marginBottom: 20,
+    lineHeight: 20,
   },
 
   modalButton: {
@@ -1102,6 +913,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     padding: 12,
     fontSize: 16,
+    backgroundColor: '#FFF',
   },
 
   sectionTitle: {
@@ -1109,6 +921,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 12,
     color: '#000',
+    marginTop: 8,
   },
 
   permissionItem: {
@@ -1116,16 +929,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginVertical: 8,
+    paddingVertical: 8,
   },
   permissionLabel: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
   },
   permissionText: {
     fontSize: 14,
     color: '#333',
     marginLeft: 8,
+    flex: 1,
   },
 
   limitItem: {
@@ -1133,16 +949,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginVertical: 8,
+    paddingVertical: 8,
   },
   limitLabel: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
   },
   limitText: {
     fontSize: 14,
     color: '#333',
     marginLeft: 8,
+    flex: 1,
   },
 
   numberInput: {
@@ -1153,49 +972,25 @@ const styles = StyleSheet.create({
     width: 80,
     textAlign: 'center',
     fontSize: 14,
+    backgroundColor: '#FFF',
   },
 
-  validityCard: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 8,
-    padding: 16,
-    marginVertical: 12,
-  },
-  validityStatus: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#16a34a',
-    marginBottom: 6,
-  },
-  validityRow: {
-    fontSize: 14,
-    color: '#333',
-    marginVertical: 2,
-  },
-
-  tabsRow: {
+  // Password Input Container
+  passwordInputContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  tabBtn: {
-    flex: 1,
     alignItems: 'center',
-    paddingVertical: 10,
+    marginBottom: 20,
   },
-  tabBtnActive: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#007AFF',
-  },
-  tabText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  tabTextActive: {
-    color: '#007AFF',
-    fontWeight: '600',
+
+  // Modal Footer
+  modalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 20,
+    gap: 10,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
   },
 
   permissionsModal: {
@@ -1205,6 +1000,11 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     maxHeight: '90%',
     overflow: 'hidden',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   permissionsHeader: {
     flexDirection: 'row',
@@ -1214,19 +1014,22 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
+    backgroundColor: '#fafafa',
   },
   permissionsTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#000',
+    flex: 1,
   },
   permissionsFooter: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderTopWidth: 1,
     borderTopColor: '#eee',
     backgroundColor: '#fafafa',
+    gap: 10,
   },
 });

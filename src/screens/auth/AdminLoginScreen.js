@@ -45,85 +45,72 @@ export default function AdminLoginScreen({ navigation }) {
     // checkSession();
   }, []);
 
-  const handleLogin = async () => {
-    setUsernameError('');
-    setPasswordError('');
-    let hasValidationError = false;
+ const handleLogin = async () => {
+  setUsernameError('');
+  setPasswordError('');
+  let hasValidationError = false;
 
-    if (!username.trim()) {
-      setUsernameError('Username field cannot be empty.');
-      hasValidationError = true;
-    }
+  if (!username.trim()) {
+    setUsernameError('Username field cannot be empty.');
+    hasValidationError = true;
+  }
 
-    if (!password.trim()) {
-      setPasswordError('Password field cannot be empty.');
-      hasValidationError = true;
-    }
+  if (!password.trim()) {
+    setPasswordError('Password field cannot be empty.');
+    hasValidationError = true;
+  }
 
-    if (hasValidationError) return;
+  if (hasValidationError) return;
 
-    setLoading(true);
+  setLoading(true);
 
-    try {
-      const user = await loginMasterAdmin(username, password);
-      if (!user?.token) throw new Error('Invalid username or password');
+  try {
+    const user = await loginMasterAdmin(username, password);
+    if (!user?.token) throw new Error('Invalid username or password');
 
-      // Save session
-      await saveSession(user.token, {
-        role: user.role ?? 'master',
-        username: user.username,
-        name: user.name,
-        email: user.email,
-      });
+    // Save session (async but fast)
+    await saveSession(user.token, {
+      role: user.role ?? 'master',
+      username: user.username,
+      name: user.name,
+      email: user.email,
+    });
 
-      // Schedule auto logout
-      scheduleAutoLogout(user.token, async () => {
-        await clearSession();
-        navigation.replace('AdminLoginScreen');
-        Toast.show({
-          type: 'info',
-          text1: 'Session expired',
-          text2: 'Please log in again',
-          position: 'top',
-        });
-      });
-
-      // Show success toast first
+    // Schedule auto logout (non-blocking)
+    scheduleAutoLogout(user.token, async () => {
+      await clearSession();
+      navigation.replace('AdminLoginScreen');
       Toast.show({
-        type: 'success',
-        text1: 'Login Successful ',
-        text2: `Welcome back, ${user.username}!`,
+        type: 'info',
+        text1: 'Session expired',
+        text2: 'Please log in again',
         position: 'top',
-        visibilityTime: 1000,
       });
+    });
 
-      // Delay navigation by .5 seconds
-      setTimeout(() => {
-        navigateByRole(navigation, user.role ?? 'master');
-      }, 500);
-    } catch (err) {
-      setLoading(false); // Move this here for immediate feedback
+    // 🚀 Instantly navigate without toast or delay
+    navigateByRole(navigation, user.role ?? 'master');
+  } catch (err) {
+    setLoading(false);
 
-      let errorMessage = 'Invalid username or password';
-
-      // Extract meaningful error from response
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.message && err.message !== 'Network Error') {
-        errorMessage = err.message;
-      }
-
-      Toast.show({
-        type: 'error',
-        text1: 'Login Failed',
-        text2: errorMessage,
-        position: 'top',
-        visibilityTime: 1000,
-      });
-    } finally {
-      setLoading(false);
+    let errorMessage = 'Invalid username or password';
+    if (err.response?.data?.message) {
+      errorMessage = err.response.data.message;
+    } else if (err.message && err.message !== 'Network Error') {
+      errorMessage = err.message;
     }
-  };
+
+    Toast.show({
+      type: 'error',
+      text1: 'Login Failed',
+      text2: errorMessage,
+      position: 'top',
+      visibilityTime: 1000,
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <SafeAreaView style={styles.safeArea}>
