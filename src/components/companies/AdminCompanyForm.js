@@ -12,6 +12,7 @@ import {
   Modal,
   FlatList,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useForm, Controller } from 'react-hook-form';
@@ -373,6 +374,17 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
   const [logoPreview, setLogoPreview] = useState(company?.logo || null);
   const insets = useSafeAreaInsets();
 
+  // Responsive screen detection
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+  const isMobile = screenWidth < 768;
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
+
   // Location states
   const [countryCode, setCountryCode] = useState('IN');
   const [stateCode, setStateCode] = useState('');
@@ -659,8 +671,68 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
     setStep(step - 1);
   };
 
-  const renderStepIndicator = () => (
-    <View style={[styles.stepContainer, { paddingTop: insets.top }]}>
+  // Mobile Step Indicator with ScrollView
+  const renderMobileStepIndicator = () => (
+    <View style={styles.mobileStepContainer}>
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.mobileStepScrollContent}
+      >
+        {steps.map((stepItem, index) => (
+          <TouchableOpacity
+            key={stepItem.number}
+            style={[
+              styles.mobileStepItem,
+              step === stepItem.number && styles.mobileStepItemActive,
+              step > stepItem.number && styles.mobileStepItemCompleted,
+            ]}
+            onPress={() => {
+              if (stepItem.number < step) {
+                setStep(stepItem.number);
+              }
+            }}
+            disabled={stepItem.number > step}
+          >
+            <View
+              style={[
+                styles.mobileStepCircle,
+                step === stepItem.number && styles.mobileStepCircleActive,
+                step > stepItem.number && styles.mobileStepCircleCompleted,
+              ]}
+            >
+              {step > stepItem.number ? (
+                <Icon name="check" size={16} color="#fff" />
+              ) : (
+                <Text
+                  style={[
+                    styles.mobileStepNumber,
+                    step === stepItem.number && styles.mobileStepNumberActive,
+                  ]}
+                >
+                  {stepItem.number}
+                </Text>
+              )}
+            </View>
+            <Text
+              style={[
+                styles.mobileStepLabel,
+                step === stepItem.number && styles.mobileStepLabelActive,
+                step > stepItem.number && styles.mobileStepLabelCompleted,
+              ]}
+              numberOfLines={2}
+            >
+              {stepItem.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+
+  // Desktop Step Indicator
+  const renderDesktopStepIndicator = () => (
+    <View style={styles.stepContainer}>
       <View style={styles.stepContentWrapper}>
         {steps.map((stepItem, index) => (
           <View key={stepItem.number} style={styles.stepItem}>
@@ -671,7 +743,6 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
                 step > stepItem.number && styles.stepCircleCompleted,
               ]}
               onPress={() => {
-                // Allow navigation to previous steps only
                 if (stepItem.number < step) {
                   setStep(stepItem.number);
                 }
@@ -714,6 +785,10 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
       </View>
     </View>
   );
+
+  const renderStepIndicator = () => {
+    return isMobile ? renderMobileStepIndicator() : renderDesktopStepIndicator();
+  };
 
   const renderFormField = (name, props = {}) => (
     <Controller
@@ -777,6 +852,112 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
     />
   );
 
+  // Mobile Navigation Buttons
+  const renderMobileNavigation = () => (
+    <View style={[styles.mobileNavigationContainer, { paddingBottom: insets.bottom || 16 }]}>
+      <View style={styles.mobileButtonRow}>
+        {step > 1 ? (
+          <TouchableOpacity
+            style={[styles.mobileButton, styles.secondaryButton]}
+            onPress={handlePrevious}
+            disabled={isSubmitting}
+          >
+            <Icon name="chevron-left" size={20} color="#374151" />
+            <Text style={styles.secondaryButtonText}>Previous</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.flex1} />
+        )}
+
+        {step < 3 ? (
+          <TouchableOpacity
+            style={[styles.mobileButton, styles.primaryButton]}
+            onPress={handleNext}
+            disabled={isSubmitting}
+          >
+            <Text style={styles.primaryButtonText}>Next</Text>
+            <Icon name="chevron-right" size={20} color="#fff" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.mobileButton, styles.primaryButton]}
+            onPress={handleSubmit(onSubmit)}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Icon
+                  name={company ? 'content-save' : 'plus-circle'}
+                  size={20}
+                  color="#fff"
+                />
+                <Text style={styles.primaryButtonText}>
+                  {company ? 'Save' : 'Create'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+
+  // Desktop Navigation Buttons
+  const renderDesktopNavigation = () => (
+    <View style={styles.navigationContainer}>
+      <View style={styles.buttonRow}>
+        {step > 1 && (
+          <TouchableOpacity
+            style={[styles.button, styles.secondaryButton]}
+            onPress={handlePrevious}
+            disabled={isSubmitting}
+          >
+            <Icon name="chevron-left" size={20} color="#374151" />
+            <Text style={styles.secondaryButtonText}>Previous</Text>
+          </TouchableOpacity>
+        )}
+
+        {step < 3 ? (
+          <TouchableOpacity
+            style={[styles.button, styles.primaryButton, styles.nextButton]}
+            onPress={handleNext}
+            disabled={isSubmitting}
+          >
+            <Text style={styles.primaryButtonText}>Next</Text>
+            <Icon name="chevron-right" size={20} color="#fff" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.button, styles.primaryButton, styles.submitButton]}
+            onPress={handleSubmit(onSubmit)}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Icon
+                  name={company ? 'content-save' : 'plus-circle'}
+                  size={20}
+                  color="#fff"
+                />
+                <Text style={styles.primaryButtonText}>
+                  {company ? 'Save Changes' : 'Create Company'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+
+  const renderNavigationButtons = () => {
+    return isMobile ? renderMobileNavigation() : renderDesktopNavigation();
+  };
+
   return (
     <View style={styles.container}>
       {/* Step Indicator */}
@@ -786,7 +967,10 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
       <View style={styles.formContent}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            isMobile && styles.mobileScrollContent,
+          ]}
           showsVerticalScrollIndicator={true}
         >
           {/* Step 1: Company Basic Details */}
@@ -839,13 +1023,19 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
                 'Select business type',
               )}
 
-              {/* Basic Information Fields */}
-              <View style={styles.twoColumnLayout}>
+              {/* Responsive Layout */}
+              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
                 {renderFormField('businessName')}
-                {renderFormField('registrationNumber')}
+                {!isMobile && renderFormField('registrationNumber')}
               </View>
 
-              <View style={styles.twoColumnLayout}>
+              {isMobile && (
+                <View style={styles.singleColumnLayout}>
+                  {renderFormField('registrationNumber')}
+                </View>
+              )}
+
+              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
                 {renderFormField('Pincode', {
                   keyboardType: 'numeric',
                   maxLength: 6,
@@ -856,7 +1046,7 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
                 })}
               </View>
 
-              <View style={styles.twoColumnLayout}>
+              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
                 {renderFormField('mobileNumber', {
                   keyboardType: 'phone-pad',
                   maxLength: 10,
@@ -868,7 +1058,7 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
                 })}
               </View>
 
-              <View style={styles.twoColumnLayout}>
+              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
                 {renderFormField('Website', {
                   autoCapitalize: 'none',
                   autoCorrect: false,
@@ -892,7 +1082,7 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
               })}
 
               {/* Location Fields */}
-              <View style={styles.twoColumnLayout}>
+              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
                 <Controller
                   control={control}
                   name="Country"
@@ -964,7 +1154,7 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
           {/* Step 2: GST Registration Details */}
           {step === 2 && (
             <View style={styles.stepContent}>
-              <View style={styles.twoColumnLayout}>
+              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
                 {renderFormField('gstin', {
                   autoCapitalize: 'characters',
                   maxLength: 15,
@@ -972,12 +1162,12 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
                 {renderFormField('gstState')}
               </View>
 
-              <View style={styles.twoColumnLayout}>
+              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
                 {renderFormField('RegistrationType')}
                 {renderFormField('PeriodicityofGSTReturns')}
               </View>
 
-              <View style={styles.twoColumnLayout}>
+              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
                 {renderFormField('GSTUsername', {
                   autoCapitalize: 'none',
                 })}
@@ -996,7 +1186,7 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
                 'Select Yes or No',
               )}
 
-              <View style={styles.twoColumnLayout}>
+              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
                 {renderFormField('EWBBillUsername', {
                   autoCapitalize: 'none',
                 })}
@@ -1011,7 +1201,7 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
           {/* Step 3: Company TDS Details */}
           {step === 3 && (
             <View style={styles.stepContent}>
-              <View style={styles.twoColumnLayout}>
+              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
                 {renderFormField('TANNumber', {
                   autoCapitalize: 'characters',
                 })}
@@ -1020,7 +1210,7 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
 
               {renderFormField('DeductorType')}
 
-              <View style={styles.twoColumnLayout}>
+              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
                 {renderFormField('TDSLoginUsername', {
                   autoCapitalize: 'none',
                 })}
@@ -1035,52 +1225,7 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
       </View>
 
       {/* Navigation Buttons */}
-      <View style={[styles.navigationContainer]}>
-        <View style={styles.buttonRow}>
-          {step > 1 && (
-            <TouchableOpacity
-              style={[styles.button, styles.secondaryButton]}
-              onPress={handlePrevious}
-              disabled={isSubmitting}
-            >
-              <Icon name="chevron-left" size={20} color="#374151" />
-              <Text style={styles.secondaryButtonText}>Previous</Text>
-            </TouchableOpacity>
-          )}
-
-          {step < 3 ? (
-            <TouchableOpacity
-              style={[styles.button, styles.primaryButton, styles.nextButton]}
-              onPress={handleNext}
-              disabled={isSubmitting}
-            >
-              <Text style={styles.primaryButtonText}>Next</Text>
-              <Icon name="chevron-right" size={20} color="#fff" />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.button, styles.primaryButton, styles.submitButton]}
-              onPress={handleSubmit(onSubmit)}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <Icon
-                    name={company ? 'content-save' : 'plus-circle'}
-                    size={20}
-                    color="#fff"
-                  />
-                  <Text style={styles.primaryButtonText}>
-                    {company ? 'Save Changes' : 'Create Company'}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+      {renderNavigationButtons()}
     </View>
   );
 }
@@ -1090,25 +1235,99 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  
+  // Mobile Step Indicator Styles
+  mobileStepContainer: {
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    paddingVertical: 12,
+  },
+  mobileStepScrollContent: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  mobileStepItem: {
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    minWidth: 120,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+  },
+  mobileStepItemActive: {
+    backgroundColor: '#eef2ff',
+    borderColor: '#4f46e5',
+  },
+  mobileStepItemCompleted: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#10b981',
+  },
+  mobileStepCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    marginBottom: 6,
+  },
+  mobileStepCircleActive: {
+    borderColor: '#4f46e5',
+    backgroundColor: '#4f46e5',
+  },
+  mobileStepCircleCompleted: {
+    borderColor: '#10b981',
+    backgroundColor: '#10b981',
+  },
+  mobileStepNumber: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  mobileStepNumberActive: {
+    color: '#fff',
+  },
+  mobileStepLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  mobileStepLabelActive: {
+    color: '#4f46e5',
+    fontWeight: '600',
+  },
+  mobileStepLabelCompleted: {
+    color: '#10b981',
+  },
+
+  // Desktop Step Indicator Styles
   stepContainer: {
     backgroundColor: '#f8f9fa',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+    paddingVertical: 20,
   },
   stepContentWrapper: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
+    paddingHorizontal: 16,
   },
   stepItem: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   stepCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 2,
     borderColor: '#d1d5db',
     justifyContent: 'center',
@@ -1124,7 +1343,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#10b981',
   },
   stepNumber: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: '#6b7280',
   },
@@ -1132,12 +1351,11 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   stepLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#6b7280',
-    marginLeft: 8,
+    marginLeft: 12,
     marginRight: 16,
-    textAlign: 'center',
-    maxWidth: 80,
+    fontWeight: '500',
   },
   stepLabelActive: {
     color: '#4f46e5',
@@ -1150,7 +1368,7 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
   },
   stepConnector: {
-    width: 40,
+    width: 60,
     height: 2,
     backgroundColor: '#d1d5db',
     marginHorizontal: 8,
@@ -1158,6 +1376,8 @@ const styles = StyleSheet.create({
   stepConnectorActive: {
     backgroundColor: '#10b981',
   },
+
+  // Form Content
   formContent: {
     flex: 1,
     backgroundColor: '#fff',
@@ -1167,16 +1387,28 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    padding: 20,
+    paddingBottom: 100,
+  },
+  mobileScrollContent: {
     padding: 16,
-    paddingBottom: 20,
+    paddingBottom: 120,
   },
   stepContent: {
     gap: 16,
   },
+
+  // Responsive Layouts
+  singleColumnLayout: {
+    flexDirection: 'column',
+    gap: 16,
+  },
   twoColumnLayout: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 16,
   },
+
+  // Form Elements
   inputContainer: {
     flex: 1,
   },
@@ -1184,7 +1416,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#374151',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   input: {
     borderWidth: 1,
@@ -1207,6 +1439,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
+
+  // Dropdown Styles
   dropdownTrigger: {
     borderWidth: 1,
     borderColor: '#d1d5db',
@@ -1243,7 +1477,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    maxHeight: '60%',
+    maxHeight: '70%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1288,6 +1522,7 @@ const styles = StyleSheet.create({
   dropdownItemText: {
     fontSize: 16,
     color: '#374151',
+    flex: 1,
   },
   dropdownItemTextSelected: {
     color: '#4f46e5',
@@ -1301,9 +1536,10 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     fontSize: 16,
   },
+
+  // Logo Styles
   logoContainer: {
-    alignItems: 'center',
-    marginVertical: 16,
+    marginVertical: 8,
   },
   logoUploadButton: {
     borderWidth: 2,
@@ -1340,8 +1576,52 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+
+  // Navigation Buttons
+  // Mobile Navigation
+  mobileNavigationContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  mobileButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  mobileButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: 50,
+  },
+
+  // Desktop Navigation
   navigationContainer: {
-    padding: 16,
+    padding: 20,
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
@@ -1357,16 +1637,29 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 120,
+    minWidth: 140,
     flexDirection: 'row',
     gap: 8,
   },
+
+  // Button Styles
   primaryButton: {
     backgroundColor: '#4f46e5',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#4f46e5',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   secondaryButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
     borderColor: '#d1d5db',
   },
   nextButton: {
@@ -1384,5 +1677,10 @@ const styles = StyleSheet.create({
     color: '#374151',
     fontSize: 16,
     fontWeight: '600',
+  },
+
+  // Utility
+  flex1: {
+    flex: 1,
   },
 });
