@@ -38,7 +38,7 @@ const Badge = ({ children, variant = 'secondary', style }) => (
   </View>
 );
 
-const Button = ({
+const Button = ({ 
   children,
   onPress,
   variant = 'default',
@@ -209,7 +209,30 @@ export default function AdminCompaniesPage() {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [companyToDelete, setCompanyToDelete] = useState(null);
-  const [viewMode, setViewMode] = useState('list'); // 'card' or 'list'
+  const [viewMode, setViewMode] = useState('card'); // 'card' or 'list'
+  const [role, setRole] = useState(null);
+
+  // Check if user is master admin
+  // useEffect(() => {
+  //   const checkRole = async () => {
+  //     const userRole = await AsyncStorage.getItem('role');
+  //     setRole(userRole);
+  //   };
+  //   checkRole();
+  // }, []);
+
+  // if (role !== "masterAdmin") {
+  //   return (
+  //     <SafeAreaView style={styles.accessDeniedContainer}>
+  //       <View style={styles.accessDeniedContent}>
+  //         <Text style={styles.accessDeniedTitle}>Access Denied</Text>
+  //         <Text style={styles.accessDeniedDescription}>
+  //           You don't have permission to access this page. Only master admins can manage all companies.
+  //         </Text>
+  //       </View>
+  //     </SafeAreaView>
+  //   );
+  // }
 
   const fetchAllData = useCallback(async () => {
     try {
@@ -369,6 +392,36 @@ export default function AdminCompaniesPage() {
       </View>
 
       <View style={styles.headerActions}>
+        {/* View mode toggle - hidden on small screens if not needed */}
+        {/* <View style={styles.viewToggle}>
+          <TouchableOpacity
+            style={[
+              styles.viewToggleButton,
+              viewMode === 'card' && styles.viewToggleButtonActive
+            ]}
+            onPress={() => setViewMode('card')}
+          >
+            <Icon 
+              name="view-grid" 
+              size={16} 
+              color={viewMode === 'card' ? '#fff' : '#6b7280'} 
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.viewToggleButton,
+              viewMode === 'list' && styles.viewToggleButtonActive
+            ]}
+            onPress={() => setViewMode('list')}
+          >
+            <Icon 
+              name="view-list" 
+              size={16} 
+              color={viewMode === 'list' ? '#fff' : '#6b7280'} 
+            />
+          </TouchableOpacity>
+        </View> */}
+
         <Button onPress={handleAddNew} size="sm" icon="plus-circle">
           Create Company
         </Button>
@@ -483,6 +536,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6b7280',
   },
+  // Access Denied Styles
+  accessDeniedContainer: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  accessDeniedContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    minHeight: 400,
+  },
+  accessDeniedTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#6b7280',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  accessDeniedDescription: {
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
   content: {
     flex: 1,
   },
@@ -512,6 +590,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  // View Toggle Styles
+  viewToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    padding: 4,
+    gap: 4,
+  },
+  viewToggleButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  viewToggleButtonActive: {
+    backgroundColor: '#4f46e5',
   },
   cardGrid: {
     padding: 16,
