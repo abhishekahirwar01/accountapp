@@ -42,7 +42,7 @@ export default function AdminLoginScreen({ navigation }) {
 
       navigateByRole(navigation, user.role ?? 'master');
     };
-    // checkSession();
+    checkSession();
   }, []);
 
  const handleLogin = async () => {

@@ -3,64 +3,32 @@ import {
   View,
   Text,
   ScrollView,
-  StyleSheet,
   TouchableOpacity,
-  Dimensions,
+  StyleSheet,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { Building, Edit, Trash2 } from 'lucide-react-native';
 
-// Hardcoded company data
-const COMPANY_DATA = {
-  businessName: 'Tech Solutions Inc.',
-  businessType: 'Information Technology',
-  companyOwner: 'John Doe',
-  mobileNumber: '+1 (555) 123-4567',
-  registrationNumber: 'REG-2024-001',
-  gstin: 'GSTIN-123456789',
-  PANNumber: 'ABCDE1234F',
-  address: '123 Business Street',
-  City: 'New York',
-  addressState: 'NY',
-  Country: 'USA',
-  Pincode: '10001',
-  emailId: 'contact@techsolutions.com',
-  ewayBillApplicable: true,
-};
-
-const CompanyCard = ({
-  company = COMPANY_DATA,
-  clientName,
-  onEdit,
-  onDelete,
-}) => {
-  const TableRow = ({ label, value, isMonospace = false }) => (
-    <View style={styles.tableRow}>
-      <View style={styles.tableCell}>
-        <Text style={styles.labelText}>{label}</Text>
-      </View>
-      <View style={[styles.tableCell, styles.valueCell]}>
-        {isMonospace ? (
-          <View style={styles.monospaceContainer}>
-            <Text style={styles.monospaceText}>{value || 'N/A'}</Text>
-          </View>
-        ) : (
-          <Text style={styles.valueText}>{value || 'N/A'}</Text>
-        )}
-      </View>
+const CompanyCard = ({ company, clientName, onEdit, onDelete }) => {
+  const InfoRow = ({ label, value, isMono = false }) => (
+    <View style={styles.infoRow}>
+      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.value, isMono && styles.monoText]}>
+        {value || 'N/A'}
+      </Text>
     </View>
   );
 
   return (
     <View style={styles.card}>
       {/* Header */}
-      <View style={styles.cardHeader}>
+      <View style={styles.header}>
         <View style={styles.headerContent}>
           <View style={styles.iconContainer}>
-            <Icon name="office-building" size={24} color="#3b82f6" />
+            <Building size={24} color="#007AFF" />
           </View>
-          <View style={styles.headerText}>
-            <Text style={styles.cardTitle}>{company.businessName}</Text>
-            <Text style={styles.cardDescription}>{company.businessType}</Text>
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>{company.businessName}</Text>
+            <Text style={styles.subtitle}>{company.businessType}</Text>
             {clientName && (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>Client: {clientName}</Text>
@@ -71,54 +39,50 @@ const CompanyCard = ({
       </View>
 
       {/* Content */}
-      <ScrollView
-        style={styles.scrollArea}
-        showsVerticalScrollIndicator={true}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <View style={styles.table}>
-          <View style={styles.tableBody}>
-            <TableRow label="Owner" value={company.companyOwner} />
-            <TableRow label="Contact Number" value={company.mobileNumber} />
-            <TableRow
-              label="Registration No."
-              value={company.registrationNumber}
-              isMonospace
-            />
-            <TableRow label="GSTIN" value={company.gstin} isMonospace />
-            <TableRow
-              label="PAN Number"
-              value={company.PANNumber}
-              isMonospace
-            />
-            <TableRow
-              label="Address"
-              value={`${company.address}, ${company.City}, ${company.addressState}, ${company.Country} - ${company.Pincode}`}
-            />
-            <TableRow label="Email" value={company.emailId} />
-            <TableRow
-              label="E-Way Bill"
-              value={company.ewayBillApplicable ? 'Yes' : 'No'}
-            />
-          </View>
-        </View>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <InfoRow label="Owner" value={company.companyOwner} />
+        <InfoRow label="Contact Number" value={company.mobileNumber} />
+
+        <InfoRow
+          label="Registration No."
+          value={company.registrationNumber}
+          isMono={true}
+        />
+
+        <InfoRow label="GSTIN" value={company.gstin} isMono={true} />
+
+        <InfoRow label="PAN Number" value={company.PANNumber} isMono={true} />
+
+        <InfoRow
+          label="Address"
+          value={`${company.address}, ${company.City}, ${company.addressState}, ${company.Country} - ${company.Pincode}`}
+        />
+
+        <InfoRow label="Email" value={company.emailId} />
+
+        <InfoRow
+          label="E-Way Bill"
+          value={company.ewayBillApplicable ? 'Yes' : 'No'}
+        />
       </ScrollView>
 
       {/* Footer */}
-      <View style={styles.cardFooter}>
-        <View style={styles.footerActions}>
-          {onEdit && (
-            <TouchableOpacity style={styles.ghostButton} onPress={onEdit}>
-              <Icon
-                name="pencil"
-                size={16}
-                color="#3b82f6"
-                style={styles.buttonIcon}
-              />
-              <Text style={styles.ghostButtonText}>Edit</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+      <View style={styles.footer}>
+        {onEdit && (
+          <TouchableOpacity style={styles.button} onPress={onEdit}>
+            <Edit size={16} color="#007AFF" />
+            <Text style={styles.buttonText}>Edit</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Uncomment if needed
+        {onDelete && (
+          <TouchableOpacity style={styles.button} onPress={onDelete}>
+            <Trash2 size={16} color="#FF3B30" />
+            <Text style={[styles.buttonText, styles.deleteText]}>Delete</Text>
+          </TouchableOpacity>
+        )}
+        */}
       </View>
     </View>
   );
@@ -126,145 +90,112 @@ const CompanyCard = ({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: 'white',
-    borderRadius: 8,
-    margin: 0,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    margin: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
-    flexDirection: 'column',
-    maxHeight: Dimensions.get('window').height * 0.7, // reduced for better fit
-    overflow: 'hidden',
+    flex: 1,
   },
-  // Header
-  cardHeader: {
+  header: {
     padding: 16,
-    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
   },
   iconContainer: {
-    padding: 8,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    borderRadius: 6,
+    padding: 12,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    borderRadius: 8,
+    marginRight: 16,
   },
-  headerText: {
+  titleContainer: {
     flex: 1,
   },
-  cardTitle: {
-    fontSize: 16,
+  title: {
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#1a1a1a',
-    marginBottom: 2,
+    color: '#000000',
+    marginBottom: 4,
   },
-  cardDescription: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginBottom: 6,
+  subtitle: {
+    fontSize: 14,
+    color: '#666666',
+    marginBottom: 8,
   },
   badge: {
     alignSelf: 'flex-start',
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   badgeText: {
-    fontSize: 10,
-    color: '#6b7280',
-    fontWeight: '500',
+    fontSize: 12,
+    color: '#666666',
   },
-  // Content
-  cardContent: {
-    paddingHorizontal: 0,
+  content: {
+    flex: 1,
+    maxHeight: 300,
   },
-  scrollArea: {
-    paddingHorizontal: 0,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 12,
-  },
-  table: {
-    width: '100%',
-  },
-  tableBody: {
-    width: '100%',
-  },
-  tableRow: {
+  infoRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-    minHeight: 44,
-    alignItems: 'center',
+    borderBottomColor: '#F5F5F5',
   },
-  tableCell: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    justifyContent: 'center',
-  },
-  valueCell: {
-    flex: 1,
-  },
-  labelText: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontWeight: '600',
-    width: 100,
-  },
-  valueText: {
-    fontSize: 12,
-    color: '#1a1a1a',
-    flexWrap: 'wrap',
-    flex: 1,
-  },
-  monospaceContainer: {
-    backgroundColor: '#f8fafc',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 3,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    alignSelf: 'flex-start',
-  },
-  monospaceText: {
-    fontFamily: 'monospace',
-    fontSize: 12,
-    color: '#1a1a1a',
+  label: {
+    fontSize: 14,
+    color: '#666666',
     fontWeight: '500',
+    flex: 1,
   },
-  // Footer
-  cardFooter: {
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    padding: 8,
+  value: {
+    fontSize: 14,
+    color: '#000000',
+    flex: 2,
+    textAlign: 'right',
   },
-  footerActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: 4,
-  },
-  ghostButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
+  monoText: {
+    fontFamily: 'monospace',
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
   },
-  buttonIcon: {
-    marginRight: 6,
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    padding: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
   },
-  ghostButtonText: {
-    color: '#3b82f6',
-    fontSize: 12,
-    fontWeight: '500',
+  button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  buttonText: {
+    fontSize: 14,
+    color: '#007AFF',
+    marginLeft: 4,
+  },
+  deleteText: {
+    color: '#FF3B30',
   },
 });
 
