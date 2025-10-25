@@ -347,7 +347,7 @@ export default function AdminCompaniesPage() {
         keyExtractor={item => item._id}
         contentContainerStyle={[
           companies.length === 0 ? styles.emptyListContent : styles.listContent,
-          { paddingTop: HEADER_HEIGHT + 60 },
+          { paddingTop: HEADER_HEIGHT },
         ]}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -425,12 +425,12 @@ const styles = StyleSheet.create({
   },
   headerContent: { flex: 1 },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#1f2937',
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  subtitle: { fontSize: 16, color: '#6b7280' },
+  subtitle: { fontSize: 14, color: '#6b7280' },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
 
   emptyListContent: { flexGrow: 1, justifyContent: 'center' },
@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 8,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 12,
   },
   buttonDefault: { backgroundColor: '#4f46e5' },
   buttonOutline: {
