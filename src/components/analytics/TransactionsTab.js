@@ -41,64 +41,91 @@ const idOf = v => {
   return v?._id || v?.$oid || v?.id || '';
 };
 
+// Simple cache implementation
+const apiCache = new Map();
+const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
+
+const getCachedData = (key) => {
+  const cached = apiCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.data;
+  }
+  return null;
+};
+
+const setCachedData = (key, data) => {
+  apiCache.set(key, {
+    data,
+    timestamp: Date.now()
+  });
+};
+
 export default function TransactionsTab({
   selectedClient,
   selectedCompanyId,
   companyMap,
 }) {
-  // State management
-  const [sales, setSales] = useState([]);
-  const [purchases, setPurchases] = useState([]);
-  const [receipts, setReceipts] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [journals, setJournals] = useState([]);
-  const [productsList, setProductsList] = useState([]);
-  const [servicesList, setServicesList] = useState([]);
+  // Consolidated state management
+  const [data, setData] = useState({
+    sales: [],
+    purchases: [],
+    receipts: [],
+    payments: [],
+    journals: [],
+    products: [],
+    services: []
+  });
+
+  const [loadingStates, setLoadingStates] = useState({
+    essential: false,
+    sales: false,
+    purchases: false,
+    receipts: false,
+    payments: false,
+    journals: false
+  });
+
+  const [progress, setProgress] = useState(0);
   const [selectedTab, setSelectedTab] = useState('all');
   const [isItemsModalOpen, setIsItemsModalOpen] = useState(false);
   const [itemsToView, setItemsToView] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [invNoByTxId, setInvNoByTxId] = useState({});
 
   // Refs for memory leak prevention
   const isMountedRef = useRef(true);
-  const abortControllerRef = useRef(null);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
     };
   }, []);
 
   // Memoized data processing with safety checks
   const productNameById = useMemo(() => {
     const m = new Map();
-    if (!productsList || !Array.isArray(productsList)) return m;
+    if (!data.products || !Array.isArray(data.products)) return m;
 
-    for (const p of productsList) {
+    for (const p of data.products) {
       if (p && p._id) {
         m.set(String(p._id), p.name || '(unnamed product)');
       }
     }
     return m;
-  }, [productsList]);
+  }, [data.products]);
 
   const serviceNameById = useMemo(() => {
     const m = new Map();
-    if (!servicesList || !Array.isArray(servicesList)) return m;
+    if (!data.services || !Array.isArray(data.services)) return m;
 
-    for (const s of servicesList) {
+    for (const s of data.services) {
       if (s && s._id) {
         m.set(String(s._id), s.serviceName || '(unnamed service)');
       }
     }
     return m;
-  }, [servicesList]);
+  }, [data.services]);
 
   // Safe response parsing
   const parseResponse = useCallback((data, possibleArrayKeys = []) => {
@@ -121,231 +148,146 @@ export default function TransactionsTab({
     return [];
   }, []);
 
-  // API fetch function with crash protection
-  const fetchTransactions = useCallback(async () => {
-    if (!selectedClient?._id || !isMountedRef.current) return;
-
-    // Abort previous request if any
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+  // Optimized API call function
+  const fetchWithCache = useCallback(async (url, label) => {
+    const cacheKey = `${url}-${selectedClient?._id}-${selectedCompanyId}`;
+    const cached = getCachedData(cacheKey);
+    
+    if (cached) {
+      console.log(`Using cached data for ${label}`);
+      return cached;
     }
 
-    abortControllerRef.current = new AbortController();
-    const signal = abortControllerRef.current.signal;
+    const token = await AsyncStorage.getItem('token');
+    if (!token) throw new Error('Authentication token not found.');
 
-    setIsLoading(true);
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      const txt = await response.text().catch(() => '');
+      throw new Error(`${label} API ${response.status} ${response.statusText} – ${txt}`);
+    }
+
+    const result = await response.json();
+    setCachedData(cacheKey, result);
+    
+    return result;
+  }, [selectedClient?._id, selectedCompanyId]);
+
+  // Sequential data loading with progress
+  const loadEssentialData = useCallback(async () => {
+    if (!selectedClient?._id || !isMountedRef.current) return;
+
+    setLoadingStates(prev => ({ ...prev, essential: true }));
+    setProgress(0);
+
     try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('Authentication token not found.');
-
-      const auth = {
-        headers: { Authorization: `Bearer ${token}` },
-        signal,
-      };
-
       const byCompany = !!selectedCompanyId;
+      const baseParams = byCompany ? `?companyId=${selectedCompanyId}` : `/by-client/${selectedClient._id}`;
 
-      // Update API URLs to include company context
-      const productsUrl = selectedCompanyId
-        ? `${BASE_URL}/api/products?companyId=${selectedCompanyId}`
-        : `${BASE_URL}/api/products`;
-
-      const servicesUrl = selectedCompanyId
-        ? `${BASE_URL}/api/services?companyId=${selectedCompanyId}`
-        : `${BASE_URL}/api/services`;
-
-      const [
-        salesRes,
-        purchasesRes,
-        receiptsRes,
-        paymentsRes,
-        journalsRes,
-        productsRes,
-        servicesRes,
-      ] = await Promise.all([
-        fetch(
-          byCompany
-            ? `${BASE_URL}/api/sales?companyId=${selectedCompanyId}`
-            : `${BASE_URL}/api/sales/by-client/${selectedClient._id}`,
-          auth,
+      // Stage 1: Load products and services first (essential for item processing)
+      const [productsData, servicesData] = await Promise.all([
+        fetchWithCache(
+          `${BASE_URL}/api/products${byCompany ? `?companyId=${selectedCompanyId}` : ''}`,
+          'Products'
         ),
-        fetch(
-          byCompany
-            ? `${BASE_URL}/api/purchase?companyId=${selectedCompanyId}`
-            : `${BASE_URL}/api/purchase/by-client/${selectedClient._id}`,
-          auth,
-        ),
-        fetch(
-          byCompany
-            ? `${BASE_URL}/api/receipts?companyId=${selectedCompanyId}`
-            : `${BASE_URL}/api/receipts/by-client/${selectedClient._id}`,
-          auth,
-        ),
-        fetch(
-          byCompany
-            ? `${BASE_URL}/api/payments?companyId=${selectedCompanyId}`
-            : `${BASE_URL}/api/payments/by-client/${selectedClient._id}`,
-          auth,
-        ),
-        fetch(
-          byCompany
-            ? `${BASE_URL}/api/journals?companyId=${selectedCompanyId}`
-            : `${BASE_URL}/api/journals/by-client/${selectedClient._id}`,
-          auth,
-        ),
-        fetch(productsUrl, auth),
-        fetch(servicesUrl, auth),
+        fetchWithCache(
+          `${BASE_URL}/api/services${byCompany ? `?companyId=${selectedCompanyId}` : ''}`,
+          'Services'
+        )
       ]);
 
-      // Check if component is still mounted
       if (!isMountedRef.current) return;
 
-      // Check response statuses
-      const mustOk = async (res, label) => {
-        if (!res.ok) {
-          const txt = await res.text().catch(() => '');
-          throw new Error(
-            `${label} API ${res.status} ${res.statusText} – ${txt}`,
-          );
-        }
-      };
-
-      await Promise.all([
-        mustOk(salesRes, 'Sales'),
-        mustOk(purchasesRes, 'Purchases'),
-        mustOk(receiptsRes, 'Receipts'),
-        mustOk(paymentsRes, 'Payments'),
-        mustOk(journalsRes, 'Journals'),
-        mustOk(productsRes, 'Products'),
-        mustOk(servicesRes, 'Services'),
-      ]);
-
-      const [
-        salesData,
-        purchasesData,
-        receiptsData,
-        paymentsData,
-        journalsData,
-        productsData,
-        servicesData,
-      ] = await Promise.all([
-        salesRes.json(),
-        purchasesRes.json(),
-        receiptsRes.json(),
-        paymentsRes.json(),
-        journalsRes.json(),
-        productsRes.json(),
-        servicesRes.json(),
-      ]);
-
-      // Parse responses with safety
-      const salesArr = parseResponse(salesData, [
-        'salesEntries',
-        'sales',
-        'entries',
-      ])
-        .filter(Boolean)
-        .map(s => ({
-          ...s,
-          type: 'sales',
-        }));
-
-      const purchasesArr = parseResponse(purchasesData, [
-        'purchaseEntries',
-        'purchases',
-        'entries',
-      ])
-        .filter(Boolean)
-        .map(p => ({
-          ...p,
-          type: 'purchases',
-        }));
-
-      const receiptsArr = parseResponse(receiptsData, [
-        'receiptEntries',
-        'receipts',
-        'entries',
-      ])
-        .filter(Boolean)
-        .map(r => ({
-          ...r,
-          type: 'receipt',
-        }));
-
-      const paymentsArr = parseResponse(paymentsData, [
-        'paymentEntries',
-        'payments',
-        'entries',
-      ])
-        .filter(Boolean)
-        .map(p => ({
-          ...p,
-          type: 'payment',
-        }));
-
-      const journalsArr = parseResponse(journalsData, ['data'])
-        .filter(Boolean)
-        .map(j => ({
-          ...j,
-          description: j.narration || j.description || '',
-          type: 'journal',
-          products: j.products || [],
-          services: j.services || [],
-          invoiceNumber: j.invoiceNumber || '',
-          party: j.party || '',
-        }));
-
-      const productsList = parseResponse(productsData, [
-        'products',
-        'items',
-        'data',
-      ]);
+      const productsList = parseResponse(productsData, ['products', 'items', 'data']);
       const servicesList = parseResponse(servicesData, ['services', 'data']);
 
-      const filterByCompany = (arr, companyId) => {
-        if (!arr || !Array.isArray(arr)) return [];
-        if (!companyId) return arr;
+      setData(prev => ({
+        ...prev,
+        products: productsList,
+        services: servicesList
+      }));
+      setProgress(30);
 
-        return arr.filter(doc => {
-          if (!doc) return false;
-          const docCompanyId = idOf(doc.company?._id ?? doc.company);
-          return docCompanyId === companyId;
-        });
-      };
+      // Stage 2: Load transactions sequentially with progress updates
+      await loadTransactionType('sales', `${BASE_URL}/api/sales${baseParams}`, 40);
+      await loadTransactionType('purchases', `${BASE_URL}/api/purchase${baseParams}`, 50);
+      await loadTransactionType('receipts', `${BASE_URL}/api/receipts${baseParams}`, 60);
+      await loadTransactionType('payments', `${BASE_URL}/api/payments${baseParams}`, 70);
+      await loadTransactionType('journals', `${BASE_URL}/api/journals${baseParams}`, 80);
 
-      if (isMountedRef.current) {
-        setSales(filterByCompany(salesArr, selectedCompanyId));
-        setPurchases(filterByCompany(purchasesArr, selectedCompanyId));
-        setReceipts(filterByCompany(receiptsArr, selectedCompanyId));
-        setPayments(filterByCompany(paymentsArr, selectedCompanyId));
-        setJournals(filterByCompany(journalsArr, selectedCompanyId));
-        setProductsList(productsList);
-        setServicesList(servicesList);
-      }
+      setProgress(100);
+
     } catch (error) {
-      // Ignore abort errors
-      if (error.name === 'AbortError') {
-        console.log('Request was aborted');
-        return;
-      }
-
-      console.error('Failed to load transactions:', error);
+      console.error('Failed to load essential data:', error);
       if (isMountedRef.current) {
         Alert.alert(
-          'Failed to load transactions',
+          'Failed to load data',
           error instanceof Error ? error.message : 'Something went wrong.',
         );
       }
     } finally {
       if (isMountedRef.current) {
-        setIsLoading(false);
+        setLoadingStates(prev => ({ ...prev, essential: false }));
       }
     }
-  }, [selectedClient?._id, selectedCompanyId, parseResponse]);
+  }, [selectedClient?._id, selectedCompanyId, fetchWithCache, parseResponse]);
+
+  const loadTransactionType = async (type, url, progressValue) => {
+    if (!isMountedRef.current) return;
+
+    setLoadingStates(prev => ({ ...prev, [type]: true }));
+
+    try {
+      const responseData = await fetchWithCache(url, type);
+      
+      if (!isMountedRef.current) return;
+
+      const parsedData = parseResponse(responseData, [
+        `${type}Entries`, 
+        type, 
+        'entries',
+        'data'
+      ])
+        .filter(Boolean)
+        .map(item => ({
+          ...item,
+          type: type === 'purchase' ? 'purchases' : type,
+        }));
+
+      const filteredData = filterByCompany(parsedData, selectedCompanyId);
+
+      setData(prev => ({
+        ...prev,
+        [type]: filteredData
+      }));
+      setProgress(progressValue);
+
+    } catch (error) {
+      console.error(`Failed to load ${type}:`, error);
+    } finally {
+      if (isMountedRef.current) {
+        setLoadingStates(prev => ({ ...prev, [type]: false }));
+      }
+    }
+  };
+
+  const filterByCompany = (arr, companyId) => {
+    if (!arr || !Array.isArray(arr)) return [];
+    if (!companyId) return arr;
+
+    return arr.filter(doc => {
+      if (!doc) return false;
+      const docCompanyId = idOf(doc.company?._id ?? doc.company);
+      return docCompanyId === companyId;
+    });
+  };
 
   useEffect(() => {
-    fetchTransactions();
-  }, [fetchTransactions]);
+    loadEssentialData();
+  }, [loadEssentialData]);
 
   // Invoice number functionality with safety
   const ensureInvoiceNumberFor = useCallback(
@@ -367,7 +309,7 @@ export default function TransactionsTab({
     [invNoByTxId],
   );
 
-  // Safe data handlers
+  // Optimized item viewing with better HSN/SAC extraction
   const handleViewItems = useCallback(
     tx => {
       if (!tx) return;
@@ -376,38 +318,14 @@ export default function TransactionsTab({
         .map(p => {
           if (!p) return null;
 
-          const productName =
-            productNameById.get(p.product) || p.product?.name || '(product)';
+          const productName = productNameById.get(p.product) || p.product?.name || '(product)';
+          let hsnCode = p.hsn || p.product?.hsn || p.product?.hsnCode || '';
 
-          // Enhanced HSN code extraction
-          let hsnCode = '';
-
-          // Method 1: Check if product has HSN directly
-          if (p.product && typeof p.product === 'object') {
-            hsnCode = p.product.hsn || p.product.hsnCode || '';
-          }
-
-          // Method 2: Check product line level
-          if (!hsnCode && p.hsn) {
-            hsnCode = p.hsn;
-          }
-
-          // Method 3: Look up in productsList
-          if (!hsnCode) {
-            const productId =
-              typeof p.product === 'object' ? p.product._id : p.product;
-            const productObj = productsList.find(
-              prod => prod && prod._id === productId,
-            );
-            hsnCode = productObj?.hsn || productObj?.hsnCode || '';
-          }
-
-          // Method 4: Fallback based on product name
+          // Fallback HSN codes
           if (!hsnCode) {
             if (productName.toLowerCase().includes('gel')) hsnCode = '330499';
-            else if (productName.toLowerCase().includes('moody'))
-              hsnCode = '330499';
-            else hsnCode = '8471'; // General goods
+            else if (productName.toLowerCase().includes('moody')) hsnCode = '330499';
+            else hsnCode = '8471';
           }
 
           return {
@@ -424,54 +342,24 @@ export default function TransactionsTab({
         })
         .filter(Boolean);
 
-      const svcArr = Array.isArray(tx.services)
-        ? tx.services
-        : Array.isArray(tx.service)
-        ? tx.service
-        : [];
+      const svcArr = Array.isArray(tx.services) ? tx.services : Array.isArray(tx.service) ? tx.service : [];
 
       const svcs = svcArr
         .map(s => {
           if (!s) return null;
 
-          const id =
-            typeof s.service === 'object'
-              ? s.service._id
-              : s.service ??
-                (typeof s.serviceName === 'object'
-                  ? s.serviceName._id
-                  : s.serviceName);
+          const id = typeof s.service === 'object' ? s.service._id : s.service;
+          const name = serviceNameById.get(String(id)) || 
+                      (typeof s.service === 'object' && s.service.serviceName) || 
+                      '(service)';
+          
+          let sacCode = s.sac || s.service?.sac || s.service?.sacCode || '';
 
-          const name =
-            (id && serviceNameById.get(String(id))) ||
-            (typeof s.service === 'object' && s.service.serviceName) ||
-            (typeof s.serviceName === 'object' && s.serviceName.serviceName) ||
-            '(service)';
-
-          // Enhanced SAC code extraction
-          let sacCode = '';
-
-          // Method 1: Check if service has SAC directly
-          if (s.service && typeof s.service === 'object') {
-            sacCode = s.service.sac || s.service.sacCode || '';
-          }
-
-          // Method 2: Check service line level
-          if (!sacCode && s.sac) {
-            sacCode = s.sac;
-          }
-
-          // Method 3: Look up in servicesList
-          if (!sacCode) {
-            const serviceObj = servicesList.find(svc => svc && svc._id === id);
-            sacCode = serviceObj?.sac || serviceObj?.sacCode || '';
-          }
-
-          // Method 4: Fallback based on service name
+          // Fallback SAC codes
           if (!sacCode) {
             if (name.toLowerCase().includes('dressing')) sacCode = '999723';
             else if (name.toLowerCase().includes('consult')) sacCode = '998311';
-            else sacCode = '9984'; // General services
+            else sacCode = '9984';
           }
 
           return {
@@ -494,7 +382,7 @@ export default function TransactionsTab({
         setIsItemsModalOpen(true);
       }
     },
-    [productNameById, serviceNameById, productsList, servicesList],
+    [productNameById, serviceNameById],
   );
 
   const handleAction = useCallback(() => {
@@ -549,14 +437,14 @@ export default function TransactionsTab({
     [ensureInvoiceNumberFor],
   );
 
-  // Safe data processing
+  // Optimized data processing
   const allTransactions = useMemo(() => {
     const all = [
-      ...sales,
-      ...purchases,
-      ...receipts,
-      ...payments,
-      ...journals,
+      ...data.sales,
+      ...data.purchases,
+      ...data.receipts,
+      ...data.payments,
+      ...data.journals,
     ].filter(Boolean);
 
     return all.sort((a, b) => {
@@ -564,47 +452,44 @@ export default function TransactionsTab({
       const dateB = b.date ? new Date(b.date).getTime() : 0;
       return dateB - dateA;
     });
-  }, [sales, purchases, receipts, payments, journals]);
+  }, [data.sales, data.purchases, data.receipts, data.payments, data.journals]);
 
   // Tab content rendering with safety
   const getTabData = useCallback(() => {
     switch (selectedTab) {
       case 'sales':
-        return sales || [];
+        return data.sales || [];
       case 'purchases':
-        return purchases || [];
+        return data.purchases || [];
       case 'receipts':
-        return receipts || [];
+        return data.receipts || [];
       case 'payments':
-        return payments || [];
+        return data.payments || [];
       case 'journals':
-        return journals || [];
+        return data.journals || [];
       default:
         return allTransactions;
     }
-  }, [
-    selectedTab,
-    sales,
-    purchases,
-    receipts,
-    payments,
-    journals,
-    allTransactions,
-  ]);
+  }, [selectedTab, data, allTransactions]);
+
+  const isLoading = Object.values(loadingStates).some(state => state);
 
   const renderContent = () => {
     if (isLoading) {
       return (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading transactions...</Text>
+          <Text style={styles.loadingText}>Loading transactions... {progress}%</Text>
+          <View style={styles.progressBar}>
+            <View style={[styles.progressFill, { width: `${progress}%` }]} />
+          </View>
         </View>
       );
     }
 
-    const data = getTabData();
+    const tabData = getTabData();
 
-    if (!data || data.length === 0) {
+    if (!tabData || tabData.length === 0) {
       return (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No transactions found</Text>
@@ -615,7 +500,7 @@ export default function TransactionsTab({
     if (isMobile) {
       return (
         <TransactionsTable
-          data={data}
+          data={tabData}
           companyMap={companyMap}
           serviceNameById={serviceNameById}
           onPreview={onPreview}
@@ -628,10 +513,9 @@ export default function TransactionsTab({
       );
     }
 
-    // For desktop, use DataTable with columns
     return (
       <DataTable
-        data={data}
+        data={tabData}
         companyMap={companyMap}
         serviceNameById={serviceNameById}
         onViewItems={handleViewItems}
@@ -770,7 +654,7 @@ export default function TransactionsTab({
 
           <FlatList
             data={itemsToView}
-            keyExtractor={(item, index) => index.toString()}
+            keyExtractor={(item, index) => `${index}-${item.name}`}
             renderItem={({ item }) => (
               <View style={styles.itemCard}>
                 <View style={styles.itemHeader}>
@@ -974,6 +858,19 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: '#666',
+    marginBottom: 8,
+  },
+  progressBar: {
+    width: '80%',
+    height: 6,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#007AFF',
+    borderRadius: 3,
   },
   emptyContainer: {
     justifyContent: 'center',

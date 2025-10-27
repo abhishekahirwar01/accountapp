@@ -1,3 +1,4 @@
+// ...existing code...
 import React, {
   useState,
   useMemo,
@@ -35,11 +36,13 @@ import ProfitAndLossTab from '../../components/analytics/ProfitAndLoss';
 import BalanceSheetTab from '../../components/analytics/BalanceSheet';
 
 import { BASE_URL } from '../../config';
+// ...existing code...
 
 export default function AnalyticsScreen() {
   const [clients, setClients] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [selectedClientId, setSelectedClientId] = useState('');
+  // keep empty string '' as "All Companies"
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [activeReport, setActiveReport] = useState('profitandloss');
@@ -164,7 +167,15 @@ export default function AnalyticsScreen() {
   // Fetch companies when client is selected
   const fetchCompanies = useCallback(
     async clientId => {
-      if (!clientId || !isMountedRef.current) return;
+      if (!clientId || !isMountedRef.current) {
+        // clear companies and keep selectedCompanyId as '' (All Companies)
+        if (isMountedRef.current) {
+          setCompanies([]);
+          // do NOT auto-select first company; preserve '' = All Companies
+          setSelectedCompanyId('');
+        }
+        return;
+      }
 
       // Abort previous request if any
       if (abortControllerRef.current) {
@@ -199,9 +210,11 @@ export default function AnalyticsScreen() {
 
         if (isMountedRef.current) {
           setCompanies(Array.isArray(data) ? data : []);
-          // Auto-select first company if available
-          if (Array.isArray(data) && data.length > 0 && !selectedCompanyId) {
-            setSelectedCompanyId(data[0]._id);
+          // Important: do NOT auto-select the first company here.
+          // Keep '' as "All Companies" unless selectedCompanyId was explicitly set.
+          // Only set selectedCompanyId if it's null or undefined (not empty string).
+          if (selectedCompanyId === null || selectedCompanyId === undefined) {
+            setSelectedCompanyId('');
           }
         }
       } catch (error) {
@@ -224,6 +237,7 @@ export default function AnalyticsScreen() {
         }
       }
     },
+    // add selectedCompanyId as dependency so the check above is stable
     [selectedCompanyId],
   );
 
@@ -238,10 +252,12 @@ export default function AnalyticsScreen() {
 
   const handleClientChange = useCallback(clientId => {
     setSelectedClientId(clientId);
-    setSelectedCompanyId(''); // Reset company when client changes
+    // Reset company to 'All Companies'
+    setSelectedCompanyId('');
   }, []);
 
   const handleCompanyChange = useCallback(companyId => {
+    // companyId '' => All Companies
     setSelectedCompanyId(companyId);
   }, []);
 
@@ -368,22 +384,27 @@ export default function AnalyticsScreen() {
                   style={styles.pickerPlaceholderText}
                 />
                 {items &&
-                  items.map(item => (
+                  items.map((item, idx) => (
                     <Picker.Item
-                      key={item?._id || Math.random()}
+                      // stable key: prefer id, fallback to index-based key
+                      key={item?._id ?? `opt-${idx}`}
                       label={
-                        getSafeClientName(item) || getSafeBusinessName(item)
+                        // For client list we'll show contactName, for companies show businessName
+                        item?.contactName || item?.businessName || placeholder
                       }
-                      value={item?._id || ''}
+                      value={item?._id ?? ''}
                       style={styles.pickerItemText}
                     />
                   ))}
               </Picker>
               <Text style={styles.pickerDisplay} numberOfLines={1}>
                 {value && items
-                  ? items.find(i => i && i._id === value)?.contactName ||
-                    items.find(i => i && i._id === value)?.businessName ||
-                    placeholder
+                  ? // find matching item by id/value; fallback to placeholder
+                    (items.find(i => i && (i._id === value || i.value === value))
+                      ?.contactName ||
+                      items.find(i => i && (i._id === value || i.value === value))
+                        ?.businessName ||
+                      placeholder)
                   : placeholder}
               </Text>
               <ChevronDown
@@ -427,6 +448,7 @@ export default function AnalyticsScreen() {
               renderPicker(
                 selectedCompanyId,
                 handleCompanyChange,
+                // explicit All Companies option with _id: '' to match empty string value
                 [{ _id: '', businessName: 'All Companies' }, ...companies],
                 'Select Company',
                 'All Companies',
@@ -541,6 +563,7 @@ export default function AnalyticsScreen() {
   );
 }
 
+// ...existing styles...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -781,3 +804,4 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+// ...existing code...

@@ -104,7 +104,10 @@ const ExportTransaction = ({
   const openFile = async filePath => {
     try {
       if (!filePath) {
-        Alert.alert('Error', 'No file found to open. Please export the file again.');
+        Alert.alert(
+          'Error',
+          'No file found to open. Please export the file again.',
+        );
         return;
       }
 
@@ -113,7 +116,7 @@ const ExportTransaction = ({
         Alert.alert(
           'File Not Found',
           'The exported file could not be found. Please export the transactions again.',
-          [{ text: 'OK', onPress: () => setShowSuccessModal(false) }]
+          [{ text: 'OK', onPress: () => setShowSuccessModal(false) }],
         );
         return;
       }
@@ -124,44 +127,49 @@ const ExportTransaction = ({
         Alert.alert(
           'File Error',
           'The exported file is empty or corrupted. Please try exporting again.',
-          [{ text: 'OK', onPress: () => setShowSuccessModal(false) }]
+          [{ text: 'OK', onPress: () => setShowSuccessModal(false) }],
         );
         return;
       }
 
-      await FileViewer.open(filePath, { 
+      await FileViewer.open(filePath, {
         showOpenWithDialog: true,
         showAppsSuggestions: true,
-        displayName: 'Transactions Export'
+        displayName: 'Transactions Export',
       });
-
     } catch (error) {
       console.error('Open file error:', error);
-      
+
       // Handle specific error cases
-      if (error.message.includes('No app associated') || error.message.includes('mime type')) {
+      if (
+        error.message.includes('No app associated') ||
+        error.message.includes('mime type')
+      ) {
         Alert.alert(
           'No App Found',
           `No application found to open Excel files.\n\nPlease install a spreadsheet app like:\n• Microsoft Excel\n• Google Sheets\n• WPS Office\n\nAfter installing, try opening the file again.`,
           [
             { text: 'OK', style: 'cancel' },
-            { 
-              text: 'Share Instead', 
-              onPress: () => shareFile(filePath)
-            }
-          ]
+            {
+              text: 'Share Instead',
+              onPress: () => shareFile(filePath),
+            },
+          ],
         );
-      } else if (error.message.includes('permission') || error.message.includes('Permission')) {
+      } else if (
+        error.message.includes('permission') ||
+        error.message.includes('Permission')
+      ) {
         Alert.alert(
           'Permission Denied',
           'Unable to open file due to permission issues. Please check app permissions or try sharing the file instead.',
           [
             { text: 'OK', style: 'cancel' },
-            { 
-              text: 'Share File', 
-              onPress: () => shareFile(filePath)
-            }
-          ]
+            {
+              text: 'Share File',
+              onPress: () => shareFile(filePath),
+            },
+          ],
         );
       } else {
         Alert.alert(
@@ -169,25 +177,28 @@ const ExportTransaction = ({
           `Unable to open the file. You can:\n\n1. Find it in your Downloads folder\n2. Open it with a spreadsheet app\n3. Share it to another device\n\nFile location: ${filePath}`,
           [
             { text: 'OK', style: 'cancel' },
-            { 
-              text: 'Share File', 
-              onPress: () => shareFile(filePath)
+            {
+              text: 'Share File',
+              onPress: () => shareFile(filePath),
             },
             {
               text: 'View in Folder',
               onPress: async () => {
                 try {
-                  const dirPath = filePath.substring(0, filePath.lastIndexOf('/'));
+                  const dirPath = filePath.substring(
+                    0,
+                    filePath.lastIndexOf('/'),
+                  );
                   await FileViewer.open(dirPath);
                 } catch (dirError) {
                   Alert.alert(
                     'Info',
-                    `File saved to:\n${filePath}\n\nYou can find it in your Downloads folder.`
+                    `File saved to:\n${filePath}\n\nYou can find it in your Downloads folder.`,
                   );
                 }
-              }
-            }
-          ]
+              },
+            },
+          ],
         );
       }
     }
@@ -311,7 +322,7 @@ const ExportTransaction = ({
                     status={useDateRange ? 'checked' : 'unchecked'}
                     onPress={() => setUseDateRange(!useDateRange)}
                   />
-                  <Text style={styles.checkboxLabel}>Use Date Range</Text>
+                  <Text style={styles.checkboxLabel}>Filter By Date Range</Text>
                 </View>
 
                 {useDateRange && (
@@ -322,9 +333,7 @@ const ExportTransaction = ({
                     >
                       <Text>
                         From:{' '}
-                        {dateRange.from
-                          ? formatDate(dateRange.from)
-                          : 'Select'}
+                        {dateRange.from ? formatDate(dateRange.from) : 'Select'}
                       </Text>
                     </TouchableOpacity>
 
@@ -333,8 +342,7 @@ const ExportTransaction = ({
                       onPress={() => setShowToDatePicker(true)}
                     >
                       <Text>
-                        To:{' '}
-                        {dateRange.to ? formatDate(dateRange.to) : 'Select'}
+                        To: {dateRange.to ? formatDate(dateRange.to) : 'Select'}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -411,7 +419,12 @@ const ExportTransaction = ({
               <Icon name="close" size={22} color="#000" />
             </TouchableOpacity>
 
-            <Icon name="check-circle" size={48} color="#28a745" style={styles.successIcon} />
+            <Icon
+              name="check-circle"
+              size={48}
+              color="#28a745"
+              style={styles.successIcon}
+            />
             <Text style={styles.successTitle}>Export Successful!</Text>
             <Text style={styles.successSubtitle}>
               Your Excel file has been saved to Downloads
@@ -438,15 +451,13 @@ const ExportTransaction = ({
                 style={styles.iconContainer}
                 onPress={async () => {
                   try {
-                    const dirPath = Platform.OS === 'android' 
-                      ? RNFS.DownloadDirectoryPath 
-                      : RNFS.DocumentDirectoryPath;
+                    const dirPath =
+                      Platform.OS === 'android'
+                        ? RNFS.DownloadDirectoryPath
+                        : RNFS.DocumentDirectoryPath;
                     await FileViewer.open(dirPath);
                   } catch (error) {
-                    Alert.alert(
-                      'Info',
-                      `File saved to:\n${exportedFilePath}`
-                    );
+                    Alert.alert('Info', `File saved to:\n${exportedFilePath}`);
                   }
                 }}
               >
@@ -456,7 +467,8 @@ const ExportTransaction = ({
             </View>
 
             <Text style={styles.helpText}>
-              Having trouble opening? Install a spreadsheet app like Excel or Google Sheets.
+              Having trouble opening? Install a spreadsheet app like Excel or
+              Google Sheets.
             </Text>
           </View>
         </View>
@@ -520,9 +532,9 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   closeIconTop: { position: 'absolute', top: 10, right: 10 },
-  successTitle: { 
-    fontSize: 18, 
-    fontWeight: 'bold', 
+  successTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -535,18 +547,18 @@ const styles = StyleSheet.create({
   successIcon: {
     marginBottom: 10,
   },
-  iconRow: { 
-    flexDirection: 'row', 
+  iconRow: {
+    flexDirection: 'row',
     justifyContent: 'center',
     marginBottom: 15,
   },
-  iconContainer: { 
-    alignItems: 'center', 
+  iconContainer: {
+    alignItems: 'center',
     marginHorizontal: 15,
     padding: 10,
   },
-  iconLabel: { 
-    marginTop: 5, 
+  iconLabel: {
+    marginTop: 5,
     fontSize: 12,
     textAlign: 'center',
   },
@@ -561,9 +573,9 @@ const styles = StyleSheet.create({
 });
 
 const pickerSelectStyles = {
-  inputIOS: { 
-    fontSize: 16, 
-    paddingVertical: 10, 
+  inputIOS: {
+    fontSize: 16,
+    paddingVertical: 10,
     color: 'black',
     borderWidth: 1,
     borderColor: '#ccc',
@@ -571,9 +583,9 @@ const pickerSelectStyles = {
     paddingHorizontal: 10,
     backgroundColor: '#f9f9f9',
   },
-  inputAndroid: { 
-    fontSize: 16, 
-    paddingVertical: 10, 
+  inputAndroid: {
+    fontSize: 16,
+    paddingVertical: 10,
     color: 'black',
     borderWidth: 1,
     borderColor: '#ccc',
