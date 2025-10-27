@@ -10,12 +10,12 @@
     "test": "jest"
   },
   "dependencies": {
-    "@hookform/resolvers": "^3.3.4",
+    "@hookform/resolvers": "^5.2.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-clipboard/clipboard": "^1.16.3",
     "@react-native-community/datetimepicker": "^8.4.5",
     "@react-native-documents/picker": "^10.1.7",
-    "@react-native-picker/picker": "^2.11.2",
+    "@react-native-picker/picker": "^2.11.4",
     "@react-native/new-app-screen": "0.81.4",
     "@react-navigation/bottom-tabs": "^7.4.7",
     "@react-navigation/drawer": "^7.5.8",
@@ -26,10 +26,11 @@
     "jwt-decode": "^4.0.0",
     "lucide-react-native": "^0.544.0",
     "react": "19.1.0",
-    "react-hook-form": "^7.51.3",
+    "react-hook-form": "^7.65.0",
     "react-native": "0.81.4",
     "react-native-autocomplete-input": "^5.5.6",
     "react-native-feather": "^1.1.2",
+    "react-native-file-viewer": "^2.1.5",
     "react-native-fs": "^2.20.0",
     "react-native-gesture-handler": "^2.28.0",
     "react-native-image-picker": "^8.2.1",
@@ -44,10 +45,11 @@
     "react-native-toast-message": "^2.3.3",
     "react-native-vector-icons": "^10.3.0",
     "xlsx": "^0.18.5",
-    "zod": "^3.22.4"
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@babel/plugin-transform-export-namespace-from": "^7.27.1",
     "@babel/preset-env": "^7.25.3",
     "@babel/runtime": "^7.25.0",
     "@react-native-community/cli": "20.0.0",

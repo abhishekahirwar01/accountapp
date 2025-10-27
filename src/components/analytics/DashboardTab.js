@@ -8,70 +8,27 @@ import {
   Linking,
   Dimensions,
   FlatList,
+  Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import CompanyCard from '../companies/CompanyCard';
+import { BASE_URL } from '../../config';
 
-// Hardcoded data
-const HARDCODED_CLIENT = {
-  _id: '1',
-  contactName: 'John Smith',
-  email: 'john.smith@example.com',
-  phone: '+1 (555) 123-4567',
-};
-
-const HARDCODED_COMPANIES = [
-  {
-    _id: '1',
-    businessName: 'Tech Solutions Inc.',
-    businessType: 'Information Technology',
-    companyOwner: 'John Doe',
-    mobileNumber: '+1 (555) 123-4567',
-    registrationNumber: 'REG-2024-001',
-    gstin: 'GSTIN-123456789',
-    PANNumber: 'ABCDE1234F',
-    address: '123 Business Street',
-    City: 'New York',
-    addressState: 'NY',
-    Country: 'USA',
-    Pincode: '10001',
-    emailId: 'contact@techsolutions.com',
-    ewayBillApplicable: true,
-  },
-  {
-    _id: '2',
-    businessName: 'Global Manufacturing Corp',
-    businessType: 'Manufacturing',
-    companyOwner: 'Sarah Wilson',
-    mobileNumber: '+1 (555) 987-6543',
-    registrationNumber: 'MFG-2024-789',
-    gstin: 'GSTIN-987654321',
-    PANNumber: 'WXYZE5678G',
-    address: '789 Industrial Avenue',
-    City: 'Chicago',
-    addressState: 'IL',
-    Country: 'USA',
-    Pincode: '60616',
-    emailId: 'info@globalmfg.com',
-    ewayBillApplicable: false,
-  }
-];
-
-const HARDCODED_STATS = {
-  totalSales: 1250000,
-  totalPurchases: 850000,
-  totalUsers: 45,
-};
-
-const formatCurrency = (amount) => {
+const formatCurrency = amount => {
   return '₹' + amount.toLocaleString('en-IN');
 };
 
 // Custom Carousel Component
-const CustomCarousel = ({ data, renderItem, currentIndex, setCurrentIndex }) => {
+const CustomCarousel = ({
+  data,
+  renderItem,
+  currentIndex,
+  setCurrentIndex,
+}) => {
   const flatListRef = useRef(null);
   const { width: screenWidth } = Dimensions.get('window');
-  const cardWidth = screenWidth - 32; // 16px padding on each side
+  const cardWidth = screenWidth - 32;
 
   const onViewableItemsChanged = useRef(({ viewableItems }) => {
     if (viewableItems.length > 0) {
@@ -87,7 +44,7 @@ const CustomCarousel = ({ data, renderItem, currentIndex, setCurrentIndex }) => 
     if (currentIndex < data.length - 1) {
       flatListRef.current?.scrollToIndex({
         index: currentIndex + 1,
-        animated: true
+        animated: true,
       });
     }
   };
@@ -96,7 +53,7 @@ const CustomCarousel = ({ data, renderItem, currentIndex, setCurrentIndex }) => 
     if (currentIndex > 0) {
       flatListRef.current?.scrollToIndex({
         index: currentIndex - 1,
-        animated: true
+        animated: true,
       });
     }
   };
@@ -113,7 +70,7 @@ const CustomCarousel = ({ data, renderItem, currentIndex, setCurrentIndex }) => 
         ref={flatListRef}
         data={data}
         renderItem={renderItem}
-        keyExtractor={(item) => item._id}
+        keyExtractor={item => item._id}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
@@ -129,14 +86,13 @@ const CustomCarousel = ({ data, renderItem, currentIndex, setCurrentIndex }) => 
         windowSize={3}
       />
 
-      {/* Navigation Arrows - Moved to bottom */}
       {data.length > 1 && (
         <View style={styles.carouselControls}>
           <TouchableOpacity
             style={[
               styles.carouselButton,
               styles.prevButton,
-              currentIndex === 0 && styles.disabledButton
+              currentIndex === 0 && styles.disabledButton,
             ]}
             onPress={goToPrev}
             disabled={currentIndex === 0}
@@ -152,7 +108,7 @@ const CustomCarousel = ({ data, renderItem, currentIndex, setCurrentIndex }) => 
             style={[
               styles.carouselButton,
               styles.nextButton,
-              currentIndex === data.length - 1 && styles.disabledButton
+              currentIndex === data.length - 1 && styles.disabledButton,
             ]}
             onPress={goToNext}
             disabled={currentIndex === data.length - 1}
@@ -199,7 +155,7 @@ const KpiCarousel = ({ data }) => {
       <FlatList
         data={data}
         renderItem={renderKpiItem}
-        keyExtractor={(item) => item.title}
+        keyExtractor={item => item.title}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.kpiCarouselContent}
@@ -213,11 +169,7 @@ const KpiCarousel = ({ data }) => {
   );
 };
 
-const DashboardTab = ({
-  selectedClient = HARDCODED_CLIENT,
-  selectedCompanyId = null
-}) => {
-  // ALL HOOKS AT THE TOP LEVEL - before any conditional returns
+const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
   const [stats, setStats] = useState({
     totalSales: 0,
     totalPurchases: 0,
@@ -229,25 +181,171 @@ const DashboardTab = ({
   const { width: screenWidth } = Dimensions.get('window');
   const cardWidth = screenWidth - 32;
 
+  const getAuthToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+      return token;
+    } catch (error) {
+      console.error('Error getting token:', error);
+      throw new Error('Authentication token not found.');
+    }
+  };
+
+  const toArray = x => {
+    if (Array.isArray(x)) return x;
+    if (Array.isArray(x?.entries)) return x.entries;
+    if (Array.isArray(x?.data)) return x.data;
+    if (Array.isArray(x?.docs)) return x.docs;
+    if (Array.isArray(x?.items)) return x.items;
+    return [];
+  };
+
+  const mustOk = async (res, label) => {
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`${label} API ${res.status} ${res.statusText} – ${txt}`);
+    }
+  };
+
+  const idOf = v => {
+    if (typeof v === 'string') return v;
+    return v?._id || v?.id || v?.$oid || '';
+  };
+
+  const filterByCompany = (arr, companyId) => {
+    if (!companyId) return arr;
+    return arr.filter(r => idOf(r.company?._id ?? r.company) === companyId);
+  };
+
+  const extractAmount = row => {
+    const candidates = [
+      row.amount,
+      row.total,
+      row.totalAmount,
+      row.grandTotal,
+      row.finalAmount,
+      row.netAmount,
+      row?.amount?.total,
+      row?.totals?.total,
+      row?.summary?.grandTotal,
+    ];
+
+    for (const c of candidates) {
+      const n = Number(c);
+      if (Number.isFinite(n)) return n;
+    }
+
+    if (Array.isArray(row.items)) {
+      return row.items.reduce((s, it) => {
+        const price = Number(it.total ?? it.amount ?? it.rate ?? it.price ?? 0);
+        const qty = Number(it.qty ?? it.quantity ?? 1);
+        const guess = Number.isFinite(price * qty) ? price * qty : 0;
+        return s + guess;
+      }, 0);
+    }
+
+    return 0;
+  };
+
+  const sumAmount = arr => arr.reduce((a, e) => a + extractAmount(e), 0);
+
   useEffect(() => {
-    // Simulate API call with timeout
-    const fetchData = async () => {
+    const fetchStatsAndCompanies = async () => {
+      if (!selectedClient?._id) return;
+
       setIsLoading(true);
       try {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setStats(HARDCODED_STATS);
-        setCompanies(HARDCODED_COMPANIES);
+        const token = await getAuthToken();
+        const authHeaders = {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        };
+
+        const byCompany = !!selectedCompanyId;
+
+        const salesUrl = byCompany
+          ? `${BASE_URL}/api/sales?companyId=${selectedCompanyId}`
+          : `${BASE_URL}/api/sales/by-client/${selectedClient._id}`;
+
+        const purchasesUrl = byCompany
+          ? `${BASE_URL}/api/purchase?companyId=${selectedCompanyId}`
+          : `${BASE_URL}/api/purchase/by-client/${selectedClient._id}`;
+
+        const companiesUrl = `${BASE_URL}/api/companies/by-client/${selectedClient._id}`;
+
+        const usersUrl = byCompany
+          ? `${BASE_URL}/api/users/by-client/${selectedClient._id}?companyId=${selectedCompanyId}`
+          : `${BASE_URL}/api/users/by-client/${selectedClient._id}`;
+
+        const [salesRes, purchasesRes, companiesRes, usersRes] =
+          await Promise.all([
+            fetch(salesUrl, { headers: authHeaders }),
+            fetch(purchasesUrl, { headers: authHeaders }),
+            fetch(companiesUrl, { headers: authHeaders }),
+            fetch(usersUrl, { headers: authHeaders }),
+          ]);
+
+        // Use the same error handling as Next.js
+        await Promise.all([
+          mustOk(salesRes, 'Sales'),
+          mustOk(purchasesRes, 'Purchases'),
+          mustOk(companiesRes, 'Companies'),
+          mustOk(usersRes, 'Users'),
+        ]);
+
+        const [salesData, purchasesData, companiesData, usersData] =
+          await Promise.all([
+            salesRes.json(),
+            purchasesRes.json(),
+            companiesRes.json(),
+            usersRes.json(),
+          ]);
+
+        const salesArr = toArray(salesData);
+        const purchasesArr = toArray(purchasesData);
+        const companiesArr = toArray(companiesData);
+        const usersArr = toArray(usersData);
+
+        // Extra client-side filter safeguard (same as Next.js)
+        const salesFiltered = filterByCompany(salesArr, selectedCompanyId);
+        const purchasesFiltered = filterByCompany(
+          purchasesArr,
+          selectedCompanyId,
+        );
+
+        // Filter users by company (same as Next.js)
+        const usersFiltered = !selectedCompanyId
+          ? usersArr
+          : usersArr.filter(
+              u =>
+                Array.isArray(u.companies) &&
+                u.companies.some(c => idOf(c) === selectedCompanyId),
+            );
+
+        setStats({
+          totalSales: sumAmount(salesFiltered),
+          totalPurchases: sumAmount(purchasesFiltered),
+          totalUsers: usersFiltered.length,
+        });
+
+        setCompanies(companiesArr);
       } catch (error) {
-        console.error('Failed to load data:', error);
+        console.error('Failed to load dashboard data:', error);
+        Alert.alert(
+          'Failed to load data',
+          error.message || 'Could not fetch client financial summary.',
+        );
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchData();
-  }, [selectedClient._id, selectedCompanyId]);
+    fetchStatsAndCompanies();
+  }, [selectedClient?._id, selectedCompanyId]);
 
-  // Move all variables that use hooks BEFORE conditional returns
   const kpiData = [
     {
       title: 'Total Sales',
@@ -286,14 +384,19 @@ const DashboardTab = ({
     </View>
   );
 
-  // NOW conditional returns are safe - all hooks have been called
   if (isLoading) {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.loadingContainer}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.loadingContainer}
+      >
         {/* Loading KPI Cards */}
         <View style={styles.loadingKpiCarousel}>
           {Array.from({ length: 4 }).map((_, i) => (
-            <View key={i} style={[styles.loadingCard, { width: screenWidth * 0.45 }]}>
+            <View
+              key={i}
+              style={[styles.loadingCard, { width: screenWidth * 0.45 }]}
+            >
               <View style={styles.loadingHeader}>
                 <View style={styles.loadingText} />
                 <View style={styles.loadingIcon} />
@@ -311,6 +414,18 @@ const DashboardTab = ({
           ))}
         </View>
       </ScrollView>
+    );
+  }
+
+  if (!selectedClient) {
+    return (
+      <View style={styles.noClientContainer}>
+        <Icon name="account-alert" size={48} color="#9ca3af" />
+        <Text style={styles.noClientText}>No Client Selected</Text>
+        <Text style={styles.noClientSubtext}>
+          Please select a client to view their dashboard.
+        </Text>
+      </View>
     );
   }
 
@@ -339,12 +454,16 @@ const DashboardTab = ({
           <View style={styles.clientContent}>
             <View style={styles.clientDetail}>
               <Icon name="account" size={18} color="#6b7280" />
-              <Text style={styles.clientText}>{selectedClient.contactName}</Text>
+              <Text style={styles.clientText}>
+                {selectedClient.contactName}
+              </Text>
             </View>
             <View style={styles.clientDetail}>
               <Icon name="email" size={18} color="#6b7280" />
               <TouchableOpacity
-                onPress={() => Linking.openURL(`mailto:${selectedClient.email}`)}
+                onPress={() =>
+                  Linking.openURL(`mailto:${selectedClient.email}`)
+                }
               >
                 <Text style={[styles.clientText, styles.link]}>
                   {selectedClient.email}
@@ -359,7 +478,7 @@ const DashboardTab = ({
         </View>
       </View>
 
-      {/* Companies Carousel - MOVED TO BOTTOM */}
+      {/* Companies Carousel */}
       <View style={styles.companiesSection}>
         <Text style={styles.sectionTitle}>Companies</Text>
         {companies.length > 0 ? (
@@ -497,7 +616,7 @@ const styles = StyleSheet.create({
   },
   companiesSection: {
     flex: 1,
-    marginTop: 8, // Added margin to separate from above content
+    marginTop: 8,
     paddingHorizontal: 12,
   },
   carouselContainer: {
@@ -513,13 +632,13 @@ const styles = StyleSheet.create({
   },
   carouselControls: {
     position: 'absolute',
-    bottom: 16, // Changed from top to bottom
+    bottom: 16,
     left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    transform: [{ translateY: 0 }], // Removed vertical translation
+    transform: [{ translateY: 0 }],
   },
   carouselButton: {
     width: 36,
@@ -558,6 +677,24 @@ const styles = StyleSheet.create({
   noCompaniesContent: {
     padding: 32,
     alignItems: 'center',
+  },
+  noClientContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  noClientText: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 12,
+    color: '#495057',
+  },
+  noClientSubtext: {
+    fontSize: 14,
+    color: '#868e96',
+    textAlign: 'center',
+    marginTop: 4,
   },
   loadingKpiCarousel: {
     flexDirection: 'row',

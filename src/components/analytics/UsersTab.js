@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,78 +7,12 @@ import {
   Alert,
   Modal,
   FlatList,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import UserForm from '../users/UserForm';
-
-// Hardcoded data
-const HARDCODED_USERS = [
-  {
-    _id: '1',
-    userName: 'John Doe',
-    userId: 'john.doe@example.com',
-    avatar:
-      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
-    role: 'admin',
-    companies: ['1', '2'],
-  },
-  {
-    _id: '2',
-    userName: 'Jane Smith',
-    userId: 'jane.smith@example.com',
-    avatar:
-      'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
-    role: 'Accountant',
-    companies: ['1'],
-  },
-  {
-    _id: '3',
-    userName: 'Mike Johnson',
-    userId: 'mike.johnson@example.com',
-    avatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
-    role: 'Viewer',
-    companies: ['2', '3'],
-  },
-  {
-    _id: '4',
-    userName: 'Sarah Wilson',
-    userId: 'sarah.wilson@example.com',
-    avatar:
-      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
-    role: 'admin',
-    companies: ['1', '2', '3'],
-  },
-  {
-    _id: '5',
-    userName: 'David Brown',
-    userId: 'david.brown@example.com',
-    avatar:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face',
-    role: 'Accountant',
-    companies: ['2'],
-  },
-  {
-    _id: '6',
-    userName: 'Emily Davis',
-    userId: 'emily.davis@example.com',
-    avatar:
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face',
-    role: 'Viewer',
-    companies: ['1', '3'],
-  },
-];
-
-const HARDCODED_COMPANIES = [
-  { _id: '1', name: 'Tech Corp' },
-  { _id: '2', name: 'Finance LLC' },
-  { _id: '3', name: 'Consulting Group' },
-];
-
-const HARDCODED_COMPANY_MAP = new Map([
-  ['1', 'Tech Corp'],
-  ['2', 'Finance LLC'],
-  ['3', 'Consulting Group'],
-]);
+import { BASE_URL } from '../../config';
 
 const roleBadgeColors = {
   admin: { backgroundColor: '#3b82f6', color: '#bfdbfe' },
@@ -95,15 +29,17 @@ const getRoleName = role => {
 export default function UsersTab({
   selectedClient,
   selectedCompanyId,
-  companyMap = HARDCODED_COMPANY_MAP,
+  companyMap,
 }) {
-  const [users, setUsers] = useState(HARDCODED_USERS);
-  const [companies, setCompanies] = useState(HARDCODED_COMPANIES);
-  const [isLoading, setIsLoading] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [userToDelete, setUserToDelete] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const idOf = value => {
     if (typeof value === 'string') return value;
@@ -119,12 +55,65 @@ export default function UsersTab({
     );
   }, [users, selectedCompanyId]);
 
-  // Simulate loading
+  // Fetch users and companies from API
+  const fetchUsersAndCompanies = useCallback(async () => {
+    if (!selectedClient?._id) return;
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
+      const [usersRes, companiesRes] = await Promise.all([
+        fetch(`${BASE_URL}/api/users/by-client/${selectedClient._id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }),
+        fetch(`${BASE_URL}/api/companies/by-client/${selectedClient._id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }),
+      ]);
+
+      if (!usersRes.ok || !companiesRes.ok) {
+        throw new Error('Failed to fetch client data');
+      }
+
+      const usersData = await usersRes.json();
+      const companiesData = await companiesRes.json();
+
+      // Handle different response formats
+      const usersArray = Array.isArray(usersData) ? usersData : [];
+      const companiesArray = Array.isArray(companiesData) ? companiesData : [];
+
+      setUsers(usersArray);
+      setCompanies(companiesArray);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      Alert.alert(
+        'Failed to load data',
+        error.message || 'Something went wrong',
+        [{ text: 'OK' }],
+      );
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [selectedClient]);
+
   useEffect(() => {
-    setIsLoading(true);
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
+    fetchUsersAndCompanies();
+  }, [fetchUsersAndCompanies]);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchUsersAndCompanies();
+  };
 
   const handleOpenForm = (user = null) => {
     setSelectedUser(user);
@@ -144,38 +133,83 @@ export default function UsersTab({
   const handleSave = async formData => {
     if (!selectedUser) return;
 
+    setIsSubmitting(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
 
-      setUsers(prevUsers =>
-        prevUsers.map(user =>
-          user._id === selectedUser._id ? { ...user, ...formData } : user,
-        ),
+      const response = await fetch(
+        `${BASE_URL}/api/users/${selectedUser._id}`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
+        },
       );
 
-      Alert.alert('Success', 'User updated successfully');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update user');
+      }
+
+      const data = await response.json();
+
+      Alert.alert('Success', 'User updated successfully', [
+        { text: 'OK', onPress: fetchUsersAndCompanies },
+      ]);
       handleCloseForm();
     } catch (error) {
-      Alert.alert('Update Failed', error.message || 'Something went wrong');
+      console.error('Error updating user:', error);
+      Alert.alert('Update Failed', error.message || 'Something went wrong', [
+        { text: 'OK' },
+      ]);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleDelete = async () => {
     if (!userToDelete) return;
 
+    setIsSubmitting(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
 
-      setUsers(prevUsers =>
-        prevUsers.filter(user => user._id !== userToDelete._id),
+      const response = await fetch(
+        `${BASE_URL}/api/users/${userToDelete._id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
       );
-      Alert.alert('Success', 'User deleted successfully');
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete user');
+      }
+
+      Alert.alert('Success', 'User deleted successfully', [
+        { text: 'OK', onPress: fetchUsersAndCompanies },
+      ]);
       setIsAlertOpen(false);
       setUserToDelete(null);
     } catch (error) {
-      Alert.alert('Deletion Failed', error.message || 'Something went wrong');
+      console.error('Error deleting user:', error);
+      Alert.alert('Deletion Failed', error.message || 'Something went wrong', [
+        { text: 'OK' },
+      ]);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -249,6 +283,28 @@ export default function UsersTab({
             )}
           </View>
         </View>
+
+        {/* Actions Section */}
+        {/* <View style={styles.actionsSection}>
+          <Text style={styles.companyCount}>
+            {userCompanies.length} company{(userCompanies.length !== 1 ? 's' : '')}
+          </Text>
+          
+          <View style={styles.actionButtons}>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => handleOpenForm(user)}
+            >
+              <Text style={styles.editButtonText}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.deleteActionButton]}
+              onPress={() => handleOpenDeleteDialog(user)}
+            >
+              <Text style={styles.deleteButtonText}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        </View> */}
       </View>
     );
   };
@@ -265,13 +321,20 @@ export default function UsersTab({
 
   const LoadingState = () => (
     <View style={styles.loadingContainer}>
-      <Text>Loading...</Text>
+      <ActivityIndicator size="large" color="#3b82f6" />
+      <Text style={styles.loadingText}>Loading users...</Text>
     </View>
   );
 
   const EmptyState = () => (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyText}>No users found for this client.</Text>
+      <TouchableOpacity
+        style={styles.retryButton}
+        onPress={fetchUsersAndCompanies}
+      >
+        <Text style={styles.retryButtonText}>Retry</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -300,6 +363,14 @@ export default function UsersTab({
           contentContainerStyle={styles.flatListContent}
           showsVerticalScrollIndicator={true}
           ListEmptyComponent={EmptyState}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              colors={['#3b82f6']}
+              tintColor="#3b82f6"
+            />
+          }
         />
       </View>
 
@@ -311,9 +382,13 @@ export default function UsersTab({
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Edit User</Text>
+            <Text style={styles.modalTitle}>
+              {selectedUser ? 'Edit User' : 'Create User'}
+            </Text>
             <Text style={styles.modalDescription}>
-              Update the details for {selectedUser?.userName}.
+              {selectedUser
+                ? `Update the details for ${selectedUser?.userName}.`
+                : 'Create a new user account.'}
             </Text>
           </View>
           <UserForm
@@ -322,6 +397,14 @@ export default function UsersTab({
             onSave={handleSave}
             onCancel={handleCloseForm}
           />
+          {isSubmitting && (
+            <View style={styles.submittingOverlay}>
+              <ActivityIndicator size="large" color="#3b82f6" />
+              <Text style={styles.submittingText}>
+                {selectedUser ? 'Updating user...' : 'Creating user...'}
+              </Text>
+            </View>
+          )}
         </View>
       </Modal>
 
@@ -344,14 +427,20 @@ export default function UsersTab({
                 <TouchableOpacity
                   style={[styles.alertButton, styles.cancelButton]}
                   onPress={() => setIsAlertOpen(false)}
+                  disabled={isSubmitting}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.alertButton, styles.deleteButton]}
                   onPress={handleDelete}
+                  disabled={isSubmitting}
                 >
-                  <Text style={styles.deleteButtonText}>Delete</Text>
+                  {isSubmitting ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.deleteButtonText}>Delete</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -401,17 +490,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     height: 160,
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
   },
   emptyContainer: {
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 32,
     paddingHorizontal: 16,
+    gap: 16,
   },
   emptyText: {
     color: '#666',
     textAlign: 'center',
     fontSize: 16,
+  },
+  retryButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#3b82f6',
+    borderRadius: 6,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontWeight: '500',
   },
   userCard: {
     backgroundColor: 'white',
@@ -518,7 +623,41 @@ const styles = StyleSheet.create({
     color: '#666',
     fontStyle: 'italic',
   },
-
+  actionsSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  companyCount: {
+    fontSize: 12,
+    color: '#666',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#f3f4f6',
+  },
+  editButtonText: {
+    fontSize: 12,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  deleteActionButton: {
+    backgroundColor: '#fef2f2',
+  },
+  deleteButtonText: {
+    fontSize: 12,
+    color: '#dc2626',
+    fontWeight: '500',
+  },
   // Modal styles
   modalContainer: {
     flex: 1,
@@ -536,6 +675,17 @@ const styles = StyleSheet.create({
   },
   modalDescription: {
     fontSize: 14,
+    color: '#666',
+  },
+  submittingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  submittingText: {
+    fontSize: 16,
     color: '#666',
   },
   // Alert styles

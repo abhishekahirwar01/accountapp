@@ -1,4 +1,10 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+} from 'react';
 import {
   View,
   Text,
@@ -9,19 +15,30 @@ import {
   FlatList,
   Alert,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import ExportTransaction from './ExportTransaction';
 import DataTable from '../transactions/DataTable';
 import TransactionsTable from '../transactions/TransactionsTable';
+import { issueInvoiceNumber } from '../../lib/issueInvoiceNumber';
+import { BASE_URL } from '../../config';
 
 const { width } = Dimensions.get('window');
 const isMobile = width < 768;
 
 const formatCurrency = amount => {
+  if (!amount || isNaN(amount)) return '₹0';
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
   }).format(amount);
+};
+
+const idOf = v => {
+  if (!v) return '';
+  if (typeof v === 'string') return v;
+  return v?._id || v?.$oid || v?.id || '';
 };
 
 export default function TransactionsTab({
@@ -29,229 +46,455 @@ export default function TransactionsTab({
   selectedCompanyId,
   companyMap,
 }) {
-  // ... (Hardcoded data and memoizations remain the same)
-  // Hardcoded data for demonstration - matching web structure
-  const hardcodedProducts = [
-    { _id: 'prod1', name: 'Beauty Gel', hsn: '330499', price: 5000 },
-    { _id: 'prod2', name: 'Moody Cream', hsn: '330499', price: 3000 },
-    { _id: 'prod3', name: 'Raw Material X', hsn: '8471', price: 1600 },
-  ];
-
-  const hardcodedServices = [
-    {
-      _id: 'serv1',
-      serviceName: 'Skin Consultation',
-      sac: '998311',
-      rate: 2000,
-    },
-    { _id: 'serv2', serviceName: 'Face Dressing', sac: '999723', rate: 1500 },
-  ];
-
-  const hardcodedTransactions = [
-    {
-      _id: '1',
-      date: '2024-01-15',
-      type: 'sales',
-      invoiceNumber: 'INV-001',
-      party: 'Customer A',
-      amount: 15000,
-      status: 'Paid',
-      company: 'comp1',
-      products: [
-        {
-          product: 'prod1',
-          quantity: 2,
-          pricePerUnit: 5000,
-          amount: 10000,
-          unitType: 'Piece',
-        },
-        {
-          product: 'prod2',
-          quantity: 1,
-          pricePerUnit: 3000,
-          amount: 3000,
-          unitType: 'Tube',
-        },
-      ],
-      services: [
-        { service: 'serv1', amount: 2000, description: 'Initial consultation' },
-      ],
-    },
-    {
-      _id: '2',
-      date: '2024-01-10',
-      type: 'purchase',
-      invoiceNumber: 'PUR-001',
-      party: 'Supplier B',
-      amount: 8000,
-      status: 'Pending',
-      company: 'comp1',
-      products: [
-        {
-          product: 'prod3',
-          quantity: 5,
-          pricePerUnit: 1600,
-          amount: 8000,
-          unitType: 'Kg',
-        },
-      ],
-    },
-    {
-      _id: '3',
-      date: '2024-01-05',
-      type: 'receipt',
-      description: 'Payment received from Customer A',
-      amount: 12000,
-      status: 'Completed',
-      company: 'comp1',
-    },
-    {
-      _id: '4',
-      date: '2024-01-03',
-      type: 'payment',
-      description: 'Vendor payment to Supplier B',
-      amount: 6500,
-      status: 'Completed',
-      company: 'comp2',
-    },
-    {
-      _id: '5',
-      date: '2024-01-01',
-      type: 'journal',
-      description: 'Year opening balance adjustment',
-      amount: 0,
-      status: 'Posted',
-      company: 'comp1',
-      products: [],
-      services: [],
-    },
-  ];
-
-  const hardcodedClient = selectedClient || {
-    _id: 'client1',
-    contactName: 'Demo Client',
-    email: 'demo@client.com',
-    phone: '+91 9876543210',
-  };
-
-  const hardcodedCompanyMap =
-    companyMap ||
-    new Map([
-      ['comp1', 'Demo Company 1'],
-      ['comp2', 'Demo Company 2'],
-    ]);
-
   // State management
+  const [sales, setSales] = useState([]);
+  const [purchases, setPurchases] = useState([]);
+  const [receipts, setReceipts] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [journals, setJournals] = useState([]);
+  const [productsList, setProductsList] = useState([]);
+  const [servicesList, setServicesList] = useState([]);
   const [selectedTab, setSelectedTab] = useState('all');
   const [isItemsModalOpen, setIsItemsModalOpen] = useState(false);
   const [itemsToView, setItemsToView] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [invNoByTxId, setInvNoByTxId] = useState({});
 
-  // Memoized data processing
+  // Refs for memory leak prevention
+  const isMountedRef = useRef(true);
+  const abortControllerRef = useRef(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  // Memoized data processing with safety checks
   const productNameById = useMemo(() => {
     const m = new Map();
-    for (const p of hardcodedProducts) {
-      m.set(String(p._id), p.name || '(unnamed product)');
+    if (!productsList || !Array.isArray(productsList)) return m;
+
+    for (const p of productsList) {
+      if (p && p._id) {
+        m.set(String(p._id), p.name || '(unnamed product)');
+      }
     }
     return m;
-  }, []);
+  }, [productsList]);
 
   const serviceNameById = useMemo(() => {
     const m = new Map();
-    for (const s of hardcodedServices) {
-      m.set(String(s._id), s.serviceName);
+    if (!servicesList || !Array.isArray(servicesList)) return m;
+
+    for (const s of servicesList) {
+      if (s && s._id) {
+        m.set(String(s._id), s.serviceName || '(unnamed service)');
+      }
     }
     return m;
+  }, [servicesList]);
+
+  // Safe response parsing
+  const parseResponse = useCallback((data, possibleArrayKeys = []) => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+
+    if (data?.success && Array.isArray(data?.data)) return data.data;
+    if (data?.success && Array.isArray(data?.entries)) return data.entries;
+
+    for (const key of possibleArrayKeys) {
+      if (Array.isArray(data?.[key])) return data[key];
+    }
+
+    for (const key in data) {
+      if (Array.isArray(data[key])) {
+        return data[key];
+      }
+    }
+
+    return [];
   }, []);
 
-  // Filter transactions by type - matching web structure
-  const sales = useMemo(
-    () => hardcodedTransactions.filter(tx => tx.type === 'sales'),
-    [],
+  // API fetch function with crash protection
+  const fetchTransactions = useCallback(async () => {
+    if (!selectedClient?._id || !isMountedRef.current) return;
+
+    // Abort previous request if any
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
+    setIsLoading(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const auth = {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      };
+
+      const byCompany = !!selectedCompanyId;
+
+      // Update API URLs to include company context
+      const productsUrl = selectedCompanyId
+        ? `${BASE_URL}/api/products?companyId=${selectedCompanyId}`
+        : `${BASE_URL}/api/products`;
+
+      const servicesUrl = selectedCompanyId
+        ? `${BASE_URL}/api/services?companyId=${selectedCompanyId}`
+        : `${BASE_URL}/api/services`;
+
+      const [
+        salesRes,
+        purchasesRes,
+        receiptsRes,
+        paymentsRes,
+        journalsRes,
+        productsRes,
+        servicesRes,
+      ] = await Promise.all([
+        fetch(
+          byCompany
+            ? `${BASE_URL}/api/sales?companyId=${selectedCompanyId}`
+            : `${BASE_URL}/api/sales/by-client/${selectedClient._id}`,
+          auth,
+        ),
+        fetch(
+          byCompany
+            ? `${BASE_URL}/api/purchase?companyId=${selectedCompanyId}`
+            : `${BASE_URL}/api/purchase/by-client/${selectedClient._id}`,
+          auth,
+        ),
+        fetch(
+          byCompany
+            ? `${BASE_URL}/api/receipts?companyId=${selectedCompanyId}`
+            : `${BASE_URL}/api/receipts/by-client/${selectedClient._id}`,
+          auth,
+        ),
+        fetch(
+          byCompany
+            ? `${BASE_URL}/api/payments?companyId=${selectedCompanyId}`
+            : `${BASE_URL}/api/payments/by-client/${selectedClient._id}`,
+          auth,
+        ),
+        fetch(
+          byCompany
+            ? `${BASE_URL}/api/journals?companyId=${selectedCompanyId}`
+            : `${BASE_URL}/api/journals/by-client/${selectedClient._id}`,
+          auth,
+        ),
+        fetch(productsUrl, auth),
+        fetch(servicesUrl, auth),
+      ]);
+
+      // Check if component is still mounted
+      if (!isMountedRef.current) return;
+
+      // Check response statuses
+      const mustOk = async (res, label) => {
+        if (!res.ok) {
+          const txt = await res.text().catch(() => '');
+          throw new Error(
+            `${label} API ${res.status} ${res.statusText} – ${txt}`,
+          );
+        }
+      };
+
+      await Promise.all([
+        mustOk(salesRes, 'Sales'),
+        mustOk(purchasesRes, 'Purchases'),
+        mustOk(receiptsRes, 'Receipts'),
+        mustOk(paymentsRes, 'Payments'),
+        mustOk(journalsRes, 'Journals'),
+        mustOk(productsRes, 'Products'),
+        mustOk(servicesRes, 'Services'),
+      ]);
+
+      const [
+        salesData,
+        purchasesData,
+        receiptsData,
+        paymentsData,
+        journalsData,
+        productsData,
+        servicesData,
+      ] = await Promise.all([
+        salesRes.json(),
+        purchasesRes.json(),
+        receiptsRes.json(),
+        paymentsRes.json(),
+        journalsRes.json(),
+        productsRes.json(),
+        servicesRes.json(),
+      ]);
+
+      // Parse responses with safety
+      const salesArr = parseResponse(salesData, [
+        'salesEntries',
+        'sales',
+        'entries',
+      ])
+        .filter(Boolean)
+        .map(s => ({
+          ...s,
+          type: 'sales',
+        }));
+
+      const purchasesArr = parseResponse(purchasesData, [
+        'purchaseEntries',
+        'purchases',
+        'entries',
+      ])
+        .filter(Boolean)
+        .map(p => ({
+          ...p,
+          type: 'purchases',
+        }));
+
+      const receiptsArr = parseResponse(receiptsData, [
+        'receiptEntries',
+        'receipts',
+        'entries',
+      ])
+        .filter(Boolean)
+        .map(r => ({
+          ...r,
+          type: 'receipt',
+        }));
+
+      const paymentsArr = parseResponse(paymentsData, [
+        'paymentEntries',
+        'payments',
+        'entries',
+      ])
+        .filter(Boolean)
+        .map(p => ({
+          ...p,
+          type: 'payment',
+        }));
+
+      const journalsArr = parseResponse(journalsData, ['data'])
+        .filter(Boolean)
+        .map(j => ({
+          ...j,
+          description: j.narration || j.description || '',
+          type: 'journal',
+          products: j.products || [],
+          services: j.services || [],
+          invoiceNumber: j.invoiceNumber || '',
+          party: j.party || '',
+        }));
+
+      const productsList = parseResponse(productsData, [
+        'products',
+        'items',
+        'data',
+      ]);
+      const servicesList = parseResponse(servicesData, ['services', 'data']);
+
+      const filterByCompany = (arr, companyId) => {
+        if (!arr || !Array.isArray(arr)) return [];
+        if (!companyId) return arr;
+
+        return arr.filter(doc => {
+          if (!doc) return false;
+          const docCompanyId = idOf(doc.company?._id ?? doc.company);
+          return docCompanyId === companyId;
+        });
+      };
+
+      if (isMountedRef.current) {
+        setSales(filterByCompany(salesArr, selectedCompanyId));
+        setPurchases(filterByCompany(purchasesArr, selectedCompanyId));
+        setReceipts(filterByCompany(receiptsArr, selectedCompanyId));
+        setPayments(filterByCompany(paymentsArr, selectedCompanyId));
+        setJournals(filterByCompany(journalsArr, selectedCompanyId));
+        setProductsList(productsList);
+        setServicesList(servicesList);
+      }
+    } catch (error) {
+      // Ignore abort errors
+      if (error.name === 'AbortError') {
+        console.log('Request was aborted');
+        return;
+      }
+
+      console.error('Failed to load transactions:', error);
+      if (isMountedRef.current) {
+        Alert.alert(
+          'Failed to load transactions',
+          error instanceof Error ? error.message : 'Something went wrong.',
+        );
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
+    }
+  }, [selectedClient?._id, selectedCompanyId, parseResponse]);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
+
+  // Invoice number functionality with safety
+  const ensureInvoiceNumberFor = useCallback(
+    async tx => {
+      if (!tx) throw new Error('No transaction provided');
+
+      const existing = tx.invoiceNumber || invNoByTxId[tx._id];
+      if (existing) return existing;
+
+      const companyId = idOf(tx.company?._id ?? tx.company);
+      if (!companyId) throw new Error('No companyId on this transaction');
+
+      const issued = await issueInvoiceNumber(companyId);
+      if (isMountedRef.current) {
+        setInvNoByTxId(m => ({ ...m, [tx._id]: issued }));
+      }
+      return issued;
+    },
+    [invNoByTxId],
   );
 
-  const purchases = useMemo(
-    () => hardcodedTransactions.filter(tx => tx.type === 'purchase'),
-    [],
-  );
-
-  const receipts = useMemo(
-    () => hardcodedTransactions.filter(tx => tx.type === 'receipt'),
-    [],
-  );
-
-  const payments = useMemo(
-    () => hardcodedTransactions.filter(tx => tx.type === 'payment'),
-    [],
-  );
-
-  const journals = useMemo(
-    () => hardcodedTransactions.filter(tx => tx.type === 'journal'),
-    [],
-  );
-
-  const allTransactions = useMemo(
-    () =>
-      [...sales, ...purchases, ...receipts, ...payments, ...journals].sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-      ),
-    [sales, purchases, receipts, payments, journals],
-  );
-
-  // Handlers - matching web functionality
+  // Safe data handlers
   const handleViewItems = useCallback(
     tx => {
-      console.log('Transaction data for items:', tx);
+      if (!tx) return;
 
-      const prods = (tx.products || []).map(p => {
-        const productName = productNameById.get(p.product) || '(product)';
-        const productObj = hardcodedProducts.find(
-          prod => prod._id === p.product,
-        );
-        const hsnCode = productObj?.hsn || '8471';
+      const prods = (tx.products || [])
+        .map(p => {
+          if (!p) return null;
 
-        return {
-          itemType: 'product',
-          name: productName,
-          quantity: p.quantity ?? '',
-          unitType:
-            p.unitType === 'Other'
-              ? p.otherUnit || 'Other'
-              : p.unitType || 'Piece',
-          pricePerUnit: p.pricePerUnit ?? '',
-          description: '',
-          amount: Number(p.amount) || 0,
-          hsnCode,
-        };
-      });
+          const productName =
+            productNameById.get(p.product) || p.product?.name || '(product)';
 
-      const svcs = (tx.services || []).map(s => {
-        const serviceName = serviceNameById.get(s.service) || '(service)';
-        const serviceObj = hardcodedServices.find(
-          serv => serv._id === s.service,
-        );
-        const sacCode = serviceObj?.sac || '9984';
+          // Enhanced HSN code extraction
+          let hsnCode = '';
 
-        return {
-          itemType: 'service',
-          name: serviceName,
-          quantity: '',
-          unitType: '',
-          pricePerUnit: '',
-          description: s.description || '',
-          amount: Number(s.amount) || 0,
-          sacCode,
-        };
-      });
+          // Method 1: Check if product has HSN directly
+          if (p.product && typeof p.product === 'object') {
+            hsnCode = p.product.hsn || p.product.hsnCode || '';
+          }
+
+          // Method 2: Check product line level
+          if (!hsnCode && p.hsn) {
+            hsnCode = p.hsn;
+          }
+
+          // Method 3: Look up in productsList
+          if (!hsnCode) {
+            const productId =
+              typeof p.product === 'object' ? p.product._id : p.product;
+            const productObj = productsList.find(
+              prod => prod && prod._id === productId,
+            );
+            hsnCode = productObj?.hsn || productObj?.hsnCode || '';
+          }
+
+          // Method 4: Fallback based on product name
+          if (!hsnCode) {
+            if (productName.toLowerCase().includes('gel')) hsnCode = '330499';
+            else if (productName.toLowerCase().includes('moody'))
+              hsnCode = '330499';
+            else hsnCode = '8471'; // General goods
+          }
+
+          return {
+            itemType: 'product',
+            name: productName,
+            quantity: p.quantity ?? '',
+            unitType: p.unitType ?? '',
+            otherUnit: p.otherUnit ?? '',
+            pricePerUnit: p.pricePerUnit ?? '',
+            description: '',
+            amount: Number(p.amount) || 0,
+            hsnCode,
+          };
+        })
+        .filter(Boolean);
+
+      const svcArr = Array.isArray(tx.services)
+        ? tx.services
+        : Array.isArray(tx.service)
+        ? tx.service
+        : [];
+
+      const svcs = svcArr
+        .map(s => {
+          if (!s) return null;
+
+          const id =
+            typeof s.service === 'object'
+              ? s.service._id
+              : s.service ??
+                (typeof s.serviceName === 'object'
+                  ? s.serviceName._id
+                  : s.serviceName);
+
+          const name =
+            (id && serviceNameById.get(String(id))) ||
+            (typeof s.service === 'object' && s.service.serviceName) ||
+            (typeof s.serviceName === 'object' && s.serviceName.serviceName) ||
+            '(service)';
+
+          // Enhanced SAC code extraction
+          let sacCode = '';
+
+          // Method 1: Check if service has SAC directly
+          if (s.service && typeof s.service === 'object') {
+            sacCode = s.service.sac || s.service.sacCode || '';
+          }
+
+          // Method 2: Check service line level
+          if (!sacCode && s.sac) {
+            sacCode = s.sac;
+          }
+
+          // Method 3: Look up in servicesList
+          if (!sacCode) {
+            const serviceObj = servicesList.find(svc => svc && svc._id === id);
+            sacCode = serviceObj?.sac || serviceObj?.sacCode || '';
+          }
+
+          // Method 4: Fallback based on service name
+          if (!sacCode) {
+            if (name.toLowerCase().includes('dressing')) sacCode = '999723';
+            else if (name.toLowerCase().includes('consult')) sacCode = '998311';
+            else sacCode = '9984'; // General services
+          }
+
+          return {
+            itemType: 'service',
+            name,
+            quantity: '',
+            unitType: '',
+            pricePerUnit: '',
+            description: s.description || '',
+            amount: Number(s.amount) || 0,
+            sacCode,
+          };
+        })
+        .filter(Boolean);
 
       const allItems = [...prods, ...svcs];
-      console.log('Final items to display:', allItems);
 
-      setItemsToView(allItems);
-      setIsItemsModalOpen(true);
+      if (isMountedRef.current) {
+        setItemsToView(allItems);
+        setIsItemsModalOpen(true);
+      }
     },
-    [productNameById, serviceNameById],
+    [productNameById, serviceNameById, productsList, servicesList],
   );
 
   const handleAction = useCallback(() => {
@@ -262,56 +505,118 @@ export default function TransactionsTab({
     );
   }, []);
 
-  const onPreview = useCallback(tx => {
-    Alert.alert(
-      'Preview Invoice',
-      `Would open invoice preview for ${tx.invoiceNumber}`,
-      [{ text: 'OK' }],
-    );
-  }, []);
+  const onPreview = useCallback(
+    async tx => {
+      if (!tx) return;
 
-  const onDownloadInvoice = useCallback(tx => {
-    Alert.alert(
-      'Download Invoice',
-      `Would download invoice for ${tx.invoiceNumber}`,
-      [{ text: 'OK' }],
-    );
-  }, []);
+      try {
+        const invNo = await ensureInvoiceNumberFor(tx);
+        Alert.alert(
+          'Preview Invoice',
+          `Invoice ${invNo} would open in preview mode`,
+          [{ text: 'OK' }],
+        );
+      } catch (e) {
+        Alert.alert(
+          "Couldn't issue invoice number",
+          e?.message || 'Try again.',
+          [{ text: 'OK' }],
+        );
+      }
+    },
+    [ensureInvoiceNumberFor],
+  );
 
-  // Tab content rendering
-  const getTabData = () => {
+  const onDownloadInvoice = useCallback(
+    async tx => {
+      if (!tx) return;
+
+      try {
+        const invNo = await ensureInvoiceNumberFor(tx);
+        Alert.alert(
+          'Download Invoice',
+          `Invoice ${invNo} would be downloaded`,
+          [{ text: 'OK' }],
+        );
+      } catch (e) {
+        Alert.alert(
+          "Couldn't issue invoice number",
+          e?.message || 'Try again.',
+          [{ text: 'OK' }],
+        );
+      }
+    },
+    [ensureInvoiceNumberFor],
+  );
+
+  // Safe data processing
+  const allTransactions = useMemo(() => {
+    const all = [
+      ...sales,
+      ...purchases,
+      ...receipts,
+      ...payments,
+      ...journals,
+    ].filter(Boolean);
+
+    return all.sort((a, b) => {
+      const dateA = a.date ? new Date(a.date).getTime() : 0;
+      const dateB = b.date ? new Date(b.date).getTime() : 0;
+      return dateB - dateA;
+    });
+  }, [sales, purchases, receipts, payments, journals]);
+
+  // Tab content rendering with safety
+  const getTabData = useCallback(() => {
     switch (selectedTab) {
       case 'sales':
-        return sales;
+        return sales || [];
       case 'purchases':
-        return purchases;
+        return purchases || [];
       case 'receipts':
-        return receipts;
+        return receipts || [];
       case 'payments':
-        return payments;
+        return payments || [];
       case 'journals':
-        return journals;
+        return journals || [];
       default:
         return allTransactions;
     }
-  };
+  }, [
+    selectedTab,
+    sales,
+    purchases,
+    receipts,
+    payments,
+    journals,
+    allTransactions,
+  ]);
 
   const renderContent = () => {
     if (isLoading) {
       return (
         <View style={styles.loadingContainer}>
-          <Text>Loading transactions...</Text>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading transactions...</Text>
         </View>
       );
     }
 
     const data = getTabData();
 
+    if (!data || data.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No transactions found</Text>
+        </View>
+      );
+    }
+
     if (isMobile) {
       return (
         <TransactionsTable
           data={data}
-          companyMap={hardcodedCompanyMap}
+          companyMap={companyMap}
           serviceNameById={serviceNameById}
           onPreview={onPreview}
           onEdit={handleAction}
@@ -327,7 +632,7 @@ export default function TransactionsTab({
     return (
       <DataTable
         data={data}
-        companyMap={hardcodedCompanyMap}
+        companyMap={companyMap}
         serviceNameById={serviceNameById}
         onViewItems={handleViewItems}
         onPreview={onPreview}
@@ -337,175 +642,197 @@ export default function TransactionsTab({
     );
   };
 
-  const handleTabChange = tab => {
+  const handleTabChange = useCallback(tab => {
     setSelectedTab(tab);
     setIsDropdownOpen(false);
-  };
+  }, []);
 
   // Tab navigation component
-  const TabNavigation = () => (
-    <View style={styles.tabContainer}>
-      {/* Desktop Tabs */}
-      {!isMobile && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.tabList}
-        >
-          {[
-            'all',
-            'sales',
-            'purchases',
-            'receipts',
-            'payments',
-            'journals',
-          ].map(tab => (
-            <TouchableOpacity
-              key={tab}
-              style={[
-                styles.tabTrigger,
-                selectedTab === tab && styles.activeTab,
-              ]}
-              onPress={() => handleTabChange(tab)}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  selectedTab === tab && styles.activeTabText,
-                ]}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
-
-      {/* Mobile Dropdown */}
-      {isMobile && (
-        <View style={styles.mobileTabContainer}>
-          <TouchableOpacity
-            style={styles.mobileTabHeader}
-            onPress={() => setIsDropdownOpen(!isDropdownOpen)}
+  const TabNavigation = useCallback(
+    () => (
+      <View style={styles.tabContainer}>
+        {/* Desktop Tabs */}
+        {!isMobile && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.tabList}
           >
-            <Text style={styles.mobileTabText}>
-              {selectedTab.charAt(0).toUpperCase() + selectedTab.slice(1)}
-            </Text>
-            <Text style={styles.dropdownArrow}>▼</Text>
-          </TouchableOpacity>
-
-          {isDropdownOpen && (
-            <View style={styles.dropdownMenu}>
-              {[
-                'all',
-                'sales',
-                'purchases',
-                'receipts',
-                'payments',
-                'journals',
-              ].map(tab => (
-                <TouchableOpacity
-                  key={tab}
-                  style={styles.dropdownItem}
-                  onPress={() => handleTabChange(tab)}
+            {[
+              'all',
+              'sales',
+              'purchases',
+              'receipts',
+              'payments',
+              'journals',
+            ].map(tab => (
+              <TouchableOpacity
+                key={tab}
+                style={[
+                  styles.tabTrigger,
+                  selectedTab === tab && styles.activeTab,
+                ]}
+                onPress={() => handleTabChange(tab)}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    selectedTab === tab && styles.activeTabText,
+                  ]}
                 >
-                  <Text style={styles.dropdownItemText}>
-                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
-      )}
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
-      {/* Export Button */}
-      <View style={styles.exportSection}>
-        <ExportTransaction
-          selectedClientId={hardcodedClient._id}
-          companyMap={hardcodedCompanyMap}
-          defaultCompanyId={selectedCompanyId}
-        />
+        {/* Mobile Dropdown */}
+        {isMobile && (
+          <View style={styles.mobileTabContainer}>
+            <TouchableOpacity
+              style={styles.mobileTabHeader}
+              onPress={() => setIsDropdownOpen(!isDropdownOpen)}
+            >
+              <Text style={styles.mobileTabText}>
+                {selectedTab.charAt(0).toUpperCase() + selectedTab.slice(1)}
+              </Text>
+              <Text style={styles.dropdownArrow}>▼</Text>
+            </TouchableOpacity>
+
+            {isDropdownOpen && (
+              <View style={styles.dropdownMenu}>
+                {[
+                  'all',
+                  'sales',
+                  'purchases',
+                  'receipts',
+                  'payments',
+                  'journals',
+                ].map(tab => (
+                  <TouchableOpacity
+                    key={tab}
+                    style={styles.dropdownItem}
+                    onPress={() => handleTabChange(tab)}
+                  >
+                    <Text style={styles.dropdownItemText}>
+                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Export Button */}
+        <View style={styles.exportSection}>
+          <ExportTransaction
+            selectedClientId={selectedClient?._id}
+            companyMap={companyMap}
+            defaultCompanyId={selectedCompanyId}
+          />
+        </View>
       </View>
-    </View>
+    ),
+    [
+      isMobile,
+      selectedTab,
+      handleTabChange,
+      isDropdownOpen,
+      selectedClient,
+      selectedCompanyId,
+      companyMap,
+    ],
   );
 
-  // Items Modal Component - matching web dialog
-  const ItemsModal = () => (
-    <Modal
-      visible={isItemsModalOpen}
-      animationType="slide"
-      onRequestClose={() => setIsItemsModalOpen(false)}
-    >
-      <View style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Item Details</Text>
-          <Text style={styles.modalDescription}>
-            A detailed list of all items in this transaction.
-          </Text>
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => setIsItemsModalOpen(false)}
-          >
-            <Text style={styles.closeButtonText}>×</Text>
-          </TouchableOpacity>
-        </View>
+  // Items Modal Component
+  const ItemsModal = useCallback(
+    () => (
+      <Modal
+        visible={isItemsModalOpen}
+        animationType="slide"
+        onRequestClose={() => setIsItemsModalOpen(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Item Details</Text>
+            <Text style={styles.modalDescription}>
+              A detailed list of all items in this transaction.
+            </Text>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setIsItemsModalOpen(false)}
+            >
+              <Text style={styles.closeButtonText}>×</Text>
+            </TouchableOpacity>
+          </View>
 
-        <FlatList
-          data={itemsToView}
-          keyExtractor={(item, index) => index.toString()}
-          renderItem={({ item }) => (
-            <View style={styles.itemCard}>
-              <View style={styles.itemHeader}>
-                <View style={styles.itemIcon}>
-                  <Text style={styles.iconText}>
-                    {item.itemType === 'service' ? '⚡' : '📦'}
-                  </Text>
-                </View>
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  <View style={styles.itemMeta}>
-                    <Text style={styles.itemType}>
-                      {item.itemType?.charAt(0).toUpperCase() +
-                        item.itemType?.slice(1)}
-                    </Text>
-                    <Text style={styles.hsnSac}>
-                      {item.itemType === 'service' ? 'SAC' : 'HSN'}:{' '}
-                      {item.sacCode || item.hsnCode || '—'}
+          <FlatList
+            data={itemsToView}
+            keyExtractor={(item, index) => index.toString()}
+            renderItem={({ item }) => (
+              <View style={styles.itemCard}>
+                <View style={styles.itemHeader}>
+                  <View style={styles.itemIcon}>
+                    <Text style={styles.iconText}>
+                      {item.itemType === 'service' ? '⚡' : '📦'}
                     </Text>
                   </View>
-                  {item.itemType === 'service' && item.description && (
-                    <Text style={styles.itemDescription}>
-                      {item.description}
-                    </Text>
+                  <View style={styles.itemInfo}>
+                    <Text style={styles.itemName}>{item.name}</Text>
+                    <View style={styles.itemMeta}>
+                      <Text style={styles.itemType}>
+                        {item.itemType?.charAt(0).toUpperCase() +
+                          item.itemType?.slice(1)}
+                      </Text>
+                      <Text style={styles.hsnSac}>
+                        {item.itemType === 'service' ? 'SAC' : 'HSN'}:{' '}
+                        {item.sacCode || item.hsnCode || '—'}
+                      </Text>
+                    </View>
+                    {item.itemType === 'service' && item.description && (
+                      <Text style={styles.itemDescription}>
+                        {item.description}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+
+                <View style={styles.itemDetails}>
+                  {item.itemType === 'product' && (
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailText}>
+                        Qty: {item.quantity}{' '}
+                        {item.unitType === 'Other'
+                          ? item.otherUnit || 'Other'
+                          : item.unitType || 'Piece'}
+                      </Text>
+                      <Text style={styles.detailText}>
+                        Rate: {formatCurrency(Number(item.pricePerUnit))}
+                      </Text>
+                    </View>
                   )}
-                </View>
-              </View>
-
-              <View style={styles.itemDetails}>
-                {item.itemType === 'product' && (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailText}>
-                      Qty: {item.quantity} {item.unitType}
-                    </Text>
-                    <Text style={styles.detailText}>
-                      Rate: {formatCurrency(Number(item.pricePerUnit))}
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>Total:</Text>
+                    <Text style={styles.totalAmount}>
+                      {formatCurrency(Number(item.amount))}
                     </Text>
                   </View>
-                )}
-                <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>Total:</Text>
-                  <Text style={styles.totalAmount}>
-                    {formatCurrency(Number(item.amount))}
-                  </Text>
                 </View>
               </View>
-            </View>
-          )}
-          contentContainerStyle={styles.itemsList}
-        />
-      </View>
-    </Modal>
+            )}
+            contentContainerStyle={styles.itemsList}
+            ListEmptyComponent={
+              <View style={styles.noItems}>
+                <Text style={styles.noItemsText}>No items found</Text>
+              </View>
+            }
+          />
+        </View>
+      </Modal>
+    ),
+    [isItemsModalOpen, itemsToView],
   );
 
   return (
@@ -517,6 +844,7 @@ export default function TransactionsTab({
       <ScrollView
         style={styles.contentScrollView}
         contentContainerStyle={styles.contentScrollContainer}
+        showsVerticalScrollIndicator={false}
       >
         {renderContent()}
       </ScrollView>
@@ -537,7 +865,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f9fa',
     zIndex: 1,
   },
-
   contentScrollView: {
     flex: 1,
     paddingHorizontal: 16,
@@ -553,7 +880,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
-
   tabList: {
     flex: 1,
   },
@@ -636,19 +962,40 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   // Content Styles
-  content: {
-    // Removed flex: 1 and margin from here.
-    // The margin is now in contentScrollContainer.
-  },
   loadingContainer: {
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'white',
     borderRadius: 8,
     padding: 20,
-    minHeight: 200, // Ensure a minimum height for visibility
+    minHeight: 200,
   },
-  // ... (Modal styles remain the same)
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
+  },
+  emptyContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 20,
+    minHeight: 200,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  noItems: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  noItemsText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  // Modal styles
   modalContainer: {
     flex: 1,
     backgroundColor: 'white',
