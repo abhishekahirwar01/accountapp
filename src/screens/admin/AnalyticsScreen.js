@@ -18,6 +18,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRoute } from '@react-navigation/native';
 import { Picker } from '@react-native-picker/picker';
 import {
   Users,
@@ -39,6 +40,9 @@ import { BASE_URL } from '../../config';
 // ...existing code...
 
 export default function AnalyticsScreen() {
+    const route = useRoute(); // Add this line
+  const preSelectedClientId = route.params?.clientId; // Add this line
+
   const [clients, setClients] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [selectedClientId, setSelectedClientId] = useState('');
@@ -53,6 +57,17 @@ export default function AnalyticsScreen() {
   // Refs for memory leak prevention
   const isMountedRef = useRef(true);
   const abortControllerRef = useRef(null);
+
+    // ✅ ADD THIS EFFECT FOR PRE-SELECTED CLIENT
+  React.useEffect(() => {
+    if (preSelectedClientId && clients.length > 0) {
+      // Check if pre-selected client exists in clients list
+      const clientExists = clients.some(c => c && c._id === preSelectedClientId);
+      if (clientExists) {
+        setSelectedClientId(preSelectedClientId);
+      }
+    }
+  }, [clients, preSelectedClientId]);
 
   // Cleanup on unmount
   useEffect(() => {

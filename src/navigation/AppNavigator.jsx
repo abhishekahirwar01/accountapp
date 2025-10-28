@@ -13,6 +13,7 @@ import ProfileScreen from '../screens/main/ProfileScreen';
 import SettingsScreen from '../screens/admin/SettingsScreen';
 import InvoicePreview from '../components/invoices/InvoicePreview';
 import SendOtpScreen from '../screens/auth/SendOtpScreen';
+import AnalyticsScreen from '../screens/admin/AnalyticsScreen';
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
@@ -27,6 +28,7 @@ export default function AppNavigator() {
 
       {/* Dashboards */}
       <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+      <Stack.Screen name="AnalyticsScreen" component={AnalyticsScreen} />
       <Stack.Screen name="UserDashboard" component={UserDashboardScreen} />
       <Stack.Screen name="Dashboard" component={DashboardScreen} />
 

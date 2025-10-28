@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
+import { useNavigation } from '@react-navigation/native';
 import {
   User,
   Phone,
@@ -18,10 +19,10 @@ export default function ClientCard({
   client,
   onEdit,
   onDelete,
-  onViewAnalytics,
   copyToClipboard,
 }) {
   const { toast } = useToast();
+  const navigation = useNavigation();
 
   const formatDate = dateString => {
     if (!dateString) return 'N/A';
@@ -74,6 +75,15 @@ export default function ClientCard({
         },
       ],
     );
+  };
+
+  // Navigation handler for View Analytics
+  const handleViewAnalytics = () => {
+    navigation.navigate('AnalyticsScreen', {
+      clientId: client._id,
+      clientName: client.contactName,
+      preSelectedClient: client,
+    });
   };
 
   return (
@@ -135,7 +145,7 @@ export default function ClientCard({
       <View style={styles.footer}>
         <TouchableOpacity
           style={[styles.actionButton, styles.viewButton]}
-          onPress={() => onViewAnalytics(client._id)}
+          onPress={handleViewAnalytics}
         >
           <Eye size={18} color="#fff" />
           <Text style={styles.actionText}>View</Text>
