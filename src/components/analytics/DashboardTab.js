@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import CompanyCard from '../companies/CompanyCard';
+import CompanyCardAnalytics from '../companies/CompanyCardAnalytics';
 import { BASE_URL } from '../../config';
 
 const formatCurrency = amount => {
@@ -374,8 +374,10 @@ const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
   ];
 
   const renderCarouselItem = ({ item, index }) => (
+    
     <View style={[styles.carouselItem, { width: cardWidth }]}>
-      <CompanyCard
+      
+      <CompanyCardAnalytics
         company={item}
         showIndicators={true}
         indicators={companies}
@@ -621,7 +623,7 @@ const styles = StyleSheet.create({
   },
   carouselContainer: {
     position: 'relative',
-    minHeight: 400,
+    minHeight: 600,
     marginTop: 8,
   },
   carouselContent: {
