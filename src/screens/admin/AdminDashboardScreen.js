@@ -348,15 +348,16 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   badgeWrapper: {
-    transform: [{ scale: 0.8 }], // 🔹 Makes badge ~20% smaller
+    transform: [{ scale: 0.8 }], // 🔹 Makes badge smaller
   },
 
-  // KPI Cards
+  // ✅ KPI Cards
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     padding: 8,
     gap: 6,
+    marginBottom: 4, // 🔹 Reduced space before notifications
   },
   kpiCard: {
     width: '48%',
@@ -406,9 +407,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: 8,
   },
-  // notificationSection: {
-  //   padding: 8,
-  // },
+
+  // ✅ Reduced Gap Between KPI and Notifications
+  notificationSection: {
+    paddingHorizontal: 8,
+    paddingTop: 0,
+    marginTop: -4, // 🔹 Pull notifications closer to KPI cards
+  },
+
   center: {
     flex: 1,
     justifyContent: 'center',
