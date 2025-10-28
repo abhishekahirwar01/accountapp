@@ -1,7 +1,22 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  StyleSheet,
+  RefreshControl,
+  Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BASE_URL } from '../../config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Header from '../../components/layout/Header';
 import BottomNav from '../../components/layout/BottomNav';
+import UpdateNotification from '../../components/notifications/UpdateNotification';
+import UpdateNotificationBadge from '../../components/notifications/UpdateNotificationBadge';
 
 // Import your screens
 import ClientManagementScreen from './ClientManagementScreen';
@@ -10,89 +25,227 @@ import CompaniesScreen from './CompaniesScreen';
 import AnalyticsScreen from './AnalyticsScreen';
 import SettingsScreen from './SettingsScreen';
 
-// Icons
-import { Users, Building, Database, FileText, TrendingDown, TrendingUp } from 'lucide-react-native';
-
 export default function AdminDashboardScreen({ navigation }) {
   const [currentTab, setCurrentTab] = useState('Dashboard');
+  const [clients, setClients] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Hardcoded data for Dashboard
-  const totalClients = 128;
-  const activeUsers = 76;
-  const revenue = '$12,480';
-  const pendingTasks = 8;
+  useEffect(() => {
+    if (currentTab === 'Dashboard') {
+      fetchData();
+    }
+  }, [currentTab]);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      await Promise.all([
+        fetchClients(),
+        fetchCompanies()
+      ]);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load dashboard data');
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const fetchClients = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Please login again');
+        navigation.navigate('Login');
+        return;
+      }
+      
+      const res = await fetch(`${BASE_URL}/api/clients`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      
+      if (!res.ok) {
+        if (res.status === 401) {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session Expired', 'Please login again');
+          navigation.navigate('Login');
+          return;
+        }
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to fetch clients.");
+      }
+      
+      const data = await res.json();
+      setClients(data);
+    } catch (error) {
+      console.error('Error fetching clients:', error);
+      Alert.alert('Error', error.message || 'Failed to fetch clients');
+      throw error;
+    }
+  };
+
+  const fetchCompanies = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error("Authentication token not found.");
+      
+      const res = await fetch(`${BASE_URL}/api/companies/all`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to fetch companies.");
+      }
+      
+      const data = await res.json();
+      setCompanies(data);
+    } catch (error) {
+      console.error('Error fetching companies:', error);
+      throw error;
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchData();
+  };
+
+  // Calculate stats from local data (same as Next.js)
+  const totalClients = clients.length;
+  const activeClients = clients.filter(c => c.status === 'Active').length;
+  const totalCompanies = companies.length;
+  
+  // Mock data for KPIs (same as Next.js)
+  const totalTransactions = 1452;
+  const pendingInvoices = 23;
+
+  const kpiData = [
+    { 
+      title: 'Total Clients', 
+      value: totalClients.toString(), 
+      change: `+${Math.floor(Math.random() * 5)} this month`, 
+      icon: 'account-group',
+      iconBg: '#E3F2FD',
+      iconColor: '#2196F3'
+    },
+    { 
+      title: 'Companies Managed', 
+      value: totalCompanies.toString(), 
+      change: '+5 this month', 
+      icon: 'office-building',
+      iconBg: '#E8F5E8',
+      iconColor: '#4CAF50'
+    },
+    { 
+      title: 'Total Transactions', 
+      value: totalTransactions.toLocaleString(), 
+      change: '+120 this week', 
+      icon: 'database',
+      iconBg: '#F3E5F5',
+      iconColor: '#9C27B0'
+    },
+    { 
+      title: 'Pending Invoices', 
+      value: pendingInvoices.toString(), 
+      change: 'Across all clients', 
+      icon: 'file-document',
+      iconBg: '#FFF3E0',
+      iconColor: '#FF9800'
+    },
+  ];
+
+  const getTrendIcon = (change) => {
+    if (change.startsWith('+')) {
+      return 'trending-up';
+    }
+    return 'trending-down';
+  };
+
+  const getTrendColor = (change) => {
+    if (change.startsWith('+')) {
+      return '#4CAF50';
+    }
+    return '#F44336';
+  };
+
+  const renderDashboardContent = () => {
+    if (isLoading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2196F3" />
+          <Text style={styles.loadingText}>Loading dashboard data...</Text>
+        </View>
+      );
+    }
+
+    return (
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* Header Section */}
+        <View style={styles.header}>
+          <View style={styles.headerContent}>
+            <Text style={styles.title}>Master Admin Dashboard</Text>
+            <Text style={styles.subtitle}>
+              Overview of your accounting software platform
+            </Text>
+          </View>
+          <View style={styles.badgeContainer}>
+            <UpdateNotificationBadge />
+          </View>
+        </View>
+
+        {/* KPI Cards Grid - Non-clickable (same as Next.js) */}
+        <View style={styles.kpiGrid}>
+          {kpiData.map((kpi, index) => (
+            <View
+              key={kpi.title}
+              style={styles.kpiCard}
+            >
+              <View style={styles.kpiContent}>
+                <View style={styles.kpiTextContainer}>
+                  <Text style={styles.kpiTitle}>{kpi.title}</Text>
+                  <Text style={styles.kpiValue}>{kpi.value}</Text>
+                  <View style={styles.kpiChangeContainer}>
+                    <Icon
+                      name={getTrendIcon(kpi.change)}
+                      size={16}
+                      color={getTrendColor(kpi.change)}
+                    />
+                    <Text style={[styles.kpiChange, { color: getTrendColor(kpi.change) }]}>
+                      {kpi.change}
+                    </Text>
+                  </View>
+                </View>
+                <View style={[styles.kpiIconContainer, { backgroundColor: kpi.iconBg }]}>
+                  <Icon name={kpi.icon} size={24} color={kpi.iconColor} />
+                </View>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* Update Notifications */}
+        <View style={styles.notificationSection}>
+          <UpdateNotification />
+        </View>
+      </ScrollView>
+    );
+  };
 
   const renderContent = () => {
     switch (currentTab) {
       case 'Dashboard':
         return (
-          <ScrollView contentContainerStyle={styles.mainContent}>
-            <Text style={styles.title}>Master Admin Dashboard</Text>
-            <Text style={styles.subtitle}>Welcome, Master Admin!</Text>
-
-            {/* KPI Cards */}
-            <View style={styles.kpiContainer}>
-              {/* Total Clients */}
-              <View style={styles.kpiCard}>
-                <View style={styles.kpiCardContent}>
-                  <Text style={styles.kpiTitle}>Total Clients</Text>
-                  <Text style={styles.kpiValue}>{totalClients}</Text>
-                  <View style={styles.kpiChangeContainer}>
-                    <TrendingUp size={16} color="green" />
-                    <Text style={styles.kpiChangeText}> +5 this month</Text>
-                  </View>
-                </View>
-                <View style={[styles.kpiIconContainer, { backgroundColor: '#e0f2fe' }]}>
-                  <Users size={24} color="#3b82f6" />
-                </View>
-              </View>
-
-              {/* Active Users */}
-              <View style={styles.kpiCard}>
-                <View style={styles.kpiCardContent}>
-                  <Text style={styles.kpiTitle}>Active Users</Text>
-                  <Text style={styles.kpiValue}>{activeUsers}</Text>
-                  <View style={styles.kpiChangeContainer}>
-                    <TrendingUp size={16} color="green" />
-                    <Text style={styles.kpiChangeText}> +10 this month</Text>
-                  </View>
-                </View>
-                <View style={[styles.kpiIconContainer, { backgroundColor: '#dcfce7' }]}>
-                  <Building size={24} color="#22c55e" />
-                </View>
-              </View>
-
-              {/* Revenue */}
-              <View style={styles.kpiCard}>
-                <View style={styles.kpiCardContent}>
-                  <Text style={styles.kpiTitle}>Revenue</Text>
-                  <Text style={styles.kpiValue}>{revenue}</Text>
-                  <View style={styles.kpiChangeContainer}>
-                    <TrendingUp size={16} color="green" />
-                    <Text style={styles.kpiChangeText}> +$1,200 this month</Text>
-                  </View>
-                </View>
-                <View style={[styles.kpiIconContainer, { backgroundColor: '#ede9fe' }]}>
-                  <Database size={24} color="#7c3aed" />
-                </View>
-              </View>
-
-              {/* Pending Tasks */}
-              <View style={styles.kpiCard}>
-                <View style={styles.kpiCardContent}>
-                  <Text style={styles.kpiTitle}>Pending Tasks</Text>
-                  <Text style={styles.kpiValue}>{pendingTasks}</Text>
-                  <View style={styles.kpiChangeContainer}>
-                    <TrendingDown size={16} color="red" />
-                    <Text style={styles.kpiChangeText}> -2 this week</Text>
-                  </View>
-                </View>
-                <View style={[styles.kpiIconContainer, { backgroundColor: '#fff7ed' }]}>
-                  <FileText size={24} color="#f97316" />
-                </View>
-              </View>
-            </View>
-          </ScrollView>
+          <SafeAreaView style={styles.container}>
+            {renderDashboardContent()}
+          </SafeAreaView>
         );
 
       case 'Clients':
@@ -109,52 +262,148 @@ export default function AdminDashboardScreen({ navigation }) {
       default:
         return (
           <View style={styles.center}>
-            <Text>{currentTab} Screen Coming Soon...</Text>
+            <Text style={styles.comingSoonText}>{currentTab} Screen Coming Soon...</Text>
           </View>
         );
     }
   };
 
   return (
-    <View style={styles.container}>
+    <View style={styles.mainContainer}>
       {/* Header only on Dashboard */}
       {currentTab === 'Dashboard' && <Header username="Master Admin" role="master" />}
 
       {/* Tab-wise Content */}
-      <View style={{ flex: 1 }}>{renderContent()}</View>
+      <View style={styles.contentContainer}>
+        {renderContent()}
+      </View>
 
       {/* Bottom Navigation */}
-      <BottomNav role="master" onTabChange={tab => setCurrentTab(tab)} />
+      <BottomNav 
+        role="master" 
+        currentTab={currentTab}
+        onTabChange={tab => setCurrentTab(tab)} 
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
-  mainContent: { flexGrow: 1, alignItems: 'center', paddingVertical: 20, paddingHorizontal: 20 },
-  title: { fontSize: 28, fontWeight: '700', color: '#1e293b', textAlign: 'center', marginBottom: 5 },
-  subtitle: { fontSize: 16, color: '#475569', textAlign: 'center', marginBottom: 25 },
-
-  kpiContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 30 },
+  mainContainer: { 
+    flex: 1, 
+    backgroundColor: '#f9fafb' 
+  },
+  contentContainer: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: 16,
+    paddingTop: 24,
+  },
+  headerContent: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
+  },
+  badgeContainer: {
+    marginLeft: 12,
+  },
+  kpiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 8,
+    gap: 8,
+  },
   kpiCard: {
     width: '48%',
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 20,
-    marginBottom: 15,
+    padding: 16,
     shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 6,
+    shadowRadius: 4,
     elevation: 3,
-    alignItems: 'center',
+    marginBottom: 8,
   },
-  kpiCardContent: { flex: 1, alignItems: 'center' },
-  kpiTitle: { fontSize: 14, color: '#94a3b8', marginBottom: 10 },
-  kpiValue: { fontSize: 22, fontWeight: '700', color: '#1e293b' },
-  kpiChangeContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
-  kpiChangeText: { fontSize: 12, color: '#475569', marginLeft: 4 },
-
-  kpiIconContainer: { padding: 12, borderRadius: 50, marginTop: 16, alignItems: 'center', justifyContent: 'center' },
-
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  kpiContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  kpiTextContainer: {
+    flex: 1,
+  },
+  kpiTitle: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  kpiValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  kpiChangeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  kpiChange: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  kpiIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  notificationSection: {
+    padding: 16,
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+  },
+  comingSoonText: {
+    fontSize: 18,
+    color: '#666',
+    textAlign: 'center',
+  },
 });
