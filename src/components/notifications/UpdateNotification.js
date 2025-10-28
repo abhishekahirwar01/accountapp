@@ -1054,7 +1054,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dismissButton: {
-    backgroundColor: '#D32F2F',
+    // backgroundColor: '#D32F2F',
   },
   dismissButtonText: {
     color: '#fff',
