@@ -8,8 +8,8 @@ import {
   StyleSheet,
   RefreshControl,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { BASE_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -18,7 +18,7 @@ import BottomNav from '../../components/layout/BottomNav';
 import UpdateNotification from '../../components/notifications/UpdateNotification';
 import UpdateNotificationBadge from '../../components/notifications/UpdateNotificationBadge';
 
-// Import your screens
+// Import screens
 import ClientManagementScreen from './ClientManagementScreen';
 import ClientDetailScreen from './ClientDetailScreen';
 import CompaniesScreen from './CompaniesScreen';
@@ -32,6 +32,12 @@ export default function AdminDashboardScreen({ navigation }) {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const { width } = useWindowDimensions();
+
+  // Dynamic font sizes based on screen width
+  const titleFontSize = width < 360 ? 18 : width < 400 ? 19 : 21;
+  const subtitleFontSize = width < 360 ? 13 : 15;
+
   useEffect(() => {
     if (currentTab === 'Dashboard') {
       fetchData();
@@ -41,10 +47,7 @@ export default function AdminDashboardScreen({ navigation }) {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      await Promise.all([
-        fetchClients(),
-        fetchCompanies()
-      ]);
+      await Promise.all([fetchClients(), fetchCompanies()]);
     } catch (error) {
       Alert.alert('Error', 'Failed to load dashboard data');
     } finally {
@@ -61,11 +64,11 @@ export default function AdminDashboardScreen({ navigation }) {
         navigation.navigate('Login');
         return;
       }
-      
+
       const res = await fetch(`${BASE_URL}/api/clients`, {
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       if (!res.ok) {
         if (res.status === 401) {
           await AsyncStorage.removeItem('token');
@@ -74,9 +77,9 @@ export default function AdminDashboardScreen({ navigation }) {
           return;
         }
         const errorData = await res.json();
-        throw new Error(errorData.message || "Failed to fetch clients.");
+        throw new Error(errorData.message || 'Failed to fetch clients.');
       }
-      
+
       const data = await res.json();
       setClients(data);
     } catch (error) {
@@ -89,17 +92,17 @@ export default function AdminDashboardScreen({ navigation }) {
   const fetchCompanies = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error("Authentication token not found.");
-      
+      if (!token) throw new Error('Authentication token not found.');
+
       const res = await fetch(`${BASE_URL}/api/companies/all`, {
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.message || "Failed to fetch companies.");
+        throw new Error(errorData.message || 'Failed to fetch companies.');
       }
-      
+
       const data = await res.json();
       setCompanies(data);
     } catch (error) {
@@ -113,63 +116,52 @@ export default function AdminDashboardScreen({ navigation }) {
     fetchData();
   };
 
-  // Calculate stats from local data (same as Next.js)
   const totalClients = clients.length;
-  const activeClients = clients.filter(c => c.status === 'Active').length;
+  const activeClients = clients.filter((c) => c.status === 'Active').length;
   const totalCompanies = companies.length;
-  
-  // Mock data for KPIs (same as Next.js)
+
   const totalTransactions = 1452;
   const pendingInvoices = 23;
 
   const kpiData = [
-    { 
-      title: 'Total Clients', 
-      value: totalClients.toString(), 
-      change: `+${Math.floor(Math.random() * 5)} this month`, 
+    {
+      title: 'Total Clients',
+      value: totalClients.toString(),
+      change: `+${Math.floor(Math.random() * 5)} this month`,
       icon: 'account-group',
       iconBg: '#E3F2FD',
-      iconColor: '#2196F3'
+      iconColor: '#2196F3',
     },
-    { 
-      title: 'Companies Managed', 
-      value: totalCompanies.toString(), 
-      change: '+5 this month', 
+    {
+      title: 'Companies Managed',
+      value: totalCompanies.toString(),
+      change: '+5 this month',
       icon: 'office-building',
       iconBg: '#E8F5E8',
-      iconColor: '#4CAF50'
+      iconColor: '#4CAF50',
     },
-    { 
-      title: 'Total Transactions', 
-      value: totalTransactions.toLocaleString(), 
-      change: '+120 this week', 
+    {
+      title: 'Total Transactions',
+      value: totalTransactions.toLocaleString(),
+      change: '+120 this week',
       icon: 'database',
       iconBg: '#F3E5F5',
-      iconColor: '#9C27B0'
+      iconColor: '#9C27B0',
     },
-    { 
-      title: 'Pending Invoices', 
-      value: pendingInvoices.toString(), 
-      change: 'Across all clients', 
+    {
+      title: 'Pending Invoices',
+      value: pendingInvoices.toString(),
+      change: 'Across all clients',
       icon: 'file-document',
       iconBg: '#FFF3E0',
-      iconColor: '#FF9800'
+      iconColor: '#FF9800',
     },
   ];
 
-  const getTrendIcon = (change) => {
-    if (change.startsWith('+')) {
-      return 'trending-up';
-    }
-    return 'trending-down';
-  };
-
-  const getTrendColor = (change) => {
-    if (change.startsWith('+')) {
-      return '#4CAF50';
-    }
-    return '#F44336';
-  };
+  const getTrendIcon = (change) =>
+    change.startsWith('+') ? 'trending-up' : 'trending-down';
+  const getTrendColor = (change) =>
+    change.startsWith('+') ? '#4CAF50' : '#F44336';
 
   const renderDashboardContent = () => {
     if (isLoading) {
@@ -188,26 +180,37 @@ export default function AdminDashboardScreen({ navigation }) {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header Section */}
+        {/* ✅ Responsive Header Section */}
         <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <Text style={styles.title}>Master Admin Dashboard</Text>
-            <Text style={styles.subtitle}>
+          <View style={styles.headerTextContainer}>
+            <Text
+              style={[styles.headerTitle, { fontSize: titleFontSize }]}
+              adjustsFontSizeToFit
+              numberOfLines={1}
+            >
+              Master Admin Dashboard
+            </Text>
+            <Text
+              style={[styles.headerSubtitle, { fontSize: subtitleFontSize }]}
+              adjustsFontSizeToFit
+              numberOfLines={1}
+            >
               Overview of your accounting software platform
             </Text>
           </View>
-          <View style={styles.badgeContainer}>
-            <UpdateNotificationBadge />
+
+          {/* 🔔 Smaller Notification Badge */}
+          <View style={styles.headerBadgeContainer}>
+            <View style={styles.badgeWrapper}>
+              <UpdateNotificationBadge />
+            </View>
           </View>
         </View>
 
-        {/* KPI Cards Grid - Non-clickable (same as Next.js) */}
+        {/* KPI Cards */}
         <View style={styles.kpiGrid}>
-          {kpiData.map((kpi, index) => (
-            <View
-              key={kpi.title}
-              style={styles.kpiCard}
-            >
+          {kpiData.map((kpi) => (
+            <View key={kpi.title} style={styles.kpiCard}>
               <View style={styles.kpiContent}>
                 <View style={styles.kpiTextContainer}>
                   <Text style={styles.kpiTitle}>{kpi.title}</Text>
@@ -218,12 +221,22 @@ export default function AdminDashboardScreen({ navigation }) {
                       size={16}
                       color={getTrendColor(kpi.change)}
                     />
-                    <Text style={[styles.kpiChange, { color: getTrendColor(kpi.change) }]}>
+                    <Text
+                      style={[
+                        styles.kpiChange,
+                        { color: getTrendColor(kpi.change) },
+                      ]}
+                    >
                       {kpi.change}
                     </Text>
                   </View>
                 </View>
-                <View style={[styles.kpiIconContainer, { backgroundColor: kpi.iconBg }]}>
+                <View
+                  style={[
+                    styles.kpiIconContainer,
+                    { backgroundColor: kpi.iconBg },
+                  ]}
+                >
                   <Icon name={kpi.icon} size={24} color={kpi.iconColor} />
                 </View>
               </View>
@@ -242,12 +255,7 @@ export default function AdminDashboardScreen({ navigation }) {
   const renderContent = () => {
     switch (currentTab) {
       case 'Dashboard':
-        return (
-          <SafeAreaView style={styles.container}>
-            {renderDashboardContent()}
-          </SafeAreaView>
-        );
-
+        return <View style={styles.container}>{renderDashboardContent()}</View>;
       case 'Clients':
         return <ClientManagementScreen navigation={navigation} />;
       case 'ClientDetail':
@@ -258,11 +266,12 @@ export default function AdminDashboardScreen({ navigation }) {
         return <AnalyticsScreen navigation={navigation} />;
       case 'Settings':
         return <SettingsScreen navigation={navigation} />;
-
       default:
         return (
           <View style={styles.center}>
-            <Text style={styles.comingSoonText}>{currentTab} Screen Coming Soon...</Text>
+            <Text style={styles.comingSoonText}>
+              {currentTab} Screen Coming Soon...
+            </Text>
           </View>
         );
     }
@@ -270,28 +279,23 @@ export default function AdminDashboardScreen({ navigation }) {
 
   return (
     <View style={styles.mainContainer}>
-      {/* Header only on Dashboard */}
-      {currentTab === 'Dashboard' && <Header username="Master Admin" role="master" />}
-
-      {/* Tab-wise Content */}
-      <View style={styles.contentContainer}>
-        {renderContent()}
-      </View>
-
-      {/* Bottom Navigation */}
-      <BottomNav 
-        role="master" 
+      {currentTab === 'Dashboard' && (
+        <Header username="Master Admin" role="master" />
+      )}
+      <View style={styles.contentContainer}>{renderContent()}</View>
+      <BottomNav
+        role="master"
         currentTab={currentTab}
-        onTabChange={tab => setCurrentTab(tab)} 
+        onTabChange={(tab) => setCurrentTab(tab)}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  mainContainer: { 
-    flex: 1, 
-    backgroundColor: '#f9fafb' 
+  mainContainer: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
   },
   contentContainer: {
     flex: 1,
@@ -314,34 +318,45 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
+
+  // ✅ Header Styling
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: 16,
+    alignItems: 'center',
+    paddingHorizontal: 20,
     paddingTop: 24,
+    paddingBottom: 8,
   },
-  headerContent: {
+  headerTextContainer: {
     flex: 1,
+    marginRight: 10,
   },
-  title: {
-    fontSize: 28,
+  headerTitle: {
     fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
+    color: '#222',
+    includeFontPadding: false,
   },
-  subtitle: {
-    fontSize: 16,
+  headerSubtitle: {
     color: '#666',
+    marginTop: 2,
+    includeFontPadding: false,
   },
-  badgeContainer: {
-    marginLeft: 12,
+  headerBadgeContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 4,
   },
+  badgeWrapper: {
+    transform: [{ scale: 0.8 }], // 🔹 Makes badge ~20% smaller
+  },
+
+  // KPI Cards
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     padding: 8,
-    gap: 8,
+    gap: 6,
   },
   kpiCard: {
     width: '48%',
@@ -353,7 +368,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    marginBottom: 8,
   },
   kpiContent: {
     flexDirection: 'row',
@@ -392,9 +406,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: 8,
   },
-  notificationSection: {
-    padding: 16,
-  },
+  // notificationSection: {
+  //   padding: 8,
+  // },
   center: {
     flex: 1,
     justifyContent: 'center',
