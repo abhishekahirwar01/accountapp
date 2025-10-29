@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
@@ -13,13 +13,33 @@ const theme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    primary: '#0A66C2', // LinkedIn blue
+    primary: '#0A66C2',
     secondary: '#FF4081',
   },
 };
 
 export default function App() {
-  const [role, setRole] = useState(null); // initially null
+  const [role, setRole] = useState(null);
+
+  useEffect(() => {
+    const pingServer = async () => {
+      try {
+        await fetch("https://accountapp-backend-shardaassociates.onrender.com/ping");
+        console.log("✅ Server pinged to stay awake");
+      } catch (error) {
+        console.log("⚠️ Ping failed:", error.message);
+      }
+    };
+
+    // 🔹 Ping immediately when app starts
+    pingServer();
+
+    // 🔹 Repeat every 5 minutes (300,000 ms)
+    const interval = setInterval(pingServer, 5 * 60 * 1000);
+
+    // 🔹 Clear interval when app closes/unmounts
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <PaperProvider theme={theme}>

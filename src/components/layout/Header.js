@@ -25,8 +25,6 @@ export default function Header({ role = 'master' }) {
   const navigation = useNavigation();
 
   const handleNotification = () => console.log('Notification clicked');
-
-  // ✅ Navigate to HistoryScreen when clicked
   const handleHistory = () => {
     setShowDropdown(false);
     navigation.navigate('HistoryScreen');
@@ -62,9 +60,12 @@ export default function Header({ role = 'master' }) {
     }
   };
 
-  const handleProfile = () => {
-    setShowDropdown(prev => !prev);
-  };
+  const handleProfile = () => setShowDropdown(prev => !prev);
+
+  // ✅ Role-based visibility logic (same as Next.js)
+  const showNotification =
+    role !== 'user' && role !== 'master'; // show for all except 'user' & 'master'
+  const showHistory = role === 'master'; // show only for master
 
   return (
     <>
@@ -112,6 +113,7 @@ export default function Header({ role = 'master' }) {
               />
 
               <View style={styles.rightContainer}>
+                {/* Search Button */}
                 <TouchableOpacity
                   onPress={() => setShowSearch(true)}
                   style={styles.iconButton}
@@ -119,22 +121,25 @@ export default function Header({ role = 'master' }) {
                   <Ionicons name="search" size={22} color="#334155" />
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={handleNotification}
-                >
-                  <Ionicons
-                    name="notifications-outline"
-                    size={22}
-                    color="#334155"
-                  />
-                  <View style={styles.notificationBadge}>
-                    <Text style={styles.badgeText}>3</Text>
-                  </View>
-                </TouchableOpacity>
+                {/* ✅ Notification Icon (based on role) */}
+                {showNotification && (
+                  <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={handleNotification}
+                  >
+                    <Ionicons
+                      name="notifications-outline"
+                      size={22}
+                      color="#334155"
+                    />
+                    <View style={styles.notificationBadge}>
+                      <Text style={styles.badgeText}>3</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
 
-                {/* ✅ History button (only for master role) */}
-                {role === 'master' && (
+                {/* ✅ History Icon (only for master role) */}
+                {showHistory && (
                   <TouchableOpacity
                     style={styles.iconButton}
                     onPress={handleHistory}
