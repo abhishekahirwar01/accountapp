@@ -1,525 +1,510 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  ScrollView,
-  TouchableOpacity,
   TextInput,
-  StyleSheet,
+  TouchableOpacity,
   Modal,
-  StatusBar,
-} from 'react-native';
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Card, Button, Switch, Divider } from 'react-native-paper';
-import { 
-  User, 
-  Bell, 
-  Save, 
-  Users, 
-  X, 
-  ChevronRight,
-  ArrowLeft,
-  Mail,
-  Phone,
-  Globe
-} from 'lucide-react-native';
+  StyleSheet,
+  Switch,
+  Alert,
+  ActivityIndicator,
+  FlatList,
 
-const SettingsScreen = () => {
-  const [activeScreen, setActiveScreen] = useState('main');
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Card, Button } from 'react-native-paper';
+import { Picker } from '@react-native-picker/picker';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import ClientsValidityManager from '../../components/admin/settings/ClientsValidityManager';
+import ClientForm from '../../components/clients/ClientForm';
+import { BASE_URL } from '../../config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+export default function SettingsPage() {
   const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
-
-  // Mock data
-  const [profileData, setProfileData] = useState({
+  const [formData, setFormData] = useState({
     fullName: 'Master Administrator',
     email: 'admin@accountech.com',
     phone: '+1 (555) 123-4567',
-    timezone: 'utc-5'
-  });
-
-  const [notificationSettings, setNotificationSettings] = useState({
+    timezone: 'utc-5',
     invoiceEmails: true,
-    monthlyReports: false,
-    securityAlerts: true
+    reportEmails: false,
+    securityAlerts: true,
   });
+  const [loading, setLoading] = useState(false);
+  const [userData, setUserData] = useState(null);
+
+  // Load user data from AsyncStorage on component mount
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      const userJson = await AsyncStorage.getItem('userData');
+      if (userJson) {
+        const userData = JSON.parse(userJson);
+        setUserData(userData);
+        // Pre-fill form with user data if available
+        setFormData(prev => ({
+          ...prev,
+          fullName: userData.fullName || prev.fullName,
+          email: userData.email || prev.email,
+          phone: userData.phone || prev.phone,
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
 
   const handleClientClick = (client) => {
     setSelectedClient(client);
     setIsClientDialogOpen(true);
   };
 
-  const handleClientFormSubmit = () => {
+  const handleClientFormSubmit = async (clientData) => {
+    try {
+      setLoading(true);
+      
+      // Get auth token from AsyncStorage
+      const token = await AsyncStorage.getItem('authToken');
+      
+      let response;
+      if (selectedClient) {
+        // Update existing client
+        response = await fetch(`${BASE_URL}/clients/${selectedClient.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(clientData),
+        });
+      } else {
+        // Create new client
+        response = await fetch(`${BASE_URL}/clients`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(clientData),
+        });
+      }
+
+      if (response.ok) {
+        Alert.alert('Success', `Client ${selectedClient ? 'updated' : 'created'} successfully`);
+        setIsClientDialogOpen(false);
+        setSelectedClient(null);
+        
+        // Refresh clients list in ClientsValidityManager
+        // You might want to use a callback or context to refresh the list
+      } else {
+        throw new Error('Failed to save client');
+      }
+    } catch (error) {
+      console.error('Error saving client:', error);
+      Alert.alert('Error', 'Failed to save client. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      setLoading(true);
+      
+      const token = await AsyncStorage.getItem('authToken');
+      const response = await fetch(`${BASE_URL}/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          fullName: formData.fullName,
+          email: formData.email,
+          phone: formData.phone,
+          timezone: formData.timezone,
+        }),
+      });
+
+      if (response.ok) {
+        // Update AsyncStorage with new user data
+        const updatedUserData = {
+          ...userData,
+          fullName: formData.fullName,
+          email: formData.email,
+          phone: formData.phone,
+        };
+        await AsyncStorage.setItem('userData', JSON.stringify(updatedUserData));
+        setUserData(updatedUserData);
+        
+        Alert.alert('Success', 'Profile settings saved successfully');
+      } else {
+        throw new Error('Failed to save profile');
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      Alert.alert('Error', 'Failed to save profile. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveNotificationSettings = async () => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      const response = await fetch(`${BASE_URL}/notification-settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          invoiceEmails: formData.invoiceEmails,
+          reportEmails: formData.reportEmails,
+          securityAlerts: formData.securityAlerts,
+        }),
+      });
+
+      if (response.ok) {
+        Alert.alert('Success', 'Notification settings saved successfully');
+      } else {
+        throw new Error('Failed to save notification settings');
+      }
+    } catch (error) {
+      console.error('Error saving notification settings:', error);
+      Alert.alert('Error', 'Failed to save notification settings. Please try again.');
+    }
+  };
+
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleCloseClientDialog = () => {
     setIsClientDialogOpen(false);
     setSelectedClient(null);
   };
 
-  const SettingCard = ({ icon: Icon, title, description, onPress }) => (
-    <TouchableOpacity style={styles.settingCard} onPress={onPress}>
-      <View style={styles.cardContent}>
-        <View style={styles.iconContainer}>
-          <Icon size={22} color="#007AFF" />
-        </View>
-        <View style={styles.cardText}>
-          <Text style={styles.cardTitle}>{title}</Text>
-          <Text style={styles.cardDescription}>{description}</Text>
-        </View>
-        <ChevronRight size={20} color="#C7C7CC" />
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderMainSettings = () => (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}>
-        <View style={styles.avatarSection}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>MA</Text>
-          </View>
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>Master Administrator</Text>
-            <Text style={styles.userEmail}>admin@accountech.com</Text>
+  // Render different sections of the settings
+  const renderProfileSection = () => (
+    <Card style={styles.card}>
+      <Card.Content>
+        <View style={styles.cardHeader}>
+          <Icon name="account-circle" size={24} color="#666" />
+          <View style={styles.cardHeaderText}>
+            <Text style={styles.cardTitle}>Profile Settings</Text>
+            <Text style={styles.cardDescription}>Update your personal information</Text>
           </View>
         </View>
-        <Text style={styles.title}>Settings</Text>
-        <Text style={styles.subtitle}>Manage your account and system preferences</Text>
-      </View>
 
-      {/* Settings Cards */}
-      <View style={styles.settingsSection}>
-        <SettingCard
-          icon={User}
-          title="Profile Settings"
-          description="Update your personal information"
-          onPress={() => setActiveScreen('profile')}
-        />
-        <SettingCard
-          icon={Users}
-          title="Clients Validity Manager"
-          description="Manage client access and validity periods"
-          onPress={() => setActiveScreen('clients')}
-        />
-        <SettingCard
-          icon={Bell}
-          title="Notification Settings"
-          description="Configure how you receive notifications"
-          onPress={() => setActiveScreen('notifications')}
-        />
-      </View>
-    </ScrollView>
-  );
-
-  const InputField = ({ label, value, onChangeText, placeholder, icon: Icon, ...props }) => (
-    <View style={styles.inputGroup}>
-      <Text style={styles.label}>{label}</Text>
-      <View style={styles.inputContainer}>
-        {Icon && <Icon size={20} color="#8E8E93" style={styles.inputIcon} />}
-        <TextInput
-          style={[styles.input, Icon && styles.inputWithIcon]}
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor="#8E8E93"
-          {...props}
-        />
-      </View>
-    </View>
-  );
-
-  const renderProfileSettings = () => (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.screenHeader}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => setActiveScreen('main')}
-        >
-          <ArrowLeft size={24} color="#007AFF" />
-        </TouchableOpacity>
-        <Text style={styles.screenTitle}>Profile Settings</Text>
-        <View style={styles.placeholder} />
-      </View>
-
-      <Card style={styles.formCard}>
-        <Card.Content>
-          <View style={styles.form}>
-            <InputField
-              label="Full Name"
-              value={profileData.fullName}
-              onChangeText={(text) => setProfileData({...profileData, fullName: text})}
-              placeholder="Enter your full name"
-              icon={User}
+        <View style={styles.formGrid}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Full Name</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.fullName}
+              onChangeText={(value) => handleInputChange('fullName', value)}
+              placeholder="Full Name"
             />
+          </View>
 
-            <InputField
-              label="Email Address"
-              value={profileData.email}
-              onChangeText={(text) => setProfileData({...profileData, email: text})}
-              placeholder="Enter your email address"
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email Address</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.email}
+              onChangeText={(value) => handleInputChange('email', value)}
+              placeholder="Email Address"
               keyboardType="email-address"
-              icon={Mail}
+              autoCapitalize="none"
             />
+          </View>
 
-            <InputField
-              label="Phone Number"
-              value={profileData.phone}
-              onChangeText={(text) => setProfileData({...profileData, phone: text})}
-              placeholder="Enter your phone number"
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Phone Number</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.phone}
+              onChangeText={(value) => handleInputChange('phone', value)}
+              placeholder="Phone Number"
               keyboardType="phone-pad"
-              icon={Phone}
             />
+          </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Timezone</Text>
-              <TouchableOpacity style={styles.picker}>
-                <Globe size={20} color="#8E8E93" style={styles.inputIcon} />
-                <Text style={styles.pickerText}>
-                  {profileData.timezone === 'utc-5' ? 'Eastern Time (UTC-5)' :
-                   profileData.timezone === 'utc-6' ? 'Central Time (UTC-6)' :
-                   profileData.timezone === 'utc-7' ? 'Mountain Time (UTC-7)' : 'Pacific Time (UTC-8)'}
-                </Text>
-                <ChevronRight size={20} color="#C7C7CC" />
-              </TouchableOpacity>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Timezone</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={formData.timezone}
+                onValueChange={(value) => handleInputChange('timezone', value)}
+                style={styles.picker}
+              >
+                <Picker.Item label="Eastern Time (UTC-5)" value="utc-5" />
+                <Picker.Item label="Central Time (UTC-6)" value="utc-6" />
+                <Picker.Item label="Mountain Time (UTC-7)" value="utc-7" />
+                <Picker.Item label="Pacific Time (UTC-8)" value="utc-8" />
+              </Picker>
             </View>
           </View>
-        </Card.Content>
-        <Card.Actions style={styles.cardActions}>
-          <Button 
-            mode="contained" 
-            style={styles.saveButton}
-            onPress={() => console.log('Profile saved')}
-            contentStyle={styles.buttonContent}
-          >
-            <Save size={20} color="#fff" style={styles.buttonIcon} />
-            Save Changes
-          </Button>
-        </Card.Actions>
-      </Card>
-    </ScrollView>
-  );
-
-  const NotificationToggle = ({ label, description, value, onValueChange }) => (
-    <View style={styles.notificationItem}>
-      <View style={styles.notificationText}>
-        <Text style={styles.notificationLabel}>{label}</Text>
-        <Text style={styles.notificationDescription}>{description}</Text>
-      </View>
-      <Switch
-        value={value}
-        onValueChange={onValueChange}
-        trackColor={{ false: '#E5E5EA', true: '#007AFF' }}
-        thumbColor="#fff"
-      />
-    </View>
-  );
-
-  const renderNotificationSettings = () => (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.screenHeader}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => setActiveScreen('main')}
+        </View>
+      </Card.Content>
+      
+      <Card.Actions style={styles.cardActions}>
+        <Button 
+          mode="contained" 
+          onPress={handleSaveProfile}
+          style={styles.saveButton}
+          disabled={loading}
         >
-          <ArrowLeft size={24} color="#007AFF" />
-        </TouchableOpacity>
-        <Text style={styles.screenTitle}>Notification Settings</Text>
-        <View style={styles.placeholder} />
-      </View>
-
-      <Card style={styles.formCard}>
-        <Card.Content>
-          <Text style={styles.sectionTitle}>Email Notifications</Text>
-          
-          <NotificationToggle
-            label="Invoice Emails"
-            description="Receive email notifications for new invoices and payments"
-            value={notificationSettings.invoiceEmails}
-            onValueChange={(value) => setNotificationSettings({
-              ...notificationSettings, 
-              invoiceEmails: value
-            })}
-          />
-
-          <Divider style={styles.divider} />
-
-          <NotificationToggle
-            label="Monthly Reports"
-            description="Receive monthly financial summary reports via email"
-            value={notificationSettings.monthlyReports}
-            onValueChange={(value) => setNotificationSettings({
-              ...notificationSettings, 
-              monthlyReports: value
-            })}
-          />
-
-          <Divider style={styles.divider} />
-
-          <NotificationToggle
-            label="Security Alerts"
-            description="Receive email notifications for security-related events"
-            value={notificationSettings.securityAlerts}
-            onValueChange={(value) => setNotificationSettings({
-              ...notificationSettings, 
-              securityAlerts: value
-            })}
-          />
-        </Card.Content>
-      </Card>
-    </ScrollView>
+          <Icon name="content-save" size={20} color="white" style={styles.buttonIcon} />
+          Save Profile
+        </Button>
+      </Card.Actions>
+    </Card>
   );
 
-  const renderClientsSettings = () => (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.screenHeader}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => setActiveScreen('main')}
-        >
-          <ArrowLeft size={24} color="#007AFF" />
-        </TouchableOpacity>
-        <Text style={styles.screenTitle}>Clients Validity Manager</Text>
-        <View style={styles.placeholder} />
-      </View>
+  const renderNotificationSection = () => (
+    <Card style={styles.card}>
+      <Card.Content>
+        <View style={styles.cardHeader}>
+          <Icon name="bell" size={24} color="#666" />
+          <View style={styles.cardHeaderText}>
+            <Text style={styles.cardTitle}>Notification Settings</Text>
+            <Text style={styles.cardDescription}>Configure how you receive notifications</Text>
+          </View>
+        </View>
 
-      <Card style={styles.formCard}>
-        <Card.Content>
-          <View style={styles.emptyState}>
-            <Users size={64} color="#C7C7CC" />
-            <Text style={styles.emptyStateTitle}>Client Management</Text>
-            <Text style={styles.emptyStateText}>
-              Manage client access, validity periods, and permissions in one place.
+        <View style={styles.notificationItem}>
+          <View style={styles.notificationText}>
+            <Text style={styles.notificationLabel}>Invoice Emails</Text>
+            <Text style={styles.notificationDescription}>
+              Receive email notifications for new invoices and payments.
             </Text>
-            <Button 
-              mode="contained" 
-              style={styles.primaryButton}
-              onPress={() => handleClientClick(null)}
-              contentStyle={styles.buttonContent}
-            >
-              <Users size={20} color="#fff" style={styles.buttonIcon} />
-              Add New Client
-            </Button>
           </View>
-        </Card.Content>
-      </Card>
-    </ScrollView>
-  );
-
-  const renderClientDialog = () => (
-    <Modal
-      visible={isClientDialogOpen}
-      animationType="slide"
-      presentationStyle="pageSheet"
-    >
-      <SafeAreaView style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>
-            {selectedClient ? 'Edit Client' : 'Add New Client'}
-          </Text>
-          <TouchableOpacity 
-            onPress={() => setIsClientDialogOpen(false)}
-            style={styles.closeButton}
-          >
-            <X size={24} color="#8E8E93" />
-          </TouchableOpacity>
+          <Switch
+            value={formData.invoiceEmails}
+            onValueChange={(value) => handleInputChange('invoiceEmails', value)}
+          />
         </View>
 
-        <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-          <Text style={styles.modalDescription}>
-            {selectedClient 
-              ? `Update the details for ${selectedClient.contactName}.`
-              : 'Fill in the form below to add a new client.'}
-          </Text>
-          
-          <View style={styles.form}>
-            <InputField
-              label="Client Name"
-              placeholder="Enter client name"
-              icon={User}
-            />
-            <InputField
-              label="Email Address"
-              placeholder="Enter client email"
-              keyboardType="email-address"
-              icon={Mail}
-            />
-            <InputField
-              label="Phone Number"
-              placeholder="Enter client phone"
-              keyboardType="phone-pad"
-              icon={Phone}
-            />
-          </View>
-        </ScrollView>
+        <View style={styles.separator} />
 
-        <View style={styles.modalFooter}>
-          <Button 
-            mode="outlined" 
-            onPress={() => setIsClientDialogOpen(false)}
-            style={styles.outlinedButton}
-            contentStyle={styles.buttonContent}
-          >
-            Cancel
-          </Button>
-          <Button 
-            mode="contained" 
-            onPress={handleClientFormSubmit}
-            style={styles.primaryButton}
-            contentStyle={styles.buttonContent}
-          >
-            <Save size={20} color="#fff" style={styles.buttonIcon} />
-            {selectedClient ? 'Update Client' : 'Add Client'}
-          </Button>
+        <View style={styles.notificationItem}>
+          <View style={styles.notificationText}>
+            <Text style={styles.notificationLabel}>Monthly Reports</Text>
+            <Text style={styles.notificationDescription}>
+              Receive monthly financial summary reports via email.
+            </Text>
+          </View>
+          <Switch
+            value={formData.reportEmails}
+            onValueChange={(value) => handleInputChange('reportEmails', value)}
+          />
         </View>
-      </SafeAreaView>
-    </Modal>
+
+        <View style={styles.separator} />
+
+        <View style={styles.notificationItem}>
+          <View style={styles.notificationText}>
+            <Text style={styles.notificationLabel}>Security Alerts</Text>
+            <Text style={styles.notificationDescription}>
+              Receive email notifications for security-related events.
+            </Text>
+          </View>
+          <Switch
+            value={formData.securityAlerts}
+            onValueChange={(value) => handleInputChange('securityAlerts', value)}
+          />
+        </View>
+      </Card.Content>
+      
+      {/* <Card.Actions style={styles.cardActions}>
+        <Button 
+          mode="contained" 
+          onPress={handleSaveNotificationSettings}
+          style={styles.saveButton}
+          disabled={loading}
+        >
+          <Icon name="bell" size={20} color="white" style={styles.buttonIcon} />
+          Save Notifications
+        </Button>
+      </Card.Actions> */}
+    </Card>
   );
+
+  // Data for FlatList sections
+  const settingsSections = [
+    {
+      id: 'header',
+      type: 'header',
+    },
+    {
+      id: 'profile',
+      type: 'profile',
+    },
+    {
+      id: 'clients',
+      type: 'clients',
+    },
+    {
+      id: 'notifications',
+      type: 'notifications',
+    },
+  ];
+
+  const renderItem = ({ item }) => {
+    switch (item.type) {
+      case 'header':
+        return (
+          <View style={styles.header}>
+            <Text style={styles.title}>Settings</Text>
+            <Text style={styles.subtitle}>
+              Manage your account and system preferences
+            </Text>
+          </View>
+        );
+      case 'profile':
+        return renderProfileSection();
+      case 'clients':
+        return (
+          <ClientsValidityManager 
+            onClientClick={handleClientClick}
+            baseUrl={BASE_URL}
+          />
+        );
+      case 'notifications':
+        return renderNotificationSection();
+      default:
+        return null;
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar backgroundColor="#fff" barStyle="dark-content" />
-      
-      {activeScreen === 'main' && renderMainSettings()}
-      {activeScreen === 'profile' && renderProfileSettings()}
-      {activeScreen === 'clients' && renderClientsSettings()}
-      {activeScreen === 'notifications' && renderNotificationSettings()}
-      
-      {renderClientDialog()}
+      <View style={styles.container}>
+        {loading && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color="#0000ff" />
+          </View>
+        )}
+
+        <FlatList
+          data={settingsSections}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+        />
+
+        {/* Client Dialog Modal */}
+        <Modal
+          visible={isClientDialogOpen}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={handleCloseClientDialog}
+        >
+          <SafeAreaView style={styles.modalSafeArea}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <View style={styles.modalHeaderText}>
+                  <Text style={styles.modalTitle}>
+                    {selectedClient ? 'Edit Client' : 'Add New Client'}
+                  </Text>
+                  <Text style={styles.modalDescription}>
+                    {selectedClient
+                      ? `Update the details for ${selectedClient.contactName}.`
+                      : 'Fill in the form below to add a new client.'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={handleCloseClientDialog}
+                  style={styles.closeButton}
+                >
+                  <Icon name="close" size={24} color="#666" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.modalContent}>
+                <ClientForm
+                  client={selectedClient || undefined}
+                  onFormSubmit={handleClientFormSubmit}
+                  onCancel={handleCloseClientDialog}
+                  loading={loading}
+                  baseUrl={BASE_URL}
+                />
+              </View>
+            </View>
+          </SafeAreaView>
+        </Modal>
+      </View>
     </SafeAreaView>
   );
-};
+}
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f5f5f5',
+  },
+  modalSafeArea: {
+    flex: 1,
+    backgroundColor: 'white',
   },
   container: {
     flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  listContent: {
     padding: 16,
   },
   header: {
-    marginBottom: 8,
-  },
-  avatarSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: 24,
-    padding: 16,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  avatarText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  userInfo: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1C1C1E',
-    marginBottom: 2,
-  },
-  userEmail: {
-    fontSize: 14,
-    color: '#8E8E93',
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#1C1C1E',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#8E8E93',
+    color: '#666',
   },
-  settingsSection: {
-    gap: 12,
-  },
-  settingCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+  card: {
+    marginBottom: 16,
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  cardContent: {
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    marginBottom: 16,
   },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F2F2F7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  cardText: {
-    flex: 1,
+  cardHeaderText: {
+    marginLeft: 12,
   },
   cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 2,
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 4,
   },
   cardDescription: {
     fontSize: 14,
-    color: '#8E8E93',
-    lineHeight: 18,
+    color: '#666',
   },
-  screenHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-  screenTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1C1C1E',
-    textAlign: 'center',
-    flex: 1,
-  },
-  backButton: {
-    padding: 8,
-    zIndex: 1,
-  },
-  placeholder: {
-    width: 40,
-  },
-  formCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  form: {
-    gap: 20,
+  formGrid: {
+    gap: 16,
   },
   inputGroup: {
     gap: 8,
@@ -527,74 +512,42 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1C1C1E',
-    marginLeft: 4,
-  },
-  inputContainer: {
-    position: 'relative',
+    color: '#333',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 12,
-    padding: 16,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
-    color: '#1C1C1E',
+    backgroundColor: 'white',
   },
-  inputWithIcon: {
-    paddingLeft: 48,
-  },
-  inputIcon: {
-    position: 'absolute',
-    left: 16,
-    top: 16,
-    zIndex: 1,
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    backgroundColor: 'white',
+    overflow: 'hidden',
   },
   picker: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 12,
-    padding: 16,
-    backgroundColor: '#fff',
-  },
-  pickerText: {
-    flex: 1,
-    fontSize: 16,
-    color: '#1C1C1E',
-    marginLeft: 16,
+    height: 50,
   },
   cardActions: {
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingTop: 16,
     justifyContent: 'flex-end',
-    padding: 16,
   },
-  buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+  saveButton: {
+    borderRadius: 8,
   },
   buttonIcon: {
     marginRight: 8,
   },
-  saveButton: {
-    borderRadius: 12,
-    backgroundColor: '#007AFF',
-  },
-  primaryButton: {
-    borderRadius: 12,
-    backgroundColor: '#007AFF',
-  },
-  outlinedButton: {
-    borderRadius: 12,
-    borderColor: '#C7C7CC',
-  },
   notificationItem: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 12,
   },
   notificationText: {
@@ -604,81 +557,58 @@ const styles = StyleSheet.create({
   notificationLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1C1C1E',
     marginBottom: 4,
   },
   notificationDescription: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: '#666',
     lineHeight: 18,
   },
-  divider: {
-    backgroundColor: '#F2F2F7',
+  separator: {
     height: 1,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 16,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 32,
-  },
-  emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1C1C1E',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: '#8E8E93',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 20,
+    backgroundColor: '#eee',
+    marginVertical: 8,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: 'white',
   },
   modalHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F7',
+    borderBottomColor: '#eee',
+    backgroundColor: 'white',
+  },
+  modalHeaderText: {
+    flex: 1,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#1C1C1E',
-    flex: 1,
-    textAlign: 'center',
+    marginBottom: 4,
   },
   modalDescription: {
     fontSize: 14,
-    color: '#8E8E93',
-    marginBottom: 24,
-    textAlign: 'center',
+    color: '#666',
   },
   closeButton: {
     padding: 4,
   },
   modalContent: {
     flex: 1,
-    padding: 16,
   },
-  modalFooter: {
-    flexDirection: 'row',
-    gap: 12,
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F2F2F7',
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
   },
 });
-
-export default SettingsScreen;
