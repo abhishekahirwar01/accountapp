@@ -76,9 +76,10 @@ export default function OTPVerificationScreen({ navigation, route }) {
     if (otpValue === otp) {
       Toast.show({
         type: 'custom_success',
-        text1: 'Success!',
-        text2: 'OTP Verified! Redirecting...',
+        text1: 'OTP Verified Successfully!',
+        text2: 'Redirecting to your account...',
         position: 'top',
+        visibilityTime: 2000,
       });
 
       setTimeout(() => {
@@ -89,9 +90,10 @@ export default function OTPVerificationScreen({ navigation, route }) {
     } else {
       Toast.show({
         type: 'custom_error',
-        text1: 'Error!',
-        text2: 'Invalid OTP.',
+        text1: 'Invalid OTP',
+        text2: 'Please check the code and try again.',
         position: 'top',
+        visibilityTime: 3000,
       });
     }
   };
@@ -102,16 +104,134 @@ export default function OTPVerificationScreen({ navigation, route }) {
       setEnteredOtp(['', '', '', '', '', '']);
       Toast.show({
         type: 'info',
-        text1: 'Resend',
-        text2: `New OTP sent to ${
-          method === 'email' ? 'your email' : 'your mobile'
+        text1: 'OTP Sent Successfully!',
+        text2: `New verification code sent to your ${
+          method === 'email' ? 'email' : 'mobile'
         }.`,
         position: 'top',
+        visibilityTime: 2500,
       });
       setTimeout(() => {
         otpInputsRef.current[0]?.focus();
       }, 100);
     }
+  };
+
+  // Custom Toast Configuration
+  const toastConfig = {
+    custom_success: props => (
+      <BaseToast
+        {...props}
+        style={{
+          borderLeftColor: '#22C55E',
+          borderRadius: 12,
+          backgroundColor: '#F0FDF4',
+          height: 70,
+          borderWidth: 1,
+          borderColor: '#22C55E20',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 4,
+        }}
+        contentContainerStyle={{ paddingHorizontal: 15 }}
+        text1Style={{
+          fontSize: 15,
+          fontWeight: '700',
+          color: '#15803D',
+        }}
+        text2Style={{
+          fontSize: 13,
+          color: '#15803D',
+          lineHeight: 18,
+        }}
+        renderLeadingIcon={() => (
+          <Ionicons
+            name="checkmark-circle"
+            size={26}
+            color="#22C55E"
+            style={{ marginLeft: 15, marginRight: 12, alignSelf: 'center' }}
+          />
+        )}
+      />
+    ),
+
+    custom_error: props => (
+      <ErrorToast
+        {...props}
+        style={{
+          borderLeftColor: '#EF4444',
+          borderRadius: 12,
+          backgroundColor: '#FEF2F2',
+          height: 70,
+          borderWidth: 1,
+          borderColor: '#EF444420',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 4,
+        }}
+        contentContainerStyle={{ paddingHorizontal: 15 }}
+        text1Style={{
+          fontSize: 15,
+          fontWeight: '700',
+          color: '#B91C1C',
+        }}
+        text2Style={{
+          fontSize: 13,
+          color: '#B91C1C',
+          lineHeight: 18,
+        }}
+        renderLeadingIcon={() => (
+          <Ionicons
+            name="close-circle"
+            size={26}
+            color="#EF4444"
+            style={{ marginLeft: 15, marginRight: 12, alignSelf: 'center' }}
+          />
+        )}
+      />
+    ),
+
+    info: props => (
+      <BaseToast
+        {...props}
+        style={{
+          borderLeftColor: '#3B82F6',
+          borderRadius: 12,
+          backgroundColor: '#EFF6FF',
+          height: 70,
+          borderWidth: 1,
+          borderColor: '#3B82F620',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 4,
+        }}
+        contentContainerStyle={{ paddingHorizontal: 15 }}
+        text1Style={{
+          fontSize: 15,
+          fontWeight: '700',
+          color: '#1D4ED8',
+        }}
+        text2Style={{
+          fontSize: 13,
+          color: '#1D4ED8',
+          lineHeight: 18,
+        }}
+        renderLeadingIcon={() => (
+          <Ionicons
+            name="information-circle"
+            size={26}
+            color="#3B82F6"
+            style={{ marginLeft: 15, marginRight: 12, alignSelf: 'center' }}
+          />
+        )}
+      />
+    ),
   };
 
   return (
@@ -209,56 +329,8 @@ export default function OTPVerificationScreen({ navigation, route }) {
 
         {/* Toast Config */}
         <Toast
-          config={{
-            custom_success: props => (
-              <BaseToast
-                {...props}
-                style={{
-                  borderLeftColor: '#10b981',
-                  borderRadius: 8,
-                  backgroundColor: '#ecfdf5',
-                }}
-                text1Style={{
-                  fontSize: 14,
-                  fontWeight: '700',
-                  color: '#065f46',
-                }}
-                text2Style={{ fontSize: 12, color: '#065f46' }}
-              />
-            ),
-            custom_error: props => (
-              <ErrorToast
-                {...props}
-                style={{
-                  borderLeftColor: '#ef4444',
-                  borderRadius: 8,
-                  backgroundColor: '#fee2e2',
-                }}
-                text1Style={{
-                  fontSize: 14,
-                  fontWeight: '700',
-                  color: '#b91c1c',
-                }}
-                text2Style={{ fontSize: 12, color: '#b91c1c' }}
-              />
-            ),
-            info: props => (
-              <BaseToast
-                {...props}
-                style={{
-                  borderLeftColor: '#2563eb',
-                  borderRadius: 8,
-                  backgroundColor: '#eff6ff',
-                }}
-                text1Style={{
-                  fontSize: 14,
-                  fontWeight: '700',
-                  color: '#1e40af',
-                }}
-                text2Style={{ fontSize: 12, color: '#1e40af' }}
-              />
-            ),
-          }}
+          config={toastConfig}
+          topOffset={Platform.OS === 'ios' ? 60 : 40}
         />
       </View>
     </SafeAreaView>
