@@ -1,3 +1,4 @@
+// ...existing code...
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -12,6 +13,9 @@ import {
   StatusBar,
   RefreshControl,
   Dimensions,
+  FlatList,
+  Modal,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -21,7 +25,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Icon names mapping - you might need to adjust these based on available icons
+// Icon names mapping
 const iconMap = {
   Bell: 'bell',
   Calendar: 'calendar',
@@ -86,7 +90,7 @@ const HistoryScreen = () => {
     }
   };
 
-  // Fetch the list of clients
+  // Fetch clients
   const fetchClients = async () => {
     setIsLoading(true);
     setError(null);
@@ -101,7 +105,7 @@ const HistoryScreen = () => {
         },
       });
       const data = await response.json();
-      setClients(data);
+      setClients(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching clients', error);
       setError('Failed to load clients. Please try again later.');
@@ -275,6 +279,7 @@ const HistoryScreen = () => {
 
   // Function to get initials for avatar
   const getInitials = name => {
+    if (!name) return '';
     return name
       .split(' ')
       .map(word => word[0])
@@ -283,7 +288,7 @@ const HistoryScreen = () => {
       .slice(0, 2);
   };
 
-  // Helper functions for the new notification UI
+  // Notification UI helpers
   const getNotificationIcon = type => {
     switch (type) {
       case 'success':
@@ -342,14 +347,14 @@ const HistoryScreen = () => {
     }
   }, [clients]);
 
-  // Filter clients based on search query and status
+  // Filter clients
   const filteredClients = clients.filter(client => {
+    const q = searchQuery.toLowerCase();
     const matchesSearch =
-      client.clientUsername.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      client.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (client.businessName &&
-        client.businessName.toLowerCase().includes(searchQuery.toLowerCase()));
+      client.clientUsername.toLowerCase().includes(q) ||
+      client.contactName.toLowerCase().includes(q) ||
+      client.email.toLowerCase().includes(q) ||
+      (client.businessName && client.businessName.toLowerCase().includes(q));
 
     const validity = validityByClient[client._id];
     const isActive = validity?.enabled ?? false;
@@ -457,7 +462,8 @@ const HistoryScreen = () => {
     );
   };
 
-  const NotificationItem = ({ notification }) => {
+  const NotificationItem = ({ item }) => {
+    const notification = item;
     const iconName = getNotificationIcon(notification.type);
     const iconColor = getNotificationIconColor(notification.type);
     const bgColor = getNotificationBgColor(notification.type);
@@ -507,6 +513,29 @@ const HistoryScreen = () => {
     );
   };
 
+  // Render empty state for FlatList
+  const renderEmptyNotifications = () => (
+    <View style={styles.noNotifications}>
+      <View style={styles.noNotificationsIcon}>
+        <Icon name={iconMap.Bell} size={32} color="#9ca3af" />
+      </View>
+      <Text style={styles.noNotificationsTitle}>No notifications yet</Text>
+      <Text style={styles.noNotificationsText}>
+        Notifications for this client will appear here
+      </Text>
+    </View>
+  );
+
+  // Render loading state for FlatList
+  const renderNotificationsLoading = () => (
+    <View style={styles.notificationsLoading}>
+      <ActivityIndicator size="large" color="#3b82f6" />
+      <Text style={styles.notificationsLoadingText}>
+        Loading notifications...
+      </Text>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
@@ -516,8 +545,9 @@ const HistoryScreen = () => {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        showsVerticalScrollIndicator={false}
       >
-        {/* Header Section */}
+        {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={styles.headerIcon}>
@@ -542,7 +572,7 @@ const HistoryScreen = () => {
           </View>
         </View>
 
-        {/* Search and Filter Section */}
+        {/* Search & Filter */}
         <View style={styles.searchSection}>
           <View style={styles.searchContainer}>
             <Icon
@@ -580,7 +610,6 @@ const HistoryScreen = () => {
               <TouchableOpacity
                 style={styles.filterDropdown}
                 onPress={() => {
-                  // Simple filter toggle - you might want to implement a proper dropdown
                   const options = ['All Clients', 'Active', 'Inactive'];
                   Alert.alert(
                     'Filter Clients',
@@ -623,57 +652,63 @@ const HistoryScreen = () => {
           </View>
         ) : (
           <View style={styles.clientsGrid}>
-            {filteredClients.map(client => (
-              <ClientCard key={client._id} client={client} />
-            ))}
-          </View>
-        )}
-
-        {/* Empty state */}
-        {!isLoading && filteredClients.length === 0 && (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIcon}>
-              <Icon name={iconMap.Building2} size={32} color="#9ca3af" />
-            </View>
-            <Text style={styles.emptyTitle}>No clients found</Text>
-            <Text style={styles.emptyText}>
-              {searchQuery
-                ? 'No clients match your search criteria. Try a different search term.'
-                : "You don't have any clients yet. Clients will appear here once they're registered."}
-            </Text>
+            <FlatList
+              data={filteredClients}
+              renderItem={({ item }) => <ClientCard client={item} />}
+              keyExtractor={item => item._id}
+              scrollEnabled={false}
+              showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  <View style={styles.emptyIcon}>
+                    <Icon name={iconMap.Building2} size={32} color="#9ca3af" />
+                  </View>
+                  <Text style={styles.emptyTitle}>No clients found</Text>
+                  <Text style={styles.emptyText}>
+                    {searchQuery
+                      ? 'No clients match your search criteria. Try a different search term.'
+                      : "You don't have any clients yet. Clients will appear here once they're registered."}
+                  </Text>
+                </View>
+              }
+            />
           </View>
         )}
       </ScrollView>
 
-      {/* Client Details Modal */}
-      {modalVisible && selectedClient && (
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity
-            style={styles.modalBackdrop}
-            onPress={() => setModalVisible(false)}
-            activeOpacity={1}
-          />
+      {/* Client Details Modal (use RN Modal so touches are captured correctly) */}
+      <Modal
+        visible={modalVisible && !!selectedClient}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
+          <View style={styles.modalBackdrop} />
+        </TouchableWithoutFeedback>
+
+        <View style={styles.modalContentContainer}>
           <View style={styles.modalContent}>
-            {/* Header with close button */}
+            {/* Header */}
             <View style={styles.modalHeader}>
               <View style={styles.modalClientHeader}>
                 <View style={styles.modalAvatar}>
                   <Text style={styles.modalAvatarText}>
                     {getInitials(
-                      selectedClient.contactName ||
-                        selectedClient.clientUsername,
+                      selectedClient?.contactName ||
+                        selectedClient?.clientUsername,
                     )}
                   </Text>
                 </View>
                 <View style={styles.modalClientInfo}>
                   <Text style={styles.modalClientName} numberOfLines={1}>
-                    {selectedClient.businessName ||
-                      selectedClient.clientUsername}
+                    {selectedClient?.businessName ||
+                      selectedClient?.clientUsername}
                   </Text>
                   <View style={styles.modalClientEmail}>
                     <Icon name={iconMap.Mail} size={16} color="#6b7280" />
                     <Text style={styles.modalEmailText} numberOfLines={1}>
-                      {selectedClient.email}
+                      {selectedClient?.email}
                     </Text>
                   </View>
                 </View>
@@ -687,7 +722,7 @@ const HistoryScreen = () => {
               </TouchableOpacity>
             </View>
 
-            {/* Contact Information */}
+            {/* Contact Info */}
             <View style={styles.contactInfo}>
               <View style={styles.contactItem}>
                 <Icon name={iconMap.User} size={16} color="#6b7280" />
@@ -698,7 +733,7 @@ const HistoryScreen = () => {
 
               <View style={styles.contactItem}>
                 <Icon name={iconMap.Phone} size={16} color="#6b7280" />
-                {selectedClient.phone ? (
+                {selectedClient?.phone ? (
                   <TouchableOpacity
                     onPress={() => makePhoneCall(selectedClient.phone)}
                   >
@@ -717,17 +752,17 @@ const HistoryScreen = () => {
                 <TouchableOpacity
                   style={styles.copyButton}
                   onPress={handleCopy}
-                  disabled={!selectedClient.phone}
+                  disabled={!selectedClient?.phone}
                 >
                   <Icon
                     name={copied ? iconMap.Check : iconMap.Copy}
                     size={16}
-                    color={selectedClient.phone ? '#3b82f6' : '#9ca3af'}
+                    color={selectedClient?.phone ? '#3b82f6' : '#9ca3af'}
                   />
                   <Text
                     style={[
                       styles.copyText,
-                      { color: selectedClient.phone ? '#3b82f6' : '#9ca3af' },
+                      { color: selectedClient?.phone ? '#3b82f6' : '#9ca3af' },
                     ]}
                   >
                     {copied ? 'Copied' : 'Copy'}
@@ -736,7 +771,7 @@ const HistoryScreen = () => {
               </View>
             </View>
 
-            {/* Notifications Section - FIXED LAYOUT */}
+            {/* Notifications Section */}
             <View style={styles.notificationsSection}>
               <View style={styles.notificationsHeader}>
                 <View style={styles.notificationsTitle}>
@@ -762,51 +797,36 @@ const HistoryScreen = () => {
                 )}
               </View>
 
-              {/* Notifications List with proper flex layout */}
               <View style={styles.notificationsListContainer}>
-                <ScrollView
-                  style={styles.notificationsList}
-                  contentContainerStyle={styles.notificationsListContent}
-                  showsVerticalScrollIndicator={true}
-                >
-                  {notificationsLoading ? (
-                    <View style={styles.notificationsLoading}>
-                      <ActivityIndicator size="large" color="#3b82f6" />
-                      <Text style={styles.notificationsLoadingText}>
-                        Loading notifications...
-                      </Text>
-                    </View>
-                  ) : notifications.length === 0 ? (
-                    <View style={styles.noNotifications}>
-                      <View style={styles.noNotificationsIcon}>
-                        <Icon name={iconMap.Bell} size={32} color="#9ca3af" />
-                      </View>
-                      <Text style={styles.noNotificationsTitle}>
-                        No notifications yet
-                      </Text>
-                      <Text style={styles.noNotificationsText}>
-                        Notifications for this client will appear here
-                      </Text>
-                    </View>
-                  ) : (
-                    notifications.map(notification => (
-                      <NotificationItem
-                        key={notification._id}
-                        notification={notification}
-                      />
-                    ))
-                  )}
-                </ScrollView>
+                {notificationsLoading ? (
+                  renderNotificationsLoading()
+                ) : (
+                  <FlatList
+                    data={notifications}
+                    renderItem={({ item }) => <NotificationItem item={item} />}
+                    keyExtractor={item => item._id}
+                    showsVerticalScrollIndicator={true}
+                    contentContainerStyle={[
+                      styles.notificationsListContent,
+                      notifications.length === 0 && styles.emptyListContent,
+                    ]}
+                    ListEmptyComponent={renderEmptyNotifications}
+                    initialNumToRender={10}
+                    maxToRenderPerBatch={10}
+                    windowSize={5}
+                    style={styles.notificationsFlatList}
+                  />
+                )}
               </View>
             </View>
           </View>
         </View>
-      )}
+      </Modal>
     </SafeAreaView>
   );
 };
 
-// Helper function to convert validity (same as original)
+// Helper to convert validity
 function toValidity(raw) {
   const v = raw?.validity ?? raw?.data ?? raw ?? {};
   const allowed = new Set([
@@ -1145,33 +1165,22 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
   },
-  // MODAL STYLES - UPDATED
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'transparent',
-  },
+
+  // Modal / Notifications styles
   modalBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContentContainer: {
+    justifyContent: 'flex-end',
+    flex: 1,
   },
   modalContent: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: 'white',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: SCREEN_HEIGHT * 0.85, // 85% of screen height
-    flex: 1,
+    height: SCREEN_HEIGHT * 0.85, // fixed height so inner FlatList can measure & scroll
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1254,10 +1263,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginLeft: 4,
   },
-  // NOTIFICATIONS SECTION - UPDATED
   notificationsSection: {
     flex: 1,
-    minHeight: 300, // Minimum height to ensure visibility
   },
   notificationsHeader: {
     flexDirection: 'row',
@@ -1299,15 +1306,22 @@ const styles = StyleSheet.create({
   },
   notificationsListContainer: {
     flex: 1,
-  },
-  notificationsList: {
-    flex: 1,
+    backgroundColor: 'white',
   },
   notificationsListContent: {
-    flexGrow: 1,
     padding: 20,
   },
+  emptyListContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationsFlatList: {
+    flex: 1,
+  },
   notificationsLoading: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
     padding: 40,
   },
@@ -1317,6 +1331,8 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   noNotifications: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
     padding: 40,
   },
