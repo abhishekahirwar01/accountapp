@@ -8,12 +8,12 @@ import ClientLoginScreen from '../screens/auth/ClientLoginScreen';
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 import UserDashboardScreen from '../screens/main/UserDashboardScreen';
 import DashboardScreen from '../screens/main/DashboardScreen';
-import HistoryPage from '../screens/admin/HistoryScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import SettingsScreen from '../screens/admin/SettingsScreen';
 import InvoicePreview from '../components/invoices/InvoicePreview';
 import SendOtpScreen from '../screens/auth/SendOtpScreen';
 import AnalyticsScreen from '../screens/admin/AnalyticsScreen';
+import HistoryScreen from '../screens/admin/HistoryScreen';
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
@@ -28,12 +28,10 @@ export default function AppNavigator() {
 
       {/* Dashboards */}
       <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+      <Stack.Screen name="HistoryScreen" component={HistoryScreen} />
       <Stack.Screen name="AnalyticsScreen" component={AnalyticsScreen} />
       <Stack.Screen name="UserDashboard" component={UserDashboardScreen} />
       <Stack.Screen name="Dashboard" component={DashboardScreen} />
-
-      {/* History Screen */}
-      <Stack.Screen name="HistoryScreen" component={HistoryPage} />
       
       {/* ProfileScreen acts as user settings for non-master users */}
       <Stack.Screen name="ProfileScreen" component={ProfileScreen} /> 

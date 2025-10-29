@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -11,55 +11,59 @@ import {
   Pressable,
   Platform,
   Image,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import Ionicons from "react-native-vector-icons/Ionicons";
-import { useNavigation } from "@react-navigation/native";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useNavigation } from '@react-navigation/native';
 
-const logoPath2 = require("../../../assets/images/vinimay.png");
+const logoPath2 = require('../../../assets/images/vinimay.png');
 
-export default function Header({ role = "master" }) {
+export default function Header({ role = 'master' }) {
   const [showSearch, setShowSearch] = useState(false);
-  const [searchText, setSearchText] = useState("");
+  const [searchText, setSearchText] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const navigation = useNavigation();
 
-  const handleNotification = () => console.log("Notification clicked");
+  const handleNotification = () => console.log('Notification clicked');
 
-  const handleHistory = () => navigation.navigate("HistoryScreen");
+  // ✅ Navigate to HistoryScreen when clicked
+  const handleHistory = () => {
+    setShowDropdown(false);
+    navigation.navigate('HistoryScreen');
+  };
 
   const handleSearchSubmit = () => {
-    if (searchText.trim() === "") return;
-    console.log("Search submitted:", searchText);
+    if (searchText.trim() === '') return;
+    console.log('Search submitted:', searchText);
     setShowSearch(false);
-    setSearchText("");
+    setSearchText('');
     Keyboard.dismiss();
   };
 
   const handleBack = () => {
     setShowSearch(false);
-    setSearchText("");
+    setSearchText('');
   };
 
   const handleLogout = () => {
     setShowDropdown(false);
     navigation.reset({
       index: 0,
-      routes: [{ name: "GettingStarted" }],
+      routes: [{ name: 'GettingStarted' }],
     });
   };
 
   const handleSettings = () => {
     setShowDropdown(false);
-    if (role === "master") {
-      navigation.navigate("SettingsScreen");
+    if (role === 'master') {
+      navigation.navigate('SettingsScreen');
     } else {
-      navigation.navigate("ProfileScreen");
+      navigation.navigate('ProfileScreen');
     }
   };
 
   const handleProfile = () => {
-    setShowDropdown((prev) => !prev);
+    setShowDropdown(prev => !prev);
   };
 
   return (
@@ -69,8 +73,7 @@ export default function Header({ role = "master" }) {
         backgroundColor="#FFFFFF"
         translucent={false}
       />
-
-      <SafeAreaView edges={["top"]} style={{ backgroundColor: "#fff" }}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }}>
         <View style={styles.container}>
           {showSearch ? (
             <View style={styles.searchContainer}>
@@ -92,7 +95,7 @@ export default function Header({ role = "master" }) {
 
               {searchText.length > 0 && (
                 <TouchableOpacity
-                  onPress={() => setSearchText("")}
+                  onPress={() => setSearchText('')}
                   style={styles.clearButton}
                 >
                   <Ionicons name="close-circle" size={20} color="#94A3B8" />
@@ -101,7 +104,7 @@ export default function Header({ role = "master" }) {
             </View>
           ) : (
             <>
-              {/* ✅ Logo replaces text title */}
+              {/* ✅ Logo */}
               <Image
                 source={logoPath2}
                 style={styles.logoImage}
@@ -130,7 +133,8 @@ export default function Header({ role = "master" }) {
                   </View>
                 </TouchableOpacity>
 
-                {role === "master" && (
+                {/* ✅ History button (only for master role) */}
+                {role === 'master' && (
                   <TouchableOpacity
                     style={styles.iconButton}
                     onPress={handleHistory}
@@ -139,7 +143,7 @@ export default function Header({ role = "master" }) {
                   </TouchableOpacity>
                 )}
 
-                {/* Profile + Role Dropdown */}
+                {/* Profile Dropdown */}
                 <View style={styles.profileWrapper}>
                   <TouchableOpacity
                     style={styles.profileContainer}
@@ -160,24 +164,21 @@ export default function Header({ role = "master" }) {
                     animationType="fade"
                     onRequestClose={() => setShowDropdown(false)}
                   >
-                    {/* Backdrop */}
                     <Pressable
                       style={StyleSheet.absoluteFill}
                       onPress={() => setShowDropdown(false)}
                     />
-
-                    {/* Dropdown */}
                     <View
                       pointerEvents="box-none"
                       style={styles.dropdownPortal}
                     >
                       <View style={styles.dropdownMenu}>
-                        {role === "master" && (
+                        {role === 'master' && (
                           <TouchableOpacity
                             style={styles.dropdownItem}
                             onPress={() => {
                               setShowDropdown(false);
-                              navigation.navigate("ProfileScreen");
+                              navigation.navigate('ProfileScreen');
                             }}
                           >
                             <Text style={styles.dropdownText}>Profile</Text>
@@ -195,9 +196,7 @@ export default function Header({ role = "master" }) {
                           style={styles.dropdownItem}
                           onPress={handleLogout}
                         >
-                          <Text
-                            style={[styles.dropdownText, { color: "red" }]}
-                          >
+                          <Text style={[styles.dropdownText, { color: 'red' }]}>
                             Logout
                           </Text>
                         </TouchableOpacity>
@@ -216,103 +215,103 @@ export default function Header({ role = "master" }) {
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 12,
     paddingVertical: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: '#FFFFFF',
   },
   logoImage: {
-    width: 80, // adjust as needed
+    width: 80,
     height: 40,
   },
   rightContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   iconButton: {
     padding: 6,
     marginHorizontal: 4,
     borderRadius: 10,
-    backgroundColor: "#F8FAFC",
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
   },
   notificationBadge: {
-    position: "absolute",
+    position: 'absolute',
     top: -2,
     right: -2,
-    backgroundColor: "#EF4444",
+    backgroundColor: '#EF4444',
     borderRadius: 6,
     width: 16,
     height: 16,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   badgeText: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 10,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   profileWrapper: {
-    position: "relative",
+    position: 'relative',
   },
   profileContainer: {
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     marginLeft: 8,
   },
   roleText: {
     fontSize: 12,
-    color: "#64748B",
-    fontWeight: "600",
+    color: '#64748B',
+    fontWeight: '600',
     marginTop: 2,
-    textAlign: "center",
+    textAlign: 'center',
   },
   searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     paddingHorizontal: 8,
     height: 44,
   },
   backButton: {
     padding: 6,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 6,
   },
   clearButton: {
     padding: 4,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     marginLeft: 6,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: "#1E293B",
+    color: '#1E293B',
     paddingVertical: 0,
   },
   dropdownPortal: {
     flex: 1,
-    alignItems: "flex-end",
+    alignItems: 'flex-end',
     paddingTop: Platform.select({ ios: 64, android: 56 }),
     paddingRight: 12,
   },
   dropdownMenu: {
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
     borderRadius: 10,
     paddingVertical: 8,
     width: 180,
     ...Platform.select({
       android: { elevation: 12 },
       ios: {
-        shadowColor: "#000",
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
@@ -325,7 +324,7 @@ const styles = StyleSheet.create({
   },
   dropdownText: {
     fontSize: 16,
-    color: "#1E293B",
-    fontWeight: "500",
+    color: '#1E293B',
+    fontWeight: '500',
   },
 });

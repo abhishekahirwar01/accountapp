@@ -1,763 +1,1410 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  FlatList,
+  ScrollView,
   TouchableOpacity,
   TextInput,
-  ScrollView,
+  ActivityIndicator,
+  Alert,
+  Linking,
   StyleSheet,
+  StatusBar,
+  RefreshControl,
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Modal from 'react-native-modal';
 import Clipboard from '@react-native-clipboard/clipboard';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import { BASE_URL } from '../../config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
-const { width } = Dimensions.get('window');
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Hardcoded clients
-const CLIENTS = [
-  {
-    _id: '1',
-    clientUsername: 'client1',
-    contactName: 'John Doe',
-    phone: '1234567890',
-    email: 'john@example.com',
-    businessName: 'Acme Corp',
-    createdAt: '2023-08-15T12:00:00Z',
-    validity: { enabled: true, status: 'active', expiresAt: '2024-08-15' },
-  },
-  {
-    _id: '2',
-    clientUsername: 'client2',
-    contactName: 'Jane Smith',
-    phone: '0987654321',
-    email: 'jane@example.com',
-    businessName: 'Beta LLC',
-    createdAt: '2023-07-01T09:00:00Z',
-    validity: { enabled: false, status: 'expired', expiresAt: '2024-01-01' },
-  },
-];
-
-// Hardcoded notifications
-const NOTIFICATIONS = {
-  1: [
-    {
-      _id: 'n1',
-      title: 'Payment Received',
-      message: 'Invoice #123 paid successfully.',
-      type: 'success',
-      read: false,
-      createdAt: '2023-09-29T15:30:00Z',
-      triggeredBy: { userName: 'Admin' },
-    },
-    {
-      _id: 'n2',
-      title: 'New Login',
-      message: 'Logged in from new device.',
-      type: 'info',
-      read: true,
-      createdAt: '2023-09-28T10:15:00Z',
-    },
-  ],
-  2: [
-    {
-      _id: 'n3',
-      title: 'Subscription Expired',
-      message: 'Your subscription has expired. Please renew.',
-      type: 'warning',
-      read: false,
-      createdAt: '2023-09-25T08:00:00Z',
-    },
-  ],
+// Icon names mapping - you might need to adjust these based on available icons
+const iconMap = {
+  Bell: 'bell',
+  Calendar: 'calendar',
+  Building: 'office-building',
+  Mail: 'email',
+  Clock: 'clock',
+  User: 'account',
+  Phone: 'phone',
+  AlertTriangle: 'alert-triangle',
+  CheckCircle: 'check-circle',
+  Info: 'information',
+  XCircle: 'close-circle',
+  Check: 'check',
+  Copy: 'content-copy',
+  ChevronRight: 'chevron-right',
+  Sparkles: 'star-four-points',
+  Filter: 'filter',
+  Search: 'magnify',
+  Eye: 'eye',
+  CalendarDays: 'calendar-range',
+  UserCheck: 'account-check',
+  Building2: 'office-building',
+  BadgeCheck: 'badge-account',
+  CalendarClock: 'calendar-clock',
+  Ban: 'cancel',
+  Infinity: 'infinity',
+  Loader2: 'loading',
 };
 
-// Utils
-const formatDate = dateString => new Date(dateString).toLocaleDateString();
-const formatTime = dateString =>
-  new Date(dateString).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-const getInitials = name =>
-  name
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-
-const StatusBadge = ({ validity }) => {
-  const enabled = validity?.enabled ?? false;
-  const label = enabled ? 'Active' : 'Inactive';
-  return (
-    <View
-      style={[
-        styles.badge,
-        { backgroundColor: enabled ? '#E8F5E8' : '#FFEBEE' },
-      ]}
-    >
-      <View
-        style={[
-          styles.badgeDot,
-          { backgroundColor: enabled ? '#4CAF50' : '#F44336' },
-        ]}
-      />
-      <Text
-        style={[styles.badgeText, { color: enabled ? '#2E7D32' : '#C62828' }]}
-      >
-        {label}
-      </Text>
-    </View>
-  );
-};
-
-const NotificationItem = ({ notification }) => {
-  const getIcon = () => {
-    switch (notification.type) {
-      case 'success':
-        return <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />;
-      case 'warning':
-        return <Ionicons name="warning" size={20} color="#FF9800" />;
-      case 'error':
-        return <Ionicons name="close-circle" size={20} color="#F44336" />;
-      case 'info':
-      default:
-        return <Ionicons name="information-circle" size={20} color="#2196F3" />;
-    }
-  };
-
-  const getTypeColor = () => {
-    switch (notification.type) {
-      case 'success':
-        return '#E8F5E8';
-      case 'warning':
-        return '#FFF3E0';
-      case 'error':
-        return '#FFEBEE';
-      case 'info':
-      default:
-        return '#E3F2FD';
-    }
-  };
-
-  return (
-    <View
-      style={[
-        styles.notificationContainer,
-        { backgroundColor: getTypeColor() },
-        notification.read && styles.readNotification,
-      ]}
-    >
-      <View style={styles.notificationHeader}>
-        <View style={styles.notificationTitleRow}>
-          {getIcon()}
-          <Text style={styles.notificationTitle}>{notification.title}</Text>
-        </View>
-        {!notification.read && <View style={styles.unreadDot} />}
-      </View>
-      <Text style={styles.notificationMessage}>{notification.message}</Text>
-      <View style={styles.notificationFooter}>
-        <Text style={styles.notificationTime}>
-          {formatDate(notification.createdAt)} •{' '}
-          {formatTime(notification.createdAt)}
-        </Text>
-        {notification.triggeredBy && (
-          <Text style={styles.triggeredBy}>
-            By: {notification.triggeredBy.userName}
-          </Text>
-        )}
-      </View>
-    </View>
-  );
-};
-
-export default function HistoryPage({ navigation }) {
+const HistoryScreen = () => {
+  const [clients, setClients] = useState([]);
+  const [validityByClient, setValidityByClient] = useState({});
+  const [isValidityLoading, setIsValidityLoading] = useState(false);
+  const [notifications, setNotifications] = useState([]);
   const [selectedClient, setSelectedClient] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [copied, setCopied] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
 
-  const handleCopy = text => {
-    Clipboard.setString(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
+  const name = selectedClient?.contactName || '—';
+  const phone = selectedClient?.phone || '—';
+
+  const handleCopy = async () => {
+    if (!selectedClient?.phone) return;
+    try {
+      await Clipboard.setString(selectedClient.phone);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch (error) {
+      console.error('Copy failed:', error);
+    }
   };
 
-  const filteredClients = CLIENTS.filter(client => {
+  const makePhoneCall = phoneNumber => {
+    if (phoneNumber && phoneNumber !== '—') {
+      Linking.openURL(`tel:${phoneNumber.replace(/\s+/g, '')}`);
+    }
+  };
+
+  // Fetch the list of clients
+  const fetchClients = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+      const response = await fetch(`${BASE_URL}/api/clients`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      setClients(data);
+    } catch (error) {
+      console.error('Error fetching clients', error);
+      setError('Failed to load clients. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch validities for all clients
+  const fetchValidities = async () => {
+    if (clients.length === 0) return;
+    setIsValidityLoading(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return;
+
+      const results = await Promise.allSettled(
+        clients.map(async client => {
+          try {
+            const response = await fetch(
+              `${BASE_URL}/api/account/${client._id}/validity`,
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              },
+            );
+
+            if (response.status === 404) {
+              return { id: client._id, validity: null };
+            }
+
+            if (!response.ok) {
+              const body = await response.text().catch(() => '');
+              throw new Error(
+                `GET validity ${response.status} for ${client.clientUsername}: ${body}`,
+              );
+            }
+
+            const json = await response.json();
+            return { id: client._id, validity: toValidity(json) };
+          } catch (error) {
+            console.error(
+              `Error fetching validity for client ${client._id}:`,
+              error,
+            );
+            return { id: client._id, validity: null };
+          }
+        }),
+      );
+
+      const map = {};
+      for (const r of results) {
+        if (r.status === 'fulfilled') {
+          map[r.value.id] = r.value.validity ?? {
+            enabled: false,
+            status: 'unknown',
+            expiresAt: null,
+            startAt: null,
+          };
+        } else {
+          console.warn('[validity] fetch failed:', r.reason);
+        }
+      }
+
+      clients.forEach(client => {
+        if (!map[client._id]) {
+          map[client._id] = {
+            enabled: false,
+            status: 'unknown',
+            expiresAt: null,
+            startAt: null,
+          };
+        }
+      });
+      setValidityByClient(map);
+    } catch (error) {
+      console.error('Error fetching validities', error);
+    } finally {
+      setIsValidityLoading(false);
+    }
+  };
+
+  // Fetch notifications for a specific client
+  const fetchNotifications = async clientId => {
+    setNotificationsLoading(true);
+    setError(null);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const response = await fetch(
+        `${BASE_URL}/api/notifications/master/${clientId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+      const data = await response.json();
+
+      const apiNotifications =
+        data.notifications?.map(notif => ({
+          _id: notif._id,
+          title: notif.title || `${notif.action} - ${notif.entityType}`,
+          message: notif.message,
+          type: notif.type,
+          action: notif.action,
+          entityId: notif.entityId,
+          entityType: notif.entityType,
+          recipient: notif.recipient,
+          triggeredBy: notif.triggeredBy,
+          client: notif.client,
+          read: notif.read,
+          createdAt: notif.createdAt,
+          updatedAt: notif.updatedAt,
+        })) || [];
+
+      setNotifications(apiNotifications);
+    } catch (error) {
+      console.error('Error fetching notifications', error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  // Mark all notifications as read
+  const markAllAsRead = async () => {
+    if (!selectedClient) return;
+
+    try {
+      setNotifications(prev => prev.map(notif => ({ ...notif, read: true })));
+
+      const token = await AsyncStorage.getItem('token');
+      await fetch(
+        `${BASE_URL}/api/notifications/master/${selectedClient._id}/mark-all-read`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+    } catch (error) {
+      console.error('Error marking notifications as read', error);
+      fetchNotifications(selectedClient._id);
+    }
+  };
+
+  const handleClientClick = client => {
+    setSelectedClient(client);
+    setError(null);
+    setNotifications([]);
+    setModalVisible(true);
+    fetchNotifications(client._id);
+  };
+
+  const formatDate = dateString => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const formatTime = dateString => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  // Function to get initials for avatar
+  const getInitials = name => {
+    return name
+      .split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  // Helper functions for the new notification UI
+  const getNotificationIcon = type => {
+    switch (type) {
+      case 'success':
+        return 'check-circle';
+      case 'warning':
+        return 'alert-triangle';
+      case 'error':
+        return 'close-circle';
+      case 'info':
+      default:
+        return 'information';
+    }
+  };
+
+  const getNotificationIconColor = type => {
+    switch (type) {
+      case 'success':
+        return '#16a34a';
+      case 'warning':
+        return '#d97706';
+      case 'error':
+        return '#dc2626';
+      case 'info':
+      default:
+        return '#2563eb';
+    }
+  };
+
+  const getNotificationBgColor = type => {
+    switch (type) {
+      case 'success':
+        return '#f0fdf4';
+      case 'warning':
+        return '#fffbeb';
+      case 'error':
+        return '#fef2f2';
+      case 'info':
+      default:
+        return '#eff6ff';
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchClients();
+    setRefreshing(false);
+  };
+
+  useEffect(() => {
+    fetchClients();
+  }, []);
+
+  useEffect(() => {
+    if (clients.length > 0) {
+      fetchValidities();
+    }
+  }, [clients]);
+
+  // Filter clients based on search query and status
+  const filteredClients = clients.filter(client => {
     const matchesSearch =
       client.clientUsername.toLowerCase().includes(searchQuery.toLowerCase()) ||
       client.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (client.businessName &&
         client.businessName.toLowerCase().includes(searchQuery.toLowerCase()));
-    const isActive = client.validity?.enabled ?? false;
+
+    const validity = validityByClient[client._id];
+    const isActive = validity?.enabled ?? false;
+
     const matchesStatus =
       statusFilter === 'all' ||
       (statusFilter === 'active' && isActive) ||
       (statusFilter === 'inactive' && !isActive);
+
     return matchesSearch && matchesStatus;
   });
 
-  const FilterButton = ({ label, value, isActive, onPress }) => (
-    <TouchableOpacity
-      style={[styles.filterButton, isActive && styles.filterButtonActive]}
-      onPress={onPress}
-    >
-      <Text
+  const StatusBadge = ({ validity }) => {
+    const enabled = validity?.enabled ?? false;
+    const label = enabled ? 'Active' : 'Expired';
+
+    return (
+      <View
         style={[
-          styles.filterButtonText,
-          isActive && styles.filterButtonTextActive,
+          styles.badge,
+          enabled ? styles.activeBadge : styles.expiredBadge,
         ]}
       >
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
+        <Text
+          style={[
+            styles.badgeText,
+            enabled ? styles.activeBadgeText : styles.expiredBadgeText,
+          ]}
+        >
+          {label}
+        </Text>
+      </View>
+    );
+  };
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {/* Header with Back Button */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#1E293B" />
-          </TouchableOpacity>
-          <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>Client History</Text>
-            <Text style={styles.headerSubtitle}>
-              Manage and view client activities
+  const ClientCard = ({ client }) => {
+    const validity = validityByClient[client._id];
+
+    return (
+      <TouchableOpacity
+        style={styles.clientCard}
+        onPress={() => handleClientClick(client)}
+      >
+        <View style={styles.cardHeader}>
+          <View style={styles.avatarContainer}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {getInitials(client.contactName || client.clientUsername)}
+              </Text>
+            </View>
+            <View style={styles.onlineIndicator} />
+          </View>
+
+          <View style={styles.clientInfo}>
+            <Text style={styles.clientName} numberOfLines={1}>
+              {client.businessName || client.clientUsername}
+            </Text>
+            <View style={styles.clientDetail}>
+              <Icon name={iconMap.UserCheck} size={16} color="#6b7280" />
+              <Text style={styles.detailText} numberOfLines={1}>
+                {client.contactName}
+              </Text>
+            </View>
+            <View style={styles.clientDetail}>
+              <Icon name={iconMap.Phone} size={16} color="#6b7280" />
+              <Text style={styles.detailText} numberOfLines={1}>
+                {client.phone}
+              </Text>
+            </View>
+            <View style={styles.clientDetail}>
+              <Icon name={iconMap.Mail} size={16} color="#6b7280" />
+              <Text style={styles.detailText} numberOfLines={1}>
+                {client.email}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.cardFooter}>
+          <View style={styles.dateContainer}>
+            <Icon name={iconMap.CalendarDays} size={16} color="#6b7280" />
+            <Text style={styles.dateText}>
+              Joined {formatDate(client.createdAt)}
             </Text>
           </View>
-        </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <Ionicons
-            name="search"
-            size={18}
-            color="#666"
-            style={styles.searchIcon}
-          />
-          <TextInput
-            placeholder="Search clients by name, email, or business..."
-            style={styles.searchInput}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholderTextColor="#999"
-            keyboardType='visible-password'
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setSearchQuery('')}
-              style={styles.clearButton}
-            >
-              <Ionicons name="close-circle" size={18} color="#999" />
-            </TouchableOpacity>
+          {isValidityLoading && !validityByClient[client._id] ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#3b82f6" />
+              <Text style={styles.loadingText}>Loading…</Text>
+            </View>
+          ) : (
+            <StatusBadge validity={validity} />
           )}
         </View>
 
-        {/* Filter Row */}
-        <View style={styles.filterRow}>
-          <FilterButton
-            label="All Clients"
-            value="all"
-            isActive={statusFilter === 'all'}
-            onPress={() => setStatusFilter('all')}
-          />
-          <FilterButton
-            label="Active"
-            value="active"
-            isActive={statusFilter === 'active'}
-            onPress={() => setStatusFilter('active')}
-          />
-          <FilterButton
-            label="Inactive"
-            value="inactive"
-            isActive={statusFilter === 'inactive'}
-            onPress={() => setStatusFilter('inactive')}
-          />
+        <View style={styles.cardAction}>
+          <View style={styles.actionContent}>
+            <Icon name={iconMap.Bell} size={16} color="#6b7280" />
+            <Text style={styles.actionText}>View notifications</Text>
+          </View>
+          <Icon name={iconMap.ChevronRight} size={16} color="#9ca3af" />
         </View>
+      </TouchableOpacity>
+    );
+  };
 
-        {/* Results Count */}
-        <Text style={styles.resultsCount}>
-          {filteredClients.length} client
-          {filteredClients.length !== 1 ? 's' : ''} found
-        </Text>
+  const NotificationItem = ({ notification }) => {
+    const iconName = getNotificationIcon(notification.type);
+    const iconColor = getNotificationIconColor(notification.type);
+    const bgColor = getNotificationBgColor(notification.type);
 
-        {/* Clients List */}
-        <FlatList
-          data={filteredClients}
-          keyExtractor={item => item._id}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.clientCard}
-              onPress={() => setSelectedClient(item)}
-            >
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {getInitials(item.contactName)}
-                </Text>
-              </View>
-              <View style={styles.clientInfo}>
-                <View style={styles.clientHeader}>
-                  <Text style={styles.clientName}>
-                    {item.businessName || item.clientUsername}
+    return (
+      <View
+        style={[
+          styles.notificationCard,
+          { backgroundColor: bgColor },
+          !notification.read && styles.unreadNotification,
+        ]}
+      >
+        <View style={styles.notificationHeader}>
+          <View style={[styles.notificationIcon, { backgroundColor: bgColor }]}>
+            <Icon name={iconName} size={20} color={iconColor} />
+          </View>
+          <View style={styles.notificationContent}>
+            <View style={styles.notificationTitleRow}>
+              <Text style={styles.notificationTitle} numberOfLines={1}>
+                {notification.title}
+              </Text>
+              <Text style={styles.notificationTime}>
+                {formatTime(notification.createdAt)}
+              </Text>
+            </View>
+            <Text style={styles.notificationMessage}>
+              {notification.message}
+            </Text>
+            <View style={styles.notificationMeta}>
+              <Text style={styles.notificationDate}>
+                {formatDate(notification.createdAt)}
+              </Text>
+              {notification.triggeredBy && (
+                <>
+                  <Text style={styles.metaSeparator}>•</Text>
+                  <Text style={styles.triggeredBy}>
+                    By:{' '}
+                    {notification.triggeredBy.userName ||
+                      notification.triggeredBy.email}
                   </Text>
-                  <StatusBadge validity={item.validity} />
+                </>
+              )}
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* Header Section */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <View style={styles.headerIcon}>
+              <Icon name={iconMap.Sparkles} size={24} color="#3b82f6" />
+            </View>
+            <View>
+              <Text style={styles.headerTitle}>Client History</Text>
+              <Text style={styles.headerSubtitle}>
+                View client details and notification history
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.headerStats}>
+            <View style={styles.statsIcon}>
+              <Icon name={iconMap.Bell} size={20} color="#3b82f6" />
+            </View>
+            <View>
+              <Text style={styles.statsCount}>{clients.length} Clients</Text>
+              <Text style={styles.statsLabel}>Total registered</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Search and Filter Section */}
+        <View style={styles.searchSection}>
+          <View style={styles.searchContainer}>
+            <Icon
+              name={iconMap.Search}
+              size={20}
+              color="#6b7280"
+              style={styles.searchIcon}
+            />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search clients by name, email, or business..."
+              placeholderTextColor="#9ca3af"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+
+          <View style={styles.filterContainer}>
+            <View style={styles.filterIcon}>
+              <Icon name={iconMap.Filter} size={16} color="#6b7280" />
+            </View>
+            <Text style={styles.filterLabel}>Filter by:</Text>
+            <View style={styles.filterSelect}>
+              <TextInput
+                style={styles.filterInput}
+                value={
+                  statusFilter === 'all'
+                    ? 'All Clients'
+                    : statusFilter === 'active'
+                    ? 'Active'
+                    : 'Inactive'
+                }
+                editable={false}
+              />
+              <TouchableOpacity
+                style={styles.filterDropdown}
+                onPress={() => {
+                  // Simple filter toggle - you might want to implement a proper dropdown
+                  const options = ['All Clients', 'Active', 'Inactive'];
+                  Alert.alert(
+                    'Filter Clients',
+                    'Select filter option',
+                    options.map(option => ({
+                      text: option,
+                      onPress: () => {
+                        setStatusFilter(
+                          option === 'All Clients'
+                            ? 'all'
+                            : option === 'Active'
+                            ? 'active'
+                            : 'inactive',
+                        );
+                      },
+                    })),
+                  );
+                }}
+              >
+                <Icon name="chevron-down" size={16} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {error && (
+          <View style={styles.errorContainer}>
+            <Icon name={iconMap.AlertTriangle} size={20} color="#dc2626" />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#3b82f6" />
+            <Text style={styles.loadingTitle}>Loading clients...</Text>
+            <Text style={styles.loadingSubtitle}>
+              Please wait while we fetch your data
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.clientsGrid}>
+            {filteredClients.map(client => (
+              <ClientCard key={client._id} client={client} />
+            ))}
+          </View>
+        )}
+
+        {/* Empty state */}
+        {!isLoading && filteredClients.length === 0 && (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIcon}>
+              <Icon name={iconMap.Building2} size={32} color="#9ca3af" />
+            </View>
+            <Text style={styles.emptyTitle}>No clients found</Text>
+            <Text style={styles.emptyText}>
+              {searchQuery
+                ? 'No clients match your search criteria. Try a different search term.'
+                : "You don't have any clients yet. Clients will appear here once they're registered."}
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Client Details Modal */}
+      {modalVisible && selectedClient && (
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            onPress={() => setModalVisible(false)}
+            activeOpacity={1}
+          />
+          <View style={styles.modalContent}>
+            {/* Header with close button */}
+            <View style={styles.modalHeader}>
+              <View style={styles.modalClientHeader}>
+                <View style={styles.modalAvatar}>
+                  <Text style={styles.modalAvatarText}>
+                    {getInitials(
+                      selectedClient.contactName ||
+                        selectedClient.clientUsername,
+                    )}
+                  </Text>
                 </View>
-                <Text style={styles.clientContact}>{item.contactName}</Text>
-                <View style={styles.clientDetails}>
-                  <View style={styles.detailRow}>
-                    <Ionicons name="mail-outline" size={14} color="#666" />
-                    <Text style={styles.clientEmail}>{item.email}</Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Ionicons name="call-outline" size={14} color="#666" />
-                    <Text style={styles.clientPhone}>{item.phone}</Text>
+                <View style={styles.modalClientInfo}>
+                  <Text style={styles.modalClientName} numberOfLines={1}>
+                    {selectedClient.businessName ||
+                      selectedClient.clientUsername}
+                  </Text>
+                  <View style={styles.modalClientEmail}>
+                    <Icon name={iconMap.Mail} size={16} color="#6b7280" />
+                    <Text style={styles.modalEmailText} numberOfLines={1}>
+                      {selectedClient.email}
+                    </Text>
                   </View>
                 </View>
-                <Text style={styles.clientSince}>
-                  Client since {formatDate(item.createdAt)}
+              </View>
+
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setModalVisible(false)}
+              >
+                <Icon name="close" size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Contact Information */}
+            <View style={styles.contactInfo}>
+              <View style={styles.contactItem}>
+                <Icon name={iconMap.User} size={16} color="#6b7280" />
+                <Text style={styles.contactText} numberOfLines={1}>
+                  {name}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#C7C7CC" />
-            </TouchableOpacity>
-          )}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
 
-        {/* Client Details Modal */}
-        <Modal
-          isVisible={!!selectedClient}
-          onBackdropPress={() => setSelectedClient(null)}
-          style={styles.modalWrapper}
-          animationIn="slideInUp"
-          animationOut="slideOutDown"
-        >
-          <View style={styles.modalContent}>
-            {selectedClient && (
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Modal Header */}
-                <View style={styles.modalHeader}>
-                  <View style={styles.modalAvatar}>
-                    <Text style={styles.modalAvatarText}>
-                      {getInitials(selectedClient.contactName)}
+              <View style={styles.contactItem}>
+                <Icon name={iconMap.Phone} size={16} color="#6b7280" />
+                {selectedClient.phone ? (
+                  <TouchableOpacity
+                    onPress={() => makePhoneCall(selectedClient.phone)}
+                  >
+                    <Text
+                      style={[styles.contactText, styles.phoneLink]}
+                      numberOfLines={1}
+                    >
+                      {phone}
                     </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={styles.contactText} numberOfLines={1}>
+                    {phone}
+                  </Text>
+                )}
+                <TouchableOpacity
+                  style={styles.copyButton}
+                  onPress={handleCopy}
+                  disabled={!selectedClient.phone}
+                >
+                  <Icon
+                    name={copied ? iconMap.Check : iconMap.Copy}
+                    size={16}
+                    color={selectedClient.phone ? '#3b82f6' : '#9ca3af'}
+                  />
+                  <Text
+                    style={[
+                      styles.copyText,
+                      { color: selectedClient.phone ? '#3b82f6' : '#9ca3af' },
+                    ]}
+                  >
+                    {copied ? 'Copied' : 'Copy'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Notifications Section - FIXED LAYOUT */}
+            <View style={styles.notificationsSection}>
+              <View style={styles.notificationsHeader}>
+                <View style={styles.notificationsTitle}>
+                  <View style={styles.notificationsIcon}>
+                    <Icon name={iconMap.Bell} size={20} color="#3b82f6" />
                   </View>
-                  <View style={styles.modalHeaderInfo}>
-                    <Text style={styles.modalTitle}>
-                      {selectedClient.businessName ||
-                        selectedClient.clientUsername}
-                    </Text>
-                    <Text style={styles.modalSubtitle}>
-                      {selectedClient.contactName}
-                    </Text>
-                    <StatusBadge validity={selectedClient.validity} />
-                  </View>
+                  <Text style={styles.notificationsTitleText}>
+                    Notification History
+                  </Text>
                 </View>
+                {notifications.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.markReadButton}
+                    onPress={markAllAsRead}
+                  >
+                    <Icon
+                      name={iconMap.CheckCircle}
+                      size={16}
+                      color="#3b82f6"
+                    />
+                    <Text style={styles.markReadText}>Mark all as read</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
-                {/* Contact Info */}
-                <View style={styles.modalSection}>
-                  <Text style={styles.sectionTitle}>Contact Information</Text>
-                  <View style={styles.contactInfo}>
-                    <View style={styles.contactRow}>
-                      <Ionicons name="mail-outline" size={18} color="#666" />
-                      <Text style={styles.contactText}>
-                        {selectedClient.email}
+              {/* Notifications List with proper flex layout */}
+              <View style={styles.notificationsListContainer}>
+                <ScrollView
+                  style={styles.notificationsList}
+                  contentContainerStyle={styles.notificationsListContent}
+                  showsVerticalScrollIndicator={true}
+                >
+                  {notificationsLoading ? (
+                    <View style={styles.notificationsLoading}>
+                      <ActivityIndicator size="large" color="#3b82f6" />
+                      <Text style={styles.notificationsLoadingText}>
+                        Loading notifications...
                       </Text>
                     </View>
-                    <View style={styles.contactRow}>
-                      <Ionicons name="call-outline" size={18} color="#666" />
-                      <TouchableOpacity
-                        onPress={() => handleCopy(selectedClient.phone)}
-                      >
-                        <Text style={[styles.contactText, styles.copyableText]}>
-                          {copied ? 'Copied!' : selectedClient.phone}
-                        </Text>
-                      </TouchableOpacity>
+                  ) : notifications.length === 0 ? (
+                    <View style={styles.noNotifications}>
+                      <View style={styles.noNotificationsIcon}>
+                        <Icon name={iconMap.Bell} size={32} color="#9ca3af" />
+                      </View>
+                      <Text style={styles.noNotificationsTitle}>
+                        No notifications yet
+                      </Text>
+                      <Text style={styles.noNotificationsText}>
+                        Notifications for this client will appear here
+                      </Text>
                     </View>
-                  </View>
-                </View>
-
-                {/* Notifications Section */}
-                <View style={styles.modalSection}>
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Recent Activity</Text>
-                    <Text style={styles.notificationCount}>
-                      {(NOTIFICATIONS[selectedClient._id] || []).length}{' '}
-                      notifications
-                    </Text>
-                  </View>
-                  {(NOTIFICATIONS[selectedClient._id] || []).map(notif => (
-                    <NotificationItem key={notif._id} notification={notif} />
-                  ))}
-                  {(NOTIFICATIONS[selectedClient._id] || []).length === 0 && (
-                    <View style={styles.emptyNotifications}>
-                      <Ionicons
-                        name="notifications-off-outline"
-                        size={40}
-                        color="#CCC"
+                  ) : (
+                    notifications.map(notification => (
+                      <NotificationItem
+                        key={notification._id}
+                        notification={notification}
                       />
-                      <Text style={styles.emptyText}>No notifications</Text>
-                    </View>
+                    ))
                   )}
-                </View>
-
-                {/* Close Button */}
-                <TouchableOpacity
-                  onPress={() => setSelectedClient(null)}
-                  style={styles.closeButton}
-                >
-                  <Text style={styles.closeButtonText}>Close Details</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            )}
+                </ScrollView>
+              </View>
+            </View>
           </View>
-        </Modal>
-      </View>
+        </View>
+      )}
     </SafeAreaView>
   );
+};
+
+// Helper function to convert validity (same as original)
+function toValidity(raw) {
+  const v = raw?.validity ?? raw?.data ?? raw ?? {};
+  const allowed = new Set([
+    'active',
+    'expired',
+    'suspended',
+    'unlimited',
+    'unknown',
+    'disabled',
+  ]);
+  const status = allowed.has(v?.status) ? v.status : 'unknown';
+  return {
+    enabled: status === 'active' || status === 'unlimited',
+    status,
+    expiresAt: v?.expiresAt ?? null,
+    startAt: v?.startAt ?? null,
+  };
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
   container: {
     flex: 1,
-    padding: 16,
+    backgroundColor: '#f8fafc',
+  },
+  scrollView: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: 24,
+    paddingBottom: 16,
+  },
+  headerLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
-  },
-  backButton: {
-    padding: 8,
-    marginRight: 12,
-  },
-  headerText: {
     flex: 1,
+  },
+  headerIcon: {
+    padding: 8,
+    backgroundColor: '#dbeafe',
+    borderRadius: 12,
+    marginRight: 12,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1E293B',
-    marginBottom: 2,
+    color: '#1e293b',
   },
   headerSubtitle: {
+    fontSize: 16,
+    color: '#64748b',
+    marginTop: 4,
+  },
+  headerStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    padding: 12,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  statsIcon: {
+    padding: 6,
+    backgroundColor: '#dbeafe',
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  statsCount: {
     fontSize: 14,
-    color: '#64748B',
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  statsLabel: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  searchSection: {
+    backgroundColor: 'white',
+    margin: 16,
+    marginTop: 0,
+    padding: 16,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 44,
+    fontSize: 16,
+    color: '#1e293b',
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  filterIcon: {
+    padding: 6,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  filterLabel: {
+    fontSize: 14,
+    color: '#64748b',
+    marginRight: 8,
+  },
+  filterSelect: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  filterInput: {
+    flex: 1,
+    height: 36,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: '#1e293b',
+  },
+  filterDropdown: {
+    padding: 8,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+    borderWidth: 1,
+    padding: 12,
+    margin: 16,
+    borderRadius: 12,
+  },
+  errorText: {
+    color: '#dc2626',
+    marginLeft: 8,
+    flex: 1,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
     backgroundColor: 'white',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    margin: 16,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  loadingTitle: {
+    fontSize: 16,
+    color: '#64748b',
+    marginTop: 16,
+  },
+  loadingSubtitle: {
+    fontSize: 14,
+    color: '#94a3b8',
+    marginTop: 4,
+  },
+  clientsGrid: {
+    padding: 16,
+  },
+  clientCard: {
+    backgroundColor: 'white',
     borderRadius: 16,
     marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.1,
     shadowRadius: 3,
-    elevation: 2,
-    height: 48,
+    elevation: 3,
+    overflow: 'hidden',
   },
-  searchIcon: {
-    marginRight: 12,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#1E293B',
-    padding: 0,
-  },
-  clearButton: {
-    padding: 2,
-  },
-  filterRow: {
+  cardHeader: {
     flexDirection: 'row',
-    marginBottom: 16,
-    gap: 8,
+    padding: 20,
   },
-  filterButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  filterButtonActive: {
-    backgroundColor: '#3B82F6',
-    borderColor: '#3B82F6',
-  },
-  filterButtonText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#64748B',
-  },
-  filterButtonTextActive: {
-    color: 'white',
-  },
-  resultsCount: {
-    fontSize: 14,
-    color: '#64748B',
-    marginBottom: 12,
-  },
-  listContent: {
-    paddingBottom: 20,
-  },
-  clientCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+  avatarContainer: {
+    position: 'relative',
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#3B82F6',
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: '#dbeafe',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
   avatarText: {
+    fontSize: 18,
     fontWeight: 'bold',
-    color: 'white',
-    fontSize: 16,
+    color: '#1d4ed8',
+  },
+  onlineIndicator: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 16,
+    height: 16,
+    backgroundColor: '#22c55e',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: 'white',
   },
   clientInfo: {
     flex: 1,
-  },
-  clientHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 4,
+    marginLeft: 16,
   },
   clientName: {
+    fontSize: 18,
     fontWeight: 'bold',
-    fontSize: 16,
-    color: '#1E293B',
-    flex: 1,
-    marginRight: 8,
-  },
-  clientContact: {
-    fontSize: 14,
-    color: '#475569',
+    color: '#1e293b',
     marginBottom: 8,
   },
-  clientDetails: {
-    gap: 4,
-    marginBottom: 8,
-  },
-  detailRow: {
+  clientDetail: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    marginBottom: 4,
   },
-  clientEmail: {
-    fontSize: 13,
-    color: '#64748B',
+  detailText: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginLeft: 6,
+    flex: 1,
   },
-  clientPhone: {
-    fontSize: 13,
-    color: '#64748B',
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 16,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
   },
-  clientSince: {
-    fontSize: 12,
-    color: '#94A3B8',
-    fontStyle: 'italic',
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateText: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginLeft: 6,
+  },
+  cardAction: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#f8fafc',
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+  },
+  actionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionText: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginLeft: 6,
   },
   badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
-    alignSelf: 'flex-start',
   },
-  badgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 4,
+  activeBadge: {
+    backgroundColor: '#dcfce7',
+  },
+  expiredBadge: {
+    backgroundColor: '#fecaca',
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
-  modalWrapper: {
+  activeBadgeText: {
+    color: '#166534',
+  },
+  expiredBadgeText: {
+    color: '#dc2626',
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: 40,
+    backgroundColor: 'white',
+    margin: 16,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 32,
     justifyContent: 'center',
-    margin: 0,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+  // MODAL STYLES - UPDATED
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: 'white',
-    marginHorizontal: 20,
-    borderRadius: 16,
-    maxHeight: '80%',
-    padding: 0,
-    overflow: 'hidden',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: SCREEN_HEIGHT * 0.85, // 85% of screen height
+    flex: 1,
   },
   modalHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: '#f1f5f9',
+  },
+  modalClientHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   modalAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#3B82F6',
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: '#dbeafe',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
   },
   modalAvatarText: {
+    fontSize: 20,
     fontWeight: 'bold',
-    color: 'white',
-    fontSize: 18,
+    color: '#1d4ed8',
   },
-  modalHeaderInfo: {
+  modalClientInfo: {
     flex: 1,
   },
-  modalTitle: {
-    fontWeight: 'bold',
+  modalClientName: {
     fontSize: 20,
-    color: '#1E293B',
-    marginBottom: 2,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginBottom: 4,
   },
-  modalSubtitle: {
-    fontSize: 16,
-    color: '#64748B',
-    marginBottom: 8,
+  modalClientEmail: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  modalSection: {
+  modalEmailText: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginLeft: 6,
+    flex: 1,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  contactInfo: {
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: '#f1f5f9',
   },
-  sectionHeader: {
+  contactItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
-  sectionTitle: {
-    fontWeight: '600',
-    fontSize: 16,
-    color: '#1E293B',
+  contactText: {
+    fontSize: 14,
+    color: '#374151',
+    marginLeft: 8,
+    flex: 1,
   },
-  notificationCount: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
+  phoneLink: {
+    color: '#3b82f6',
   },
-  contactInfo: {
-    gap: 12,
-  },
-  contactRow: {
+  copyButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginLeft: 8,
   },
-  contactText: {
-    fontSize: 15,
-    color: '#475569',
+  copyText: {
+    fontSize: 12,
+    marginLeft: 4,
   },
-  copyableText: {
-    color: '#3B82F6',
+  // NOTIFICATIONS SECTION - UPDATED
+  notificationsSection: {
+    flex: 1,
+    minHeight: 300, // Minimum height to ensure visibility
   },
-  notificationContainer: {
-    padding: 16,
-    borderRadius: 12,
+  notificationsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    backgroundColor: 'white',
+  },
+  notificationsTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  notificationsIcon: {
+    padding: 6,
+    backgroundColor: '#dbeafe',
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  notificationsTitleText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  markReadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#dbeafe',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  markReadText: {
+    fontSize: 14,
+    color: '#1d4ed8',
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  notificationsListContainer: {
+    flex: 1,
+  },
+  notificationsList: {
+    flex: 1,
+  },
+  notificationsListContent: {
+    flexGrow: 1,
+    padding: 20,
+  },
+  notificationsLoading: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  notificationsLoadingText: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 12,
+  },
+  noNotifications: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  noNotificationsIcon: {
+    width: 64,
+    height: 64,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  noNotificationsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
     marginBottom: 8,
+  },
+  noNotificationsText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+  notificationCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: 'transparent',
+  },
+  unreadNotification: {
+    borderLeftColor: '#3b82f6',
+    backgroundColor: '#eff6ff',
   },
   notificationHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 6,
+  },
+  notificationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationContent: {
+    flex: 1,
+    marginLeft: 12,
   },
   notificationTitleRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 8,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 4,
   },
   notificationTitle: {
+    fontSize: 16,
     fontWeight: '600',
-    fontSize: 14,
-    color: '#1E293B',
+    color: '#1e293b',
     flex: 1,
   },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#3B82F6',
+  notificationTime: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginLeft: 8,
   },
   notificationMessage: {
-    fontSize: 13,
-    color: '#475569',
-    lineHeight: 18,
-    marginBottom: 8,
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 20,
   },
-  notificationFooter: {
+  notificationMeta: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 8,
   },
-  notificationTime: {
-    fontSize: 11,
-    color: '#64748B',
+  notificationDate: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  metaSeparator: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginHorizontal: 8,
   },
   triggeredBy: {
-    fontSize: 11,
-    color: '#64748B',
-    fontStyle: 'italic',
-  },
-  readNotification: {
-    opacity: 0.7,
-  },
-  emptyNotifications: {
-    alignItems: 'center',
-    padding: 20,
-  },
-  emptyText: {
-    marginTop: 8,
-    color: '#94A3B8',
-    fontSize: 14,
-  },
-  closeButton: {
-    margin: 20,
-    backgroundColor: '#3B82F6',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 16,
+    fontSize: 12,
+    color: '#6b7280',
   },
 });
+
+export default HistoryScreen;
