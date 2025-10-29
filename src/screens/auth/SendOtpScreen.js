@@ -11,10 +11,14 @@ import {
   StatusBar,
   Keyboard,
   TouchableWithoutFeedback,
+  Dimensions, // हालांकि फिक्स्ड वैल्यू का उपयोग किया गया है, Dimensions अभी भी उपयोगी है
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast, { ErrorToast } from 'react-native-toast-message';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+
+// स्क्रीन की चौड़ाई (width)
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function SendOtpScreen({ navigation }) {
   const [method, setMethod] = useState('email');
@@ -45,6 +49,20 @@ export default function SendOtpScreen({ navigation }) {
 
   const handleSendOtp = () => {
     const identifier = method === 'email' ? email.trim() : mobile.trim();
+
+    // Basic Validation
+    if (!identifier) {
+      Toast.show({
+        type: 'custom_error',
+        text1: 'Validation Error',
+        text2: `Please enter your ${
+          method === 'email' ? 'Email' : 'Mobile Number'
+        }.`,
+        position: 'top',
+      });
+      return;
+    }
+
     const user = USERS.find(
       u => (method === 'email' ? u.email : u.mobile) === identifier,
     );
@@ -53,16 +71,21 @@ export default function SendOtpScreen({ navigation }) {
       // Navigate to OTP screen with user details and OTP
       navigation.navigate('OTPVerificationScreen', {
         method,
-        email,
-        mobile,
-        otp: user.otp,
+        identifier: identifier, // 'email' या 'mobile' वैल्यू भेजें
+        otp: user.otp, // Mock OTP
         role: user.role,
+      });
+      Toast.show({
+        type: 'success',
+        text1: 'OTP Sent (Mock)',
+        text2: `OTP is ${user.otp}. Redirecting to verification screen.`,
+        position: 'top',
       });
     } else {
       Toast.show({
         type: 'custom_error',
         text1: 'Error',
-        text2: 'No account found with this Email or Mobile.',
+        text2: 'No account found with this identifier.',
         position: 'top',
       });
     }
@@ -70,44 +93,42 @@ export default function SendOtpScreen({ navigation }) {
 
   const switchMethod = newMethod => {
     setMethod(newMethod);
+    Keyboard.dismiss();
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#ffffff"
-      />
-      
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+
       <View style={styles.flatScreen}>
-        {/* Professional Header Section */}
-        <View style={styles.headerContainer}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#1F2937" />
-          </TouchableOpacity>
-        </View>
-        
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10} // कम किया गया offset
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <ScrollView
-              // Removed flexGrow: 1 from contentContainerStyle to top-align content
               contentContainerStyle={styles.container}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              <View style={styles.contentArea}>
+              {/* Header: Back Button and OTP Verification Title in one line */}
+              <View style={styles.headerContainer}>
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={() => navigation.goBack()}
+                >
+                  <Ionicons name="arrow-back" size={22} color="#1F2937" />
+                </TouchableOpacity>
                 <Text style={styles.header}>OTP Verification</Text>
-                <Text style={styles.subHeader}>
-                  Choose a method to receive your One-Time Password.
-                </Text>
+              </View>
 
+              {/* Sub Header (Title के तुरंत बाद) */}
+              <Text style={styles.subHeader}>
+                Choose a method to receive your One-Time Password.
+              </Text>
+
+              <View style={styles.contentArea}>
                 {/* Toggle Buttons */}
                 <View style={styles.toggleRow}>
                   <TouchableOpacity
@@ -145,7 +166,7 @@ export default function SendOtpScreen({ navigation }) {
                 </View>
 
                 {/* Email/Mobile Input */}
-                <View style={{ marginBottom: 20 }}>
+                <View style={{ marginBottom: 15 }}>
                   <Text style={styles.label}>
                     {method === 'email' ? 'Email Address' : 'Mobile Number'}
                   </Text>
@@ -180,7 +201,7 @@ export default function SendOtpScreen({ navigation }) {
             </ScrollView>
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
-        
+
         {/* Toast Component */}
         <Toast
           config={{
@@ -189,16 +210,16 @@ export default function SendOtpScreen({ navigation }) {
                 {...props}
                 style={{
                   borderLeftColor: '#EF4444',
-                  borderRadius: 8, // Slightly reduced radius
+                  borderRadius: 6, // Compact
                   backgroundColor: '#FEE2E2',
-                  paddingHorizontal: 16,
+                  paddingHorizontal: 12, // Compact
                 }}
                 text1Style={{
-                  fontSize: 15, // Slightly adjusted font size
+                  fontSize: 14, // Compact
                   fontWeight: '700',
                   color: '#B91C1C',
                 }}
-                text2Style={{ fontSize: 13, color: '#B91C1C' }}
+                text2Style={{ fontSize: 12, color: '#B91C1C' }} // Compact
               />
             ),
           }}
@@ -212,83 +233,84 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#ffffff' },
   flatScreen: { flex: 1, backgroundColor: '#ffffff' },
 
-  // --- Professional Header Styles ---
+  // --- Header/Title Section ---
   headerContainer: {
-    paddingHorizontal: 16, // Padding to align with content
-    paddingVertical: 12,
+    flexDirection: 'row', // एक ही लाइन में लाने के लिए
+    alignItems: 'center', // वर्टिकली सेंटर
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6', // Subtle separator line
+    borderBottomColor: '#F3F4F6',
     backgroundColor: '#ffffff',
   },
   backButton: {
-    width: 40, // Defined touch area
-    height: 40,
+    width: 30, // छोटा किया गया
+    height: 30, // छोटा किया गया
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: -4, // Pulling back for optical alignment
+    marginRight: 10, // Title से दूरी
+  },
+  header: {
+    fontSize: 24, // साइज़ 32 से 24 किया गया
+    fontWeight: '700', // थोड़ा कम बोल्ड
+    color: '#1F2937',
+    // marginTop और marginBottom हटा दिया गया क्योंकि यह अब row में है
   },
   // --- Container & Content ---
   container: {
-    // Removed flexGrow: 1 to ensure content is top-aligned
-    paddingHorizontal: 24, // Main screen padding
-    paddingTop: 10, // Small top padding for visual break after header
+    paddingHorizontal: 16, // Padding 24 से 16 किया गया
   },
   contentArea: {
-    // No specific background/padding here, inherits screen padding
+    paddingTop: 10, // Subheader के बाद से content के लिए स्पेस
   },
-  
+
   // --- Typography ---
-  header: {
-    fontSize: 32, // More dominant header
-    fontWeight: '800', // Extra bold
-    textAlign: 'left',
-    marginBottom: 10,
-    color: '#1F2937', // Darker text
-    marginTop: 20, // Separation from the top/header
-  },
   subHeader: {
-    fontSize: 16,
+    fontSize: 14, // साइज़ 16 से 14 किया गया
     textAlign: 'left',
     color: '#6B7280',
-    marginBottom: 40, // Increased bottom margin for breathing room
-    lineHeight: 24,
+    marginBottom: 20, // Margin 40 से 20 किया गया
+    lineHeight: 20, // LineHeight 24 से 20 किया गया
+    paddingHorizontal: 16, // Screen padding के साथ मैच करने के लिए
+    paddingTop: 10, // Header के बाद स्पेस
   },
 
   // --- Toggle Styles ---
   toggleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 30, // Increased separation
+    marginBottom: 20, // Margin 30 से 20 किया गया
     backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    padding: 4,
+    borderRadius: 8, // छोटा किया गया
+    padding: 3, // छोटा किया गया
   },
   toggleButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: 10, // Padding 12 से 10 किया गया
+    borderRadius: 7, // छोटा किया गया
     backgroundColor: 'transparent',
     alignItems: 'center',
   },
   active: {
     backgroundColor: '#4F46E5',
     shadowColor: '#4F46E5',
-    shadowOpacity: 0.15, // Lighter shadow
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 3,
+    elevation: 2,
   },
-  toggleText: { color: '#374151', fontWeight: '600', fontSize: 15 }, // Adjusted font weight/size
+  toggleText: { color: '#374151', fontWeight: '600', fontSize: 14 }, // Font 15 से 14 किया गया
   activeText: { color: '#fff', fontWeight: '700' },
-  
+
   // --- Input Styles ---
-  label: { fontSize: 14, color: '#374151', marginBottom: 8, fontWeight: '600' },
+  label: { fontSize: 13, color: '#374151', marginBottom: 6, fontWeight: '600' }, // Font 14 से 13 किया गया
   input: {
-    backgroundColor: '#F9FAFB', // Very light background for the input field
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8, // छोटा किया गया
+    padding: 14, // Padding 16 से 14 किया गया
     color: '#1F2937',
-    fontSize: 16,
+    fontSize: 15, // Font 16 से 15 किया गया
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
@@ -296,18 +318,18 @@ const styles = StyleSheet.create({
   // --- Button Styles ---
   primaryButton: {
     backgroundColor: '#4F46E5',
-    padding: 18,
-    borderRadius: 12,
-    marginVertical: 30, // Good vertical separation
+    padding: 14, // Padding 18 से 14 किया गया
+    borderRadius: 8, // छोटा किया गया
+    marginVertical: 20, // Margin 30 से 20 किया गया
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#4F46E5',
-    shadowOpacity: 0.25,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 }, // छोटा किया गया
+    shadowRadius: 6, // छोटा किया गया
+    elevation: 4,
   },
-  primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 18 },
+  primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 }, // Font 18 से 16 किया गया
   buttonDisabled: {
     backgroundColor: '#A5B4FC',
     shadowOpacity: 0,

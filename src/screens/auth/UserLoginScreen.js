@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,6 @@ import {
   Platform,
   StatusBar,
   Keyboard,
-  TouchableWithoutFeedback,
-  ScrollView, // Re-imported ScrollView
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -23,15 +21,25 @@ export default function UserLoginScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  // Keyboard listener
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () =>
+      setIsKeyboardVisible(true)
+    );
+    const hideSub = Keyboard.addListener('keyboardDidHide', () =>
+      setIsKeyboardVisible(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const HARD_USERS = [
     { userId: 'admin', password: '123', role: 'admin', name: 'Admin User' },
-    {
-      userId: 'customer',
-      password: '123',
-      role: 'customer',
-      name: 'Customer Demo',
-    },
+    { userId: 'customer', password: '123', role: 'customer', name: 'Customer Demo' },
     { userId: 'client', password: '123', role: 'client', name: 'Client Demo' },
     { userId: 'user', password: '123', role: 'user', name: 'Regular User' },
   ];
@@ -121,7 +129,7 @@ export default function UserLoginScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-      {/* Back Button - positioned absolutely relative to the SafeAreaView */}
+      {/* Back Button */}
       <TouchableOpacity
         style={styles.backButtonAbsolute}
         onPress={() => navigation.goBack()}
@@ -133,90 +141,90 @@ export default function UserLoginScreen({ navigation }) {
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        // Removed fixed keyboardVerticalOffset as ScrollView handles content movement
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <ScrollView 
-            contentContainerStyle={styles.scrollContentContainer} // Use contentContainerStyle
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
+        <View style={styles.contentContainer}>
+          {/* Header */}
+          <View
+            style={[
+              styles.headerContainer,
+              isKeyboardVisible && styles.headerCompact,
+            ]}
           >
-            {/* Main Content Container */}
-            <View style={styles.contentContainer}>
-              
-              {/* Icon + Title - Centered and prominent */}
-              <View style={styles.headerContainer}>
-                <Ionicons
-                  name="person-circle"
-                  size={56}
-                  color="#ff0000"
-                />
-                <Text style={styles.title}>Sign In to Your Account</Text>
-              </View>
+            <Ionicons
+              name="person-circle"
+              size={isKeyboardVisible ? 30 : 56}
+              color="#ff0000"
+              style={isKeyboardVisible && { marginRight: 8 }}
+            />
+            <Text
+              style={[styles.title, isKeyboardVisible && styles.titleCompact]}
+            >
+              Sign In to Your Account
+            </Text>
+          </View>
 
-              {/* User ID */}
-              <Text style={styles.label}>User ID</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter User ID"
-                value={userId}
-                onChangeText={setUserId}
-                editable={!loading}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
-                placeholderTextColor="#94a3b8"
-                returnKeyType="next"
+          {/* User ID */}
+          <Text style={styles.label}>User ID</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter User ID"
+            value={userId}
+            onChangeText={setUserId}
+            editable={!loading}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            placeholderTextColor="#94a3b8"
+            returnKeyType="next"
+          />
+
+          {/* Password */}
+          <Text style={styles.label}>Password</Text>
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Enter password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              editable={!loading}
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholderTextColor="#94a3b8"
+              textContentType="password"
+              returnKeyType="done"
+            />
+            <TouchableOpacity
+              onPress={() => setShowPassword(!showPassword)}
+              style={styles.eyeButton}
+              disabled={loading}
+            >
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={22}
+                color="#64748b"
               />
+            </TouchableOpacity>
+          </View>
 
-              {/* Password */}
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.passwordContainer}>
-                <TextInput
-                  style={[styles.input, styles.passwordInput]}
-                  placeholder="Enter password"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  editable={!loading}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  placeholderTextColor="#94a3b8"
-                  textContentType="password"
-                  returnKeyType="done"
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeButton}
-                >
-                  <Ionicons
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={24}
-                    color="#64748b"
-                  />
-                </TouchableOpacity>
-              </View>
+          {/* Forgot Password */}
+          <TouchableOpacity style={styles.forgotPassword}>
+            <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+          </TouchableOpacity>
 
-              {/* Forgot Password */}
-              <TouchableOpacity style={styles.forgotPassword}>
-                <Text style={styles.forgotPasswordText}>Forgot password?</Text>
-              </TouchableOpacity>
-
-              {/* Sign In Button */}
-              <TouchableOpacity
-                style={[styles.button, loading && styles.buttonDisabled]}
-                onPress={handleSubmit}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.buttonText}>Sign In</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </TouchableWithoutFeedback>
+          {/* Sign In Button */}
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleSubmit}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Sign In</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
 
       {/* Toast Messages */}
@@ -232,12 +240,8 @@ const styles = StyleSheet.create({
   },
   keyboardAvoidingContainer: {
     flex: 1,
-    paddingHorizontal: 24, // Consistent padding for content
-  },
-  scrollContentContainer: {
-    flexGrow: 1, // Allows content to fill space and enables scrolling
-    justifyContent: 'center', // Centers the login form vertically when keyboard is hidden
-    paddingVertical: 50, // Added padding to ensure content isn't flush with top/bottom edges
+    paddingHorizontal: 22,
+    justifyContent: 'center',
   },
   contentContainer: {
     width: '100%',
@@ -246,15 +250,20 @@ const styles = StyleSheet.create({
   },
   backButtonAbsolute: {
     position: 'absolute',
-    top: Platform.OS === 'android' ? StatusBar.currentHeight + 10 : 10, // Adjusted for StatusBar
+    top: Platform.OS === 'android' ? StatusBar.currentHeight + 10 : 20,
     left: 24,
     zIndex: 10,
     padding: 8,
   },
   headerContainer: {
     alignItems: 'center',
-    marginBottom: 40,
-    // marginTop removed, handled by scrollContentContainer padding
+    marginBottom: 30,
+  },
+  headerCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
   },
   title: {
     fontSize: 24,
@@ -263,44 +272,49 @@ const styles = StyleSheet.create({
     marginTop: 10,
     textAlign: 'center',
   },
+  titleCompact: {
+    fontSize: 18,
+    marginTop: 0,
+  },
   label: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '600',
-    marginBottom: 8,
-    marginTop: 10,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#334155',
+    marginBottom: 6,
   },
   input: {
-    backgroundColor: '#f1f1f1',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    fontSize: 16,
-    color: '#000',
+    backgroundColor: '#f9fafb',
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    marginBottom: 16,
-    width: '100%',
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#000',
+    marginBottom: 14,
   },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    position: 'relative',
+    backgroundColor: '#f9fafb',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 12,
+    marginBottom: 14,
   },
   passwordInput: {
     flex: 1,
-    marginBottom: 0,
-    paddingRight: 50,
+    fontSize: 15,
+    color: '#000',
+    paddingVertical: 12,
   },
   eyeButton: {
-    position: 'absolute',
-    right: 15,
-    padding: 5,
+    padding: 6,
   },
   forgotPassword: {
     alignSelf: 'flex-start',
-    marginBottom: 30,
+    marginBottom: 20,
   },
   forgotPasswordText: {
     color: '#1a73e8',
@@ -310,9 +324,8 @@ const styles = StyleSheet.create({
   button: {
     backgroundColor: '#ff0000',
     paddingVertical: 14,
-    borderRadius: 8,
+    borderRadius: 6,
     alignItems: 'center',
-    justifyContent: 'center',
     marginTop: 12,
   },
   buttonText: {

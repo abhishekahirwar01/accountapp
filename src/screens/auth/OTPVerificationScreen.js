@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'; // 💡 Added 'useRef'
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -23,7 +23,6 @@ export default function OTPVerificationScreen({ navigation, route }) {
   const [enteredOtp, setEnteredOtp] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(30);
 
-  // 💡 NEW: Create an array of refs for each TextInput
   const otpInputsRef = useRef([]);
 
   // Timer countdown
@@ -40,7 +39,6 @@ export default function OTPVerificationScreen({ navigation, route }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Join digits into one string for verification
   const otpValue = enteredOtp.join('');
 
   // 1. Auto focus next box on digit entry
@@ -55,7 +53,7 @@ export default function OTPVerificationScreen({ navigation, route }) {
       if (value && index < 5) {
         otpInputsRef.current[index + 1]?.focus();
       }
-      
+
       // If the last digit is entered, dismiss keyboard
       if (index === 5 && value) {
         Keyboard.dismiss();
@@ -64,22 +62,12 @@ export default function OTPVerificationScreen({ navigation, route }) {
   };
 
   // 2. Auto focus previous box on Backspace
-  const handleKeyPress = (
-    e,
-    index,
-  ) => {
-    // Check if the pressed key is 'Backspace'
-    // Also, check if the current input is empty, which means the user wants to delete the previous digit.
+  const handleKeyPress = (e, index) => {
     if (e.nativeEvent.key === 'Backspace') {
       if (index > 0) {
-        // If current box is empty, move to the previous box
         if (enteredOtp[index] === '') {
           otpInputsRef.current[index - 1]?.focus();
-        } 
-        // If current box has a digit, the handleChange function will clear it.
-        // We don't need explicit backspace logic here for moving focus because 
-        // the default TextInput behavior handles clearing the digit, and the 
-        // empty check above handles moving to the previous box when already empty.
+        }
       }
     }
   };
@@ -112,14 +100,14 @@ export default function OTPVerificationScreen({ navigation, route }) {
     if (timer === 0) {
       setTimer(30);
       setEnteredOtp(['', '', '', '', '', '']);
-      // 🚨 TODO: Implement the actual API call to resend OTP and update the 'otp' param in route.params
       Toast.show({
         type: 'info',
         text1: 'Resend',
-        text2: `New OTP sent to ${method === 'email' ? 'your email' : 'your mobile'}.`,
+        text2: `New OTP sent to ${
+          method === 'email' ? 'your email' : 'your mobile'
+        }.`,
         position: 'top',
       });
-      // 💡 Auto-focus the first input after resend
       setTimeout(() => {
         otpInputsRef.current[0]?.focus();
       }, 100);
@@ -134,6 +122,7 @@ export default function OTPVerificationScreen({ navigation, route }) {
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <ScrollView
@@ -141,17 +130,22 @@ export default function OTPVerificationScreen({ navigation, route }) {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              <TouchableOpacity
-                style={styles.backButton}
-                onPress={() => navigation.goBack()}
-              >
-                <Ionicons name="arrow-back" size={24} color="#111827" />
-              </TouchableOpacity>
+              {/* Header: Back Button and Title in one line */}
+              <View style={styles.headerContainer}>
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={() => navigation.goBack()}
+                >
+                  <Ionicons name="arrow-back" size={20} color="#1F2937" />
+                </TouchableOpacity>
+                <Text style={styles.header}>Verify your OTP</Text>
+                <View style={styles.placeholder} />
+              </View>
 
               <View style={styles.contentArea}>
-                <Text style={styles.header}>Verify your OTP</Text>
                 <Text style={styles.subHeader}>
-                  Enter the 6-digit code sent to {method === 'email' ? email : mobile}.
+                  Enter the 6-digit code sent to{' '}
+                  {method === 'email' ? email : mobile}.
                 </Text>
 
                 {/* OTP Input Boxes */}
@@ -159,7 +153,6 @@ export default function OTPVerificationScreen({ navigation, route }) {
                   {enteredOtp.map((digit, index) => (
                     <TextInput
                       key={index}
-                      // 💡 UPDATED: Set ref using the useRef array
                       ref={el => (otpInputsRef.current[index] = el)}
                       style={styles.otpBox}
                       value={digit}
@@ -178,9 +171,14 @@ export default function OTPVerificationScreen({ navigation, route }) {
                 {/* Timer & Resend */}
                 <View style={styles.timerRow}>
                   <Text style={styles.timerText}>
-                    {timer > 0 ? `Resend in ${timer}s` : 'Did not receive code?'}
+                    {timer > 0
+                      ? `Resend in ${timer}s`
+                      : 'Did not receive code?'}
                   </Text>
-                  <TouchableOpacity onPress={handleResendOtp} disabled={timer > 0}>
+                  <TouchableOpacity
+                    onPress={handleResendOtp}
+                    disabled={timer > 0}
+                  >
                     <Text
                       style={[
                         styles.resendButtonText,
@@ -200,7 +198,9 @@ export default function OTPVerificationScreen({ navigation, route }) {
                   onPress={handleVerify}
                   disabled={otpValue.length !== 6}
                 >
-                  <Text style={styles.primaryButtonText}>Verify & Continue</Text>
+                  <Text style={styles.primaryButtonText}>
+                    Verify & Continue
+                  </Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -215,11 +215,15 @@ export default function OTPVerificationScreen({ navigation, route }) {
                 {...props}
                 style={{
                   borderLeftColor: '#10b981',
-                  borderRadius: 12,
+                  borderRadius: 8,
                   backgroundColor: '#ecfdf5',
                 }}
-                text1Style={{ fontSize: 16, fontWeight: '700', color: '#065f46' }}
-                text2Style={{ fontSize: 14, color: '#065f46' }}
+                text1Style={{
+                  fontSize: 14,
+                  fontWeight: '700',
+                  color: '#065f46',
+                }}
+                text2Style={{ fontSize: 12, color: '#065f46' }}
               />
             ),
             custom_error: props => (
@@ -227,11 +231,15 @@ export default function OTPVerificationScreen({ navigation, route }) {
                 {...props}
                 style={{
                   borderLeftColor: '#ef4444',
-                  borderRadius: 12,
+                  borderRadius: 8,
                   backgroundColor: '#fee2e2',
                 }}
-                text1Style={{ fontSize: 16, fontWeight: '700', color: '#b91c1c' }}
-                text2Style={{ fontSize: 14, color: '#b91c1c' }}
+                text1Style={{
+                  fontSize: 14,
+                  fontWeight: '700',
+                  color: '#b91c1c',
+                }}
+                text2Style={{ fontSize: 12, color: '#b91c1c' }}
               />
             ),
             info: props => (
@@ -239,11 +247,15 @@ export default function OTPVerificationScreen({ navigation, route }) {
                 {...props}
                 style={{
                   borderLeftColor: '#2563eb',
-                  borderRadius: 12,
+                  borderRadius: 8,
                   backgroundColor: '#eff6ff',
                 }}
-                text1Style={{ fontSize: 16, fontWeight: '700', color: '#1e40af' }}
-                text2Style={{ fontSize: 14, color: '#1e40af' }}
+                text1Style={{
+                  fontSize: 14,
+                  fontWeight: '700',
+                  color: '#1e40af',
+                }}
+                text2Style={{ fontSize: 12, color: '#1e40af' }}
               />
             ),
           }}
@@ -253,71 +265,100 @@ export default function OTPVerificationScreen({ navigation, route }) {
   );
 }
 
-// Styles (Unchanged)
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#ffffff' },
   flatScreen: { flex: 1, backgroundColor: '#ffffff' },
+
+  // --- Header Styles ---
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    backgroundColor: '#ffffff',
+  },
+  backButton: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  header: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
+  },
+  placeholder: {
+    width: 32,
+  },
+
+  // --- Container & Content ---
   container: {
     flexGrow: 1,
-    alignItems: 'flex-start',
-    padding: 24,
+    paddingHorizontal: 20,
   },
   contentArea: {
     width: '100%',
-    marginTop: 100,
+    paddingTop: 24,
   },
-  backButton: {
-    position: 'absolute',
-    top: Platform.OS === 'android' ? 0 : 16,
-    left: 16,
-    zIndex: 10,
-    padding: 8,
-  },
-  header: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 8,
-  },
+
+  // --- Typography ---
   subHeader: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#6b7280',
-    marginBottom: 32,
+    marginBottom: 30,
+    lineHeight: 20,
+    textAlign: 'left',
   },
+
+  // --- OTP Boxes ---
   otpRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
+    marginBottom: 10,
   },
   otpBox: {
-    width: 48,
-    height: 56,
+    width: 42,
+    height: 50,
     borderWidth: 1.5,
     borderColor: '#e5e7eb',
     borderRadius: 8,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#111827',
     backgroundColor: '#f9fafb',
   },
+
+  // --- Timer & Resend ---
   timerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 24,
+    marginTop: 20,
   },
-  timerText: { color: '#6b7280', fontSize: 14 },
-  resendButtonText: { color: '#4f46e5', fontWeight: '600', fontSize: 14 },
+  timerText: { color: '#6b7280', fontSize: 13 },
+  resendButtonText: { color: '#4f46e5', fontWeight: '600', fontSize: 13 },
   resendButtonDisabled: { color: '#9ca3af' },
+
+  // --- Button Styles ---
   primaryButton: {
     backgroundColor: '#4f46e5',
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 40,
+    padding: 14,
+    borderRadius: 10,
+    marginTop: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 8,
+    elevation: 4,
   },
-  primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 18 },
-  buttonDisabled: { backgroundColor: '#a5b4fc', elevation: 0 },
+  primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  buttonDisabled: {
+    backgroundColor: '#a5b4fc',
+    elevation: 0,
+    opacity: 0.8,
+  },
 });

@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const logoPath2 = require('../../../assets/images/vinimay.png');
 
@@ -43,13 +44,34 @@ export default function Header({ role = 'master' }) {
     setSearchText('');
   };
 
-  const handleLogout = () => {
-    setShowDropdown(false);
+  // const handleLogout = () => {
+  //   setShowDropdown(false);
+  //   navigation.reset({
+  //     index: 0,
+  //     routes: [{ name: 'GettingStarted' }],
+  //   });
+  // };
+
+  const handleLogout = async () => {
+  try {
+    // Optional: read if you want to log or send analytics before clearing
+    const role = await AsyncStorage.getItem('role');
+    const slug = await AsyncStorage.getItem('tenantSlug');
+
+    // 🔹 Clear all AsyncStorage (token, user data, etc.)
+    await AsyncStorage.clear();
+
+    // 🔹 Reset navigation stack to GettingStartedScreen
     navigation.reset({
       index: 0,
       routes: [{ name: 'GettingStarted' }],
     });
-  };
+
+    console.log('User logged out:', { role, slug });
+  } catch (error) {
+    console.error('Logout failed:', error);
+  }
+};
 
   const handleSettings = () => {
     setShowDropdown(false);
