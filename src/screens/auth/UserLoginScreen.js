@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 import { navigateByRole } from '../../utils/roleNavigation';
+import { loginUser, getCurrentUser } from '../../lib/auth';
+
+// ✅ Contexts uncommented
+import { useUserPermissions } from '../../contexts/user-permissions-context';
+import { usePermissions } from '../../contexts/permission-context';
 
 export default function UserLoginScreen({ navigation }) {
   const [userId, setUserId] = useState('');
@@ -23,13 +28,16 @@ export default function UserLoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
-  // Keyboard listener
+  // ✅ Contexts uncommented
+  const { refetch: refetchUserPermissions } = useUserPermissions();
+  const { refetch: refetchAppPermissions } = usePermissions();
+
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', () =>
-      setIsKeyboardVisible(true)
+      setIsKeyboardVisible(true),
     );
     const hideSub = Keyboard.addListener('keyboardDidHide', () =>
-      setIsKeyboardVisible(false)
+      setIsKeyboardVisible(false),
     );
     return () => {
       showSub.remove();
@@ -37,14 +45,46 @@ export default function UserLoginScreen({ navigation }) {
     };
   }, []);
 
-  const HARD_USERS = [
-    { userId: 'admin', password: '123', role: 'admin', name: 'Admin User' },
-    { userId: 'customer', password: '123', role: 'customer', name: 'Customer Demo' },
-    { userId: 'client', password: '123', role: 'client', name: 'Client Demo' },
-    { userId: 'user', password: '123', role: 'user', name: 'Regular User' },
-  ];
+  // ✅ Check if user is already logged in
+  useEffect(() => {
+    checkExistingAuth();
+  }, []);
 
-  const handleSubmit = () => {
+  const checkExistingAuth = async () => {
+    try {
+      const currentUser = await getCurrentUser();
+      if (currentUser) {
+        // User already logged in, redirect based on role
+        console.log('🔄 User already authenticated:', currentUser.role);
+
+        // ✅ Refetch permissions for existing user
+        await refetchPermissions();
+
+        setTimeout(() => {
+          navigateByRole(navigation, currentUser.role);
+        }, 500);
+      }
+    } catch (error) {
+      console.log('🔐 No existing session found');
+    }
+  };
+
+  // ✅ Refetch permissions function
+  const refetchPermissions = async () => {
+    try {
+      console.log('🔄 Refetching user permissions...');
+      await refetchUserPermissions?.();
+      console.log('✅ User permissions refreshed');
+
+      console.log('🔄 Refetching global app permissions...');
+      await refetchAppPermissions?.();
+      console.log('✅ Global permissions refreshed');
+    } catch (error) {
+      console.error('❌ Failed to refetch permissions:', error);
+    }
+  };
+
+  const handleSubmit = async () => {
     if (!userId.trim() || !password.trim()) {
       Toast.show({
         type: 'custom_error',
@@ -57,35 +97,42 @@ export default function UserLoginScreen({ navigation }) {
 
     setLoading(true);
 
-    setTimeout(() => {
-      const foundUser = HARD_USERS.find(
-        u => u.userId === userId && u.password === password,
-      );
+    try {
+      // 🔐 Actual API login call
+      const user = await loginUser(userId, password);
 
+      Toast.show({
+        type: 'custom_success',
+        text1: 'Login Successful',
+        text2: `Welcome, ${user.name || user.username}!`,
+        visibilityTime: 1500,
+      });
+
+      // ✅ Refetch permissions after login
+      await refetchPermissions();
+
+      // ✅ Verify the user session was saved properly
+      const savedUser = await getCurrentUser();
+      console.log('💾 Session saved successfully:', savedUser ? 'Yes' : 'No');
+
+      // 🧭 Navigate based on role
+      setTimeout(() => {
+        navigateByRole(navigation, user.role);
+      }, 500);
+    } catch (error) {
+      console.error('❌ Login error:', error);
+      Toast.show({
+        type: 'custom_error',
+        text1: 'Login Failed',
+        text2: error.message || 'Invalid User ID or Password',
+        visibilityTime: 1500,
+      });
+    } finally {
       setLoading(false);
-
-      if (foundUser) {
-        Toast.show({
-          type: 'custom_success',
-          text1: 'Login Successful',
-          text2: `Welcome, ${foundUser.name}!`,
-          visibilityTime: 1500,
-        });
-
-        setTimeout(() => {
-          navigateByRole(navigation, foundUser.role);
-        }, 500);
-      } else {
-        Toast.show({
-          type: 'custom_error',
-          text1: 'Login Failed',
-          text2: 'Invalid User ID or Password',
-          visibilityTime: 1500,
-        });
-      }
-    }, 1500);
+    }
   };
 
+  // ✅ Toast styling (success + error)
   const toastConfig = {
     custom_success: props => (
       <BaseToast
@@ -129,7 +176,7 @@ export default function UserLoginScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-      {/* Back Button */}
+      {/* 🔙 Back Button */}
       <TouchableOpacity
         style={styles.backButtonAbsolute}
         onPress={() => navigation.goBack()}
@@ -143,7 +190,7 @@ export default function UserLoginScreen({ navigation }) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.contentContainer}>
-          {/* Header */}
+          {/* 🧩 Header */}
           <View
             style={[
               styles.headerContainer,
@@ -163,7 +210,7 @@ export default function UserLoginScreen({ navigation }) {
             </Text>
           </View>
 
-          {/* User ID */}
+          {/* 🪪 User ID */}
           <Text style={styles.label}>User ID</Text>
           <TextInput
             style={styles.input}
@@ -173,15 +220,20 @@ export default function UserLoginScreen({ navigation }) {
             editable={!loading}
             autoCapitalize="none"
             autoCorrect={false}
-            keyboardType="email-address"
+            keyboardType="default"
             placeholderTextColor="#94a3b8"
             returnKeyType="next"
+            onSubmitEditing={() => {
+              // Focus next field or submit
+              this.passwordInput?.focus();
+            }}
           />
 
-          {/* Password */}
+          {/* 🔑 Password */}
           <Text style={styles.label}>Password</Text>
           <View style={styles.passwordContainer}>
             <TextInput
+              ref={ref => (this.passwordInput = ref)}
               style={styles.passwordInput}
               placeholder="Enter password"
               value={password}
@@ -193,6 +245,7 @@ export default function UserLoginScreen({ navigation }) {
               placeholderTextColor="#94a3b8"
               textContentType="password"
               returnKeyType="done"
+              onSubmitEditing={handleSubmit}
             />
             <TouchableOpacity
               onPress={() => setShowPassword(!showPassword)}
@@ -207,12 +260,12 @@ export default function UserLoginScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          {/* Forgot Password */}
+          {/* 🔁 Forgot Password */}
           <TouchableOpacity style={styles.forgotPassword}>
             <Text style={styles.forgotPasswordText}>Forgot password?</Text>
           </TouchableOpacity>
 
-          {/* Sign In Button */}
+          {/* 🚀 Sign In Button */}
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleSubmit}
@@ -227,27 +280,19 @@ export default function UserLoginScreen({ navigation }) {
         </View>
       </KeyboardAvoidingView>
 
-      {/* Toast Messages */}
       <Toast config={toastConfig} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
+  safeArea: { flex: 1, backgroundColor: '#ffffff' },
   keyboardAvoidingContainer: {
     flex: 1,
     paddingHorizontal: 22,
     justifyContent: 'center',
   },
-  contentContainer: {
-    width: '100%',
-    maxWidth: 400,
-    alignSelf: 'center',
-  },
+  contentContainer: { width: '100%', maxWidth: 400, alignSelf: 'center' },
   backButtonAbsolute: {
     position: 'absolute',
     top: Platform.OS === 'android' ? StatusBar.currentHeight + 10 : 20,
@@ -255,10 +300,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
     padding: 8,
   },
-  headerContainer: {
-    alignItems: 'center',
-    marginBottom: 30,
-  },
+  headerContainer: { alignItems: 'center', marginBottom: 30 },
   headerCompact: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -272,10 +314,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     textAlign: 'center',
   },
-  titleCompact: {
-    fontSize: 18,
-    marginTop: 0,
-  },
+  titleCompact: { fontSize: 18, marginTop: 0 },
   label: {
     fontSize: 14,
     fontWeight: '500',
@@ -303,24 +342,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginBottom: 14,
   },
-  passwordInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#000',
-    paddingVertical: 12,
-  },
-  eyeButton: {
-    padding: 6,
-  },
-  forgotPassword: {
-    alignSelf: 'flex-start',
-    marginBottom: 20,
-  },
-  forgotPasswordText: {
-    color: '#1a73e8',
-    fontWeight: '600',
-    fontSize: 15,
-  },
+  passwordInput: { flex: 1, fontSize: 15, color: '#000', paddingVertical: 12 },
+  eyeButton: { padding: 6 },
+  forgotPassword: { alignSelf: 'flex-start', marginBottom: 20 },
+  forgotPasswordText: { color: '#1a73e8', fontWeight: '600', fontSize: 15 },
   button: {
     backgroundColor: '#ff0000',
     paddingVertical: 14,
@@ -328,12 +353,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 12,
   },
-  buttonText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 17,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
+  buttonText: { color: '#ffffff', fontWeight: '700', fontSize: 17 },
+  buttonDisabled: { opacity: 0.6 },
 });

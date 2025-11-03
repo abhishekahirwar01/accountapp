@@ -9,6 +9,10 @@ import {
 import AppNavigator from './src/navigation/AppNavigator';
 import { navigationRef } from './src/navigation/RootNavigation';
 
+import { CompanyProvider } from './src/contexts/company-context';
+import { PermissionProvider } from './src/contexts/permission-context';
+import { UserPermissionsProvider } from './src/contexts/user-permissions-context';
+
 const theme = {
   ...DefaultTheme,
   colors: {
@@ -24,10 +28,12 @@ export default function App() {
   useEffect(() => {
     const pingServer = async () => {
       try {
-        await fetch("https://accountapp-backend-shardaassociates.onrender.com/ping");
-        console.log("✅ Server pinged to stay awake");
+        await fetch(
+          'https://accountapp-backend-shardaassociates.onrender.com/ping',
+        );
+        console.log('✅ Server pinged to stay awake');
       } catch (error) {
-        console.log("⚠️ Ping failed:", error.message);
+        console.log('⚠️ Ping failed:', error.message);
       }
     };
 
@@ -44,10 +50,16 @@ export default function App() {
   return (
     <PaperProvider theme={theme}>
       <SafeAreaProvider>
-        <NavigationContainer ref={navigationRef}>
-          <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-          <AppNavigator role={role} setRole={setRole} />
-        </NavigationContainer>
+        <CompanyProvider>
+          <PermissionProvider>
+            <UserPermissionsProvider>
+              <NavigationContainer ref={navigationRef}>
+                <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+                <AppNavigator role={role} setRole={setRole} />
+              </NavigationContainer>
+            </UserPermissionsProvider>
+          </PermissionProvider>
+        </CompanyProvider>
       </SafeAreaProvider>
     </PaperProvider>
   );

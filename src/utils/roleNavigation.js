@@ -7,7 +7,7 @@ export const navigateByRole = (navigation, role) => {
     case 'admin':
     case 'customer':
     case 'client':
-      navigation.replace('Dashboard', { role }); // pass role
+      navigation.replace('CustomerDashboard', { role }); // pass role
       break;
     case 'user': 
       navigation.replace('UserDashboard', { role }); // pass role

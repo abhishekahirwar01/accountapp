@@ -23,6 +23,10 @@ import {
 } from '../../lib/authSession';
 import { navigateByRole } from '../../utils/roleNavigation';
 
+// ✅ Import both permission contexts
+import { useUserPermissions } from '../../contexts/user-permissions-context';
+import { usePermissions } from '../../contexts/permission-context';
+
 export default function AdminLoginScreen({ navigation }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -31,6 +35,10 @@ export default function AdminLoginScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  // ✅ Context hooks for both permission providers
+  const { refetch: refetchPermissions } = useUserPermissions();
+  const { refetch: refetchClientPermissions } = usePermissions();
 
   // Detect keyboard open/close
   useEffect(() => {
@@ -78,6 +86,7 @@ export default function AdminLoginScreen({ navigation }) {
       const user = await loginMasterAdmin(username, password);
       if (!user?.token) throw new Error('Invalid username or password');
 
+      // ✅ Save token in AsyncStorage
       await saveSession(user.token, {
         role: user.role ?? 'master',
         username: user.username,
@@ -85,6 +94,17 @@ export default function AdminLoginScreen({ navigation }) {
         email: user.email,
       });
 
+      // ✅ Re-fetch BOTH types of permissions after login
+      if (refetchPermissions) {
+        console.log('🔁 Refetching user permissions after login...');
+        await refetchPermissions();
+      }
+      if (refetchClientPermissions) {
+        console.log('🔁 Refetching client permissions after login...');
+        await refetchClientPermissions();
+      }
+
+      // ✅ Schedule auto logout
       scheduleAutoLogout(user.token, async () => {
         await clearSession();
         navigation.replace('AdminLoginScreen');
@@ -96,6 +116,7 @@ export default function AdminLoginScreen({ navigation }) {
         });
       });
 
+      // ✅ Navigate to respective dashboard
       navigateByRole(navigation, user.role ?? 'master');
     } catch (err) {
       setLoading(false);
@@ -110,7 +131,7 @@ export default function AdminLoginScreen({ navigation }) {
         text1: 'Login Failed',
         text2: errorMessage,
         position: 'top',
-        visibilityTime: 1000,
+        visibilityTime: 1500,
       });
     } finally {
       setLoading(false);
@@ -121,7 +142,7 @@ export default function AdminLoginScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-      {/* 🔙 Fixed Back Button (always top-left) */}
+      {/* 🔙 Fixed Back Button */}
       <TouchableOpacity
         style={styles.backButtonAbsolute}
         onPress={() => navigation.goBack()}
@@ -237,7 +258,11 @@ export default function AdminLoginScreen({ navigation }) {
                 borderRadius: 12,
                 backgroundColor: '#ecfdf5',
               }}
-              text1Style={{ fontSize: 16, fontWeight: '700', color: '#065f46' }}
+              text1Style={{
+                fontSize: 16,
+                fontWeight: '700',
+                color: '#065f46',
+              }}
               text2Style={{ fontSize: 14, color: '#065f46' }}
             />
           ),
@@ -249,7 +274,11 @@ export default function AdminLoginScreen({ navigation }) {
                 borderRadius: 12,
                 backgroundColor: '#fee2e2',
               }}
-              text1Style={{ fontSize: 16, fontWeight: '700', color: '#b91c1c' }}
+              text1Style={{
+                fontSize: 16,
+                fontWeight: '700',
+                color: '#b91c1c',
+              }}
               text2Style={{ fontSize: 14, color: '#b91c1c' }}
             />
           ),
@@ -279,8 +308,6 @@ const styles = StyleSheet.create({
     zIndex: 10,
     padding: 8,
   },
-
-  // Header
   headerContainer: { alignItems: 'center', marginBottom: 30 },
   headerCompact: {
     flexDirection: 'row',
@@ -295,8 +322,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   titleCompact: { fontSize: 18, marginTop: 0 },
-
-  // Form
   label: { fontSize: 15, fontWeight: '600', color: '#333', marginBottom: 6 },
   input: {
     backgroundColor: '#f9fafb',

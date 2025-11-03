@@ -27,6 +27,10 @@ import {
 import { navigateByRole } from '../../utils/roleNavigation';
 import { jwtDecode } from 'jwt-decode';
 
+// ✅ Import both permission contexts
+import { useUserPermissions } from '../../contexts/user-permissions-context';
+import { usePermissions } from '../../contexts/permission-context';
+
 export default function ClientLoginScreen({ navigation }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -39,13 +43,17 @@ export default function ClientLoginScreen({ navigation }) {
   const [checkingSession, setCheckingSession] = useState(true);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
+  // ✅ Access refetch from both contexts
+  const { refetch: refetchUserPermissions } = useUserPermissions();
+  const { refetch: refetchClientPermissions } = usePermissions();
+
   // 🔹 Keyboard listener
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', () =>
-      setIsKeyboardVisible(true)
+      setIsKeyboardVisible(true),
     );
     const hideSub = Keyboard.addListener('keyboardDidHide', () =>
-      setIsKeyboardVisible(false)
+      setIsKeyboardVisible(false),
     );
     return () => {
       showSub.remove();
@@ -63,6 +71,50 @@ export default function ClientLoginScreen({ navigation }) {
     const timer = setInterval(() => setResendIn(n => n - 1), 1000);
     return () => clearInterval(timer);
   }, [resendIn]);
+
+  // 🔹 Shared logic for saving session + refetch + navigation
+  const completeLoginFlow = async (user, roleLabel) => {
+    const decoded = jwtDecode(user.token);
+    await saveSession(user.token, {
+      role: 'customer',
+      username: user.username,
+      name: user.name,
+      email: user.email,
+      id: decoded.id,
+      slug: user.slug,
+    });
+
+    // ✅ Re-fetch BOTH permissions contexts
+    if (refetchUserPermissions) {
+      console.log('🔁 Refetching user permissions after login...');
+      await refetchUserPermissions();
+    }
+    if (refetchClientPermissions) {
+      console.log('🔁 Refetching client permissions after login...');
+      await refetchClientPermissions();
+    }
+
+    // ✅ Schedule auto logout
+    scheduleAutoLogout(user.token, async () => {
+      await clearSession();
+      navigation.replace('ClientLoginScreen');
+      Toast.show({
+        type: 'info',
+        text1: 'Session expired',
+        text2: 'Please login again',
+        position: 'top',
+      });
+    });
+
+    Toast.show({
+      type: 'success',
+      text1: 'Login Successful',
+      text2: `Welcome, ${user.name}!`,
+      position: 'top',
+    });
+
+    navigateByRole(navigation, roleLabel);
+  };
 
   // 🔹 Handle Password Login
   const handlePasswordLogin = async () => {
@@ -83,34 +135,7 @@ export default function ClientLoginScreen({ navigation }) {
       if (!user?.token || !isValidCustomer)
         throw new Error('Invalid customer credentials.');
 
-      const decoded = jwtDecode(user.token);
-      await saveSession(user.token, {
-        role: 'customer',
-        username: user.username,
-        name: user.name,
-        email: user.email,
-        id: decoded.id,
-        slug: user.slug,
-      });
-
-      scheduleAutoLogout(user.token, async () => {
-        await clearSession();
-        navigation.replace('ClientLoginScreen');
-        Toast.show({
-          type: 'info',
-          text1: 'Session expired',
-          text2: 'Please login again',
-          position: 'top',
-        });
-      });
-
-      Toast.show({
-        type: 'success',
-        text1: 'Login Successful',
-        text2: `Welcome, ${user.name}!`,
-        position: 'top',
-      });
-      navigateByRole(navigation, 'customer');
+      await completeLoginFlow(user, 'customer');
     } catch (error) {
       Toast.show({
         type: 'error',
@@ -175,34 +200,7 @@ export default function ClientLoginScreen({ navigation }) {
       const isValidCustomer = userRole === 'customer' || userRole === 'client';
       if (!user?.token || !isValidCustomer) throw new Error('Invalid OTP.');
 
-      const decoded = jwtDecode(user.token);
-      await saveSession(user.token, {
-        role: 'customer',
-        username: user.username,
-        name: user.name,
-        email: user.email,
-        id: decoded.id,
-        slug: user.slug,
-      });
-
-      scheduleAutoLogout(user.token, async () => {
-        await clearSession();
-        navigation.replace('ClientLoginScreen');
-        Toast.show({
-          type: 'info',
-          text1: 'Session expired',
-          text2: 'Please login again',
-          position: 'top',
-        });
-      });
-
-      Toast.show({
-        type: 'success',
-        text1: 'Login Successful',
-        text2: `Welcome, ${user.name}!`,
-        position: 'top',
-      });
-      navigateByRole(navigation, 'customer');
+      await completeLoginFlow(user, 'customer');
     } catch (error) {
       Toast.show({
         type: 'error',
@@ -283,7 +281,7 @@ export default function ClientLoginScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          {/* 🔹 Password Login */}
+          {/* Password Login */}
           {tab === 'password' ? (
             <>
               <Text style={styles.label}>Username</Text>
@@ -336,7 +334,7 @@ export default function ClientLoginScreen({ navigation }) {
             </>
           ) : (
             <>
-              {/* 🔹 OTP Login */}
+              {/* OTP Login */}
               <Text style={styles.label}>Username</Text>
               <TextInput
                 style={styles.input}
@@ -387,7 +385,7 @@ export default function ClientLoginScreen({ navigation }) {
         </View>
       </KeyboardAvoidingView>
 
-      {/* 🔹 Toast Configuration */}
+      {/* Toast Configuration */}
       <Toast
         config={{
           success: props => (
@@ -477,9 +475,7 @@ const styles = StyleSheet.create({
     color: '#000',
     paddingVertical: 12,
   },
-  eyeButton: {
-    padding: 6,
-  },
+  eyeButton: { padding: 6 },
   button: {
     backgroundColor: '#2563eb',
     paddingVertical: 14,
