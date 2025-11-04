@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Modal,
   ScrollView,
+  RefreshControl,
 } from 'react-native';
 import { Card } from 'react-native-paper';
 import {
@@ -17,17 +18,11 @@ import {
   PlusCircle,
   Settings,
 } from 'lucide-react-native';
-import Header from '../../components/layout/Header';
-import BottomNav from '../../components/layout/BottomNav';
+import AppLayout from '../../components/layout/AppLayout';
 import RecentTransactions from '../../components/dashboard/RecentTransactions';
 import TransactionForm from '../../components/transactions/TransactionForm';
 import ProductStock from '../../components/dashboard/ProductStock';
 import KPICard from '../../components/dashboard/KPICard';
-import TransactionsScreen from './TransactionsScreen';
-import InventoryScreen from './InventoryScreen';
-import UsersScreen from './UsersScreen';
-import CompaniesScreen from './CompaniesScreen';
-import Reports from './reports/Reports';
 
 // --- Mock Data ---
 const MOCK_COMPANIES = [
@@ -60,14 +55,12 @@ const MOCK_TRANSACTIONS = [
 const formatCurrency = amount => `₹${amount.toLocaleString('en-IN')}`;
 
 const DashboardScreen = ({ navigation, route }) => {
-  const [activeTab, setActiveTab] = useState('Dashboard');
   const [companyData, setCompanyData] = useState(null);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [serviceNameById, setServiceNameById] = useState(new Map());
   const [isLoading, setIsLoading] = useState(false);
   const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
-
-  const { username = 'Master Admin', role = 'master' } = route?.params || {};
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -91,7 +84,13 @@ const DashboardScreen = ({ navigation, route }) => {
       setRecentTransactions(MOCK_TRANSACTIONS);
       setServiceNameById(serviceMap);
       setIsLoading(false);
+      setRefreshing(false);
     }, 1000);
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadDashboardData();
   };
 
   const handleSettingsPress = () => navigation.navigate('ProfileScreen');
@@ -129,37 +128,48 @@ const DashboardScreen = ({ navigation, route }) => {
     }
 
     return (
-      <ScrollView style={{ flex: 1, backgroundColor: '#f1f5f9' }}>
-        <View style={styles.dashboardContainer}>
-          <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.settingsButton} onPress={handleSettingsPress}>
-              <Settings size={18} color="#1e293b" />
-              <Text style={styles.settingsText}>Settings</Text>
-            </TouchableOpacity>
+      <View style={styles.dashboardContainer}>
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.settingsButton} onPress={handleSettingsPress}>
+            <Settings size={18} color="#1e293b" />
+            <Text style={styles.settingsText}>Settings</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity style={styles.addButton} onPress={() => setIsTransactionFormOpen(true)}>
-              <PlusCircle size={18} color="#fff" />
-              <Text style={styles.addText}>Add Transaction</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={{ marginBottom: 16 }}
-            contentContainerStyle={{ paddingHorizontal: 8 }}
-          >
-            {kpiData.map(kpi => (
-              <View key={kpi.title} style={{ marginRight: 12 }}>
-                <KPICard {...kpi} />
-              </View>
-            ))}
-          </ScrollView>
-
-          <ProductStock />
-          <RecentTransactions transactions={recentTransactions} serviceNameById={serviceNameById} />
+          <TouchableOpacity style={styles.addButton} onPress={() => setIsTransactionFormOpen(true)}>
+            <PlusCircle size={18} color="#fff" />
+            <Text style={styles.addText}>Add Transaction</Text>
+          </TouchableOpacity>
         </View>
 
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginBottom: 16 }}
+          contentContainerStyle={{ paddingHorizontal: 8 }}
+        >
+          {kpiData.map(kpi => (
+            <View key={kpi.title} style={{ marginRight: 12 }}>
+              <KPICard {...kpi} />
+            </View>
+          ))}
+        </ScrollView>
+
+        <ProductStock />
+        <RecentTransactions transactions={recentTransactions} serviceNameById={serviceNameById} />
+      </View>
+    );
+  };
+
+  return (
+    <AppLayout>
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {renderDashboard()}
+        
         <Modal
           visible={isTransactionFormOpen}
           animationType="fade"
@@ -187,35 +197,7 @@ const DashboardScreen = ({ navigation, route }) => {
           </View>
         </Modal>
       </ScrollView>
-    );
-  };
-
-  // --- Main content renderer ---
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'Transactions':
-        return <TransactionsScreen navigation={navigation} />;
-      case 'Inventory':
-        return <InventoryScreen navigation={navigation} />;
-      case 'Users':
-        return <UsersScreen navigation={navigation} />;
-      case 'Companies':
-        return <CompaniesScreen navigation={navigation} />;
-      case 'Reports':
-        return <Reports navigation={navigation} />;
-      case 'Dashboard':
-      default:
-        return renderDashboard();
-    }
-  };
-
-  // --- Main layout ---
-  return (
-    <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
-      {activeTab === 'Dashboard' && <Header username={username} role={role} />}
-      {renderContent()}
-      <BottomNav role={role} onTabChange={setActiveTab} />
-    </View>
+    </AppLayout>
   );
 };
 
@@ -223,7 +205,13 @@ export default DashboardScreen;
 
 // --- Styles ---
 const styles = StyleSheet.create({
-  dashboardContainer: { padding: 16, paddingBottom: 100 },
+  scrollView: {
+    flex: 1,
+  },
+  dashboardContainer: { 
+    padding: 16, 
+    paddingBottom: 20,
+  },
   actionRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -253,8 +241,16 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   addText: { marginLeft: 6, color: '#fff', fontWeight: '700' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
-  loadingText: { marginTop: 16, color: '#475569' },
+  loadingContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    padding: 40 
+  },
+  loadingText: { 
+    marginTop: 16, 
+    color: '#475569' 
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -262,16 +258,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
   },
-  modalCard: { width: '100%', maxWidth: 500, borderRadius: 16, overflow: 'hidden' },
+  modalCard: { 
+    width: '100%', 
+    maxWidth: 500, 
+    borderRadius: 16, 
+    overflow: 'hidden' 
+  },
   modalHeader: {
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
     backgroundColor: '#f8fafc',
   },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: '#1e293b' },
-  modalDescription: { color: '#64748b', marginTop: 4 },
-  modalContent: { maxHeight: 400, padding: 16 },
+  modalTitle: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: '#1e293b' 
+  },
+  modalDescription: { 
+    color: '#64748b', 
+    marginTop: 4 
+  },
+  modalContent: { 
+    maxHeight: 400, 
+    padding: 16 
+  },
   cancelButton: {
     padding: 16,
     alignItems: 'center',
@@ -279,5 +290,8 @@ const styles = StyleSheet.create({
     borderTopColor: '#f1f5f9',
     backgroundColor: '#f8fafc',
   },
-  cancelText: { color: '#ef4444', fontWeight: '600' },
+  cancelText: { 
+    color: '#ef4444', 
+    fontWeight: '600' 
+  },
 });

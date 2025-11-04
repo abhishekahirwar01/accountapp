@@ -22,7 +22,7 @@ import InventoryScreen from '../screens/main/InventoryScreen';
 import UsersScreen from '../screens/main/UsersScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
 import Reports from '../screens/main/reports/Reports';
-
+import Ledger from '../screens/main/ledger/Ledger';
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
@@ -61,6 +61,7 @@ export default function AppNavigator() {
       <Stack.Screen name="Users" component={UsersScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="Reports" component={Reports} />
+      <Stack.Screen name="Ledger" component={Ledger} />
 
       {/* ProfileScreen acts as user settings for non-master users */}
       <Stack.Screen name="InvoicePreview" component={InvoicePreview} />

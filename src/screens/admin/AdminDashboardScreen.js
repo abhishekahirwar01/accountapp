@@ -13,36 +13,23 @@ import {
 import { BASE_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import Header from '../../components/layout/Header';
-import BottomNav from '../../components/layout/BottomNav';
+import AppLayout from '../../components/layout/AppLayout'; // ✅ Use AppLayout
 import UpdateNotification from '../../components/notifications/UpdateNotification';
 import UpdateNotificationBadge from '../../components/notifications/UpdateNotificationBadge';
 
-// Import screens
-import ClientManagementScreen from './ClientManagementScreen';
-import ClientDetailScreen from './ClientDetailScreen';
-import CompaniesScreen from './CompaniesScreen';
-import AnalyticsScreen from './AnalyticsScreen';
-import SettingsScreen from './SettingsScreen';
-
 export default function AdminDashboardScreen({ navigation }) {
-  const [currentTab, setCurrentTab] = useState('Dashboard');
   const [clients, setClients] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const { width } = useWindowDimensions();
-
-  // Dynamic font sizes based on screen width
   const titleFontSize = width < 360 ? 18 : width < 400 ? 19 : 21;
   const subtitleFontSize = width < 360 ? 13 : 15;
 
   useEffect(() => {
-    if (currentTab === 'Dashboard') {
-      fetchData();
-    }
-  }, [currentTab]);
+    fetchData();
+  }, []);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -163,24 +150,26 @@ export default function AdminDashboardScreen({ navigation }) {
   const getTrendColor = (change) =>
     change.startsWith('+') ? '#4CAF50' : '#F44336';
 
-  const renderDashboardContent = () => {
-    if (isLoading) {
-      return (
+  if (isLoading) {
+    return (
+      <AppLayout>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2196F3" />
           <Text style={styles.loadingText}>Loading dashboard data...</Text>
         </View>
-      );
-    }
+      </AppLayout>
+    );
+  }
 
-    return (
+  return (
+    <AppLayout>
       <ScrollView
         style={styles.scrollView}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* ✅ Responsive Header Section */}
+        {/* ✅ Dashboard Header Section */}
         <View style={styles.header}>
           <View style={styles.headerTextContainer}>
             <Text
@@ -199,7 +188,6 @@ export default function AdminDashboardScreen({ navigation }) {
             </Text>
           </View>
 
-          {/* 🔔 Smaller Notification Badge */}
           <View style={styles.headerBadgeContainer}>
             <View style={styles.badgeWrapper}>
               <UpdateNotificationBadge />
@@ -249,61 +237,11 @@ export default function AdminDashboardScreen({ navigation }) {
           <UpdateNotification />
         </View>
       </ScrollView>
-    );
-  };
-
-  const renderContent = () => {
-    switch (currentTab) {
-      case 'Dashboard':
-        return <View style={styles.container}>{renderDashboardContent()}</View>;
-      case 'Clients':
-        return <ClientManagementScreen navigation={navigation} />;
-      case 'ClientDetail':
-        return <ClientDetailScreen navigation={navigation} />;
-      case 'Companies':
-        return <CompaniesScreen navigation={navigation} />;
-      case 'Analytics':
-        return <AnalyticsScreen navigation={navigation} />;
-      case 'Settings':
-        return <SettingsScreen navigation={navigation} />;
-      default:
-        return (
-          <View style={styles.center}>
-            <Text style={styles.comingSoonText}>
-              {currentTab} Screen Coming Soon...
-            </Text>
-          </View>
-        );
-    }
-  };
-
-  return (
-    <View style={styles.mainContainer}>
-      {currentTab === 'Dashboard' && (
-        <Header username="Master Admin" role="master" />
-      )}
-      <View style={styles.contentContainer}>{renderContent()}</View>
-      <BottomNav
-        role="master"
-        currentTab={currentTab}
-        onTabChange={(tab) => setCurrentTab(tab)}
-      />
-    </View>
+    </AppLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  mainContainer: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
-  },
-  contentContainer: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
   scrollView: {
     flex: 1,
   },
@@ -318,8 +256,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
-
-  // ✅ Header Styling
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -348,16 +284,14 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   badgeWrapper: {
-    transform: [{ scale: 0.8 }], // 🔹 Makes badge smaller
+    transform: [{ scale: 0.8 }],
   },
-
-  // ✅ KPI Cards
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     padding: 8,
     gap: 6,
-    marginBottom: 4, // 🔹 Reduced space before notifications
+    marginBottom: 4,
   },
   kpiCard: {
     width: '48%',
@@ -407,23 +341,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: 8,
   },
-
-  // ✅ Reduced Gap Between KPI and Notifications
   notificationSection: {
     paddingHorizontal: 8,
     paddingTop: 0,
-    marginTop: -4, // 🔹 Pull notifications closer to KPI cards
-  },
-
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-  },
-  comingSoonText: {
-    fontSize: 18,
-    color: '#666',
-    textAlign: 'center',
+    marginTop: -4,
   },
 });

@@ -1,255 +1,579 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
-  LayoutAnimation,
-  Platform,
-  UIManager,
-  ActivityIndicator, // 🟦 added
+  ActivityIndicator,
+  ScrollView,
+  Dimensions,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { getCurrentUser } from '../../lib/auth';
+import { getCurrentUser, logout } from '../../lib/auth';
 import { usePermissions } from '../../contexts/permission-context';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
 
-// 🟦 Enable layout animation on Android
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+const { width } = Dimensions.get('window');
+const isMobile = width < 768;
 
-export function AppBottomNav() {
+// ----- Collapsible Components -----
+const Collapsible = ({ defaultOpen, children }) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  return (
+    <View>
+      {React.Children.map(children, child =>
+        React.cloneElement(child, { isOpen, setIsOpen })
+      )}
+    </View>
+  );
+};
+
+const CollapsibleTrigger = ({ children, isOpen, setIsOpen, style }) => (
+  <TouchableOpacity onPress={() => setIsOpen(!isOpen)} style={style}>
+    {React.Children.map(children, child =>
+      React.cloneElement(child, { isOpen })
+    )}
+  </TouchableOpacity>
+);
+
+const CollapsibleContent = ({ children, isOpen }) =>
+  isOpen ? <View style={styles.collapsibleContent}>{children}</View> : null;
+
+// ----- Main Sidebar -----
+export function AppSidebar() {
   const navigation = useNavigation();
   const route = useRoute();
   const [currentUser, setCurrentUser] = useState(null);
-  const [isReportsExpanded, setIsReportsExpanded] = useState(false);
-
-  const { permissions, isLoading: permissionsLoading } = usePermissions();
-  const { permissions: userCaps, isLoading: userCapsLoading } = useUserPermissions(); // 🟦 assume same pattern
-
-  const loading = permissionsLoading || userCapsLoading; // 🟦 combined loading state
+  const { permissions: clientPermissions, isLoading: permissionsLoading } = usePermissions();
+  const { permissions: userPermissions, role: userRole } = useUserPermissions();
 
   useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const user = await getCurrentUser();
-        setCurrentUser(user);
-      } catch (error) {
-        console.error('Failed to load user:', error);
-      }
+    const fetchUser = async () => {
+      const user = await getCurrentUser();
+      setCurrentUser(user);
     };
-    loadUser();
+    fetchUser();
   }, []);
 
-  const roleLower = (currentUser?.role ?? "").toLowerCase();
-  const canSeeUsers = roleLower === "admin" || (!!permissions && permissions.canCreateUsers);
-  const canSeeInventory = roleLower === "admin" || (!!userCaps && userCaps.canCreateInventory) || roleLower === "customer";
-  const isAdmin = currentUser?.role === "master";
+  // ✅ Next.js ke hisaab se permissions - sirf clientPermissions use karein
+  const effectivePermissions = clientPermissions;
+  const currentRole = userRole || currentUser?.role?.toLowerCase();
 
-  const isActive = (routeName) => route.name === routeName || route.name?.startsWith(routeName);
+  // ✅ Next.js ke exact permission checks
+  const canSeeInventory = currentRole === 'customer' || currentRole === 'client';
+  const canSeeCompanies = effectivePermissions?.canCreateCompanies || effectivePermissions?.canUpdateCompanies;
+  const canSeeUsers = currentRole === 'admin' || (!!effectivePermissions && effectivePermissions.canCreateUsers);
 
-  const handleNavigation = (screen) => {
-    navigation.navigate(screen);
-    setIsReportsExpanded(false);
-  };
+  const isAdmin = currentRole === 'master';
+  const isActive = (screenName) => route.name === screenName;
+  const isReportsActive = route.name?.startsWith('Reports');
+  const isLedgerActive = route.name?.startsWith('Ledger');
 
-  const toggleReports = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setIsReportsExpanded(prev => !prev);
-  };
+  console.log('🔍 Sidebar Debug:', {
+    currentRole,
+    effectivePermissions,
+    canSeeInventory,
+    canSeeCompanies,
+    canSeeUsers
+  });
 
-  const customerNavItems = [
-    { id: 'dashboard', screen: 'Dashboard', icon: 'grid-outline', label: 'Dashboard', shortLabel: 'Home', show: true },
-    { id: 'transactions', screen: 'Transactions', icon: 'swap-horizontal-outline', label: 'Transactions', shortLabel: 'Trans', show: true },
-    { id: 'inventory', screen: 'Inventory', icon: 'cube-outline', label: 'Inventory', shortLabel: 'Stock', show: canSeeInventory },
-    { id: 'companies', screen: 'Companies', icon: 'business-outline', label: 'Companies', shortLabel: 'Comp', show: permissions && (permissions.canCreateCompanies || permissions.canUpdateCompanies) },
-    { id: 'users', screen: 'Users', icon: 'people-outline', label: 'Users', shortLabel: 'Users', show: canSeeUsers },
-    { id: 'reports', screen: null, icon: 'bar-chart-outline', label: 'Reports', shortLabel: 'Reports', show: true },
-    { id: 'settings', screen: 'Settings', icon: 'settings-outline', label: 'Settings', shortLabel: 'Settings', show: true },
-  ];
-
-  const adminNavItems = [
-    { id: 'dashboard', screen: 'AdminDashboard', icon: 'grid-outline', label: 'Dashboard', shortLabel: 'Home', show: true },
-    { id: 'clients', screen: 'ClientManagement', icon: 'people-outline', label: 'Clients', shortLabel: 'Clients', show: true },
-    { id: 'companies', screen: 'AdminCompanies', icon: 'business-outline', label: 'Companies', shortLabel: 'Comp', show: true },
-    { id: 'analytics', screen: 'Analytics', icon: 'bar-chart-outline', label: 'Analytics', shortLabel: 'Analytics', show: true },
-    { id: 'settings', screen: 'AdminSettings', icon: 'settings-outline', label: 'Settings', shortLabel: 'Settings', show: true },
-  ];
-
-  const NavItem = ({ item, isActive, onPress }) => {
-    const handleLongPress = () => Alert.alert(item.label);
-    return (
-      <TouchableOpacity
-        style={[styles.navItem, isActive && styles.navItemActive]}
-        onPress={onPress}
-        onLongPress={handleLongPress}
-        activeOpacity={0.7}
-      >
+  // ----- Menu Button -----
+  const MenuButton = ({
+    icon,
+    title,
+    isActive,
+    onPress,
+    isBottomNav = false,
+    hasSubmenu = false,
+    isSubmenuOpen = false,
+  }) => (
+    <TouchableOpacity
+      onPress={onPress}
+      style={[
+        isBottomNav ? styles.bottomNavButton : styles.menuButton,
+        isActive && (isBottomNav ? styles.bottomNavButtonActive : styles.menuButtonActive),
+      ]}
+    >
+      <View style={isBottomNav ? styles.bottomNavButtonContent : styles.menuButtonContent}>
         <Ionicons
-          name={item.icon}
+          name={icon}
           size={20}
-          color={isActive ? '#2563eb' : '#64748b'}
+          color={isActive ? '#007bff' : '#6c757d'}
         />
+        {!isBottomNav && (
+          <Text
+            style={[
+              styles.menuButtonText,
+              isActive && styles.menuButtonTextActive,
+            ]}
+          >
+            {title}
+          </Text>
+        )}
+        {hasSubmenu && !isBottomNav && (
+          <Ionicons
+            name={isSubmenuOpen ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color="#6c757d"
+            style={{ marginLeft: 'auto' }}
+          />
+        )}
+      </View>
+      {isBottomNav && (
         <Text
-          style={[styles.navLabel, isActive && styles.navLabelActive]}
-          numberOfLines={1}
+          style={[
+            styles.bottomNavText,
+            isActive && styles.bottomNavTextActive,
+          ]}
         >
-          {item.shortLabel}
+          {title}
         </Text>
-      </TouchableOpacity>
-    );
-  };
+      )}
+    </TouchableOpacity>
+  );
 
-  const getVisibleItems = () => {
-    const items = isAdmin ? adminNavItems : customerNavItems;
-    return items.filter(item => item.show);
-  };
+  const SubMenuButton = ({ title, isActive, onPress }) => (
+    <TouchableOpacity
+      onPress={onPress}
+      style={[
+        styles.subMenuButton,
+        isActive && styles.subMenuButtonActive,
+      ]}
+    >
+      <Text
+        style={[
+          styles.subMenuButtonText,
+          isActive && styles.subMenuButtonTextActive,
+        ]}
+      >
+        {title}
+      </Text>
+    </TouchableOpacity>
+  );
 
-  const visibleItems = getVisibleItems();
+  // ----- Admin Menu -----
+  const AdminMenu = () => (
+    <>
+      <MenuButton
+        icon="grid-outline"
+        title="Dashboard"
+        isActive={isActive('AdminDashboard')}
+        onPress={() => navigation.navigate('AdminDashboard')}
+        isBottomNav={isMobile}
+      />
+      <MenuButton
+        icon="people-outline"
+        title="Client Management"
+        isActive={isActive('AdminClientManagement')}
+        onPress={() => navigation.navigate('AdminClientManagement')}
+        isBottomNav={isMobile}
+      />
+      <MenuButton
+        icon="business-outline"
+        title="Companies"
+        isActive={isActive('AdminCompanies')}
+        onPress={() => navigation.navigate('AdminCompanies')}
+        isBottomNav={isMobile}
+      />
+      <MenuButton
+        icon="analytics-outline"
+        title="Analytics"
+        isActive={isActive('AdminAnalytics')}
+        onPress={() => navigation.navigate('AdminAnalytics')}
+        isBottomNav={isMobile}
+      />
+      <MenuButton
+        icon="settings-outline"
+        title="Settings"
+        isActive={isActive('AdminSettings')}
+        onPress={() => navigation.navigate('AdminSettings')}
+        isBottomNav={isMobile}
+      />
+    </>
+  );
 
-  if (route.name === 'Login' || !currentUser) return null;
+  // ----- Customer Menu (EXACTLY like Next.js) -----
+  const CustomerMenu = () => (
+    <>
+      {/* Dashboard - ALWAYS VISIBLE */}
+      <MenuButton
+        icon="grid-outline"
+        title="Dashboard"
+        isActive={isActive('UserDashboard') || isActive('CustomerDashboard')}
+        onPress={() => navigation.navigate('UserDashboard')}
+        isBottomNav={isMobile}
+      />
 
-  const isAdminRoute = route.name?.startsWith('Admin');
-  if ((isAdmin && !isAdminRoute) || (!isAdmin && isAdminRoute)) return null;
+      {/* Transactions - ALWAYS VISIBLE */}
+      <MenuButton
+        icon="swap-horizontal-outline"
+        title="Transactions"
+        isActive={isActive('Transactions')}
+        onPress={() => navigation.navigate('Transactions')}
+        isBottomNav={isMobile}
+      />
 
-  return (
-    <View style={styles.container}>
-      {/* 🟦 Permissions loading indicator */}
-      {loading && (
-        <View style={styles.loadingBar}>
-          <ActivityIndicator size="small" color="#2563eb" />
-          <Text style={styles.loadingText}>Loading permissions...</Text>
+      {/* Inventory - VISIBLE for customer role (Next.js logic) */}
+      {canSeeInventory && (
+        <MenuButton
+          icon="cube-outline"
+          title="Inventory"
+          isActive={isActive('Inventory')}
+          onPress={() => navigation.navigate('Inventory')}
+          isBottomNav={isMobile}
+        />
+      )}
+
+      {/* Companies - VISIBLE when permission allows (Next.js logic) */}
+      {canSeeCompanies && (
+        <MenuButton
+          icon="business-outline"
+          title="Companies"
+          isActive={isActive('Companies')}
+          onPress={() => navigation.navigate('Companies')}
+          isBottomNav={isMobile}
+        />
+      )}
+
+      {/* Users - VISIBLE for admins OR when permission allows (Next.js logic) */}
+      {canSeeUsers && (
+        <MenuButton
+          icon="people-outline"
+          title="Users"
+          isActive={isActive('Users')}
+          onPress={() => navigation.navigate('Users')}
+          isBottomNav={isMobile}
+        />
+      )}
+
+      {/* Loading indicator */}
+      {permissionsLoading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color="#007bff" />
+          <Text style={styles.loadingText}>Loading...</Text>
         </View>
       )}
 
-      <View style={styles.navContainer}>
-        {visibleItems.map((item) => {
-          const active = isActive(item.screen);
-
-          if (item.id === 'reports') {
-            return (
-              <NavItem
-                key={item.id}
-                item={item}
-                isActive={isReportsExpanded}
-                onPress={toggleReports}
+      {/* Reports Collapsible - ALWAYS VISIBLE (Desktop only) */}
+      {!isMobile && (
+        <Collapsible defaultOpen={isReportsActive}>
+          <CollapsibleTrigger style={styles.collapsibleTrigger}>
+            {(props) => (
+              <MenuButton
+                icon="document-text-outline"
+                title="Reports"
+                isActive={isReportsActive}
+                hasSubmenu={true}
+                isSubmenuOpen={props.isOpen}
+                onPress={() => props.setIsOpen(!props.isOpen)}
               />
-            );
-          }
-
-          return (
-            <NavItem
-              key={item.id}
-              item={item}
-              isActive={active}
-              onPress={() => handleNavigation(item.screen)}
+            )}
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <SubMenuButton
+              title="Profit & Loss"
+              isActive={isActive('ProfitLossReport')}
+              onPress={() => navigation.navigate('ProfitLossReport')}
             />
-          );
-        })}
+            <SubMenuButton
+              title="Balance Sheet"
+              isActive={isActive('BalanceSheetReport')}
+              onPress={() => navigation.navigate('BalanceSheetReport')}
+            />
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {/* Ledger Collapsible - ALWAYS VISIBLE (Desktop only) */}
+      {!isMobile && (
+        <Collapsible defaultOpen={isLedgerActive}>
+          <CollapsibleTrigger style={styles.collapsibleTrigger}>
+            {(props) => (
+              <MenuButton
+                icon="document-outline"
+                title="Ledger"
+                isActive={isLedgerActive}
+                hasSubmenu={true}
+                isSubmenuOpen={props.isOpen}
+                onPress={() => props.setIsOpen(!props.isOpen)}
+              />
+            )}
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <SubMenuButton
+              title="Receivables"
+              isActive={isActive('LedgerReceivables')}
+              onPress={() => navigation.navigate('LedgerReceivables')}
+            />
+            <SubMenuButton
+              title="Payables"
+              isActive={isActive('LedgerPayables')}
+              onPress={() => navigation.navigate('LedgerPayables')}
+            />
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {/* Mobile-only menu items for Reports and Ledger */}
+      {isMobile && (
+        <>
+          {/* Reports Menu for Mobile - ALWAYS VISIBLE */}
+          <MenuButton
+            icon="document-text-outline"
+            title="Reports"
+            isActive={isReportsActive}
+            onPress={() => navigation.navigate('ProfitLossReport')}
+            isBottomNav={isMobile}
+          />
+
+          {/* Ledger Menu for Mobile - ALWAYS VISIBLE */}
+          <MenuButton
+            icon="document-outline"
+            title="Ledger"
+            isActive={isLedgerActive}
+            onPress={() => navigation.navigate('LedgerReceivables')}
+            isBottomNav={isMobile}
+          />
+        </>
+      )}
+    </>
+  );
+
+  // ----- Mobile Bottom Nav -----
+  if (isMobile) {
+    if (!currentUser) {
+      return (
+        <View style={styles.bottomNavLoading}>
+          <ActivityIndicator size="small" color="#007bff" />
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.bottomNav}>
+        {isAdmin ? (
+          <AdminMenu />
+        ) : (
+          <CustomerMenu />
+        )}
+      </View>
+    );
+  }
+
+  // ----- Desktop Sidebar -----
+  return (
+    <View style={styles.sidebar}>
+      <View style={styles.sidebarHeader}>
+        <View style={styles.headerContent}>
+          <Text style={styles.logoText}>AccounTech Pro</Text>
+        </View>
       </View>
 
-      {isReportsExpanded && (
-        <View style={styles.subMenuContainer}>
-          <TouchableOpacity
-            style={styles.subMenuItem}
-            onPress={() => handleNavigation('ProfitLossReport')}
-          >
-            <Ionicons name="document-text-outline" size={18} color="#2563eb" />
-            <Text style={styles.subMenuLabel}>Profit & Loss</Text>
-          </TouchableOpacity>
+      <ScrollView style={styles.sidebarMenu} showsVerticalScrollIndicator={false}>
+        {isAdmin ? (
+          <AdminMenu />
+        ) : (
+          <CustomerMenu />
+        )}
+      </ScrollView>
 
-          <TouchableOpacity
-            style={styles.subMenuItem}
-            onPress={() => handleNavigation('BalanceSheetReport')}
-          >
-            <Ionicons name="document-text-outline" size={18} color="#2563eb" />
-            <Text style={styles.subMenuLabel}>Balance Sheet</Text>
-          </TouchableOpacity>
+      {currentUser && (
+        <View style={styles.userSection}>
+          <View style={styles.userInfo}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {currentUser?.initials ||
+                  currentUser?.name?.charAt(0)?.toUpperCase() ||
+                  'U'}
+              </Text>
+            </View>
+            <View style={styles.userDetails}>
+              <Text style={styles.userName}>
+                {currentUser?.role === 'master'
+                  ? 'Master Administrator'
+                  : currentUser?.name}
+              </Text>
+              <Text style={styles.userEmail}>{currentUser?.email}</Text>
+            </View>
+          </View>
         </View>
       )}
     </View>
   );
 }
 
+// ----- Styles -----
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: 'white',
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 5,
-  },
-  loadingBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    backgroundColor: '#f8fafc',
-  },
-  loadingText: {
-    fontSize: 12,
-    color: '#475569',
-    marginLeft: 6,
-  },
-  navContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    minHeight: 60,
-  },
-  navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 6,
-    borderRadius: 8,
+  sidebar: {
     flex: 1,
-    minHeight: 52,
-    marginHorizontal: 2,
-    maxWidth: 80,
+    backgroundColor: '#f8f9fa',
+    borderRightWidth: 1,
+    borderRightColor: '#e9ecef',
+    maxWidth: 280,
   },
-  navItemActive: {
-    backgroundColor: '#eff6ff',
-    transform: [{ scale: 1.02 }],
+  sidebarHeader: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    backgroundColor: '#fff',
+    minHeight: 80,
   },
-  navLabel: {
-    fontSize: 11,
-    color: '#64748b',
-    marginTop: 4,
-    textAlign: 'center',
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  logoText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#3b82f6',
+  },
+  sidebarMenu: {
+    flex: 1,
+    padding: 16,
+  },
+  menuButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  menuButtonActive: {
+    backgroundColor: '#e3f2fd',
+  },
+  menuButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  menuButtonText: {
+    marginLeft: 12,
+    fontSize: 14,
+    color: '#6c757d',
     fontWeight: '500',
   },
-  navLabelActive: {
-    color: '#2563eb',
+  menuButtonTextActive: {
+    color: '#007bff',
     fontWeight: '600',
   },
-  subMenuContainer: {
-    backgroundColor: '#f8fafc',
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    paddingVertical: 6,
-  },
-  subMenuItem: {
+  bottomNav: {
     flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+    paddingHorizontal: 8,
     paddingVertical: 8,
-    paddingHorizontal: 16,
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 70,
   },
-  subMenuLabel: {
-    fontSize: 13,
-    color: '#1e293b',
-    marginLeft: 8,
+  bottomNavLoading: {
+    height: 70,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+    backgroundColor: '#fff',
+  },
+  bottomNavButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+    borderRadius: 8,
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  bottomNavButtonActive: {
+    backgroundColor: '#e3f2fd',
+  },
+  bottomNavButtonContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomNavText: {
+    fontSize: 10,
+    color: '#6c757d',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  bottomNavTextActive: {
+    color: '#007bff',
     fontWeight: '500',
   },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6c757d',
+  },
+  collapsibleTrigger: {
+    marginBottom: 4,
+  },
+  collapsibleContent: {
+    marginLeft: 16,
+    marginTop: 4,
+  },
+  subMenuButton: {
+    padding: 12,
+    borderRadius: 6,
+    marginVertical: 2,
+  },
+  subMenuButtonActive: {
+    backgroundColor: '#e3f2fd',
+  },
+  subMenuButtonText: {
+    fontSize: 14,
+    color: '#6c757d',
+  },
+  subMenuButtonTextActive: {
+    color: '#007bff',
+    fontWeight: '500',
+  },
+  userSection: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+    backgroundColor: '#fff',
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#007bff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  userEmail: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginTop: 2,
+  },
 });
-
-export default AppBottomNav;

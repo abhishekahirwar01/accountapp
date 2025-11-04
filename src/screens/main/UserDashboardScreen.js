@@ -1,3 +1,4 @@
+// src/screens/dashboard/UserDashboardScreen.jsx
 import React, { useState, useMemo } from 'react';
 import {
   View,
@@ -19,42 +20,27 @@ import {
 } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
 
-import Header from '../../components/layout/Header';
-import BottomNav from '../../components/layout/BottomNav';
+import AppLayout from '../../components/layout/AppLayout';
 import RecentTransactions from '../../components/dashboard/RecentTransactions';
 import ProductStock from '../../components/dashboard/ProductStock';
 import TransactionForm from '../../components/transactions/TransactionForm';
-import TransactionsScreen from './TransactionsScreen';
-import InventoryScreen from './InventoryScreen';
-import UpdateWalkthrough from '../../components/notifications/UpdateWalkthrough';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const formatCurrency = amount =>
-  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(
-    amount || 0,
-  );
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount || 0);
 
 export default function UserDashboardScreen({ navigation, route }) {
   const { username = 'User', role = 'user' } = route?.params || {};
 
-  // --- State & Hooks (all at top level)
-  const [activeTab, setActiveTab] = useState('Dashboard');
+  // --- State & Hooks
   const [isLoading, setIsLoading] = useState(false);
   const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
 
+  // --- Mock Data (replace with API later)
   const companies = [
     { _id: 'c1', businessName: 'Sharda Associates' },
     { _id: 'c2', businessName: 'Finaxis Consultancy' },
   ];
-  const selectedCompanyId = null;
-
-  const selectedCompany = useMemo(
-    () =>
-      selectedCompanyId
-        ? companies.find(c => c._id === selectedCompanyId) || null
-        : null,
-    [companies, selectedCompanyId],
-  );
 
   const serviceNameById = useMemo(() => {
     const m = new Map();
@@ -65,57 +51,19 @@ export default function UserDashboardScreen({ navigation, route }) {
   }, []);
 
   const allTransactions = [
-    {
-      id: 't1',
-      type: 'sales',
-      date: '2025-09-25',
-      amount: 25000,
-      serviceId: 's3',
-      partyName: 'Aparajita Logistics Pvt Ltd',
-      narration: 'DPR fees received',
-    },
-    {
-      id: 't2',
-      type: 'purchases',
-      date: '2025-09-23',
-      totalAmount: 8000,
-      serviceId: 's2',
-      partyName: 'AWS (infra)',
-      narration: 'Server cost',
-    },
-    {
-      id: 't3',
-      type: 'receipt',
-      date: '2025-09-22',
-      amount: 12000,
-      serviceId: 's1',
-      partyName: 'Kailash Real Estate',
-      narration: 'Advance for GST',
-    },
-    {
-      id: 't4',
-      type: 'payment',
-      date: '2025-09-20',
-      amount: 4500,
-      serviceId: 's1',
-      partyName: 'Tally Prime License',
-      narration: 'Monthly fee',
-    },
-    {
-      id: 't5',
-      type: 'journal',
-      date: '2025-09-18',
-      narration: 'Year-end adjustments',
-    },
+    { id: 't1', type: 'sales', date: '2025-09-25', amount: 25000, serviceId: 's3', partyName: 'Aparajita Logistics Pvt Ltd', narration: 'DPR fees received' },
+    { id: 't2', type: 'purchases', date: '2025-09-23', totalAmount: 8000, serviceId: 's2', partyName: 'AWS (infra)', narration: 'Server cost' },
+    { id: 't3', type: 'receipt', date: '2025-09-22', amount: 12000, serviceId: 's1', partyName: 'Kailash Real Estate', narration: 'Advance for GST' },
+    { id: 't4', type: 'payment', date: '2025-09-20', amount: 4500, serviceId: 's1', partyName: 'Tally Prime License', narration: 'Monthly fee' },
+    { id: 't5', type: 'journal', date: '2025-09-18', narration: 'Year-end adjustments' },
   ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  const [recentTransactions, setRecentTransactions] = useState(
-    allTransactions.slice(0, 5),
-  );
+  const [recentTransactions, setRecentTransactions] = useState(allTransactions.slice(0, 5));
 
   const totalSales = allTransactions
     .filter(t => t.type === 'sales')
     .reduce((a, t) => a + (t.amount || t.totalAmount || 0), 0);
+
   const totalPurchases = allTransactions
     .filter(t => t.type === 'purchases')
     .reduce((a, t) => a + (t.amount || t.totalAmount || 0), 0);
@@ -125,7 +73,7 @@ export default function UserDashboardScreen({ navigation, route }) {
     totalSales,
     totalPurchases,
     users: isAdmin ? 12 : 0,
-    companies: selectedCompanyId ? 1 : companies.length,
+    companies: companies.length,
   };
 
   // --- KPI Cards
@@ -135,17 +83,13 @@ export default function UserDashboardScreen({ navigation, route }) {
       title: 'Total Sales',
       value: formatCurrency(companyData.totalSales),
       icon: IndianRupee,
-      description: selectedCompanyId
-        ? 'For selected company'
-        : 'Across all companies',
-      show: true,
+      description: 'Across all companies',
     },
     {
       key: 'purchases',
       title: 'Total Purchases',
       value: formatCurrency(companyData.totalPurchases),
       icon: CreditCard,
-      show: true,
     },
     {
       key: 'users',
@@ -159,9 +103,8 @@ export default function UserDashboardScreen({ navigation, route }) {
       title: 'Companies',
       value: companyData.companies.toString(),
       icon: Building,
-      show: true,
     },
-  ].filter(k => k.show);
+  ].filter(k => k.show !== false);
 
   // --- Handlers
   const handleTransactionFormSubmit = newTransaction => {
@@ -178,11 +121,9 @@ export default function UserDashboardScreen({ navigation, route }) {
     setIsTransactionFormOpen(false);
   };
 
-  const handleSettingsPress = () => {
-    navigation.navigate('ProfileScreen');
-  };
+  const handleSettingsPress = () => navigation.navigate('ProfileScreen');
 
-  // --- Components
+  // --- KPI Card Component
   const KPICard = ({ title, value, Icon, description }) => (
     <View style={[styles.kpiCard, { width: SCREEN_WIDTH * 0.6 }]}>
       <View style={styles.cardHeader}>
@@ -191,123 +132,87 @@ export default function UserDashboardScreen({ navigation, route }) {
       </View>
       <View style={styles.cardContent}>
         <Text style={styles.cardValue}>{value}</Text>
-        {description && (
-          <Text style={styles.cardDescription}>{description}</Text>
-        )}
+        {description && <Text style={styles.cardDescription}>{description}</Text>}
       </View>
     </View>
   );
 
-  const SolidButton = ({ onPress, children }) => (
-    <TouchableOpacity
-      onPress={onPress}
-      style={[styles.btn, styles.btnSolid]}
-      activeOpacity={0.85}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        {children}
-      </View>
-    </TouchableOpacity>
-  );
-
-  const OutlineButton = ({ onPress, children }) => (
-    <TouchableOpacity
-      onPress={onPress}
-      style={[styles.btn, styles.btnOutline]}
-      activeOpacity={0.85}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        {children}
-      </View>
-    </TouchableOpacity>
-  );
-
-  // --- Render Dashboard
-  const renderDashboard = () => (
-    <ScrollView contentContainerStyle={{ padding: 16 }}>
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.subtitle}>
-            {selectedCompany
-              ? `An overview of ${selectedCompany.businessName}.`
-              : 'An overview across your accessible companies.'}
-          </Text>
-        </View>
-        <View style={styles.headerActions}>
-          <UpdateWalkthrough />
-          <OutlineButton onPress={handleSettingsPress}>
-            <Settings size={16} style={{ marginRight: 8 }} />
-            <Text>Settings</Text>
-          </OutlineButton>
-          {isAdmin && (
-            <SolidButton onPress={() => setIsTransactionFormOpen(true)}>
-              <PlusCircle size={16} style={{ marginRight: 8 }} />
-              <Text style={{ color: 'white' }}>New Transaction</Text>
-            </SolidButton>
-          )}
-        </View>
-      </View>
-
-      {/* KPI Cards */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ marginBottom: 24 }}
-      >
-        {kpis.map(k => (
-          <KPICard
-            key={k.key}
-            title={k.title}
-            value={k.value}
-            Icon={k.icon}
-            description={k.description}
-          />
-        ))}
-      </ScrollView>
-
-      {/* Product Stock + Recent Transactions */}
-      <View style={styles.contentGrid}>
-        <ProductStock
-          items={[
-            { id: 'p1', name: 'Thermal Paper', qty: 120, unit: 'rolls' },
-            { id: 'p2', name: 'A4 Sheets', qty: 45, unit: 'reams' },
-            { id: 'p3', name: 'Printer Ink', qty: 12, unit: 'bottles' },
-          ]}
-        />
-        <RecentTransactions
-          transactions={recentTransactions}
-          serviceNameById={serviceNameById}
-        />
-      </View>
-    </ScrollView>
-  );
-
-  // --- Render content based on active tab
-  const renderContent = () => {
-    if (isLoading) {
-      return (
+  // --- Render Content
+  if (isLoading) {
+    return (
+      <AppLayout>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0f62fe" />
           <Text style={styles.loadingText}>Loading dashboard...</Text>
         </View>
-      );
-    }
-
-    switch (activeTab) {
-      case 'Transactions':
-        return <TransactionsScreen navigation={navigation} />;
-      case 'Inventory':
-        return <InventoryScreen navigation={navigation} />;
-      case 'Dashboard':
-      default:
-        return renderDashboard();
-    }
-  };
+      </AppLayout>
+    );
+  }
 
   return (
-    <View style={styles.screen}>
-      {activeTab === 'Dashboard' && <Header username={username} role={role} />}
-      {renderContent()}
+    <AppLayout>
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.subtitle}>
+            Welcome back, {username}! Here's your business overview.
+          </Text>
+
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={handleSettingsPress}
+              style={[styles.btn, styles.btnOutline]}
+              activeOpacity={0.85}
+            >
+              <Settings size={16} style={{ marginRight: 8 }} />
+              <Text>Settings</Text>
+            </TouchableOpacity>
+
+            {isAdmin && (
+              <TouchableOpacity
+                onPress={() => setIsTransactionFormOpen(true)}
+                style={[styles.btn, styles.btnSolid]}
+                activeOpacity={0.85}
+              >
+                <PlusCircle size={16} style={{ marginRight: 8 }} color="#fff" />
+                <Text style={{ color: 'white' }}>New Transaction</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* KPI Cards */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginBottom: 24 }}
+        >
+          {kpis.map(k => (
+            <KPICard
+              key={k.key}
+              title={k.title}
+              value={k.value}
+              Icon={k.icon}
+              description={k.description}
+            />
+          ))}
+        </ScrollView>
+
+        {/* Product Stock & Recent Transactions */}
+        <View style={styles.contentGrid}>
+          <ProductStock
+            items={[
+              { id: 'p1', name: 'Thermal Paper', qty: 120, unit: 'rolls' },
+              { id: 'p2', name: 'A4 Sheets', qty: 45, unit: 'reams' },
+              { id: 'p3', name: 'Printer Ink', qty: 12, unit: 'bottles' },
+            ]}
+          />
+          <RecentTransactions
+            transactions={recentTransactions}
+            serviceNameById={serviceNameById}
+          />
+        </View>
+      </ScrollView>
 
       {/* Transaction Modal */}
       <Modal
@@ -325,22 +230,23 @@ export default function UserDashboardScreen({ navigation, route }) {
               />
             </ScrollView>
             <View style={styles.modalFooter}>
-              <OutlineButton onPress={() => setIsTransactionFormOpen(false)}>
+              <TouchableOpacity
+                onPress={() => setIsTransactionFormOpen(false)}
+                style={[styles.btn, styles.btnOutline]}
+              >
                 <Text>Cancel</Text>
-              </OutlineButton>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      <BottomNav role={role} onTabChange={setActiveTab} />
       <Toast />
-    </View>
+    </AppLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#f9fafb' },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -414,8 +320,6 @@ const styles = StyleSheet.create({
   modalFooter: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    flexWrap: 'wrap',
-    gap: 8,
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: '#eee',

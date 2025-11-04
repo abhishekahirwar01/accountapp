@@ -4,290 +4,556 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
+  Modal,
   ActivityIndicator,
+  ScrollView,
+  Dimensions,
+  Pressable,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-
-// Import your actual context and functions
 import { getCurrentUser, logout } from '../../lib/auth';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
 
-export default function UserBottomNav() {
+const { width } = Dimensions.get('window');
+const isMobile = width < 768;
+
+// More Menu Component
+const MoreMenu = ({ visible, onClose, navigation, onLogout }) => (
+  <Modal
+    visible={visible}
+    transparent
+    animationType="slide"
+    onRequestClose={onClose}
+  >
+    <Pressable style={styles.modalOverlay} onPress={onClose}>
+      <View style={styles.modalContent}>
+        <TouchableOpacity
+          style={styles.modalButton}
+          onPress={() => {
+            onClose();
+            navigation.navigate('Profile');
+          }}
+        >
+          <Ionicons name="person-outline" size={20} color="#333" />
+          <Text style={styles.modalButtonText}>View Profile</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.modalButton}
+          onPress={() => {
+            onClose();
+            navigation.navigate('Settings');
+          }}
+        >
+          <Ionicons name="settings-outline" size={20} color="#333" />
+          <Text style={styles.modalButtonText}>Settings</Text>
+        </TouchableOpacity>
+
+        <View style={styles.modalDivider} />
+
+        <TouchableOpacity
+          style={[styles.modalButton, styles.logoutModalButton]}
+          onPress={() => {
+            onClose();
+            onLogout();
+          }}
+        >
+          <Ionicons name="log-out-outline" size={20} color="#dc3545" />
+          <Text style={[styles.modalButtonText, styles.logoutModalText]}>
+            Logout
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </Pressable>
+  </Modal>
+);
+
+export default function UserSidebar() {
   const navigation = useNavigation();
   const route = useRoute();
   const [currentUser, setCurrentUser] = useState(null);
-  const [isReportsExpanded, setIsReportsExpanded] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const { permissions: userCaps, isLoading, role, isAllowed } = useUserPermissions();
 
-  const { permissions: userCaps, isLoading } = useUserPermissions();
-
-  const roleLower = (currentUser?.role ?? '').toLowerCase();
-  const dashboardScreen =
-    roleLower === 'admin' ? 'AdminDashboard' : 'UserDashboard';
+  const effectiveRole = role || currentUser?.role || 'user';
+  const roleLower = effectiveRole.toLowerCase();
+  const dashboardScreen = roleLower === 'admin' ? 'AdminDashboard' : 'UserDashboard';
 
   useEffect(() => {
-    setCurrentUser(getCurrentUser());
+    const fetchUser = async () => {
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+    };
+    fetchUser();
   }, []);
 
+  console.log('🔐 Current Role:', roleLower);
+  console.log('📋 User Permissions:', userCaps);
+  console.log('👤 Current User:', currentUser);
+
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      {
-        text: 'Cancel',
-        style: 'cancel',
-      },
-      {
-        text: 'Logout',
-        onPress: () => {
-          logout();
-          navigation.navigate('Login');
-        },
-      },
-    ]);
+    logout();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'GettingStarted' }],
+    });
   };
 
   const isActive = screenName => {
-    return route.name === screenName || route.name?.startsWith(screenName);
+    return route.name === screenName;
   };
 
-  const handleNavigation = screen => {
-    navigation.navigate(screen);
-    setIsReportsExpanded(false);
-  };
-
-  const NavItem = ({
+  // Enhanced Menu Button with Permission Checking
+  const MenuButton = ({
     icon,
-    label,
-    shortLabel,
+    title,
     isActive,
     onPress,
-    showBadge,
+    isBottomNav = false,
+    permissionKey = null,
+    showWithoutPermission = false
   }) => {
+    const shouldShow = permissionKey ? isAllowed(permissionKey) : true;
+    
+    if (!shouldShow && !showWithoutPermission) return null;
+
     return (
       <TouchableOpacity
-        style={[styles.navItem, isActive && styles.navItemActive]}
         onPress={onPress}
-        activeOpacity={0.7}
+        style={[
+          isBottomNav ? styles.bottomNavButton : styles.menuButton,
+          isActive &&
+            (isBottomNav
+              ? styles.bottomNavButtonActive
+              : styles.menuButtonActive),
+        ]}
+        disabled={isLoading}
       >
-        <View style={styles.iconContainer}>
+        <View
+          style={
+            isBottomNav ? styles.bottomNavButtonContent : styles.menuButtonContent
+          }
+        >
           <Ionicons
             name={icon}
-            size={22}
-            color={isActive ? '#2563eb' : '#64748b'}
+            size={isBottomNav ? 20 : 20}
+            color={isActive ? '#007bff' : '#6c757d'}
           />
-          {showBadge && <View style={styles.badge} />}
+          {!isBottomNav && (
+            <Text
+              style={[
+                styles.menuButtonText,
+                isActive && styles.menuButtonTextActive,
+              ]}
+            >
+              {title}
+            </Text>
+          )}
         </View>
-        <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
-          {shortLabel || label}
-        </Text>
+        {isBottomNav && (
+          <Text
+            style={[styles.bottomNavText, isActive && styles.bottomNavTextActive]}
+          >
+            {title}
+          </Text>
+        )}
       </TouchableOpacity>
     );
   };
 
-  // Don't show bottom nav on login page or if no user
-  if (route.name === 'Login' || !currentUser) {
-    return null;
-  }
+  // Loading Component
+  const LoadingState = ({ isBottomNav = false }) => (
+    <View style={isBottomNav ? styles.bottomNavLoading : styles.loadingContainer}>
+      <ActivityIndicator size="small" color="#007bff" />
+      <Text style={styles.loadingText}>Loading...</Text>
+    </View>
+  );
 
-  return (
-    <View style={styles.container}>
-      {/* Loading Indicator */}
-      {isLoading && (
-        <View style={styles.loadingBar}>
-          <ActivityIndicator size="small" color="#2563eb" />
-          <Text style={styles.loadingText}>Loading permissions...</Text>
-        </View>
-      )}
-
-      <View style={styles.navContainer}>
-        {/* Dashboard */}
-        <NavItem
+  // Bottom Navigation Bar (for mobile)
+  if (isMobile) {
+    return (
+      <View style={styles.bottomNav}>
+        {/* Dashboard - Always show */}
+        <MenuButton
           icon="grid-outline"
-          label="Dashboard"
-          shortLabel="Home"
+          title="Dashboard"
           isActive={isActive(dashboardScreen)}
-          onPress={() => handleNavigation(dashboardScreen)}
+          onPress={() => navigation.navigate(dashboardScreen)}
+          isBottomNav={true}
+          showWithoutPermission={true}
         />
 
-        {/* Transactions */}
-        <NavItem
+        {/* Transactions - Always show */}
+        <MenuButton
           icon="swap-horizontal-outline"
-          label="Transactions"
-          shortLabel="Trans"
+          title="Transactions"
           isActive={isActive('Transactions')}
-          onPress={() => handleNavigation('Transactions')}
+          onPress={() => navigation.navigate('Transactions')}
+          isBottomNav={true}
+          showWithoutPermission={true}
         />
 
-        {/* Inventory - Conditionally shown based on permissions */}
-        {userCaps?.canCreateInventory && (
-          <NavItem
-            icon="cube-outline"
-            label="Inventory"
-            shortLabel="Stock"
-            isActive={isActive('Inventory')}
-            onPress={() => handleNavigation('Inventory')}
-          />
+        {/* Inventory - Check permission */}
+        {isLoading ? (
+          <LoadingState isBottomNav={true} />
+        ) : (
+          userCaps?.canCreateInventory && (
+            <MenuButton
+              icon="cube-outline"
+              title="Inventory"
+              isActive={isActive('Inventory')}
+              onPress={() => navigation.navigate('Inventory')}
+              isBottomNav={true}
+            />
+          )
         )}
 
-        {/* Reports - Commented out as per original */}
-        {/* 
-        <NavItem
-          icon="document-text-outline"
-          label="Reports"
-          shortLabel="Reports"
-          isActive={isReportsExpanded}
-          onPress={() => setIsReportsExpanded(!isReportsExpanded)}
-        />
-        */}
-
         {/* Profile/More Menu */}
-        <NavItem
-          icon="person-outline"
-          label="Profile"
-          shortLabel="Me"
-          isActive={isActive('Profile') || isActive('Settings')}
-          onPress={() => {
-            Alert.alert('Profile Menu', 'Choose an option', [
-              {
-                text: 'View Profile',
-                onPress: () => navigation.navigate('Profile'),
-              },
-              {
-                text: 'Settings',
-                onPress: () => navigation.navigate('Settings'),
-              },
-              {
-                text: 'Logout',
-                style: 'destructive',
-                onPress: handleLogout,
-              },
-              {
-                text: 'Cancel',
-                style: 'cancel',
-              },
-            ]);
-          }}
+        {/* <TouchableOpacity
+          style={[
+            styles.bottomNavButton,
+            (isActive('Profile') || isActive('Settings')) && styles.bottomNavButtonActive,
+          ]}
+          onPress={() => setShowMoreMenu(true)}
+        >
+          <View style={styles.bottomNavButtonContent}>
+            <Ionicons
+              name="person-outline"
+              size={20}
+              color={(isActive('Profile') || isActive('Settings')) ? '#007bff' : '#6c757d'}
+            />
+            <Text
+              style={[
+                styles.bottomNavText,
+                (isActive('Profile') || isActive('Settings')) && styles.bottomNavTextActive,
+              ]}
+            >
+              More
+            </Text>
+          </View>
+        </TouchableOpacity> */}
+
+        {/* More Menu Modal */}
+        <MoreMenu
+          visible={showMoreMenu}
+          onClose={() => setShowMoreMenu(false)}
+          navigation={navigation}
+          onLogout={handleLogout}
         />
       </View>
+    );
+  }
 
-      {/* Expanded Reports Menu - Commented out as per original */}
-      {/*
-      {isReportsExpanded && (
-        <View style={styles.subMenuContainer}>
-          <TouchableOpacity
-            style={styles.subMenuItem}
-            onPress={() => handleNavigation('ProfitLossReport')}
-          >
-            <Ionicons name="document-text-outline" size={18} color="#2563eb" />
-            <Text style={styles.subMenuLabel}>Profit & Loss</Text>
-          </TouchableOpacity>
+  // Sidebar (for tablet/desktop)
+  return (
+    <View style={styles.sidebar}>
+      {/* Sidebar Header */}
+      <View style={styles.sidebarHeader}>
+        <View style={styles.headerContent}>
+          <Text style={styles.logoText}>AccounTech Pro</Text>
+          <View style={styles.roleBadge}>
+            <Text style={styles.roleBadgeText}>
+              {roleLower.toUpperCase()}
+            </Text>
+          </View>
+        </View>
+      </View>
 
-          <TouchableOpacity
-            style={styles.subMenuItem}
-            onPress={() => handleNavigation('BalanceSheetReport')}
+      {/* Sidebar Menu */}
+      <ScrollView
+        style={styles.sidebarMenu}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Dashboard - Always visible */}
+        <MenuButton
+          icon="grid-outline"
+          title="Dashboard"
+          isActive={isActive(dashboardScreen)}
+          onPress={() => navigation.navigate(dashboardScreen)}
+          showWithoutPermission={true}
+        />
+
+        {/* Transactions - Always visible */}
+        <MenuButton
+          icon="swap-horizontal-outline"
+          title="Transactions"
+          isActive={isActive('Transactions')}
+          onPress={() => navigation.navigate('Transactions')}
+          showWithoutPermission={true}
+        />
+
+        {/* Loading State */}
+        {isLoading ? (
+          <LoadingState />
+        ) : (
+          <>
+            {/* Inventory - Only show if user has permission */}
+            {userCaps?.canCreateInventory && (
+              <MenuButton
+                icon="cube-outline"
+                title="Inventory"
+                isActive={isActive('Inventory')}
+                onPress={() => navigation.navigate('Inventory')}
+              />
+            )}
+          </>
+        )}
+      </ScrollView>
+
+      {/* User Section */}
+      {currentUser && (
+        <View style={styles.userSection}>
+          <View style={styles.userInfo}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {currentUser?.initials ||
+                  currentUser?.name?.charAt(0)?.toUpperCase() ||
+                  'U'}
+              </Text>
+            </View>
+            <View style={styles.userDetails}>
+              <Text style={styles.userName}>{currentUser?.name}</Text>
+              <Text style={styles.userEmail}>{currentUser?.email}</Text>
+              <Text style={styles.userRole}>Role: {roleLower}</Text>
+            </View>
+          </View>
+          <TouchableOpacity 
+            style={styles.logoutButton} 
+            onPress={handleLogout}
+            disabled={isLoading}
           >
-            <Ionicons name="document-text-outline" size={18} color="#2563eb" />
-            <Text style={styles.subMenuLabel}>Balance Sheet</Text>
+            <Ionicons name="log-out-outline" size={18} color="#6c757d" />
+            <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
         </View>
       )}
-      */}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: 'white',
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 5,
+  // Sidebar Styles
+  sidebar: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+    borderRightWidth: 1,
+    borderRightColor: '#e9ecef',
+    maxWidth: 280,
   },
-  loadingBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 6,
+  sidebarHeader: {
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    backgroundColor: '#f8fafc',
+    borderBottomColor: '#e9ecef',
+    backgroundColor: '#fff',
+    minHeight: 80,
+    justifyContent: 'center',
   },
-  loadingText: {
-    fontSize: 12,
-    color: '#475569',
-    marginLeft: 6,
-  },
-  navContainer: {
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+  },
+  logoText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#3b82f6',
+  },
+  roleBadge: {
+    backgroundColor: '#e3f2fd',
     paddingHorizontal: 8,
-    minHeight: 60,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    borderRadius: 8,
+  roleBadgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#007bff',
+  },
+  sidebarMenu: {
     flex: 1,
-    minHeight: 52,
-    marginHorizontal: 2,
-    maxWidth: 80,
+    padding: 16,
   },
-  navItemActive: {
-    backgroundColor: '#eff6ff',
-    transform: [{ scale: 1.02 }],
-  },
-  iconContainer: {
-    position: 'relative',
-  },
-  badge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#ef4444',
-  },
-  navLabel: {
-    fontSize: 11,
-    color: '#64748b',
-    marginTop: 4,
-    textAlign: 'center',
-    fontWeight: '500',
-    lineHeight: 12,
-  },
-  navLabelActive: {
-    color: '#2563eb',
-    fontWeight: '600',
-  },
-  subMenuContainer: {
-    backgroundColor: '#f8fafc',
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  subMenuItem: {
+  menuButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 4,
   },
-  subMenuLabel: {
+  menuButtonActive: {
+    backgroundColor: '#e3f2fd',
+  },
+  menuButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  menuButtonText: {
+    marginLeft: 12,
     fontSize: 14,
-    color: '#374151',
-    marginLeft: 8,
+    color: '#6c757d',
     fontWeight: '500',
+  },
+  menuButtonTextActive: {
+    color: '#007bff',
+    fontWeight: '600',
+  },
+
+  // Bottom Navigation Styles
+  bottomNav: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 70,
+  },
+  bottomNavButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+    borderRadius: 8,
+    flex: 1,
+    marginHorizontal: 2,
+    minHeight: 50,
+  },
+  bottomNavButtonActive: {
+    backgroundColor: '#e3f2fd',
+  },
+  bottomNavButtonContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomNavText: {
+    fontSize: 10,
+    color: '#6c757d',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  bottomNavTextActive: {
+    color: '#007bff',
+    fontWeight: '500',
+  },
+  bottomNavLoading: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+    flex: 1,
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+    marginBottom: 70,
+  },
+  modalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  modalButtonText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: '#e9ecef',
+    marginVertical: 8,
+  },
+  logoutModalButton: {
+    marginTop: 4,
+  },
+  logoutModalText: {
+    color: '#dc3545',
+  },
+
+  // Common Styles
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    gap: 8,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  loadingText: {
+    fontSize: 12,
+    color: '#6c757d',
+  },
+  userSection: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+    backgroundColor: '#fff',
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#007bff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  userEmail: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginTop: 2,
+  },
+  userRole: {
+    fontSize: 11,
+    color: '#8b9dc3',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 6,
+    backgroundColor: 'transparent',
+  },
+  logoutText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#6c757d',
   },
 });
