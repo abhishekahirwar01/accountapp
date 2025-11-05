@@ -20,6 +20,7 @@ import ClientsValidityManager from '../../components/admin/settings/ClientsValid
 import ClientForm from '../../components/clients/ClientForm';
 import { BASE_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import AppLayout from '../../components/layout/AppLayout';
 
 export default function SettingsPage() {
   const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
@@ -389,6 +390,7 @@ export default function SettingsPage() {
   };
 
   return (
+    <AppLayout>
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         {loading && (
@@ -447,6 +449,7 @@ export default function SettingsPage() {
         </Modal>
       </View>
     </SafeAreaView>
+    </AppLayout>
   );
 }
 

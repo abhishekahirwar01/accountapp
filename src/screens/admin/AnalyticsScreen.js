@@ -35,6 +35,7 @@ import CompaniesTab from '../../components/analytics/CompaniesTab';
 import UsersTab from '../../components/analytics/UsersTab';
 import ProfitAndLossTab from '../../components/analytics/ProfitAndLoss';
 import BalanceSheetTab from '../../components/analytics/BalanceSheet';
+import AppLayout from '../../components/layout/AppLayout';
 
 import { BASE_URL } from '../../config';
 // ...existing code...
@@ -551,6 +552,7 @@ export default function AnalyticsScreen() {
   }
 
   return (
+    <AppLayout>
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
@@ -575,6 +577,7 @@ export default function AnalyticsScreen() {
         </View>
       )}
     </SafeAreaView>
+    </AppLayout>
   );
 }
 

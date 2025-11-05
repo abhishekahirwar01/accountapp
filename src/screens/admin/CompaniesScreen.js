@@ -18,6 +18,7 @@ import { BASE_URL } from '../../config';
 
 import AdminCompanyForm from '../../components/companies/AdminCompanyForm';
 import CompanyCard from '../../components/companies/CompanyCard';
+import AppLayout from '../../components/layout/AppLayout';
 
 // ---------- UI COMPONENTS ----------
 const Card = ({ children, style }) => (
@@ -338,6 +339,7 @@ export default function AdminCompaniesPage() {
   }
 
   return (
+    <AppLayout>
     <SafeAreaView style={styles.container}>
       {renderAnimatedHeader()}
 
@@ -385,6 +387,7 @@ export default function AdminCompaniesPage() {
         onConfirm={confirmDelete}
       />
     </SafeAreaView>
+    </AppLayout>
   );
 }
 
