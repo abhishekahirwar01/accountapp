@@ -14,6 +14,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { getCurrentUser, logout } from '../../lib/auth';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 const isMobile = width < 768;
@@ -74,11 +75,18 @@ export default function UserSidebar() {
   const route = useRoute();
   const [currentUser, setCurrentUser] = useState(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const { permissions: userCaps, isLoading, role, isAllowed } = useUserPermissions();
+  const {
+    permissions: userCaps,
+    isLoading,
+    role: userRole,
+  } = useUserPermissions();
 
-  const effectiveRole = role || currentUser?.role || 'user';
-  const roleLower = effectiveRole.toLowerCase();
-  const dashboardScreen = roleLower === 'admin' ? 'AdminDashboard' : 'UserDashboard';
+  const currentRole = currentUser?.role || userRole || 'user';
+  const roleLower = currentRole.toLowerCase();
+
+  // Dashboard screen based on role - Next.js के जैसा
+  const dashboardScreen =
+    roleLower === 'admin' ? 'AdminDashboard' : 'UserDashboard';
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -88,10 +96,6 @@ export default function UserSidebar() {
     fetchUser();
   }, []);
 
-  console.log('🔐 Current Role:', roleLower);
-  console.log('📋 User Permissions:', userCaps);
-  console.log('👤 Current User:', currentUser);
-
   const handleLogout = () => {
     logout();
     navigation.reset({
@@ -100,23 +104,19 @@ export default function UserSidebar() {
     });
   };
 
-  const isActive = screenName => {
-    return route.name === screenName;
-  };
+  const isActive = screenName => route.name === screenName;
 
-  // Enhanced Menu Button with Permission Checking
+  // Enhanced Menu Button - Next.js structure के according
   const MenuButton = ({
     icon,
     title,
     isActive,
     onPress,
     isBottomNav = false,
-    permissionKey = null,
-    showWithoutPermission = false
+    showAlways = false,
+    hasPermission = true,
   }) => {
-    const shouldShow = permissionKey ? isAllowed(permissionKey) : true;
-    
-    if (!shouldShow && !showWithoutPermission) return null;
+    if (!hasPermission && !showAlways) return null;
 
     return (
       <TouchableOpacity
@@ -132,12 +132,14 @@ export default function UserSidebar() {
       >
         <View
           style={
-            isBottomNav ? styles.bottomNavButtonContent : styles.menuButtonContent
+            isBottomNav
+              ? styles.bottomNavButtonContent
+              : styles.menuButtonContent
           }
         >
           <Ionicons
             name={icon}
-            size={isBottomNav ? 20 : 20}
+            size={isBottomNav ? 26 : 20}
             color={isActive ? '#007bff' : '#6c757d'}
           />
           {!isBottomNav && (
@@ -153,7 +155,11 @@ export default function UserSidebar() {
         </View>
         {isBottomNav && (
           <Text
-            style={[styles.bottomNavText, isActive && styles.bottomNavTextActive]}
+            style={[
+              styles.bottomNavText,
+              isActive && styles.bottomNavTextActive,
+            ]}
+            numberOfLines={1}
           >
             {title}
           </Text>
@@ -162,41 +168,122 @@ export default function UserSidebar() {
     );
   };
 
-  // Loading Component
   const LoadingState = ({ isBottomNav = false }) => (
-    <View style={isBottomNav ? styles.bottomNavLoading : styles.loadingContainer}>
+    <View
+      style={isBottomNav ? styles.bottomNavLoading : styles.loadingContainer}
+    >
       <ActivityIndicator size="small" color="#007bff" />
       <Text style={styles.loadingText}>Loading...</Text>
     </View>
   );
 
-  // Bottom Navigation Bar (for mobile)
+  // --------- Mobile Bottom Nav ---------
   if (isMobile) {
     return (
-      <View style={styles.bottomNav}>
-        {/* Dashboard - Always show */}
+      <SafeAreaView edges={['bottom']} style={styles.bottomNavWrapper}>
+        <View style={styles.bottomNav}>
+          {/* Dashboard - Always visible (Next.js के जैसा) */}
+          <MenuButton
+            icon="grid-outline"
+            title="Dashboard"
+            isActive={isActive(dashboardScreen)}
+            onPress={() => navigation.navigate(dashboardScreen)}
+            isBottomNav={true}
+            showAlways={true}
+          />
+
+          {/* Transactions - Always visible (Next.js के जैसा) */}
+          <MenuButton
+            icon="swap-horizontal-outline"
+            title="Transactions"
+            isActive={isActive('Transactions')}
+            onPress={() => navigation.navigate('Transactions')}
+            isBottomNav={true}
+            showAlways={true}
+          />
+
+          {/* Inventory - Only show if permission exists (Next.js के जैसा) */}
+          {isLoading ? (
+            <LoadingState isBottomNav={true} />
+          ) : (
+            userCaps?.canCreateInventory && (
+              <MenuButton
+                icon="cube-outline"
+                title="Inventory"
+                isActive={isActive('Inventory')}
+                onPress={() => navigation.navigate('Inventory')}
+                isBottomNav={true}
+                hasPermission={userCaps?.canCreateInventory}
+              />
+            )
+          )}
+
+          {/* More Menu - Always visible */}
+          <TouchableOpacity
+            style={styles.bottomNavButton}
+            onPress={() => setShowMoreMenu(true)}
+          >
+            <View style={styles.bottomNavButtonContent}>
+              <Ionicons
+                name="ellipsis-horizontal-outline"
+                size={26}
+                color="#6c757d"
+              />
+              <Text style={styles.bottomNavText}>More</Text>
+            </View>
+          </TouchableOpacity>
+
+          <MoreMenu
+            visible={showMoreMenu}
+            onClose={() => setShowMoreMenu(false)}
+            navigation={navigation}
+            onLogout={handleLogout}
+          />
+
+          {/* Loading State */}
+          {isLoading && <LoadingState isBottomNav={true} />}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // --------- Desktop Sidebar ---------
+  return (
+    <View style={styles.sidebar}>
+      <View style={styles.sidebarHeader}>
+        <View style={styles.headerContent}>
+          <Text style={styles.logoText}>AccounTech Pro</Text>
+          <View style={styles.roleBadge}>
+            <Text style={styles.roleBadgeText}>{roleLower.toUpperCase()}</Text>
+          </View>
+        </View>
+      </View>
+
+      <ScrollView
+        style={styles.sidebarMenu}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Dashboard - Always visible (Next.js के जैसा) */}
         <MenuButton
           icon="grid-outline"
           title="Dashboard"
           isActive={isActive(dashboardScreen)}
           onPress={() => navigation.navigate(dashboardScreen)}
-          isBottomNav={true}
-          showWithoutPermission={true}
+          showAlways={true}
         />
 
-        {/* Transactions - Always show */}
+        {/* Transactions - Always visible (Next.js के जैसा) */}
         <MenuButton
           icon="swap-horizontal-outline"
           title="Transactions"
           isActive={isActive('Transactions')}
           onPress={() => navigation.navigate('Transactions')}
-          isBottomNav={true}
-          showWithoutPermission={true}
+          showAlways={true}
         />
 
-        {/* Inventory - Check permission */}
+        {/* Inventory - Only show if permission exists (Next.js के जैसा) */}
         {isLoading ? (
-          <LoadingState isBottomNav={true} />
+          <LoadingState />
         ) : (
           userCaps?.canCreateInventory && (
             <MenuButton
@@ -204,104 +291,15 @@ export default function UserSidebar() {
               title="Inventory"
               isActive={isActive('Inventory')}
               onPress={() => navigation.navigate('Inventory')}
-              isBottomNav={true}
+              hasPermission={userCaps?.canCreateInventory}
             />
           )
         )}
 
-        {/* Profile/More Menu */}
-        {/* <TouchableOpacity
-          style={[
-            styles.bottomNavButton,
-            (isActive('Profile') || isActive('Settings')) && styles.bottomNavButtonActive,
-          ]}
-          onPress={() => setShowMoreMenu(true)}
-        >
-          <View style={styles.bottomNavButtonContent}>
-            <Ionicons
-              name="person-outline"
-              size={20}
-              color={(isActive('Profile') || isActive('Settings')) ? '#007bff' : '#6c757d'}
-            />
-            <Text
-              style={[
-                styles.bottomNavText,
-                (isActive('Profile') || isActive('Settings')) && styles.bottomNavTextActive,
-              ]}
-            >
-              More
-            </Text>
-          </View>
-        </TouchableOpacity> */}
-
-        {/* More Menu Modal */}
-        <MoreMenu
-          visible={showMoreMenu}
-          onClose={() => setShowMoreMenu(false)}
-          navigation={navigation}
-          onLogout={handleLogout}
-        />
-      </View>
-    );
-  }
-
-  // Sidebar (for tablet/desktop)
-  return (
-    <View style={styles.sidebar}>
-      {/* Sidebar Header */}
-      <View style={styles.sidebarHeader}>
-        <View style={styles.headerContent}>
-          <Text style={styles.logoText}>AccounTech Pro</Text>
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleBadgeText}>
-              {roleLower.toUpperCase()}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Sidebar Menu */}
-      <ScrollView
-        style={styles.sidebarMenu}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Dashboard - Always visible */}
-        <MenuButton
-          icon="grid-outline"
-          title="Dashboard"
-          isActive={isActive(dashboardScreen)}
-          onPress={() => navigation.navigate(dashboardScreen)}
-          showWithoutPermission={true}
-        />
-
-        {/* Transactions - Always visible */}
-        <MenuButton
-          icon="swap-horizontal-outline"
-          title="Transactions"
-          isActive={isActive('Transactions')}
-          onPress={() => navigation.navigate('Transactions')}
-          showWithoutPermission={true}
-        />
-
         {/* Loading State */}
-        {isLoading ? (
-          <LoadingState />
-        ) : (
-          <>
-            {/* Inventory - Only show if user has permission */}
-            {userCaps?.canCreateInventory && (
-              <MenuButton
-                icon="cube-outline"
-                title="Inventory"
-                isActive={isActive('Inventory')}
-                onPress={() => navigation.navigate('Inventory')}
-              />
-            )}
-          </>
-        )}
+        {isLoading && <LoadingState />}
       </ScrollView>
 
-      {/* User Section */}
       {currentUser && (
         <View style={styles.userSection}>
           <View style={styles.userInfo}>
@@ -318,8 +316,8 @@ export default function UserSidebar() {
               <Text style={styles.userRole}>Role: {roleLower}</Text>
             </View>
           </View>
-          <TouchableOpacity 
-            style={styles.logoutButton} 
+          <TouchableOpacity
+            style={styles.logoutButton}
             onPress={handleLogout}
             disabled={isLoading}
           >
@@ -333,7 +331,6 @@ export default function UserSidebar() {
 }
 
 const styles = StyleSheet.create({
-  // Sidebar Styles
   sidebar: {
     flex: 1,
     backgroundColor: '#f8f9fa',
@@ -354,95 +351,56 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  logoText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#3b82f6',
-  },
+  logoText: { fontSize: 18, fontWeight: 'bold', color: '#3b82f6' },
   roleBadge: {
     backgroundColor: '#e3f2fd',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  roleBadgeText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#007bff',
-  },
-  sidebarMenu: {
-    flex: 1,
-    padding: 16,
-  },
+  roleBadgeText: { fontSize: 10, fontWeight: 'bold', color: '#007bff' },
+  sidebarMenu: { flex: 1, padding: 16 },
   menuButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     padding: 12,
     borderRadius: 8,
     marginBottom: 4,
   },
-  menuButtonActive: {
-    backgroundColor: '#e3f2fd',
-  },
-  menuButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
+  menuButtonActive: { backgroundColor: '#e3f2fd' },
+  menuButtonContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   menuButtonText: {
     marginLeft: 12,
     fontSize: 14,
     color: '#6c757d',
     fontWeight: '500',
   },
-  menuButtonTextActive: {
-    color: '#007bff',
-    fontWeight: '600',
-  },
+  menuButtonTextActive: { color: '#007bff', fontWeight: '600' },
 
-  // Bottom Navigation Styles
+  bottomNavWrapper: { backgroundColor: '#fff' },
   bottomNav: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
     justifyContent: 'space-around',
     alignItems: 'center',
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 70,
+    height: 56,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
   },
   bottomNavButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
-    borderRadius: 8,
     flex: 1,
-    marginHorizontal: 2,
-    minHeight: 50,
+    minHeight: 56,
   },
-  bottomNavButtonActive: {
-    backgroundColor: '#e3f2fd',
-  },
-  bottomNavButtonContent: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  bottomNavButtonActive: { backgroundColor: '#e3f2fd' },
+  bottomNavButtonContent: { alignItems: 'center', justifyContent: 'center' },
   bottomNavText: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#6c757d',
-    marginTop: 4,
+    marginTop: 2,
     textAlign: 'center',
   },
-  bottomNavTextActive: {
-    color: '#007bff',
-    fontWeight: '500',
-  },
+  bottomNavTextActive: { color: '#007bff', fontWeight: '500' },
   bottomNavLoading: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -450,10 +408,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
@@ -470,23 +427,11 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
-  modalButtonText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  modalDivider: {
-    height: 1,
-    backgroundColor: '#e9ecef',
-    marginVertical: 8,
-  },
-  logoutModalButton: {
-    marginTop: 4,
-  },
-  logoutModalText: {
-    color: '#dc3545',
-  },
+  modalButtonText: { fontSize: 16, color: '#333' },
+  modalDivider: { height: 1, backgroundColor: '#e9ecef', marginVertical: 8 },
+  logoutModalButton: { marginTop: 4 },
+  logoutModalText: { color: '#dc3545' },
 
-  // Common Styles
   loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -496,21 +441,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 8,
   },
-  loadingText: {
-    fontSize: 12,
-    color: '#6c757d',
-  },
+  loadingText: { fontSize: 12, color: '#6c757d' },
+
   userSection: {
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: '#e9ecef',
     backgroundColor: '#fff',
   },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
+  userInfo: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   avatar: {
     width: 40,
     height: 40,
@@ -520,30 +459,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
-  avatarText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  userDetails: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-  },
-  userEmail: {
-    fontSize: 12,
-    color: '#6c757d',
-    marginTop: 2,
-  },
-  userRole: {
-    fontSize: 11,
-    color: '#8b9dc3',
-    marginTop: 2,
-    fontWeight: '500',
-  },
+  avatarText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  userDetails: { flex: 1 },
+  userName: { fontSize: 14, fontWeight: '600', color: '#333' },
+  userEmail: { fontSize: 12, color: '#6c757d', marginTop: 2 },
+  userRole: { fontSize: 11, color: '#8b9dc3', marginTop: 2, fontWeight: '500' },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -551,9 +471,5 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: 'transparent',
   },
-  logoutText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#6c757d',
-  },
+  logoutText: { marginLeft: 8, fontSize: 14, color: '#6c757d' },
 });

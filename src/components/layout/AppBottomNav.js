@@ -8,9 +8,10 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { getCurrentUser, logout } from '../../lib/auth';
+import { getCurrentUser } from '../../lib/auth';
 import { usePermissions } from '../../contexts/permission-context';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
 
@@ -23,7 +24,7 @@ const Collapsible = ({ defaultOpen, children }) => {
   return (
     <View>
       {React.Children.map(children, child =>
-        React.cloneElement(child, { isOpen, setIsOpen })
+        React.cloneElement(child, { isOpen, setIsOpen }),
       )}
     </View>
   );
@@ -31,9 +32,7 @@ const Collapsible = ({ defaultOpen, children }) => {
 
 const CollapsibleTrigger = ({ children, isOpen, setIsOpen, style }) => (
   <TouchableOpacity onPress={() => setIsOpen(!isOpen)} style={style}>
-    {React.Children.map(children, child =>
-      React.cloneElement(child, { isOpen })
-    )}
+    {React.Children.map(children, child => React.cloneElement(child, { isOpen }))}
   </TouchableOpacity>
 );
 
@@ -45,8 +44,9 @@ export function AppSidebar() {
   const navigation = useNavigation();
   const route = useRoute();
   const [currentUser, setCurrentUser] = useState(null);
-  const { permissions: clientPermissions, isLoading: permissionsLoading } = usePermissions();
-  const { permissions: userPermissions, role: userRole } = useUserPermissions();
+  const { permissions: clientPermissions, isLoading: permissionsLoading } =
+    usePermissions();
+  const { permissions: userCaps, isLoading: userPermissionsLoading } = useUserPermissions();
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -56,27 +56,26 @@ export function AppSidebar() {
     fetchUser();
   }, []);
 
-  // ✅ Next.js ke hisaab se permissions - sirf clientPermissions use karein
-  const effectivePermissions = clientPermissions;
-  const currentRole = userRole || currentUser?.role?.toLowerCase();
-
-  // ✅ Next.js ke exact permission checks
-  const canSeeInventory = currentRole === 'customer' || currentRole === 'client';
-  const canSeeCompanies = effectivePermissions?.canCreateCompanies || effectivePermissions?.canUpdateCompanies;
-  const canSeeUsers = currentRole === 'admin' || (!!effectivePermissions && effectivePermissions.canCreateUsers);
-
+  const currentRole = currentUser?.role;
   const isAdmin = currentRole === 'master';
-  const isActive = (screenName) => route.name === screenName;
+
+  // Consistent permission logic with web
+  const canSeeInventory = 
+    currentRole === 'admin' || 
+    (!!userCaps && userCaps.canCreateInventory) || 
+    currentRole === 'customer';
+
+  const canSeeCompanies = 
+    clientPermissions?.canCreateCompanies || 
+    clientPermissions?.canUpdateCompanies;
+
+  const canSeeUsers = 
+    currentRole === 'admin' || 
+    (!!clientPermissions && clientPermissions.canCreateUsers);
+
+  const isActive = screenName => route.name === screenName;
   const isReportsActive = route.name?.startsWith('Reports');
   const isLedgerActive = route.name?.startsWith('Ledger');
-
-  console.log('🔍 Sidebar Debug:', {
-    currentRole,
-    effectivePermissions,
-    canSeeInventory,
-    canSeeCompanies,
-    canSeeUsers
-  });
 
   // ----- Menu Button -----
   const MenuButton = ({
@@ -95,18 +94,17 @@ export function AppSidebar() {
         isActive && (isBottomNav ? styles.bottomNavButtonActive : styles.menuButtonActive),
       ]}
     >
-      <View style={isBottomNav ? styles.bottomNavButtonContent : styles.menuButtonContent}>
+      <View
+        style={isBottomNav ? styles.bottomNavButtonContent : styles.menuButtonContent}
+      >
         <Ionicons
           name={icon}
-          size={20}
+          size={isBottomNav ? 28 : 20}
           color={isActive ? '#007bff' : '#6c757d'}
         />
         {!isBottomNav && (
           <Text
-            style={[
-              styles.menuButtonText,
-              isActive && styles.menuButtonTextActive,
-            ]}
+            style={[styles.menuButtonText, isActive && styles.menuButtonTextActive]}
           >
             {title}
           </Text>
@@ -122,10 +120,8 @@ export function AppSidebar() {
       </View>
       {isBottomNav && (
         <Text
-          style={[
-            styles.bottomNavText,
-            isActive && styles.bottomNavTextActive,
-          ]}
+          style={[styles.bottomNavText, isActive && styles.bottomNavTextActive]}
+          numberOfLines={1}
         >
           {title}
         </Text>
@@ -136,17 +132,9 @@ export function AppSidebar() {
   const SubMenuButton = ({ title, isActive, onPress }) => (
     <TouchableOpacity
       onPress={onPress}
-      style={[
-        styles.subMenuButton,
-        isActive && styles.subMenuButtonActive,
-      ]}
+      style={[styles.subMenuButton, isActive && styles.subMenuButtonActive]}
     >
-      <Text
-        style={[
-          styles.subMenuButtonText,
-          isActive && styles.subMenuButtonTextActive,
-        ]}
-      >
+      <Text style={[styles.subMenuButtonText, isActive && styles.subMenuButtonTextActive]}>
         {title}
       </Text>
     </TouchableOpacity>
@@ -164,7 +152,7 @@ export function AppSidebar() {
       />
       <MenuButton
         icon="people-outline"
-        title="Client Management"
+        title="Clients"
         isActive={isActive('AdminClientManagement')}
         onPress={() => navigation.navigate('AdminClientManagement')}
         isBottomNav={isMobile}
@@ -177,7 +165,7 @@ export function AppSidebar() {
         isBottomNav={isMobile}
       />
       <MenuButton
-        icon="analytics-outline"
+        icon="bar-chart-outline"
         title="Analytics"
         isActive={isActive('AdminAnalytics')}
         onPress={() => navigation.navigate('AdminAnalytics')}
@@ -193,132 +181,103 @@ export function AppSidebar() {
     </>
   );
 
-  // ----- Customer Menu (EXACTLY like Next.js) -----
-  const CustomerMenu = () => (
-    <>
-      {/* Dashboard - ALWAYS VISIBLE */}
-      <MenuButton
-        icon="grid-outline"
-        title="Dashboard"
-        isActive={isActive('UserDashboard') || isActive('CustomerDashboard')}
-        onPress={() => navigation.navigate('UserDashboard')}
-        isBottomNav={isMobile}
-      />
+  // ----- Customer Menu -----
+  const CustomerMenu = () => {
+    const [reportsOpen, setReportsOpen] = useState(isReportsActive);
+    const [ledgerOpen, setLedgerOpen] = useState(isLedgerActive);
 
-      {/* Transactions - ALWAYS VISIBLE */}
-      <MenuButton
-        icon="swap-horizontal-outline"
-        title="Transactions"
-        isActive={isActive('Transactions')}
-        onPress={() => navigation.navigate('Transactions')}
-        isBottomNav={isMobile}
-      />
-
-      {/* Inventory - VISIBLE for customer role (Next.js logic) */}
-      {canSeeInventory && (
+    return (
+      <>
+        {/* Dashboard */}
         <MenuButton
-          icon="cube-outline"
-          title="Inventory"
-          isActive={isActive('Inventory')}
-          onPress={() => navigation.navigate('Inventory')}
+          icon="grid-outline"
+          title="Dashboard"
+          isActive={isActive('UserDashboard') || isActive('CustomerDashboard')}
+          onPress={() => navigation.navigate('UserDashboard')}
           isBottomNav={isMobile}
         />
-      )}
 
-      {/* Companies - VISIBLE when permission allows (Next.js logic) */}
-      {canSeeCompanies && (
+        {/* Transactions */}
         <MenuButton
-          icon="business-outline"
-          title="Companies"
-          isActive={isActive('Companies')}
-          onPress={() => navigation.navigate('Companies')}
+          icon="swap-horizontal-outline"
+          title="Transactions"
+          isActive={isActive('Transactions')}
+          onPress={() => navigation.navigate('Transactions')}
           isBottomNav={isMobile}
         />
-      )}
 
-      {/* Users - VISIBLE for admins OR when permission allows (Next.js logic) */}
-      {canSeeUsers && (
-        <MenuButton
-          icon="people-outline"
-          title="Users"
-          isActive={isActive('Users')}
-          onPress={() => navigation.navigate('Users')}
-          isBottomNav={isMobile}
-        />
-      )}
+        {/* Inventory */}
+        {canSeeInventory && (
+          <MenuButton
+            icon="cube-outline"
+            title="Inventory"
+            isActive={isActive('Inventory')}
+            onPress={() => navigation.navigate('Inventory')}
+            isBottomNav={isMobile}
+          />
+        )}
 
-      {/* Loading indicator */}
-      {permissionsLoading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color="#007bff" />
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
-      )}
+        {/* Companies */}
+        {canSeeCompanies && (
+          <MenuButton
+            icon="business-outline"
+            title="Companies"
+            isActive={isActive('Companies')}
+            onPress={() => navigation.navigate('Companies')}
+            isBottomNav={isMobile}
+          />
+        )}
 
-      {/* Reports Collapsible - ALWAYS VISIBLE (Desktop only) */}
-      {!isMobile && (
-        <Collapsible defaultOpen={isReportsActive}>
-          <CollapsibleTrigger style={styles.collapsibleTrigger}>
-            {(props) => (
+        {/* Users */}
+        {canSeeUsers && (
+          <MenuButton
+            icon="people-outline"
+            title="Users"
+            isActive={isActive('Users')}
+            onPress={() => navigation.navigate('Users')}
+            isBottomNav={isMobile}
+          />
+        )}
+
+        {/* Loading State */}
+        {(permissionsLoading || userPermissionsLoading) && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#007bff" />
+            <Text style={styles.loadingText}>Loading...</Text>
+          </View>
+        )}
+
+        {/* Reports - Collapsible for Desktop, Simple for Mobile */}
+        {!isMobile ? (
+          <Collapsible defaultOpen={isReportsActive}>
+            <CollapsibleTrigger 
+              style={styles.collapsibleTrigger}
+              isOpen={reportsOpen}
+              setIsOpen={setReportsOpen}
+            >
               <MenuButton
                 icon="document-text-outline"
                 title="Reports"
                 isActive={isReportsActive}
+                onPress={() => {}}
                 hasSubmenu={true}
-                isSubmenuOpen={props.isOpen}
-                onPress={() => props.setIsOpen(!props.isOpen)}
+                isSubmenuOpen={reportsOpen}
               />
-            )}
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <SubMenuButton
-              title="Profit & Loss"
-              isActive={isActive('ProfitLossReport')}
-              onPress={() => navigation.navigate('ProfitLossReport')}
-            />
-            <SubMenuButton
-              title="Balance Sheet"
-              isActive={isActive('BalanceSheetReport')}
-              onPress={() => navigation.navigate('BalanceSheetReport')}
-            />
-          </CollapsibleContent>
-        </Collapsible>
-      )}
-
-      {/* Ledger Collapsible - ALWAYS VISIBLE (Desktop only) */}
-      {!isMobile && (
-        <Collapsible defaultOpen={isLedgerActive}>
-          <CollapsibleTrigger style={styles.collapsibleTrigger}>
-            {(props) => (
-              <MenuButton
-                icon="document-outline"
-                title="Ledger"
-                isActive={isLedgerActive}
-                hasSubmenu={true}
-                isSubmenuOpen={props.isOpen}
-                onPress={() => props.setIsOpen(!props.isOpen)}
+            </CollapsibleTrigger>
+            <CollapsibleContent isOpen={reportsOpen}>
+              <SubMenuButton
+                title="Profit & Loss"
+                isActive={isActive('ProfitLossReport')}
+                onPress={() => navigation.navigate('ProfitLossReport')}
               />
-            )}
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <SubMenuButton
-              title="Receivables"
-              isActive={isActive('LedgerReceivables')}
-              onPress={() => navigation.navigate('LedgerReceivables')}
-            />
-            <SubMenuButton
-              title="Payables"
-              isActive={isActive('LedgerPayables')}
-              onPress={() => navigation.navigate('LedgerPayables')}
-            />
-          </CollapsibleContent>
-        </Collapsible>
-      )}
-
-      {/* Mobile-only menu items for Reports and Ledger */}
-      {isMobile && (
-        <>
-          {/* Reports Menu for Mobile - ALWAYS VISIBLE */}
+              <SubMenuButton
+                title="Balance Sheet"
+                isActive={isActive('BalanceSheetReport')}
+                onPress={() => navigation.navigate('BalanceSheetReport')}
+              />
+            </CollapsibleContent>
+          </Collapsible>
+        ) : (
           <MenuButton
             icon="document-text-outline"
             title="Reports"
@@ -326,8 +285,39 @@ export function AppSidebar() {
             onPress={() => navigation.navigate('ProfitLossReport')}
             isBottomNav={isMobile}
           />
+        )}
 
-          {/* Ledger Menu for Mobile - ALWAYS VISIBLE */}
+        {/* Ledger - Collapsible for Desktop, Simple for Mobile */}
+        {!isMobile ? (
+          <Collapsible defaultOpen={isLedgerActive}>
+            <CollapsibleTrigger 
+              style={styles.collapsibleTrigger}
+              isOpen={ledgerOpen}
+              setIsOpen={setLedgerOpen}
+            >
+              <MenuButton
+                icon="document-outline"
+                title="Ledger"
+                isActive={isLedgerActive}
+                onPress={() => {}}
+                hasSubmenu={true}
+                isSubmenuOpen={ledgerOpen}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent isOpen={ledgerOpen}>
+              <SubMenuButton
+                title="Receivables"
+                isActive={isActive('LedgerReceivables')}
+                onPress={() => navigation.navigate('LedgerReceivables')}
+              />
+              <SubMenuButton
+                title="Payables"
+                isActive={isActive('LedgerPayables')}
+                onPress={() => navigation.navigate('LedgerPayables')}
+              />
+            </CollapsibleContent>
+          </Collapsible>
+        ) : (
           <MenuButton
             icon="document-outline"
             title="Ledger"
@@ -335,29 +325,25 @@ export function AppSidebar() {
             onPress={() => navigation.navigate('LedgerReceivables')}
             isBottomNav={isMobile}
           />
-        </>
-      )}
-    </>
-  );
+        )}
+      </>
+    );
+  };
 
   // ----- Mobile Bottom Nav -----
   if (isMobile) {
     if (!currentUser) {
       return (
-        <View style={styles.bottomNavLoading}>
+        <SafeAreaView edges={['bottom']} style={styles.bottomNavLoading}>
           <ActivityIndicator size="small" color="#007bff" />
-        </View>
+        </SafeAreaView>
       );
     }
 
     return (
-      <View style={styles.bottomNav}>
-        {isAdmin ? (
-          <AdminMenu />
-        ) : (
-          <CustomerMenu />
-        )}
-      </View>
+      <SafeAreaView edges={['bottom']} style={styles.bottomNavWrapper}>
+        <View style={styles.bottomNav}>{isAdmin ? <AdminMenu /> : <CustomerMenu />}</View>
+      </SafeAreaView>
     );
   }
 
@@ -371,11 +357,7 @@ export function AppSidebar() {
       </View>
 
       <ScrollView style={styles.sidebarMenu} showsVerticalScrollIndicator={false}>
-        {isAdmin ? (
-          <AdminMenu />
-        ) : (
-          <CustomerMenu />
-        )}
+        {isAdmin ? <AdminMenu /> : <CustomerMenu />}
       </ScrollView>
 
       {currentUser && (
@@ -383,16 +365,12 @@ export function AppSidebar() {
           <View style={styles.userInfo}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
-                {currentUser?.initials ||
-                  currentUser?.name?.charAt(0)?.toUpperCase() ||
-                  'U'}
+                {currentUser?.initials || currentUser?.name?.charAt(0)?.toUpperCase() || 'U'}
               </Text>
             </View>
             <View style={styles.userDetails}>
               <Text style={styles.userName}>
-                {currentUser?.role === 'master'
-                  ? 'Master Administrator'
-                  : currentUser?.name}
+                {currentUser?.role === 'master' ? 'Master Administrator' : currentUser?.name}
               </Text>
               <Text style={styles.userEmail}>{currentUser?.email}</Text>
             </View>
@@ -457,36 +435,30 @@ const styles = StyleSheet.create({
     color: '#007bff',
     fontWeight: '600',
   },
+  bottomNavWrapper: {
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+  },
   bottomNav: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
     justifyContent: 'space-around',
     alignItems: 'center',
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 70,
+    height: 56,
+    paddingHorizontal: 8,
   },
   bottomNavLoading: {
-    height: 70,
     justifyContent: 'center',
     alignItems: 'center',
+    height: 56,
+    backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#e9ecef',
-    backgroundColor: '#fff',
   },
   bottomNavButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
-    borderRadius: 8,
     flex: 1,
-    marginHorizontal: 4,
   },
   bottomNavButtonActive: {
     backgroundColor: '#e3f2fd',
@@ -496,9 +468,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   bottomNavText: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#6c757d',
-    marginTop: 4,
+    marginTop: 2,
     textAlign: 'center',
   },
   bottomNavTextActive: {
@@ -526,6 +498,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 6,
     marginVertical: 2,
+    marginLeft: 8,
   },
   subMenuButtonActive: {
     backgroundColor: '#e3f2fd',
