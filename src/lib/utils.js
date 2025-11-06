@@ -1,92 +1,146 @@
-import { StyleSheet, Text, View } from 'react-native'
-import React from 'react'
+import { clsx } from "clsx";
 
-// Hardcoded service names
-const serviceNameById = new Map([
-  ['service1', 'Web Development'],
-  ['service2', 'Mobile App Development'],
-  ['service3', 'Consulting'],
-  ['service4', 'Design Services'],
-  ['service5', 'Maintenance'],
-])
+// Simplified cn function without tailwind-merge
+export function cn(...inputs) {
+  return clsx(inputs);
+}
 
-// Mock data for products and services
-const mockProducts = [
-  { _id: 'prod1', name: 'Laptop', type: 'product' },
-  { _id: 'prod2', name: 'Mouse', type: 'product' },
-  { _id: 'prod3', name: 'Keyboard', type: 'product' },
-]
+export function capitalizeWords(str) {
+  if (!str || typeof str !== "string") return "";
+  return str.replace(/\b\w/g, (l) => l.toUpperCase());
+}
 
-const mockServices = [
-  { _id: 'service1', serviceName: 'Web Development' },
-  { _id: 'service2', serviceName: 'Mobile App Development' },
-  { _id: 'service3', serviceName: 'Consulting' },
-]
+// Safely get a short id tail for fallback labels
+const tail = (id) => (id ? id.toString().slice(-6) : "");
 
-export const getUnifiedLines = (tx, serviceNameById) => {
-  if (!tx) return [];
+// Build a unified list of product + service lines from a transaction
+export function getUnifiedLines(tx, serviceNameById) {
+  if (!tx || typeof tx !== "object") return [];
 
-  // Handle items array
-  if (tx.items && Array.isArray(tx.items)) {
-    return tx.items.map(item => {
-      if (item.itemType === 'product') {
-        return {
-          type: 'product',
-          name: item.name || 'Unknown Product',
-          quantity: item.quantity || 0,
-          unitType: item.unitType || 'Piece',
-          pricePerUnit: item.pricePerUnit || 0,
-        };
-      } else if (item.itemType === 'service') {
-        return {
-          type: 'service',
-          name: item.serviceName || 'Unknown Service',
-          description: item.description || '',
-        };
-      }
-      return { type: 'unknown', name: 'Unknown Item' };
+  // ✅ Legacy: tx.items[]
+  const legacyProducts = Array.isArray(tx.items)
+    ? tx.items
+        .filter((i) => i && i.product)
+        .map((i) => ({
+          type: "product",
+          name: i.product?.name ?? `Product #${tail(i.product?._id || i.product)}`,
+          quantity: i.quantity ?? "",
+          unitType: i.unitType ?? "",
+          pricePerUnit: i.pricePerUnit ?? "",
+          description: i.description ?? "",
+          amount: Number(i.amount) || 0,
+        }))
+    : [];
+
+  // ✅ New: tx.products[]
+  const products = Array.isArray(tx.products)
+    ? tx.products
+        .filter((p) => p && typeof p === "object")
+        .map((p) => ({
+          type: "product",
+          name: p.product?.name ?? `Product #${tail(p.product)}`,
+          quantity: p.quantity ?? "",
+          unitType: p.unitType ?? "",
+          pricePerUnit: p.pricePerUnit ?? "",
+          description: p.description ?? "",
+          amount: Number(p.amount) || 0,
+        }))
+    : [];
+
+  // ✅ Handle tx.service[] or tx.services[]
+  const svcArray = Array.isArray(tx.service)
+    ? tx.service
+    : Array.isArray(tx.services)
+    ? tx.services
+    : [];
+
+  const services = svcArray
+    .filter((s) => s && typeof s === "object")
+    .map((s) => {
+      // Safely get service id
+      const rawId =
+        (s.service &&
+          (typeof s.service === "object" ? s.service._id : s.service)) ??
+        (s.serviceName &&
+          (typeof s.serviceName === "object"
+            ? s.serviceName._id
+            : s.serviceName));
+
+      const serviceId = rawId ? String(rawId) : undefined;
+
+      // Extract service name safely
+      const nameFromDoc =
+        (typeof s.service === "object" &&
+          (s.service?.serviceName || s.service?.name)) ||
+        (typeof s.serviceName === "object" &&
+          (s.serviceName?.serviceName || s.serviceName?.name));
+
+      const name =
+        nameFromDoc ||
+        (serviceId ? serviceNameById?.get(serviceId) : undefined) ||
+        `Service #${tail(serviceId)}`;
+
+      return {
+        type: "service",
+        name,
+        service: serviceId,
+        quantity: "",
+        unitType: "",
+        pricePerUnit: "",
+        description: s.description ?? "",
+        amount: Number(s.amount) || 0,
+      };
     });
+
+  // ✅ Merge product + service + legacy
+  const lines = [...products, ...services];
+  return lines.length ? lines : legacyProducts;
+}
+
+export function parseNotesHtml(notesHtml) {
+  // Extract title from first <p>
+  const titleMatch = notesHtml.match(/<p[^>]*>(.*?)<\/p>/);
+  const title = titleMatch
+    ? titleMatch[1].replace(/<[^>]*>/g, "").replace(/&/g, "&").trim()
+    : "Terms and Conditions";
+
+  // Check if it's a list or paragraphs
+  const isList = /<li[^>]*>/.test(notesHtml);
+
+  if (isList) {
+    // Parse as list
+    const listItems = [];
+    const liRegex = /<li[^>]*>(.*?)<\/li>/g;
+    let match;
+    while ((match = liRegex.exec(notesHtml)) !== null) {
+      const cleanItem = match[1]
+        .replace(/<[^>]*>/g, "")
+        .replace(/&/g, "&")
+        .trim();
+      if (cleanItem) listItems.push(cleanItem);
+    }
+
+    return { title, isList: true, items: listItems };
+  } else {
+    // Parse as paragraphs
+    const paragraphs = [];
+    const pRegex = /<p[^>]*>(.*?)<\/p>/g;
+    let match;
+    let firstSkipped = false;
+    while ((match = pRegex.exec(notesHtml)) !== null) {
+      if (!firstSkipped) {
+        firstSkipped = true; // Skip the title paragraph
+        continue;
+      }
+      const cleanPara = match[1]
+        .replace(/<[^>]*>/g, "")
+        .replace(/&/g, "&")
+        .trim();
+      if (cleanPara) {
+        paragraphs.push(cleanPara);
+      }
+    }
+
+    return { title, isList: false, items: paragraphs };
   }
-
-  // Handle single product/service (legacy)
-  if (tx.product) {
-    const product = mockProducts.find(p => p._id === tx.product) || { name: 'Unknown Product' };
-    return [{
-      type: 'product',
-      name: product.name,
-      quantity: tx.quantity || 1,
-      unitType: tx.unitType || 'Piece',
-      pricePerUnit: tx.pricePerUnit || 0,
-    }];
-  }
-
-  return [];
 }
-
-export const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-  }).format(amount || 0);
-}
-
-export const formatDate = (dateString) => {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(dateString));
-}
-
-export { serviceNameById, mockProducts, mockServices };
-
-// Default component
-export default function Utils() {
-  return (
-    <View>
-      <Text>Utils</Text>
-    </View>
-  )
-}
-
-const styles = StyleSheet.create({})

@@ -13,9 +13,9 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { PlusCircle, Trash2 } from 'lucide-react-native';
-import { CustomerForm } from '../customers/CustomerForm';
-import VendorForm from '../vendors/VendorForm';
-import { ProductForm } from '../products/ProductForm';
+import  {CustomerForm}  from '../customers/CustomerForm';
+import {VendorForm} from '../vendors/VendorForm';
+import  ProductForm  from '../products/ProductForm';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 // --- Hardcoded Data ---

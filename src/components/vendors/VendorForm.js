@@ -1,40 +1,139 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
   TextInput,
   ScrollView,
   TouchableOpacity,
-  Alert,
-  StyleSheet,
-  Switch,
+  ActivityIndicator,
   Modal,
   TouchableWithoutFeedback,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
+  StyleSheet,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm, Controller } from 'react-hook-form';
+import { State, City } from 'country-state-city';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BASE_URL } from '../../config';
 
-// Mock data - replace with actual data source
-const MOCK_VENDORS = [
-  {
-    id: '1',
-    vendorName: 'Acme Supplies',
-    contactNumber: '9876543210',
-    email: 'contact@acme.com',
-    address: '123 Industrial Area',
-    city: 'Mumbai',
-    state: 'Maharashtra',
-    gstin: '27ABCDE1234F1Z5',
-    gstRegistrationType: 'Regular',
-    pan: 'ABCDE1234F',
-    isTDSApplicable: true,
-    tdsRate: 10,
-    tdsSection: '194J',
-  },
-];
+// --- Toast Modal Component ---
+const ToastModal = ({ visible, type, title, message, onClose }) => {
+  useEffect(() => {
+    if (visible) {
+      const timer = setTimeout(onClose, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [visible, onClose]);
 
-const GST_REGISTRATION_TYPES = [
+  const backgroundColor = type === 'destructive' ? '#dc2626' : '#16a34a';
+
+  return (
+    <Modal
+      transparent
+      visible={visible}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.toastOverlay}>
+          <View style={[styles.toastContainer, { backgroundColor }]}>
+            <Text style={styles.toastTitle}>{title}</Text>
+            <Text style={styles.toastMessage}>{message}</Text>
+          </View>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+};
+
+// --- Custom Hook ---
+const useToast = () => {
+  const [toastConfig, setToastConfig] = useState({
+    visible: false,
+    type: 'default',
+    title: '',
+    message: '',
+  });
+
+  const showToast = ({ variant, title, description }) => {
+    setToastConfig({
+      visible: true,
+      type: variant || 'default',
+      title,
+      message: description,
+    });
+  };
+
+  const hideToast = () => setToastConfig(prev => ({ ...prev, visible: false }));
+
+  return { toast: showToast, toastConfig, hideToast };
+};
+
+// --- Searchable Picker Component ---
+const SearchablePicker = ({ 
+  visible, 
+  onClose, 
+  options, 
+  onSelect, 
+  title, 
+  searchPlaceholder = "Search...",
+  disabled = false 
+}) => {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredOptions = options.filter(option =>
+    option.label.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent={false}>
+      <View style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        
+        <View style={styles.searchContainer}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder={searchPlaceholder}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoFocus={true}
+          />
+        </View>
+
+        <ScrollView style={styles.optionsContainer}>
+          {filteredOptions.length === 0 ? (
+            <Text style={styles.noResultsText}>No results found</Text>
+          ) : (
+            filteredOptions.map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                onPress={() => {
+                  onSelect(option);
+                  onClose();
+                }}
+                style={styles.optionItem}
+                disabled={disabled}
+              >
+                <Text style={styles.optionText}>{option.label}</Text>
+              </TouchableOpacity>
+            ))
+          )}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+};
+
+// --- Form Schema ---
+const gstRegistrationTypes = [
   'Regular',
   'Composition',
   'Unregistered',
@@ -44,522 +143,743 @@ const GST_REGISTRATION_TYPES = [
   'Unknown',
 ];
 
-// Mock states and cities data for India
-const INDIA_STATES = [
-  { code: 'MH', name: 'Maharashtra' },
-  { code: 'DL', name: 'Delhi' },
-  { code: 'KA', name: 'Karnataka' },
-  { code: 'TN', name: 'Tamil Nadu' },
-  { code: 'UP', name: 'Uttar Pradesh' },
-  { code: 'GJ', name: 'Gujarat' },
-];
+const formSchema = z.object({
+  vendorName: z.string().min(2, 'Vendor name is required.'),
+  contactNumber: z
+    .string()
+    .optional()
+    .or(z.literal(''))
+    .refine((val) => {
+      if (!val || val.trim() === "") return true;
+      const mobileRegex = /^[6-9]\d{9}$/;
+      return mobileRegex.test(val.replace(/\D/g, ""));
+    }, { message: "Enter valid 10-digit Indian mobile number" }),
+  email: z
+    .string()
+    .optional()
+    .or(z.literal(''))
+    .refine((val) => {
+      if (!val || val.trim() === "") return true;
+      try {
+        z.string().email().parse(val);
+        return true;
+      } catch {
+        return false;
+      }
+    }, { message: "Enter a valid email" }),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  gstin: z
+    .string()
+    .length(15, 'GSTIN must be 15 characters.')
+    .optional()
+    .or(z.literal('')),
+  gstRegistrationType: z.enum(gstRegistrationTypes).default('Unregistered'),
+  pan: z
+    .string()
+    .length(10, 'PAN must be 10 characters.')
+    .optional()
+    .or(z.literal('')),
+  isTDSApplicable: z.boolean().default(false),
+  tdsRate: z.coerce.number().optional(),
+  tdsSection: z.string().optional(),
+});
 
-const CITIES_BY_STATE = {
-  MH: ['Mumbai', 'Pune', 'Nagpur', 'Thane'],
-  DL: ['New Delhi', 'North Delhi', 'South Delhi'],
-  KA: ['Bangalore', 'Mysore', 'Hubli'],
-  TN: ['Chennai', 'Coimbatore', 'Madurai'],
-  UP: ['Lucknow', 'Kanpur', 'Varanasi'],
-  GJ: ['Ahmedabad', 'Surat', 'Vadodara'],
-};
-
-const VendorForm = ({ vendor, initialName, onSuccess }) => {
-  const [formData, setFormData] = useState({
-    vendorName: vendor?.vendorName || initialName || '',
-    contactNumber: vendor?.contactNumber || '',
-    email: vendor?.email || '',
-    address: vendor?.address || '',
-    city: vendor?.city || '',
-    state: vendor?.state || '',
-    gstin: vendor?.gstin || '',
-    gstRegistrationType: vendor?.gstRegistrationType || 'Unregistered',
-    pan: vendor?.pan || '',
-    isTDSApplicable: vendor?.isTDSApplicable || false,
-    tdsRate: vendor?.tdsRate || 0,
-    tdsSection: vendor?.tdsSection || '',
-  });
-
+// --- Vendor Form ---
+export function VendorForm({ vendor, initialName, onSuccess }) {
+  const { toast, toastConfig, hideToast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [stateCode, setStateCode] = useState(null);
   const [showStatePicker, setShowStatePicker] = useState(false);
   const [showCityPicker, setShowCityPicker] = useState(false);
-  const [showGSTPicker, setShowGSTPicker] = useState(false);
-  const [availableCities, setAvailableCities] = useState([]);
 
-  // Update available cities when state changes
+  const {
+    control,
+    handleSubmit,
+    watch,
+    setValue,
+    getValues,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      vendorName: vendor?.vendorName || initialName || '',
+      contactNumber: vendor?.contactNumber || '',
+      email: vendor?.email || '',
+      address: vendor?.address || '',
+      city: vendor?.city || '',
+      state: vendor?.state || '',
+      gstin: vendor?.gstin || '',
+      gstRegistrationType: vendor?.gstRegistrationType || 'Unregistered',
+      pan: vendor?.pan || '',
+      isTDSApplicable: vendor?.isTDSApplicable || false,
+      tdsRate: vendor?.tdsRate || 0,
+      tdsSection: vendor?.tdsSection || '',
+    },
+  });
+
+  const isTDSApplicable = watch('isTDSApplicable');
+  const gstRegistrationType = watch('gstRegistrationType');
+
+  const indiaStates = useMemo(() => State.getStatesOfCountry('IN'), []);
+  
+  const stateOptions = useMemo(
+    () =>
+      indiaStates
+        .map(s => ({ value: s.isoCode, label: s.name }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [indiaStates],
+  );
+
+  const cityOptions = useMemo(() => {
+    if (!stateCode) return [];
+    const list = City.getCitiesOfState('IN', stateCode);
+    return list
+      .map(c => ({ value: c.name, label: c.name }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [stateCode]);
+
   useEffect(() => {
-    if (formData.state) {
-      const stateCode = INDIA_STATES.find(s => s.name === formData.state)?.code;
-      setAvailableCities(CITIES_BY_STATE[stateCode] || []);
-      // Clear city when state changes
-      setFormData(prev => ({ ...prev, city: '' }));
-    } else {
-      setAvailableCities([]);
-    }
-  }, [formData.state]);
-
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
-
-  const validateForm = () => {
-    if (!formData.vendorName.trim() || formData.vendorName.length < 2) {
-      Alert.alert('Validation Error', 'Vendor name is required and must be at least 2 characters long.');
-      return false;
-    }
-
-    if (!formData.contactNumber.trim() || formData.contactNumber.length < 10) {
-      Alert.alert('Validation Error', 'Mobile number is required and must be at least 10 digits.');
-      return false;
-    }
-
-    if (!formData.email.trim()) {
-      Alert.alert('Validation Error', 'Email is required.');
-      return false;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      Alert.alert('Validation Error', 'Invalid email address.');
-      return false;
-    }
-
-    if (formData.gstin && formData.gstin.length !== 15) {
-      Alert.alert('Validation Error', 'GSTIN must be 15 characters.');
-      return false;
-    }
-
-    if (formData.pan && formData.pan.length !== 10) {
-      Alert.alert('Validation Error', 'PAN must be 10 characters.');
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleSubmit = async () => {
-    if (!validateForm()) {
+    const currentStateName = getValues('state')?.trim();
+    if (!currentStateName) {
+      setStateCode(null);
       return;
     }
+    const found = indiaStates.find(
+      s => s.name.toLowerCase() === currentStateName.toLowerCase(),
+    );
+    setStateCode(found?.isoCode || null);
+  }, [indiaStates]);
 
+  const onSubmit = async values => {
     setIsSubmitting(true);
-
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
 
-      // Create mock vendor object
-      const newVendor = {
-        _id: vendor?._id || `vendor-${Date.now()}`,
-        ...formData,
-        createdAt: vendor?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      const url = vendor
+        ? `${BASE_URL}/api/vendors/${vendor._id}`
+        : `${BASE_URL}/api/vendors`;
+      const method = vendor ? 'PUT' : 'POST';
 
-      // Simulate successful submission
-      console.log('Vendor submitted:', newVendor);
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(values),
+      });
 
-      // Call success callback
-      if (onSuccess) {
-        onSuccess(newVendor);
-      }
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(
+          data.message || `Failed to ${vendor ? 'update' : 'create'} vendor.`,
+        );
 
-      Alert.alert(
-        'Success',
-        vendor ? 'Vendor updated successfully!' : 'Vendor created successfully!',
-        [{ text: 'OK' }]
-      );
+      onSuccess(data.vendor);
 
+      toast({
+        variant: 'default',
+        title: 'Success',
+        description: `Vendor ${vendor ? 'updated' : 'created'} successfully.`,
+      });
     } catch (error) {
-      Alert.alert(
-        'Operation Failed',
-        error instanceof Error ? error.message : 'An unknown error occurred.'
-      );
+      toast({
+        variant: 'destructive',
+        title: 'Operation Failed',
+        description:
+          error instanceof Error ? error.message : 'Unknown error occurred',
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const renderPickerModal = (visible, setVisible, items, selectedValue, onValueChange, title) => (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={() => setVisible(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{title}</Text>
-            <TouchableOpacity onPress={() => setVisible(false)}>
-              <Text style={styles.modalClose}>Done</Text>
-            </TouchableOpacity>
-          </View>
-          <Picker
-            selectedValue={selectedValue}
-            onValueChange={onValueChange}
-          >
-            <Picker.Item label={`Select ${title.toLowerCase()}`} value="" />
-            {items.map((item, index) => (
-              <Picker.Item
-                key={index}
-                label={typeof item === 'string' ? item : item.name || item.label}
-                value={typeof item === 'string' ? item : item.value || item.name || item.code}
-              />
-            ))}
-          </Picker>
-        </View>
-      </View>
-    </Modal>
-  );
+  // Keyboard dismiss
+  const dismissKeyboard = () => Keyboard.dismiss();
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.form}>
-          {/* Vendor Name */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Vendor Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Acme Supplies"
-              value={formData.vendorName}
-              onChangeText={(value) => handleInputChange('vendorName', value)}
-            />
+    <TouchableWithoutFeedback onPress={dismissKeyboard}>
+      <View style={{ flex: 1, backgroundColor: 'white' }}>
+        <ToastModal {...toastConfig} onClose={hideToast} />
+        
+        <ScrollView 
+          style={{ flex: 1 }} 
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header Section */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>
+              {vendor ? "Edit Vendor" : "Create New Vendor"}
+            </Text>
+            <Text style={styles.headerSubtitle}>
+              {vendor ? "Update vendor details" : "Add new vendor to your records"}
+            </Text>
           </View>
 
-          {/* Contact Number and Email */}
-          <View style={styles.row}>
-            <View style={[styles.inputGroup, styles.flex1]}>
-              <Text style={styles.label}>Mobile Number / Whatsapp</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. 9876543210"
-                keyboardType="phone-pad"
-                value={formData.contactNumber}
-                onChangeText={(value) => handleInputChange('contactNumber', value)}
-              />
-            </View>
-            <View style={[styles.inputGroup, styles.flex1]}>
-              <Text style={styles.label}>Email ID</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. contact@acme.com"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={formData.email}
-                onChangeText={(value) => handleInputChange('email', value)}
-              />
-            </View>
-          </View>
-
-          {/* Address */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Address</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. 123 Industrial Area"
-              value={formData.address}
-              onChangeText={(value) => handleInputChange('address', value)}
-            />
-          </View>
-
-          {/* State and City */}
-          <View style={styles.row}>
-            <View style={[styles.inputGroup, styles.flex1]}>
-              <Text style={styles.label}>State</Text>
-              <TouchableOpacity
-                style={styles.pickerTrigger}
-                onPress={() => setShowStatePicker(true)}
-              >
-                <Text style={formData.state ? styles.pickerText : styles.pickerPlaceholder}>
-                  {formData.state || 'Select state'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={[styles.inputGroup, styles.flex1]}>
-              <Text style={styles.label}>City</Text>
-              <TouchableOpacity
-                style={[
-                  styles.pickerTrigger,
-                  !formData.state && styles.pickerDisabled
-                ]}
-                onPress={() => formData.state && setShowCityPicker(true)}
-                disabled={!formData.state}
-              >
-                <Text style={
-                  formData.city ? styles.pickerText : 
-                  !formData.state ? styles.pickerDisabledText : styles.pickerPlaceholder
-                }>
-                  {!formData.state ? 'Select state first' : 
-                   formData.city || 'Select city'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* GSTIN and PAN */}
-          <View style={styles.row}>
-            <View style={[styles.inputGroup, styles.flex1]}>
-              <Text style={styles.label}>GSTIN</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="15-digit GSTIN"
-                value={formData.gstin}
-                onChangeText={(value) => handleInputChange('gstin', value)}
-                maxLength={15}
-              />
-            </View>
-            <View style={[styles.inputGroup, styles.flex1]}>
-              <Text style={styles.label}>PAN</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="10-digit PAN"
-                value={formData.pan}
-                onChangeText={(value) => handleInputChange('pan', value)}
-                maxLength={10}
-              />
-            </View>
-          </View>
-
-          {/* GST Registration Type */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>GST Registration Type</Text>
-            <TouchableOpacity
-              style={styles.pickerTrigger}
-              onPress={() => setShowGSTPicker(true)}
-            >
-              <Text style={styles.pickerText}>
-                {formData.gstRegistrationType}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* TDS Applicable Switch */}
-          <View style={styles.switchContainer}>
-            <Text style={styles.label}>TDS Applicable or Not</Text>
-            <Switch
-              value={formData.isTDSApplicable}
-              onValueChange={(value) => handleInputChange('isTDSApplicable', value)}
-            />
-          </View>
-
-          {/* TDS Details (conditional) */}
-          {formData.isTDSApplicable && (
-            <View style={styles.tdsSection}>
-              <View style={styles.row}>
-                <View style={[styles.inputGroup, styles.flex1]}>
-                  <Text style={styles.label}>TDS Rate (%)</Text>
+          {/* Form Section */}
+          <View style={styles.formContainer}>
+            {/* Vendor Name */}
+            <Controller
+              control={control}
+              name="vendorName"
+              render={({ field, fieldState }) => (
+                <View style={styles.field}>
+                  <Text style={styles.label}>Vendor Name *</Text>
                   <TextInput
-                    style={styles.input}
-                    placeholder="e.g. 10"
-                    keyboardType="numeric"
-                    value={formData.tdsRate?.toString()}
-                    onChangeText={(value) => handleInputChange('tdsRate', parseFloat(value) || 0)}
+                    style={[styles.input, fieldState.error && styles.inputError]}
+                    placeholder="e.g. Acme Supplies"
+                    value={field.value}
+                    onChangeText={field.onChange}
+                  />
+                  {fieldState.error && (
+                    <Text style={styles.error}>{fieldState.error.message}</Text>
+                  )}
+                </View>
+              )}
+            />
+
+            {/* Contact Number */}
+            <Controller
+              control={control}
+              name="contactNumber"
+              render={({ field, fieldState }) => (
+                <View style={styles.field}>
+                  <Text style={styles.label}>Mobile Number</Text>
+                  <TextInput
+                    style={[styles.input, fieldState.error && styles.inputError]}
+                    placeholder="9876543210"
+                    keyboardType="phone-pad"
+                    value={field.value}
+                    maxLength={10}
+                    onChangeText={(text) => field.onChange(text.replace(/\D/g, ""))}
+                  />
+                  {fieldState.error && (
+                    <Text style={styles.error}>{fieldState.error.message}</Text>
+                  )}
+                </View>
+              )}
+            />
+
+            {/* Email */}
+            <Controller
+              control={control}
+              name="email"
+              render={({ field, fieldState }) => (
+                <View style={styles.field}>
+                  <Text style={styles.label}>Email</Text>
+                  <TextInput
+                    style={[styles.input, fieldState.error && styles.inputError]}
+                    placeholder="contact@acme.com"
+                    value={field.value}
+                    onChangeText={field.onChange}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                  {fieldState.error && (
+                    <Text style={styles.error}>{fieldState.error.message}</Text>
+                  )}
+                </View>
+              )}
+            />
+
+            {/* Address */}
+            <Controller
+              control={control}
+              name="address"
+              render={({ field }) => (
+                <View style={styles.field}>
+                  <Text style={styles.label}>Address</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    placeholder="123 Industrial Area"
+                    value={field.value}
+                    onChangeText={field.onChange}
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
                   />
                 </View>
-                <View style={[styles.inputGroup, styles.flex1]}>
-                  <Text style={styles.label}>TDS Section</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g. 194J"
-                    value={formData.tdsSection}
-                    onChangeText={(value) => handleInputChange('tdsSection', value)}
+              )}
+            />
+
+            {/* STATE Picker with Search */}
+            <Controller
+              control={control}
+              name="state"
+              render={({ field }) => (
+                <View style={styles.field}>
+                  <Text style={styles.label}>State</Text>
+                  <TouchableOpacity
+                    style={styles.dropdown}
+                    onPress={() => setShowStatePicker(true)}
+                  >
+                    <Text style={field.value ? styles.dropdownTextSelected : styles.dropdownText}>
+                      {field.value || "Select state"}
+                    </Text>
+                    <Text style={styles.dropdownArrow}>▼</Text>
+                  </TouchableOpacity>
+
+                  <SearchablePicker
+                    visible={showStatePicker}
+                    onClose={() => setShowStatePicker(false)}
+                    options={stateOptions}
+                    onSelect={(selectedState) => {
+                      setStateCode(selectedState.value);
+                      field.onChange(selectedState.label);
+                      setValue('city', '');
+                    }}
+                    title="Select State"
+                    searchPlaceholder="Search state..."
+                  />
+                </View>
+              )}
+            />
+
+            {/* CITY Picker with Search */}
+            <Controller
+              control={control}
+              name="city"
+              render={({ field }) => (
+                <View style={styles.field}>
+                  <Text style={styles.label}>City</Text>
+                  <TouchableOpacity
+                    style={[styles.dropdown, !stateCode && styles.dropdownDisabled]}
+                    onPress={() => stateCode && setShowCityPicker(true)}
+                    disabled={!stateCode}
+                  >
+                    <Text style={field.value ? styles.dropdownTextSelected : styles.dropdownText}>
+                      {field.value || (stateCode ? "Select city" : "Select state first")}
+                    </Text>
+                    <Text style={styles.dropdownArrow}>▼</Text>
+                  </TouchableOpacity>
+
+                  <SearchablePicker
+                    visible={showCityPicker}
+                    onClose={() => setShowCityPicker(false)}
+                    options={cityOptions}
+                    onSelect={(selectedCity) => {
+                      field.onChange(selectedCity.label);
+                    }}
+                    title="Select City"
+                    searchPlaceholder="Search city..."
+                    disabled={!stateCode}
+                  />
+                </View>
+              )}
+            />
+
+            {/* GST Details Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>GST Details</Text>
+              
+              {/* GST Registration Type */}
+              <Controller
+                control={control}
+                name="gstRegistrationType"
+                render={({ field }) => (
+                  <View style={styles.field}>
+                    <Text style={styles.label}>GST Registration Type</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.optionScroll}>
+                      {gstRegistrationTypes.map((type) => (
+                        <TouchableOpacity
+                          key={type}
+                          onPress={() => field.onChange(type)}
+                          style={[
+                            styles.optionButton,
+                            field.value === type && styles.optionSelected
+                          ]}
+                        >
+                          <Text style={field.value === type ? styles.optionTextSelected : styles.optionText}>
+                            {type}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              />
+
+              {/* GSTIN & PAN */}
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Controller
+                    control={control}
+                    name="gstin"
+                    render={({ field, fieldState }) => (
+                      <View style={styles.field}>
+                        <Text style={styles.label}>GSTIN</Text>
+                        <TextInput
+                          style={[styles.input, fieldState.error && styles.inputError]}
+                          placeholder="15-digit GSTIN"
+                          value={field.value}
+                          onChangeText={(text) => field.onChange(text.toUpperCase())}
+                          maxLength={15}
+                          autoCapitalize="characters"
+                        />
+                        {fieldState.error && (
+                          <Text style={styles.error}>{fieldState.error.message}</Text>
+                        )}
+                      </View>
+                    )}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Controller
+                    control={control}
+                    name="pan"
+                    render={({ field, fieldState }) => (
+                      <View style={styles.field}>
+                        <Text style={styles.label}>PAN</Text>
+                        <TextInput
+                          style={[styles.input, fieldState.error && styles.inputError]}
+                          placeholder="10-digit PAN"
+                          value={field.value}
+                          onChangeText={(text) => field.onChange(text.toUpperCase())}
+                          maxLength={10}
+                          autoCapitalize="characters"
+                        />
+                        {fieldState.error && (
+                          <Text style={styles.error}>{fieldState.error.message}</Text>
+                        )}
+                      </View>
+                    )}
                   />
                 </View>
               </View>
             </View>
-          )}
-        </View>
-      </ScrollView>
 
-      {/* Submit Button */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
-          onPress={handleSubmit}
-          disabled={isSubmitting}
-        >
-          <Text style={styles.submitButtonText}>
-            {isSubmitting ? 'Submitting...' : vendor ? 'Save Changes' : 'Create Vendor'}
-          </Text>
-        </TouchableOpacity>
+            {/* TDS Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>TDS Details</Text>
+              
+              {/* TDS Applicable */}
+              <Controller
+                control={control}
+                name="isTDSApplicable"
+                render={({ field }) => (
+                  <View style={styles.fieldRow}>
+                    <Text style={styles.label}>TDS Applicable?</Text>
+                    <TouchableOpacity
+                      onPress={() => field.onChange(!field.value)}
+                      style={[styles.switch, field.value && styles.switchActive]}
+                    >
+                      <Text style={styles.switchText}>
+                        {field.value ? "Yes" : "No"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              />
+
+              {/* TDS Details (Conditional) */}
+              {isTDSApplicable && (
+                <View style={styles.tdsContainer}>
+                  <Controller
+                    control={control}
+                    name="tdsRate"
+                    render={({ field }) => (
+                      <View style={styles.field}>
+                        <Text style={styles.label}>TDS Rate (%)</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="10"
+                          keyboardType="numeric"
+                          value={String(field.value || "")}
+                          onChangeText={(val) => field.onChange(val ? Number(val) : "")}
+                        />
+                      </View>
+                    )}
+                  />
+                  <Controller
+                    control={control}
+                    name="tdsSection"
+                    render={({ field }) => (
+                      <View style={styles.field}>
+                        <Text style={styles.label}>TDS Section</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="194J"
+                          value={field.value}
+                          onChangeText={field.onChange}
+                        />
+                      </View>
+                    )}
+                  />
+                </View>
+              )}
+            </View>
+
+            {/* Submit Button */}
+            <TouchableOpacity
+              onPress={handleSubmit(onSubmit)}
+              disabled={isSubmitting}
+              style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitButtonText}>
+                  {vendor ? "Save Changes" : "Create Vendor"}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Extra space for better scrolling */}
+            <View style={styles.bottomSpace} />
+          </View>
+        </ScrollView>
       </View>
-
-      {/* Pickers */}
-      {renderPickerModal(
-        showStatePicker,
-        setShowStatePicker,
-        INDIA_STATES,
-        formData.state,
-        (value) => {
-          handleInputChange('state', value);
-          setShowStatePicker(false);
-        },
-        'State'
-      )}
-
-      {renderPickerModal(
-        showCityPicker,
-        setShowCityPicker,
-        availableCities,
-        formData.city,
-        (value) => {
-          handleInputChange('city', value);
-          setShowCityPicker(false);
-        },
-        'City'
-      )}
-
-      {renderPickerModal(
-        showGSTPicker,
-        setShowGSTPicker,
-        GST_REGISTRATION_TYPES,
-        formData.gstRegistrationType,
-        (value) => {
-          handleInputChange('gstRegistrationType', value);
-          setShowGSTPicker(false);
-        },
-        'GST Registration Type'
-      )}
-    </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  scrollContainer: {
+    flexGrow: 1,
+  },
+  header: {
     backgroundColor: '#fff',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
-  scrollView: {
-    flex: 1,
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
   },
-  form: {
+  headerSubtitle: {
+    fontSize: 16,
+    color: '#666',
+  },
+  formContainer: {
+    padding: 20,
+  },
+  section: {
+    marginBottom: 25,
     padding: 16,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
   },
-  inputGroup: {
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
     marginBottom: 16,
   },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
+  field: { 
+    marginBottom: 20 
   },
-  flex1: {
-    flex: 1,
+  fieldRow: { 
+    flexDirection: "row", 
+    justifyContent: "space-between", 
+    alignItems: "center", 
+    marginBottom: 20 
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 6,
-    color: '#374151',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+  label: { 
+    fontWeight: "600", 
+    marginBottom: 8,
     fontSize: 16,
-    backgroundColor: '#fff',
+    color: "#333"
   },
-  pickerTrigger: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    height: 44,
-  },
-  pickerText: {
-    fontSize: 16,
-    color: '#000',
-  },
-  pickerPlaceholder: {
-    fontSize: 16,
-    color: '#9ca3af',
-  },
-  pickerDisabled: {
-    backgroundColor: '#f3f4f6',
-    borderColor: '#e5e7eb',
-  },
-  pickerDisabledText: {
-    fontSize: 16,
-    color: '#9ca3af',
-  },
-  switchContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 16,
-  },
-  tdsSection: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 6,
+  input: { 
+    borderWidth: 1, 
+    borderColor: "#ddd", 
+    borderRadius: 8, 
     padding: 12,
-    marginBottom: 16,
+    fontSize: 16,
+    backgroundColor: "#fff"
   },
-  footer: {
+  textArea: {
+    minHeight: 80,
+  },
+  inputError: {
+    borderColor: "#ff3b30"
+  },
+  dropdown: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: "#fff",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center"
+  },
+  dropdownDisabled: {
+    backgroundColor: "#f5f5f5",
+    borderColor: "#eee"
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: "#999"
+  },
+  dropdownTextSelected: {
+    fontSize: 16,
+    color: "#333"
+  },
+  dropdownArrow: {
+    color: "#666",
+    fontSize: 12
+  },
+  error: {
+    color: "#ff3b30",
+    fontSize: 14,
+    marginTop: 5
+  },
+  optionScroll: {
+    marginHorizontal: -5,
+    marginBottom: 10,
+  },
+  optionButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    marginRight: 8,
+    marginBottom: 8
+  },
+  optionSelected: {
+    backgroundColor: "#007AFF",
+    borderColor: "#007AFF"
+  },
+  optionText: {
+    color: "#333",
+    fontSize: 14
+  },
+  optionTextSelected: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "500"
+  },
+  switch: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "#ddd"
+  },
+  switchActive: {
+    backgroundColor: "#007AFF"
+  },
+  switchText: {
+    color: "white",
+    fontWeight: "500",
+    fontSize: 14
+  },
+  tdsContainer: {
+    borderWidth: 1,
+    borderColor: "#eee",
+    borderRadius: 8,
     padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
+    marginTop: 10
   },
   submitButton: {
-    backgroundColor: '#2563eb',
-    borderRadius: 6,
-    paddingVertical: 12,
-    alignItems: 'center',
+    backgroundColor: "#007AFF",
+    padding: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 20,
+    marginBottom: 10
   },
   submitButtonDisabled: {
-    backgroundColor: '#9ca3af',
+    backgroundColor: "#ccc"
   },
   submitButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600"
   },
-  modalOverlay: {
+  bottomSpace: {
+    height: 50
+  },
+  // Toast Styles
+  toastOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-start',
+    paddingTop: 50,
   },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    maxHeight: '50%',
+  toastContainer: {
+    margin: 20,
+    padding: 16,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  toastTitle: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  toastMessage: {
+    color: 'white',
+    fontSize: 14
+  },
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#fff"
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: "#eee",
+    marginTop: Platform.OS === 'ios' ? 40 : 0
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
+    color: "#333"
   },
-  modalClose: {
+  closeButton: {
+    padding: 4
+  },
+  closeButtonText: {
+    fontSize: 20,
+    color: "#666"
+  },
+  searchContainer: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee"
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 12,
     fontSize: 16,
-    color: '#2563eb',
-    fontWeight: '600',
+    backgroundColor: "#f9f9f9"
   },
+  optionsContainer: {
+    flex: 1
+  },
+  optionItem: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0"
+  },
+  optionText: {
+    fontSize: 16,
+    color: "#333"
+  },
+  noResultsText: {
+    textAlign: "center",
+    padding: 20,
+    color: "#999",
+    fontSize: 16
+  }
 });
-
-export default VendorForm;

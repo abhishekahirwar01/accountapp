@@ -1,290 +1,672 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  Alert,
-  StyleSheet,
-  Modal,
-  ActivityIndicator,
   FlatList,
+  ActivityIndicator,
+  Keyboard,
+  StyleSheet,
+  Alert,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
-import { Trash2 } from 'lucide-react-native';
+import { BASE_URL } from '../../config';
+import { searchSACCodes, getSACByCode } from '../../lib/sacService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 
-export function ServiceForm({
+// Form Schema with Zod
+const formSchema = z.object({
+  serviceName: z.string().min(2, 'Service name is required.'),
+  amount: z.coerce.number().min(0, 'Amount must be a positive number.').default(0),
+  sac: z.string().optional(),
+});
+
+export default function ServiceForm({
   service,
   onSuccess,
   onDelete,
-  onCancel,
-  visible = true,
+  onServiceCreated,
+  initialName,
+  navigation,
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [serviceName, setServiceName] = useState(service?.serviceName || '');
-  const [sacCode, setSacCode] = useState(service?.sacCode || '');
-  const [errors, setErrors] = useState({});
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // SAC Search States
   const [sacSuggestions, setSacSuggestions] = useState([]);
+  const [showSacSuggestions, setShowSacSuggestions] = useState(false);
+  const [showSacModal, setShowSacModal] = useState(false);
+  const [isLoadingSacSuggestions, setIsLoadingSacSuggestions] = useState(false);
+  const [sacSelectedFromDropdown, setSacSelectedFromDropdown] = useState(false);
 
-  useEffect(() => {
-    setServiceName(service?.serviceName || '');
-    setSacCode(service?.sacCode || '');
-    setErrors({});
-  }, [service]);
+  const sacInputRef = useRef(null);
+  const isInitialLoad = useRef(true);
 
-  // Simple mock SAC codes for suggestion
-  const MOCK_SAC_CODES = ['9954', '9987', '9963', '9951', '9959'];
+  // React Hook Form
+  const {
+    control,
+    handleSubmit,
+    watch,
+    setValue,
+    setError,
+    clearErrors,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      serviceName: service?.serviceName || initialName || '',
+      amount: service?.amount || 0,
+      sac: service?.sac || '',
+    },
+  });
 
-  useEffect(() => {
-    if (sacCode.length >= 2) {
-      setSacSuggestions(
-        MOCK_SAC_CODES.filter(code => code.startsWith(sacCode)),
-      );
-    } else {
-      setSacSuggestions([]);
-    }
-  }, [sacCode]);
+  const sacValue = watch('sac');
+  const amountValue = watch('amount');
 
-  const validateForm = () => {
-    const newErrors = {};
-    if (!serviceName.trim())
-      newErrors.serviceName = 'Service name is required.';
-    else if (serviceName.trim().length < 2)
-      newErrors.serviceName = 'Service name must be at least 2 characters.';
+  // Format currency for display
+  const formatCurrency = (value) => {
+    if (value === '' || value === null || value === undefined) return '';
+    
+    const num = typeof value === 'string' ? Number(value.replace(/[^\d.]/g, '')) : value;
+    if (isNaN(num)) return String(value);
 
-    if (!sacCode.trim()) newErrors.sacCode = 'SAC Code is required.';
-    else if (!/^\d+$/.test(sacCode.trim()))
-      newErrors.sacCode = 'SAC Code must be numeric.';
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(num);
   };
 
-  const handleSubmit = () => {
-    if (!validateForm()) return;
-    setIsSubmitting(true);
-
-    setTimeout(() => {
-      try {
-        const newService = {
-          _id: service?._id || Date.now().toString(),
-          serviceName: serviceName.trim(),
-          sacCode: sacCode.trim(),
-        };
-        onSuccess(newService);
-        if (!service) {
-          setServiceName('');
-          setSacCode('');
-        }
-      } catch (error) {
-        Alert.alert(
-          'Operation Failed',
-          error?.message || 'Unknown error occurred.',
-        );
-      } finally {
-        setIsSubmitting(false);
+  // Debounced SAC search
+  useEffect(() => {
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+      if (service?.sac && service.sac.length >= 2) {
+        return;
       }
-    }, 1000);
+    }
+
+    if (sacSelectedFromDropdown) {
+      setShowSacSuggestions(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      if (sacValue && sacValue.length >= 2) {
+        setIsLoadingSacSuggestions(true);
+        const results = searchSACCodes(sacValue);
+        setSacSuggestions(results);
+        setShowSacSuggestions(true);
+        setIsLoadingSacSuggestions(false);
+      } else {
+        setShowSacSuggestions(false);
+        setSacSuggestions([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [sacValue, sacSelectedFromDropdown, service]);
+
+  const handleSACSelect = (sac) => {
+    setValue('sac', sac.code);
+    setShowSacSuggestions(false);
+    setSacSelectedFromDropdown(true);
+    setShowSacModal(false);
+    Keyboard.dismiss();
   };
 
-  const handleDelete = () => {
-    if (!service?._id || !onDelete) return;
+  const handleSACInputFocus = () => {
+    if (sacValue && sacValue.length >= 2) {
+      setIsLoadingSacSuggestions(true);
+      const results = searchSACCodes(sacValue);
+      setSacSuggestions(results);
+      setShowSacSuggestions(true);
+      setIsLoadingSacSuggestions(false);
+    } else {
+      setShowSacSuggestions(true);
+    }
+  };
 
+  const handleSACInputBlur = () => {
+    setTimeout(() => {
+      setShowSacSuggestions(false);
+    }, 200);
+  };
+
+  const onSubmit = async (values) => {
+    // Validate SAC code before submission
+    if (values.sac && values.sac.trim() && !sacSelectedFromDropdown) {
+      const validSAC = getSACByCode(values.sac.trim());
+      if (!validSAC) {
+        setError('sac', {
+          type: 'manual',
+          message: 'Please select a valid SAC code from the dropdown suggestions.',
+        });
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const url = service
+        ? `${BASE_URL}/api/services/${service._id}`
+        : `${BASE_URL}/api/services`;
+
+      const method = service ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(values),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(
+          data.message || `Failed to ${service ? 'update' : 'create'} service.`,
+        );
+      }
+
+      onSuccess(data.service || data);
+      if (!service && onServiceCreated) {
+        onServiceCreated();
+      }
+      
+      if (navigation) {
+        navigation.goBack();
+      }
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Something went wrong.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!service?._id || !onDelete) return;
+    
     Alert.alert(
-      'Delete Service',
+      'Confirm Delete',
       'Are you sure you want to delete this service?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setIsSubmitting(true);
-            setTimeout(() => {
-              try {
-                Alert.alert(
-                  'Service Deleted',
-                  `${service.serviceName} deleted successfully.`,
-                );
-                onDelete(service);
-              } catch (error) {
-                Alert.alert(
-                  'Delete Failed',
-                  error?.message || 'Unknown error.',
-                );
-              } finally {
-                setIsSubmitting(false);
+          onPress: async () => {
+            try {
+              setIsDeleting(true);
+              const token = await AsyncStorage.getItem('token');
+              if (!token) throw new Error('Authentication token not found.');
+
+              const res = await fetch(`${BASE_URL}/api/services/${service._id}`, {
+                method: 'DELETE',
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              });
+
+              if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || 'Failed to delete service.');
               }
-            }, 1000);
+
+              Alert.alert('Success', `${service.serviceName} has been deleted.`);
+              onDelete(service);
+              
+              if (navigation) {
+                navigation.goBack();
+              }
+            } catch (error) {
+              Alert.alert('Error', error.message || 'Something went wrong.');
+            } finally {
+              setIsDeleting(false);
+            }
           },
         },
       ],
     );
   };
 
-  if (!visible) return null;
+  // Render SAC Suggestions
+  const renderSacSuggestions = () => {
+    return sacSuggestions.map((sac, index) => (
+      <TouchableOpacity
+        key={sac.code}
+        style={styles.sacItem}
+        onPress={() => handleSACSelect(sac)}
+      >
+        <View style={styles.sacCodeContainer}>
+          <Text style={styles.sacCode}>{sac.code}</Text>
+          <View style={styles.sacBadge}>
+            <Text style={styles.sacBadgeText}>SAC</Text>
+          </View>
+        </View>
+        <Text style={styles.sacDescription}>{sac.description}</Text>
+      </TouchableOpacity>
+    ));
+  };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.form}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {/* Service Name */}
-        <View style={styles.formGroup}>
+        <View style={styles.field}>
           <Text style={styles.label}>Service Name</Text>
-          <TextInput
-            style={[styles.input, errors.serviceName && styles.inputError]}
-            placeholder="e.g. Annual Maintenance Contract"
-            value={serviceName}
-            onChangeText={setServiceName}
-            editable={!isSubmitting}
+          <Controller
+            control={control}
+            name="serviceName"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                style={[styles.input, errors.serviceName && styles.inputError]}
+                placeholder="e.g. Annual Maintenance Contract"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+              />
+            )}
           />
           {errors.serviceName && (
-            <Text style={styles.errorText}>{errors.serviceName}</Text>
+            <Text style={styles.error}>{errors.serviceName.message}</Text>
           )}
         </View>
 
-        {/* SAC Code */}
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>SAC Code</Text>
-          <TextInput
-            style={[styles.input, errors.sacCode && styles.inputError]}
-            placeholder="Search SAC code (e.g., 9954)"
-            value={sacCode}
-            onChangeText={setSacCode}
-            editable={!isSubmitting}
-            keyboardType="numeric"
-          />
-          {errors.sacCode && (
-            <Text style={styles.errorText}>{errors.sacCode}</Text>
-          )}
+        {/* Amount Field */}
+        <View style={styles.field}>
+          <Text style={styles.label}>Amount</Text>
+          <Controller
+            control={control}
+            name="amount"
+            render={({ field: { onChange, onBlur, value } }) => {
+              const [displayValue, setDisplayValue] = useState(
+                value ? formatCurrency(value) : ''
+              );
 
-          {/* SAC Suggestions */}
-          {sacSuggestions.length > 0 && (
-            <View style={styles.suggestions}>
-              <FlatList
-                data={sacSuggestions}
-                keyExtractor={item => item}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    onPress={() => setSacCode(item)}
-                    style={styles.suggestionItem}
-                  >
-                    <Text>{item}</Text>
-                  </TouchableOpacity>
-                )}
-              />
-            </View>
-          )}
-        </View>
-
-        {/* Buttons */}
-        <View style={styles.buttonContainer}>
-          {onCancel && (
-            <TouchableOpacity
-              style={[styles.button, styles.cancelButton]}
-              onPress={onCancel}
-              disabled={isSubmitting}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          )}
-
-          {service && onDelete && (
-            <TouchableOpacity
-              style={[styles.button, styles.deleteButton]}
-              onPress={handleDelete}
-              disabled={isSubmitting}
-            >
-              <Trash2 size={16} color="#fff" />
-              <Text style={styles.deleteButtonText}>Delete</Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={[
-              styles.button,
-              styles.submitButton,
-              isSubmitting && styles.disabledButton,
-            ]}
-            onPress={handleSubmit}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <>
-                <ActivityIndicator
-                  size="small"
-                  color="#fff"
-                  style={{ marginRight: 6 }}
+              return (
+                <TextInput
+                  style={[styles.input, errors.amount && styles.inputError]}
+                  placeholder="₹0"
+                  keyboardType="decimal-pad"
+                  value={displayValue}
+                  onChangeText={(text) => {
+                    const raw = text.replace(/[^\d.]/g, '');
+                    const parts = raw.split('.');
+                    if (parts.length > 2) return;
+                    
+                    setDisplayValue(formatCurrency(raw));
+                    onChange(raw === '' ? 0 : parseFloat(raw));
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (displayValue) {
+                      const num = parseFloat(displayValue.replace(/[^\d.]/g, ''));
+                      if (!isNaN(num)) {
+                        const formatted = formatCurrency(num);
+                        setDisplayValue(formatted);
+                        onChange(num);
+                      }
+                    }
+                  }}
                 />
-                <Text style={styles.submitButtonText}>
-                  {service ? 'Saving...' : 'Creating...'}
-                </Text>
+              );
+            }}
+          />
+          {errors.amount && (
+            <Text style={styles.error}>{errors.amount.message}</Text>
+          )}
+        </View>
+
+        {/* SAC Code Input */}
+        <View style={styles.field}>
+          <Text style={styles.label}>SAC Code</Text>
+          <Controller
+            control={control}
+            name="sac"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <>
+                <TouchableOpacity
+                  style={[
+                    styles.dropdownButton,
+                    errors.sac && styles.inputError,
+                  ]}
+                  onPress={() => setShowSacModal(true)}
+                >
+                  <Text style={styles.dropdownButtonText}>
+                    {value || 'Select SAC code...'}
+                  </Text>
+                  <Text style={styles.dropdownArrow}>▼</Text>
+                </TouchableOpacity>
+
+                {/* SAC Selection Modal */}
+                <Modal
+                  visible={showSacModal}
+                  animationType="slide"
+                  transparent={true}
+                >
+                  <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                      <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>Select SAC Code</Text>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setShowSacModal(false);
+                          }}
+                        >
+                          <Text style={styles.closeButton}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <View style={styles.searchContainer}>
+                        <TextInput
+                          style={styles.searchInput}
+                          placeholder="Search SAC codes (e.g., 9954)"
+                          value={value}
+                          onChangeText={(text) => {
+                            onChange(text);
+                            setSacSelectedFromDropdown(false);
+                            if (text.length >= 2) {
+                              setIsLoadingSacSuggestions(true);
+                              const results = searchSACCodes(text);
+                              setSacSuggestions(results);
+                              setIsLoadingSacSuggestions(false);
+                            } else {
+                              setSacSuggestions([]);
+                            }
+                          }}
+                          autoFocus={true}
+                        />
+                      </View>
+
+                      {isLoadingSacSuggestions && (
+                        <ActivityIndicator
+                          style={styles.sacLoading}
+                          size="small"
+                        />
+                      )}
+
+                      <FlatList
+                        data={sacSuggestions}
+                        keyExtractor={(item) => item.code}
+                        renderItem={({ item }) => (
+                          <TouchableOpacity
+                            style={styles.sacItem}
+                            onPress={() => handleSACSelect(item)}
+                          >
+                            <View style={styles.sacCodeContainer}>
+                              <Text style={styles.sacCode}>{item.code}</Text>
+                              <View style={styles.sacBadge}>
+                                <Text style={styles.sacBadgeText}>SAC</Text>
+                              </View>
+                            </View>
+                            <Text style={styles.sacDescription}>
+                              {item.description}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                        ListEmptyComponent={
+                          value && value.length >= 2 ? (
+                            <View style={styles.emptyState}>
+                              <Text style={styles.emptyText}>
+                                No matching SAC codes found
+                              </Text>
+                              <Text style={styles.emptySubtext}>
+                                Please check the code or enter manually
+                              </Text>
+                            </View>
+                          ) : (
+                            <View style={styles.emptyState}>
+                              <Text style={styles.emptyText}>
+                                Type minimum 2 characters to search
+                              </Text>
+                            </View>
+                          )
+                        }
+                        style={styles.sacList}
+                        keyboardShouldPersistTaps="handled"
+                      />
+                    </View>
+                  </View>
+                </Modal>
               </>
+            )}
+          />
+          {errors.sac && <Text style={styles.error}>{errors.sac.message}</Text>}
+          <Text style={styles.helperText}>
+            Start typing 2+ characters to see SAC code suggestions
+          </Text>
+        </View>
+
+        {/* Submit Button */}
+        <TouchableOpacity
+          style={[styles.button, isSubmitting && styles.buttonDisabled]}
+          onPress={handleSubmit(onSubmit)}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>
+              {service ? 'Save Changes' : 'Create Service'}
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Delete Button */}
+        {service && onDelete && (
+          <TouchableOpacity
+            style={[styles.deleteButton, isDeleting && styles.buttonDisabled]}
+            onPress={handleDelete}
+            disabled={isDeleting}
+          >
+            {isDeleting ? (
+              <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitButtonText}>
-                {service ? 'Save Changes' : 'Create Service'}
-              </Text>
+              <Text style={styles.buttonText}>Delete Service</Text>
             )}
           </TouchableOpacity>
-        </View>
-      </View>
-    </View>
+        )}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
-// Styles (updated to include suggestions)
 const styles = StyleSheet.create({
-  container: { width: '100%', maxWidth: 400, alignSelf: 'center' },
-  form: { padding: 16 },
-  formGroup: { marginBottom: 20 },
-  label: { fontSize: 14, fontWeight: '500', color: '#374151', marginBottom: 8 },
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  field: {
+    marginBottom: 20,
+  },
+  label: {
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+    fontSize: 16,
+  },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: '#D1D5DB',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     backgroundColor: '#fff',
   },
-  inputError: { borderColor: '#ef4444' },
-  errorText: { color: '#ef4444', fontSize: 12, marginTop: 4 },
-  suggestions: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
+  inputError: {
+    borderColor: '#EF4444',
+  },
+  error: {
+    color: '#EF4444',
+    fontSize: 14,
+    marginTop: 5,
+  },
+  helperText: {
+    color: '#6B7280',
+    fontSize: 12,
     marginTop: 4,
-    maxHeight: 100,
-    backgroundColor: '#fff',
-  },
-  suggestionItem: {
-    padding: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    marginTop: 24,
-    flexWrap: 'wrap',
   },
   button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    backgroundColor: '#2563EB',
+    padding: 16,
     borderRadius: 8,
-    gap: 8,
-    minWidth: 100,
+    alignItems: 'center',
+    marginTop: 10,
   },
-  cancelButton: {
-    backgroundColor: 'transparent',
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  deleteButton: {
+    backgroundColor: '#DC2626',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  // Dropdown Styles
+  dropdownButton: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  cancelButtonText: { color: '#6b7280', fontWeight: '500', fontSize: 14 },
-  deleteButton: { backgroundColor: '#ef4444' },
-  deleteButtonText: { color: '#fff', fontWeight: '500', fontSize: 14 },
-  submitButton: { backgroundColor: '#2563eb' },
-  disabledButton: { backgroundColor: '#9ca3af' },
-  submitButtonText: { color: '#fff', fontWeight: '500', fontSize: 14 },
+  dropdownButtonText: {
+    fontSize: 16,
+    color: '#374151',
+  },
+  dropdownArrow: {
+    color: '#6B7280',
+    fontSize: 12,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    maxHeight: '80%',
+    width: '100%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  closeButton: {
+    fontSize: 20,
+    color: '#6B7280',
+    fontWeight: 'bold',
+  },
+  searchContainer: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#F9FAFB',
+  },
+  // SAC List Styles
+  sacList: {
+    maxHeight: 400,
+  },
+  sacItem: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  sacCodeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  sacCode: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  sacBadge: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  sacBadgeText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  sacDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  sacLoading: {
+    padding: 16,
+  },
+  emptyState: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#6B7280',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    color: '#9CA3AF',
+    fontSize: 14,
+    marginTop: 4,
+    textAlign: 'center',
+  },
 });
