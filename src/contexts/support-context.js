@@ -1,32 +1,35 @@
-import React, { createContext, useState, useContext } from 'react';
+// SupportContext.js
+import React, { createContext, useContext, useState } from 'react';
 
 const SupportContext = createContext(undefined);
 
-export function SupportProvider({ children }) {
+export const SupportProvider = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  const toggleSupport = () => setIsOpen(!isOpen);
+  const toggleSupport = () => setIsOpen(prev => !prev);
   const openSupport = () => setIsOpen(true);
   const closeSupport = () => setIsOpen(false);
 
-  const value = {
-    isOpen,
-    toggleSupport,
-    openSupport,
-    closeSupport,
-  };
-
   return (
-    <SupportContext.Provider value={value}>
+    <SupportContext.Provider
+      value={{
+        isOpen,
+        toggleSupport,
+        openSupport,
+        closeSupport,
+      }}
+    >
       {children}
     </SupportContext.Provider>
   );
-}
+};
 
-export function useSupport() {
+export const useSupport = () => {
   const context = useContext(SupportContext);
-  if (context === undefined) {
-    throw new Error("useSupport must be used within a SupportProvider");
+
+  if (!context) {
+    throw new Error('useSupport must be used within a SupportProvider');
   }
+
   return context;
-}
+};
