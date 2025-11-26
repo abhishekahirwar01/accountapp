@@ -103,17 +103,17 @@ const Card = ({ children, style }) => (
 );
 
 // Custom Button Component
-const Button = ({ 
-  children, 
-  onPress, 
-  mode = 'contained', 
-  loading = false, 
+const Button = ({
+  children,
+  onPress,
+  mode = 'contained',
+  loading = false,
   style,
   icon: Icon,
-  labelStyle 
+  labelStyle,
 }) => {
   const isOutlined = mode === 'outlined';
-  
+
   return (
     <TouchableOpacity
       style={[
@@ -126,13 +126,18 @@ const Button = ({
     >
       {Icon && <Icon size={18} style={styles.buttonIcon} />}
       {loading ? (
-        <ActivityIndicator size="small" color={isOutlined ? '#0A66C2' : 'white'} />
+        <ActivityIndicator
+          size="small"
+          color={isOutlined ? '#0A66C2' : 'white'}
+        />
       ) : (
-        <Text style={[
-          styles.buttonText,
-          isOutlined ? styles.buttonOutlinedText : styles.buttonContainedText,
-          labelStyle
-        ]}>
+        <Text
+          style={[
+            styles.buttonText,
+            isOutlined ? styles.buttonOutlinedText : styles.buttonContainedText,
+            labelStyle,
+          ]}
+        >
           {children}
         </Text>
       )}
@@ -356,68 +361,63 @@ export default function DashboardPage() {
 
   return (
     <AppLayout>
+      {/* Fixed header placed above scroll to keep controls accessible */}
+      <View style={[styles.header, styles.headerFixed]}>
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>Dashboard</Text>
+          <Text style={styles.subtitle}>
+            {selectedCompany
+              ? `An overview of ${selectedCompany.businessName}.`
+              : 'An overview across all companies.'}
+          </Text>
+        </View>
+
+        {companies.length > 0 && (
+          <View style={styles.buttonGroup}>
+            <View>
+              <Suspense
+                fallback={
+                  <Button mode="outlined" loading style={styles.actionButton} />
+                }
+              >
+                <UpdateWalkthrough />
+              </Suspense>
+            </View>
+
+            <Button
+              mode="outlined"
+              onPress={goToSettings}
+              icon={Settings}
+              style={styles.actionButton}
+            >
+              Settings
+            </Button>
+
+            <Button
+              mode="outlined"
+              onPress={() => setIsProformaFormOpen(true)}
+              icon={FileText}
+              style={styles.actionButton}
+            >
+              Proforma
+            </Button>
+
+            <Button
+              mode="contained"
+              onPress={() => setIsTransactionFormOpen(true)}
+              icon={PlusCircle}
+              style={styles.actionButton}
+            >
+              New Transaction
+            </Button>
+          </View>
+        )}
+      </View>
+
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
       >
-        {/* Title and Action Buttons */}
-        <View style={styles.header}>
-          <View style={styles.titleContainer}>
-            <Text style={styles.title}>Dashboard</Text>
-            <Text style={styles.subtitle}>
-              {selectedCompany
-                ? `An overview of ${selectedCompany.businessName}.`
-                : 'An overview across all companies.'}
-            </Text>
-          </View>
-
-          {companies.length > 0 && (
-            <View style={styles.buttonGroup}>
-              {/* Update Walkthrough - Placeholder */}
-              <View>
-                <Suspense
-                  fallback={
-                    <Button
-                      mode="outlined"
-                      loading
-                      style={styles.actionButton}
-                    />
-                  }
-                >
-                  <UpdateWalkthrough />
-                </Suspense>
-              </View>
-
-              <Button
-                mode="outlined"
-                onPress={goToSettings}
-                icon={Settings}
-                style={styles.actionButton}
-              >
-                Settings
-              </Button>
-
-              <Button
-                mode="outlined"
-                onPress={() => setIsProformaFormOpen(true)}
-                icon={FileText}
-                style={styles.actionButton}
-              >
-                Proforma
-              </Button>
-
-              <Button
-                mode="contained"
-                onPress={() => setIsTransactionFormOpen(true)}
-                icon={PlusCircle}
-                style={styles.actionButton}
-              >
-                New Transaction
-              </Button>
-            </View>
-          )}
-        </View>
-
         {/* Account Validity Notice - Placeholder */}
         <Suspense
           fallback={
@@ -463,66 +463,84 @@ export default function DashboardPage() {
             </View>
           </>
         )}
+      </ScrollView>
 
-        {/* Transaction Modals */}
-        <Modal
-          visible={isProformaFormOpen}
-          animationType="slide"
-          onRequestClose={() => setIsProformaFormOpen(false)}
-        >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
+      {/* Transaction Modals moved outside scroll so they overlay correctly */}
+      <Modal
+        visible={isProformaFormOpen}
+        animationType="slide"
+        onRequestClose={() => setIsProformaFormOpen(false)}
+      >
+        <View style={styles.modalContainer}>
+          <ScrollView
+            style={styles.modalContent}
+            contentContainerStyle={styles.modalScrollContent}
+          >
+            <View style={styles.modalHeaderInline}>
               <Text style={styles.modalTitle}>Create Proforma Invoice</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setIsProformaFormOpen(false)}
                 style={styles.closeButton}
               >
                 <Text style={styles.closeButtonText}>×</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalContent}>
-              <Text style={styles.modalDescription}>
-                Fill in the details below to create a new proforma invoice.
-              </Text>
-              <Suspense
-                fallback={<ActivityIndicator style={{ marginTop: 20 }} />}
-              >
-                <ProformaForm
-                  onFormSubmit={handleProformaFormSubmit}
-                  serviceNameById={dashboardData?.serviceNameById || new Map()}
-                />
-              </Suspense>
-            </ScrollView>
-          </View>
-        </Modal>
 
-        <Modal
-          visible={isTransactionFormOpen}
-          animationType="slide"
-          onRequestClose={() => setIsTransactionFormOpen(false)}
-        >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
+            <Text style={styles.modalDescription}>
+              Fill in the details below to create a new proforma invoice.
+            </Text>
+            <Suspense
+              fallback={<ActivityIndicator style={{ marginTop: 20 }} />}
+            >
+              <ProformaForm
+                onFormSubmit={handleProformaFormSubmit}
+                serviceNameById={dashboardData?.serviceNameById || new Map()}
+              />
+            </Suspense>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={isTransactionFormOpen}
+        animationType="slide"
+        onRequestClose={() => setIsTransactionFormOpen(false)}
+      >
+        <View style={styles.modalContainer}>
+          <ScrollView
+            style={styles.modalContent}
+            contentContainerStyle={styles.modalScrollContent}
+          >
+            <View style={styles.modalHeaderInline}>
               <Text style={styles.modalTitle}>Create a New Transaction</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setIsTransactionFormOpen(false)}
                 style={styles.closeButton}
               >
                 <Text style={styles.closeButtonText}>×</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalContent}>
-              <Text style={styles.modalDescription}>
-                Fill in the details below to record a new financial event.
-              </Text>
-              <TransactionForm
-                onFormSubmit={handleTransactionFormSubmit}
-                serviceNameById={dashboardData?.serviceNameById || new Map()}
-              />
-            </ScrollView>
-          </View>
-        </Modal>
-      </ScrollView>
+
+            <Text style={styles.modalDescription}>
+              Fill in the details below to record a new financial event.
+            </Text>
+            <TransactionForm
+              onFormSubmit={handleTransactionFormSubmit}
+              serviceNameById={dashboardData?.serviceNameById || new Map()}
+            />
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Floating action button for quick access */}
+      {companies.length > 0 && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => setIsTransactionFormOpen(true)}
+        >
+          <PlusCircle size={22} color="white" />
+        </TouchableOpacity>
+      )}
     </AppLayout>
   );
 }
@@ -549,6 +567,13 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
+  },
+  headerFixed: {
+    backgroundColor: 'white',
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e6e6e6',
+    zIndex: 20,
   },
   subtitle: {
     fontSize: 16,
@@ -704,9 +729,37 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+  modalScrollContent: {
+    paddingBottom: 48,
+  },
+  modalHeaderInline: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
   modalDescription: {
     fontSize: 16,
     color: '#666',
     marginBottom: 16,
+  },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 28,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#0A66C2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
 });
