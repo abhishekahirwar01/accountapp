@@ -344,13 +344,8 @@ export function FormTabs({
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          isKeyboardVisible && styles.keyboardOpen,
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      <View
+        style={[styles.scrollContent, isKeyboardVisible && styles.keyboardOpen]}
       >
         <TypeSelectorMobile />
 
@@ -571,7 +566,7 @@ export function FormTabs({
             </View>
           )}
         </View>
-      </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -1348,7 +1343,7 @@ export function HSNSearchInput({ onSelect, placeholder, value, onChange }) {
                 </Text>
               </TouchableOpacity>
             )}
-            nestedScrollEnabled={true}
+            nestedScrollEnabled={false}
           />
         </View>
       )}
@@ -1503,7 +1498,7 @@ export function SACSearchInput({ onSelect, placeholder, value, onChange }) {
                 </Text>
               </TouchableOpacity>
             )}
-            nestedScrollEnabled={true}
+            nestedScrollEnabled={false}
           />
         </View>
       )}

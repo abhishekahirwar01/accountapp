@@ -413,8 +413,10 @@ export function TransactionForm({
   const paymentMethodsForReceipt = ['Cash', 'UPI', 'Bank Transfer', 'Cheque'];
 
   const form = useTransactionForm(undefined, defaultType);
+  const scrollViewRef = useRef(null);
   const { registerField, scrollToFirstError } = useFormFocus(
     form.formState.errors,
+    scrollViewRef,
   );
 
   useEffect(() => {
@@ -3251,7 +3253,9 @@ export function TransactionForm({
   return (
     <View style={styles.container}>
       <KeyboardAwareScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
+        contentContainerStyle={{ paddingBottom: 140 }}
         extraHeight={100}
         enableOnAndroid={true}
         keyboardShouldPersistTaps="handled"
@@ -3367,8 +3371,12 @@ export function TransactionForm({
             paymentMethodReceiptOptions,
           }}
         />
+      </KeyboardAwareScrollView>
 
-        <View style={styles.submitButtonContainer}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.stickySubmitContainer}>
           <Button
             mode="contained"
             onPress={form.handleSubmit(async data => {
@@ -3394,7 +3402,7 @@ export function TransactionForm({
             {transactionToEdit ? 'Save Changes' : 'Create Transaction'}
           </Button>
         </View>
-      </KeyboardAwareScrollView>
+      </KeyboardAvoidingView>
 
       <Dialog
         visible={isPartyDialogOpen}
@@ -3806,6 +3814,21 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
   },
   dialogTitle: {
+    stickySubmitContainer: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      padding: 12,
+      backgroundColor: 'white',
+      borderTopWidth: 1,
+      borderTopColor: '#e0e0e0',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 6,
+      elevation: 8,
+    },
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',

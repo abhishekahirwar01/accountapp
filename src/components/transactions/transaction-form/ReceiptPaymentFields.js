@@ -198,7 +198,7 @@ export const ReceiptPaymentFields = props => {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.content}>
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Company</Text>
@@ -457,7 +457,7 @@ export const ReceiptPaymentFields = props => {
           </Button>
         </Modal>
       </Portal>
-    </ScrollView>
+    </View>
   );
 };
 

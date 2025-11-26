@@ -1227,6 +1227,7 @@ export const SalesPurchasesFields = props => {
                   styles.textInput,
                   errors?.items?.[index]?.quantity ? styles.errorBorder : {},
                 ]}
+                ref={ref => registerFieldRef(`items.${index}.quantity`, ref)}
                 value={watch(`items.${index}.quantity`)?.toString() || ''}
                 onChangeText={text => handleQuantityChange(text, index)}
                 keyboardType="numeric"
@@ -1342,6 +1343,9 @@ export const SalesPurchasesFields = props => {
                     ? styles.errorBorder
                     : {},
                 ]}
+                ref={ref =>
+                  registerFieldRef(`items.${index}.pricePerUnit`, ref)
+                }
                 value={watch(`items.${index}.pricePerUnit`)?.toString() || ''}
                 onChangeText={text => handlePriceChange(text, index)}
                 keyboardType="decimal-pad"
@@ -1358,6 +1362,7 @@ export const SalesPurchasesFields = props => {
                   styles.rightAlignedInput,
                   errors?.items?.[index]?.amount ? styles.errorBorder : {},
                 ]}
+                ref={ref => registerFieldRef(`items.${index}.amount`, ref)}
                 value={formatWithCommas(watch(`items.${index}.amount`))}
                 onChangeText={text => handleAmountChange(text, index, 'amount')}
                 keyboardType="decimal-pad"
@@ -1482,6 +1487,9 @@ export const SalesPurchasesFields = props => {
                         ? styles.errorBorder
                         : {},
                     ]}
+                    ref={ref =>
+                      registerFieldRef(`items.${index}.lineTotal`, ref)
+                    }
                     value={formatWithCommas(watch(`items.${index}.lineTotal`))}
                     onChangeText={text =>
                       handleAmountChange(text, index, 'lineTotal')
@@ -1586,6 +1594,7 @@ export const SalesPurchasesFields = props => {
                   styles.textInput,
                   errors?.items?.[index]?.amount ? styles.errorBorder : {},
                 ]}
+                ref={ref => registerFieldRef(`items.${index}.amount`, ref)}
                 value={formatWithCommas(watch(`items.${index}.amount`))}
                 onChangeText={text => handleAmountChange(text, index, 'amount')}
                 keyboardType="decimal-pad"
@@ -1601,6 +1610,7 @@ export const SalesPurchasesFields = props => {
                   styles.textInput,
                   errors?.items?.[index]?.description ? styles.errorBorder : {},
                 ]}
+                ref={ref => registerFieldRef(`items.${index}.description`, ref)}
                 value={watch(`items.${index}.description`) || ''}
                 onChangeText={text =>
                   setValue(`items.${index}.description`, text)
@@ -1768,7 +1778,7 @@ export const SalesPurchasesFields = props => {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       {/* Transaction Details Section */}
       <CustomCard style={styles.sectionCard}>
         <View style={styles.sectionContent}>
@@ -1794,96 +1804,52 @@ export const SalesPurchasesFields = props => {
               <View style={styles.row}>
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Company</Text>
-                  <Controller
-                    control={control}
-                    name="company"
-                    render={({ field: { onChange, value } }) => (
-                      <Picker
-                        selectedValue={value}
-                        onValueChange={itemValue => {
-                          onChange(itemValue);
-                          setSelectedCompany(itemValue);
-                          validateField('company');
-                        }}
-                        style={[
-                          styles.picker,
-                          errors.company ? styles.errorBorder : {},
-                        ]}
-                      >
-                        <Picker.Item label="Select a company" value="" />
-                        {companies.map(c => (
-                          <Picker.Item
-                            key={c._id}
-                            label={c.businessName}
-                            value={c._id}
-                          />
-                        ))}
-                      </Picker>
-                    )}
-                  />
+                  <View ref={ref => registerFieldRef('company', ref)}>
+                    <Controller
+                      control={control}
+                      name="company"
+                      render={({ field: { onChange, value } }) => (
+                        <Picker
+                          selectedValue={value}
+                          onValueChange={itemValue => {
+                            onChange(itemValue);
+                            setSelectedCompany(itemValue);
+                            validateField('company');
+                          }}
+                          style={[
+                            styles.picker,
+                            errors.company ? styles.errorBorder : {},
+                          ]}
+                        >
+                          <Picker.Item label="Select a company" value="" />
+                          {companies.map(c => (
+                            <Picker.Item
+                              key={c._id}
+                              label={c.businessName}
+                              value={c._id}
+                            />
+                          ))}
+                        </Picker>
+                      )}
+                    />
+                  </View>
                   <FormMessage error={errors.company} />
                 </View>
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Transaction Date</Text>
-                  <Controller
-                    control={control}
-                    name="date"
-                    render={({ field: { onChange, value } }) => (
-                      <View>
-                        <TouchableOpacity
-                          style={[
-                            styles.dateButton,
-                            errors.date ? styles.errorBorder : {},
-                          ]}
-                          onPress={() => setShowDatePicker(true)}
-                        >
-                          <Text style={styles.dateButtonText}>
-                            {(value || new Date()).toLocaleDateString()}
-                          </Text>
-                          <Icon
-                            name={IconMap.Calendar}
-                            size={16}
-                            color="#6B7280"
-                          />
-                        </TouchableOpacity>
-                        {showDatePicker && (
-                          <DateTimePicker
-                            value={value || new Date()}
-                            mode="date"
-                            display={
-                              Platform.OS === 'ios' ? 'spinner' : 'default'
-                            }
-                            onChange={(event, selectedDate) => {
-                              setShowDatePicker(false);
-                              if (selectedDate) {
-                                onChange(selectedDate);
-                                validateField('date');
-                              }
-                            }}
-                          />
-                        )}
-                      </View>
-                    )}
-                  />
-                  <FormMessage error={errors.date} />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Due Date</Text>
-                  <Controller
-                    control={control}
-                    name="dueDate"
-                    render={({ field: { onChange, value } }) => (
-                      <View>
-                        <View style={styles.dueDateContainer}>
+                  <View ref={ref => registerFieldRef('date', ref)}>
+                    <Controller
+                      control={control}
+                      name="date"
+                      render={({ field: { onChange, value } }) => (
+                        <View>
                           <TouchableOpacity
                             style={[
                               styles.dateButton,
-                              { flex: 1 },
-                              errors.dueDate ? styles.errorBorder : {},
+                              errors.date ? styles.errorBorder : {},
                             ]}
-                            onPress={() => setShowDueDatePicker(true)}
+                            onPress={() => setShowDatePicker(true)}
                           >
                             <Text style={styles.dateButtonText}>
                               {(value || new Date()).toLocaleDateString()}
@@ -1894,67 +1860,117 @@ export const SalesPurchasesFields = props => {
                               color="#6B7280"
                             />
                           </TouchableOpacity>
-
-                          <CustomMenu
-                            visible={showDueQuickMenu}
-                            onDismiss={() => setShowDueQuickMenu(false)}
-                            anchor={
-                              <TouchableOpacity
-                                style={styles.quickButton}
-                                onPress={() => setShowDueQuickMenu(true)}
-                              >
-                                <Text style={styles.quickButtonText}>
-                                  Quick
-                                </Text>
-                              </TouchableOpacity>
-                            }
-                          >
-                            {QUICK_DATE_OPTIONS.map(option => (
-                              <MenuItem
-                                key={option.days}
-                                onPress={() => {
-                                  const currentDate =
-                                    getValues('date') || new Date();
-                                  const newDueDate = new Date(currentDate);
-                                  newDueDate.setDate(
-                                    newDueDate.getDate() + option.days,
-                                  );
-                                  onChange(newDueDate);
-                                  validateField('dueDate');
-                                  setShowDueQuickMenu(false);
-                                }}
-                                title={option.label}
-                              />
-                            ))}
-                            <MenuItem
-                              onPress={() => {
-                                setShowDueQuickMenu(false);
-                                setShowDueDatePicker(true);
-                              }}
-                              title="Custom Date"
-                            />
-                          </CustomMenu>
-                        </View>
-
-                        {showDueDatePicker && (
-                          <DateTimePicker
-                            value={value || new Date()}
-                            mode="date"
-                            display={
-                              Platform.OS === 'ios' ? 'spinner' : 'default'
-                            }
-                            onChange={(event, selectedDate) => {
-                              setShowDueDatePicker(false);
-                              if (selectedDate) {
-                                onChange(selectedDate);
-                                validateField('dueDate');
+                          {showDatePicker && (
+                            <DateTimePicker
+                              value={value || new Date()}
+                              mode="date"
+                              display={
+                                Platform.OS === 'ios' ? 'spinner' : 'default'
                               }
-                            }}
-                          />
-                        )}
-                      </View>
-                    )}
-                  />
+                              onChange={(event, selectedDate) => {
+                                setShowDatePicker(false);
+                                if (selectedDate) {
+                                  onChange(selectedDate);
+                                  validateField('date');
+                                }
+                              }}
+                            />
+                          )}
+                        </View>
+                      )}
+                    />
+                  </View>
+                  <FormMessage error={errors.date} />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Due Date</Text>
+                  <View ref={ref => registerFieldRef('dueDate', ref)}>
+                    <Controller
+                      control={control}
+                      name="dueDate"
+                      render={({ field: { onChange, value } }) => (
+                        <View>
+                          <View style={styles.dueDateContainer}>
+                            <TouchableOpacity
+                              style={[
+                                styles.dateButton,
+                                { flex: 1 },
+                                errors.dueDate ? styles.errorBorder : {},
+                              ]}
+                              onPress={() => setShowDueDatePicker(true)}
+                            >
+                              <Text style={styles.dateButtonText}>
+                                {(value || new Date()).toLocaleDateString()}
+                              </Text>
+                              <Icon
+                                name={IconMap.Calendar}
+                                size={16}
+                                color="#6B7280"
+                              />
+                            </TouchableOpacity>
+
+                            <CustomMenu
+                              visible={showDueQuickMenu}
+                              onDismiss={() => setShowDueQuickMenu(false)}
+                              anchor={
+                                <TouchableOpacity
+                                  style={styles.quickButton}
+                                  onPress={() => setShowDueQuickMenu(true)}
+                                >
+                                  <Text style={styles.quickButtonText}>
+                                    Quick
+                                  </Text>
+                                </TouchableOpacity>
+                              }
+                            >
+                              {QUICK_DATE_OPTIONS.map(option => (
+                                <MenuItem
+                                  key={option.days}
+                                  onPress={() => {
+                                    const currentDate =
+                                      getValues('date') || new Date();
+                                    const newDueDate = new Date(currentDate);
+                                    newDueDate.setDate(
+                                      newDueDate.getDate() + option.days,
+                                    );
+                                    onChange(newDueDate);
+                                    validateField('dueDate');
+                                    setShowDueQuickMenu(false);
+                                  }}
+                                  title={option.label}
+                                />
+                              ))}
+                              <MenuItem
+                                onPress={() => {
+                                  setShowDueQuickMenu(false);
+                                  setShowDueDatePicker(true);
+                                }}
+                                title="Custom Date"
+                              />
+                            </CustomMenu>
+                          </View>
+
+                          {showDueDatePicker && (
+                            <DateTimePicker
+                              value={value || new Date()}
+                              mode="date"
+                              display={
+                                Platform.OS === 'ios' ? 'spinner' : 'default'
+                              }
+                              onChange={(event, selectedDate) => {
+                                setShowDueDatePicker(false);
+                                if (selectedDate) {
+                                  onChange(selectedDate);
+                                  validateField('dueDate');
+                                }
+                              }}
+                            />
+                          )}
+                        </View>
+                      )}
+                    />
+                  </View>
                   <FormMessage error={errors.dueDate} />
                 </View>
               </View>
@@ -2464,12 +2480,14 @@ export const SalesPurchasesFields = props => {
                           </Text>
                         </TouchableOpacity>
                       </View>
-                      <QuillEditor
-                        value={watch('notes') || ''}
-                        onChange={value => setValue('notes', value)}
-                        placeholder="Add detailed notes with formatting..."
-                        style={styles.quillEditor}
-                      />
+                      <View ref={ref => registerFieldRef('notes', ref)}>
+                        <QuillEditor
+                          value={watch('notes') || ''}
+                          onChange={value => setValue('notes', value)}
+                          placeholder="Add detailed notes with formatting..."
+                          style={styles.quillEditor}
+                        />
+                      </View>
                       <Text style={styles.notesDescription}>
                         Add rich text notes with formatting, colors, and styles
                       </Text>
@@ -2528,7 +2546,7 @@ export const SalesPurchasesFields = props => {
       </CustomCard>
 
       <Toast />
-    </ScrollView>
+    </View>
   );
 };
 
@@ -2550,6 +2568,14 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     marginBottom: 16,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   sectionHeader: {
     flexDirection: 'row',
