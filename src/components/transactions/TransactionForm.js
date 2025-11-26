@@ -30,6 +30,7 @@ import FileViewer from 'react-native-file-viewer';
 import DropDownPicker from 'react-native-dropdown-picker';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import WebView from 'react-native-webview';
+import Pdf from 'react-native-pdf';
 import RenderHtml from 'react-native-render-html';
 
 import { useCompany } from '../../contexts/company-context.js';
@@ -2910,13 +2911,16 @@ export function TransactionForm({
     setWhatsappComposerOpen(true);
   };
 
-  // Updated Invoice Template Renderer with WebView for in-app preview
+  // Invoice Template Renderer: generate PDF, write to RNFS cache, render using react-native-pdf
   const InvoiceTemplateRenderer = ({ invoiceData }) => {
-    const [pdfDataUrl, setPdfDataUrl] = useState('');
+    const [source, setSource] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const tempFileRef = useRef(null);
 
     useEffect(() => {
+      let mounted = true;
+
       const generatePreview = async () => {
         if (!invoiceData) return;
 
@@ -2931,7 +2935,6 @@ export function TransactionForm({
             throw new Error('Company or party data is missing');
           }
 
-          // Use the same function that works for other operations
           const pdfDoc = await generatePdfByTemplate(
             invoiceData.selectedTemplate || 'template1',
             invoiceData,
@@ -2942,38 +2945,64 @@ export function TransactionForm({
             invoiceData.bank,
           );
 
-          let finalBase64;
-
-          // Simplified base64 extraction
-          if (pdfDoc && typeof pdfDoc.output === 'function') {
-            finalBase64 = pdfDoc.output('base64');
-          } else if (typeof pdfDoc === 'string') {
-            finalBase64 = pdfDoc;
-          } else if (pdfDoc.base64) {
-            finalBase64 = pdfDoc.base64;
-          } else {
-            console.warn('Unknown PDF format, trying default');
-            finalBase64 = pdfDoc.output?.('base64') || '';
+          // Prefer centralized conversion helper if available
+          let base64 = null;
+          try {
+            base64 = await pdfInstanceToBase64(pdfDoc);
+          } catch (e) {
+            // fallback to older heuristics
+            if (pdfDoc && typeof pdfDoc.output === 'function')
+              base64 = pdfDoc.output('base64');
+            else if (typeof pdfDoc === 'string') base64 = pdfDoc;
+            else if (pdfDoc && pdfDoc.base64) base64 = pdfDoc.base64;
           }
 
-          if (!finalBase64) {
+          if (!base64) {
             throw new Error('No PDF data generated');
           }
 
-          // Create data URL for WebView
-          const dataUrl = `data:application/pdf;base64,${finalBase64}`;
-          setPdfDataUrl(dataUrl);
+          const fileName = `invoice_preview_${Date.now()}.pdf`;
+          const cachePath = `${RNFS.CachesDirectoryPath}/${fileName}`;
 
-          console.log('🟢 Preview Generation Completed Successfully!');
-        } catch (error) {
-          console.error('❌ Error generating preview:', error);
-          setError(error.message);
+          await RNFS.writeFile(cachePath, base64, 'base64');
+
+          // keep ref to delete later
+          tempFileRef.current = cachePath;
+
+          if (!mounted) return;
+
+          const uri =
+            Platform.OS === 'android' ? `file://${cachePath}` : cachePath;
+          setSource({ uri, cache: true });
+          console.log(
+            '🟢 Preview Generation Completed Successfully! ->',
+            cachePath,
+          );
+        } catch (err) {
+          console.error('❌ Error generating preview:', err);
+          if (mounted) setError(err.message || 'Failed to generate preview');
         } finally {
-          setLoading(false);
+          if (mounted) setLoading(false);
         }
       };
 
       generatePreview();
+
+      return () => {
+        mounted = false;
+        // try to remove temp file
+        (async () => {
+          try {
+            if (tempFileRef.current) {
+              const exists = await RNFS.exists(tempFileRef.current);
+              if (exists) await RNFS.unlink(tempFileRef.current);
+              tempFileRef.current = null;
+            }
+          } catch (e) {
+            // ignore cleanup errors
+          }
+        })();
+      };
     }, [invoiceData]);
 
     if (loading) {
@@ -2985,7 +3014,7 @@ export function TransactionForm({
       );
     }
 
-    if (error || !pdfDataUrl) {
+    if (error || !source) {
       return (
         <View style={styles.previewErrorContainer}>
           <Text style={styles.previewErrorText}>
@@ -3000,29 +3029,22 @@ export function TransactionForm({
 
     return (
       <View style={styles.previewContainer}>
-        <WebView
-          source={{ uri: pdfDataUrl }}
+        <Pdf
+          source={source}
           style={styles.webview}
-          startInLoadingState={true}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          renderLoading={() => (
-            <View style={styles.webviewLoading}>
-              <ActivityIndicator size="large" color="#007AFF" />
-              <Text>Loading PDF...</Text>
-            </View>
-          )}
-          onLoadEnd={() => console.log('✅ PDF loaded in WebView')}
-          onError={syntheticEvent => {
-            const { nativeEvent } = syntheticEvent;
-            console.error('❌ WebView error:', nativeEvent);
-            setError('Failed to load PDF in WebView');
+          onLoadComplete={(numberOfPages, filePath) =>
+            console.log(
+              `✅ PDF loaded in Pdf view: ${numberOfPages} pages`,
+              filePath,
+            )
+          }
+          onError={err => {
+            console.error('❌ Pdf render error:', err);
+            setError(err?.message || 'PDF render failed');
           }}
-          onHttpError={syntheticEvent => {
-            const { nativeEvent } = syntheticEvent;
-            console.error('❌ WebView HTTP error:', nativeEvent);
-            setError('HTTP error loading PDF');
-          }}
+          onPageChanged={(page, numberOfPages) =>
+            console.log('Page changed:', page, 'of', numberOfPages)
+          }
         />
       </View>
     );
