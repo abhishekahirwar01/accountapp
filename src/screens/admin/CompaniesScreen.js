@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -33,7 +34,11 @@ const Badge = ({ children, variant = 'secondary', style }) => (
       style,
     ]}
   >
-    <Text style={styles.badgeText}>{children}</Text>
+    {typeof children === 'string' ? (
+      <Text style={styles.badgeText}>{children}</Text>
+    ) : (
+      children
+    )}
   </View>
 );
 
@@ -63,7 +68,7 @@ const Button = ({
       <Icon
         name={icon}
         size={16}
-        color={variant === 'outline' ? '#2563eb' : '#fff'}
+        color={variant === 'outline' ? '#4f46e5' : '#fff'}
         style={styles.buttonIcon}
       />
     )}
@@ -145,9 +150,10 @@ export default function AdminCompaniesPage() {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [companyToDelete, setCompanyToDelete] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const scrollY = useRef(new Animated.Value(0)).current;
-  const HEADER_HEIGHT = 120;
+  const HEADER_HEIGHT = 160;
   const diffClamp = Animated.diffClamp(scrollY, 0, HEADER_HEIGHT);
   const headerTranslateY = diffClamp.interpolate({
     inputRange: [0, HEADER_HEIGHT],
@@ -283,18 +289,50 @@ export default function AdminCompaniesPage() {
     >
       <SafeAreaView style={styles.headerSafeArea}>
         <View style={styles.headerInner}>
-          <View style={styles.headerContent}>
-            <Text style={styles.title}>Company Management</Text>
-            <Text style={styles.subtitle}>
-              Manage all companies across all clients.
-            </Text>
+          {/* Left side with icon and text */}
+          <View style={styles.headerLeft}>
+            <View style={styles.iconContainer}>
+              <Icon name="office-building" size={28} color="#4f46e5" />
+            </View>
+            <View style={styles.headerTextContent}>
+              <Text style={styles.title}>Company Management</Text>
+              <Text style={styles.subtitle}>
+                Manage all companies across all clients
+              </Text>
+            </View>
           </View>
 
-          <View style={styles.headerActions}>
-            <Button onPress={handleAddNew} size="sm" icon="plus-circle">
-              Create Company
+          {/* Right side with button */}
+          <View style={styles.headerRight}>
+            <Button onPress={handleAddNew} size="sm" icon="plus">
+              Create
             </Button>
           </View>
+        </View>
+
+        {/* Search bar instead of stats */}
+        <View style={styles.searchContainer}>
+          <Icon
+            name="magnify"
+            size={20}
+            color="#6b7280"
+            style={styles.searchIcon}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search companies..."
+            placeholderTextColor="#9ca3af"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              style={styles.clearButton}
+            >
+              <Icon name="close-circle" size={20} color="#6b7280" />
+            </TouchableOpacity>
+          )}
         </View>
       </SafeAreaView>
     </Animated.View>
@@ -329,6 +367,18 @@ export default function AdminCompaniesPage() {
     );
   };
 
+  // Filter companies based on search query
+  const filteredCompanies = companies.filter(company => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      company.businessName?.toLowerCase().includes(query) ||
+      company.email?.toLowerCase().includes(query) ||
+      company.phoneNumber?.toLowerCase().includes(query) ||
+      company.address?.toLowerCase().includes(query)
+    );
+  });
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
@@ -340,53 +390,58 @@ export default function AdminCompaniesPage() {
 
   return (
     <AppLayout>
-    <SafeAreaView style={styles.container}>
-      {renderAnimatedHeader()}
+      <SafeAreaView style={styles.container}>
+        {renderAnimatedHeader()}
 
-      <Animated.FlatList
-        data={companies}
-        renderItem={renderCompanyItem}
-        keyExtractor={item => item._id}
-        contentContainerStyle={[
-          companies.length === 0 ? styles.emptyListContent : styles.listContent,
-          { paddingTop: HEADER_HEIGHT },
-        ]}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true },
-        )}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
-        }
-        ListEmptyComponent={renderEmptyState}
-      />
-
-      <Dialog
-        visible={isDialogOpen}
-        onClose={() => setIsDialogOpen(false)}
-        title={selectedCompany ? 'Edit Company' : 'Create New Company'}
-        description={
-          selectedCompany
-            ? `Update details for ${selectedCompany.businessName}.`
-            : 'Fill in the form to create a new company.'
-        }
-      >
-        <AdminCompanyForm
-          company={selectedCompany || undefined}
-          clients={clients}
-          onFormSubmit={onFormSubmit}
+        <Animated.FlatList
+          data={filteredCompanies}
+          renderItem={renderCompanyItem}
+          keyExtractor={item => item._id}
+          contentContainerStyle={[
+            filteredCompanies.length === 0
+              ? styles.emptyListContent
+              : styles.listContent,
+            { paddingTop: 120 },
+          ]}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true },
+          )}
+          scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+            />
+          }
+          ListEmptyComponent={renderEmptyState}
         />
-      </Dialog>
 
-      <AlertDialog
-        visible={isAlertOpen}
-        onClose={() => setIsAlertOpen(false)}
-        title="Are you absolutely sure?"
-        description={`This action cannot be undone. This will permanently delete ${companyToDelete?.businessName}.`}
-        onConfirm={confirmDelete}
-      />
-    </SafeAreaView>
+        <Dialog
+          visible={isDialogOpen}
+          onClose={() => setIsDialogOpen(false)}
+          title={selectedCompany ? 'Edit Company' : 'Create New Company'}
+          description={
+            selectedCompany
+              ? `Update details for ${selectedCompany.businessName}.`
+              : 'Fill in the form to create a new company.'
+          }
+        >
+          <AdminCompanyForm
+            company={selectedCompany || undefined}
+            clients={clients}
+            onFormSubmit={onFormSubmit}
+          />
+        </Dialog>
+
+        <AlertDialog
+          visible={isAlertOpen}
+          onClose={() => setIsAlertOpen(false)}
+          title="Are you absolutely sure?"
+          description={`This action cannot be undone. This will permanently delete ${companyToDelete?.businessName}.`}
+          onConfirm={confirmDelete}
+        />
+      </SafeAreaView>
     </AppLayout>
   );
 }
@@ -403,6 +458,7 @@ const styles = StyleSheet.create({
   },
   loadingText: { marginTop: 12, fontSize: 16, color: '#6b7280' },
 
+  // Header styles
   animatedHeader: {
     position: 'absolute',
     top: 0,
@@ -412,8 +468,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
     zIndex: 10,
-    elevation: 6,
-    width: '100%',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
   headerSafeArea: {
     backgroundColor: '#fff',
@@ -421,23 +480,71 @@ const styles = StyleSheet.create({
   headerInner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 12,
-    paddingTop: 8,
+    paddingTop: 10,
+    paddingBottom: 8,
   },
-  headerContent: { flex: 1 },
+  headerLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: '#eef2ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTextContent: {
+    flex: 1,
+  },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
     marginBottom: 2,
   },
-  subtitle: { fontSize: 14, color: '#6b7280' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  subtitle: {
+    fontSize: 13,
+    color: '#6b7280',
+    lineHeight: 18,
+  },
+  headerRight: {
+    marginLeft: 8,
+  },
+
+  // Stats section
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 2,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+    backgroundColor: '#fafbfc',
+    marginBottom: -14,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 14,
+    color: '#111827',
+    paddingVertical: 8,
+  },
+  clearButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
 
   emptyListContent: { flexGrow: 1, justifyContent: 'center' },
-  listContent: { paddingBottom: 80 },
+  listContent: { paddingBottom: 20 },
 
   card: {
     backgroundColor: '#fff',
@@ -449,15 +556,29 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
-  // Buttons, Badges, Modals, Empty States remain same ↓
   badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
     alignSelf: 'flex-start',
   },
-  badgeSecondary: { backgroundColor: '#f3f4f6' },
-  badgeText: { fontSize: 12, fontWeight: '500', color: '#374151' },
+  badgeSecondary: {
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  badgePrimary: {
+    backgroundColor: '#eef2ff',
+    borderWidth: 1,
+    borderColor: '#c7d2fe',
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
 
   button: {
     flexDirection: 'row',
@@ -465,19 +586,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 8,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
-  buttonDefault: { backgroundColor: '#4f46e5' },
+  buttonDefault: {
+    backgroundColor: '#4f46e5',
+  },
   buttonOutline: {
     backgroundColor: 'transparent',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#d1d5db',
   },
-  buttonDestructive: { backgroundColor: '#ef4444' },
-  buttonSm: { paddingHorizontal: 12, paddingVertical: 6 },
+  buttonDestructive: {
+    backgroundColor: '#ef4444',
+  },
+  buttonSm: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
   buttonDisabled: { opacity: 0.5 },
-  buttonIcon: { marginRight: 8 },
-  buttonText: { fontSize: 14, fontWeight: '500', color: '#fff' },
+  buttonIcon: { marginRight: 6 },
+  buttonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
   buttonTextOutline: { color: '#374151' },
 
   modalOverlay: {
@@ -511,7 +643,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 24,
-    width: '100%',
+    width: '90%',
     maxWidth: 400,
   },
   alertDialogTitle: {

@@ -14,6 +14,7 @@ import InvoicePreview from '../components/invoices/InvoicePreview';
 import SendOtpScreen from '../screens/auth/SendOtpScreen';
 import HistoryScreen from '../screens/admin/HistoryScreen';
 import AdminAnalyticsScreen from '../screens/admin/AnalyticsScreen';
+import AnalyticsScreen from '../screens/admin/AnalyticsScreen';
 import AdminClientManagementPage from '../screens/admin/ClientManagementScreen';
 import AdminCompaniesScreen from '../screens/admin/CompaniesScreen';
 import TransactionsScreen from '../screens/main/TransactionsScreen';
@@ -23,6 +24,7 @@ import UsersScreen from '../screens/main/UsersScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
 import Reports from '../screens/main/reports/Reports';
 import Ledger from '../screens/main/ledger/Ledger';
+import CompanyForm from '../components/companies/CompanyForm';
 import { TransactionForm } from '../components/transactions/TransactionForm';
 const Stack = createNativeStackNavigator();
 
@@ -45,6 +47,7 @@ export default function AppNavigator() {
       <Stack.Screen name="HistoryScreen" component={HistoryScreen} />
       <Stack.Screen name="AdminSettings" component={AdminSettingsScreen} />
       <Stack.Screen name="AdminAnalytics" component={AdminAnalyticsScreen} />
+      <Stack.Screen name="AnalyticsScreen" component={AnalyticsScreen} />
       <Stack.Screen
         name="AdminClientManagement"
         component={AdminClientManagementPage}
@@ -67,6 +70,7 @@ export default function AppNavigator() {
 
       {/* ProfileScreen acts as user settings for non-master users */}
       <Stack.Screen name="InvoicePreview" component={InvoicePreview} />
+      <Stack.Screen name="CompanyForm" component={CompanyForm} />
     </Stack.Navigator>
   );
 }
