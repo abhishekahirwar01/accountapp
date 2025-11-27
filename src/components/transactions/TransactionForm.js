@@ -38,8 +38,8 @@ import { useUserPermissions } from '../../contexts/user-permissions-context';
 
 import { VendorForm } from '../vendors/VendorForm.js';
 import { CustomerForm } from '../customers/CustomerForm.js';
-import { ProductForm } from '../products/ProductForm.js';
-import { ServiceForm } from '../services/ServiceForm.js';
+import ProductForm from '../products/ProductForm.js';
+import ServiceForm from '../services/ServiceForm.js';
 import WhatsAppComposerDialog from './WhatsAppComposerDialog.js';
 
 import {
@@ -4028,4 +4028,3 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
 });
-
