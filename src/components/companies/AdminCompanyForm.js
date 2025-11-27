@@ -375,7 +375,9 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
   const insets = useSafeAreaInsets();
 
   // Responsive screen detection
-  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+  const [screenWidth, setScreenWidth] = useState(
+    Dimensions.get('window').width,
+  );
   const isMobile = screenWidth < 768;
 
   useEffect(() => {
@@ -674,8 +676,8 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
   // Mobile Step Indicator with ScrollView
   const renderMobileStepIndicator = () => (
     <View style={styles.mobileStepContainer}>
-      <ScrollView 
-        horizontal 
+      <ScrollView
+        horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.mobileStepScrollContent}
       >
@@ -787,7 +789,9 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
   );
 
   const renderStepIndicator = () => {
-    return isMobile ? renderMobileStepIndicator() : renderDesktopStepIndicator();
+    return isMobile
+      ? renderMobileStepIndicator()
+      : renderDesktopStepIndicator();
   };
 
   const renderFormField = (name, props = {}) => (
@@ -854,7 +858,12 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
 
   // Mobile Navigation Buttons
   const renderMobileNavigation = () => (
-    <View style={[styles.mobileNavigationContainer, { paddingBottom: insets.bottom || 16 }]}>
+    <View
+      style={[
+        styles.mobileNavigationContainer,
+        { paddingBottom: insets.bottom || 16 },
+      ]}
+    >
       <View style={styles.mobileButtonRow}>
         {step > 1 ? (
           <TouchableOpacity
@@ -1024,7 +1033,11 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
               )}
 
               {/* Responsive Layout */}
-              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
+              <View
+                style={
+                  isMobile ? styles.singleColumnLayout : styles.twoColumnLayout
+                }
+              >
                 {renderFormField('businessName')}
                 {!isMobile && renderFormField('registrationNumber')}
               </View>
@@ -1035,7 +1048,11 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
                 </View>
               )}
 
-              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
+              <View
+                style={
+                  isMobile ? styles.singleColumnLayout : styles.twoColumnLayout
+                }
+              >
                 {renderFormField('Pincode', {
                   keyboardType: 'numeric',
                   maxLength: 6,
@@ -1046,7 +1063,11 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
                 })}
               </View>
 
-              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
+              <View
+                style={
+                  isMobile ? styles.singleColumnLayout : styles.twoColumnLayout
+                }
+              >
                 {renderFormField('mobileNumber', {
                   keyboardType: 'phone-pad',
                   maxLength: 10,
@@ -1058,7 +1079,11 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
                 })}
               </View>
 
-              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
+              <View
+                style={
+                  isMobile ? styles.singleColumnLayout : styles.twoColumnLayout
+                }
+              >
                 {renderFormField('Website', {
                   autoCapitalize: 'none',
                   autoCorrect: false,
@@ -1082,7 +1107,11 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
               })}
 
               {/* Location Fields */}
-              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
+              <View
+                style={
+                  isMobile ? styles.singleColumnLayout : styles.twoColumnLayout
+                }
+              >
                 <Controller
                   control={control}
                   name="Country"
@@ -1154,7 +1183,11 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
           {/* Step 2: GST Registration Details */}
           {step === 2 && (
             <View style={styles.stepContent}>
-              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
+              <View
+                style={
+                  isMobile ? styles.singleColumnLayout : styles.twoColumnLayout
+                }
+              >
                 {renderFormField('gstin', {
                   autoCapitalize: 'characters',
                   maxLength: 15,
@@ -1162,12 +1195,20 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
                 {renderFormField('gstState')}
               </View>
 
-              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
+              <View
+                style={
+                  isMobile ? styles.singleColumnLayout : styles.twoColumnLayout
+                }
+              >
                 {renderFormField('RegistrationType')}
                 {renderFormField('PeriodicityofGSTReturns')}
               </View>
 
-              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
+              <View
+                style={
+                  isMobile ? styles.singleColumnLayout : styles.twoColumnLayout
+                }
+              >
                 {renderFormField('GSTUsername', {
                   autoCapitalize: 'none',
                 })}
@@ -1186,7 +1227,11 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
                 'Select Yes or No',
               )}
 
-              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
+              <View
+                style={
+                  isMobile ? styles.singleColumnLayout : styles.twoColumnLayout
+                }
+              >
                 {renderFormField('EWBBillUsername', {
                   autoCapitalize: 'none',
                 })}
@@ -1201,7 +1246,11 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
           {/* Step 3: Company TDS Details */}
           {step === 3 && (
             <View style={styles.stepContent}>
-              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
+              <View
+                style={
+                  isMobile ? styles.singleColumnLayout : styles.twoColumnLayout
+                }
+              >
                 {renderFormField('TANNumber', {
                   autoCapitalize: 'characters',
                 })}
@@ -1210,7 +1259,11 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
 
               {renderFormField('DeductorType')}
 
-              <View style={isMobile ? styles.singleColumnLayout : styles.twoColumnLayout}>
+              <View
+                style={
+                  isMobile ? styles.singleColumnLayout : styles.twoColumnLayout
+                }
+              >
                 {renderFormField('TDSLoginUsername', {
                   autoCapitalize: 'none',
                 })}
@@ -1235,7 +1288,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  
+
   // Mobile Step Indicator Styles
   mobileStepContainer: {
     backgroundColor: '#f8f9fa',

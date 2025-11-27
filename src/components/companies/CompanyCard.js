@@ -87,16 +87,16 @@ const CompanyCard = ({ company, clientName, onEdit, onDelete }) => {
 
       {/* Actions Footer */}
       <View style={styles.footer}>
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.editButton]} 
+        <TouchableOpacity
+          style={[styles.actionButton, styles.editButton]}
           onPress={onEdit}
         >
           <Icon name="pencil" size={16} color="#fff" />
           <Text style={styles.actionButtonText}>Edit</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.deleteButton]} 
+        <TouchableOpacity
+          style={[styles.actionButton, styles.deleteButton]}
           onPress={onDelete}
         >
           <Icon name="trash-can" size={16} color="#fff" />

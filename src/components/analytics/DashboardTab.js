@@ -239,7 +239,8 @@ const ValidityDisplay = ({ validity }) => {
                 },
               ]}
             >
-              {validity.status.charAt(0).toUpperCase() + validity.status.slice(1)}
+              {validity.status.charAt(0).toUpperCase() +
+                validity.status.slice(1)}
             </Text>
           </View>
         )}
@@ -277,14 +278,14 @@ const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
   // Fetch validity function
   const fetchValidity = async () => {
     if (!selectedClient?._id) return;
-    
+
     try {
       const token = await getAuthToken();
       const response = await fetch(
         `${BASE_URL}/api/account/${selectedClient._id}/validity`,
         {
           headers: { Authorization: `Bearer ${token}` },
-        }
+        },
       );
 
       if (response.status === 404) {
@@ -442,7 +443,7 @@ const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
         });
 
         setCompanies(companiesArr);
-        
+
         // Fetch validity data
         await fetchValidity();
       } catch (error) {
@@ -587,7 +588,7 @@ const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
               <Icon name="phone" size={18} color="#6b7280" />
               <Text style={styles.clientText}>{selectedClient.phone}</Text>
             </View>
-            
+
             {/* VALIDITY DISPLAY ADDED HERE */}
             <ValidityDisplay validity={validity} />
           </View>
@@ -596,7 +597,7 @@ const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
 
       {/* Companies Carousel */}
       <View style={styles.companiesSection}>
-        <Text style={{fontSize:20}} >Companies</Text>
+        <Text style={{ fontSize: 20 }}>Companies</Text>
         {companies.length > 0 ? (
           <CustomCarousel
             data={companies}

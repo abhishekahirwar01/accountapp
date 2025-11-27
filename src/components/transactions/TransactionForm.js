@@ -334,6 +334,14 @@ export function TransactionForm({
     message: '',
     type: 'default',
   });
+  console.log('🔵 TransactionForm RENDERED - Component mounted/updated');
+  console.log('Props received:', {
+    transactionToEdit: !!transactionToEdit,
+    onFormSubmit: !!onFormSubmit,
+    defaultType,
+    serviceNameById: !!serviceNameById,
+    prefillFrom: !!prefillFrom,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPartyDialogOpen, setIsPartyDialogOpen] = useState(false);
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
@@ -4020,3 +4028,4 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
 });
+

@@ -312,7 +312,12 @@ export default function AdminCompaniesPage() {
 
         {/* Search bar instead of stats */}
         <View style={styles.searchContainer}>
-          <Icon name="magnify" size={20} color="#6b7280" style={styles.searchIcon} />
+          <Icon
+            name="magnify"
+            size={20}
+            color="#6b7280"
+            style={styles.searchIcon}
+          />
           <TextInput
             style={styles.searchInput}
             placeholder="Search companies..."
@@ -321,7 +326,10 @@ export default function AdminCompaniesPage() {
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              style={styles.clearButton}
+            >
               <Icon name="close-circle" size={20} color="#6b7280" />
             </TouchableOpacity>
           )}
@@ -390,7 +398,9 @@ export default function AdminCompaniesPage() {
           renderItem={renderCompanyItem}
           keyExtractor={item => item._id}
           contentContainerStyle={[
-            filteredCompanies.length === 0 ? styles.emptyListContent : styles.listContent,
+            filteredCompanies.length === 0
+              ? styles.emptyListContent
+              : styles.listContent,
             { paddingTop: 120 },
           ]}
           onScroll={Animated.event(
@@ -399,7 +409,10 @@ export default function AdminCompaniesPage() {
           )}
           scrollEventThrottle={16}
           refreshControl={
-            <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+            />
           }
           ListEmptyComponent={renderEmptyState}
         />

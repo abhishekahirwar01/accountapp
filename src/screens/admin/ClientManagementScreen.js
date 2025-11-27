@@ -85,11 +85,7 @@ const Button = ({
     disabled={disabled}
     {...props}
   >
-    {icon && (
-      <View style={styles.buttonIcon}>
-        {icon}
-      </View>
-    )}
+    {icon && <View style={styles.buttonIcon}>{icon}</View>}
     <Text
       style={[
         styles.buttonText,
@@ -503,57 +499,58 @@ export default function ClientManagementPage() {
   const renderAnimatedHeader = () => (
     <Animated.View
       style={[
-        styles.animatedHeader,styles.headerContainer,
+        styles.animatedHeader,
+        styles.headerContainer,
         { transform: [{ translateY: headerTranslateY }] },
       ]}
     >
       <SafeAreaView style={styles.headerSafeArea}>
-       <View style={styles.headerContent}>
-              <View style={styles.titleSection}>
-                <Text style={styles.mainTitle}>Client Management</Text>
-                <Text style={styles.mainSubtitle}>Manage your clients</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.modernAddButton}
-                onPress={handleAddNew}
-              >
-                <View style={styles.addButtonIcon}>
-                  <PlusCircle size={18} color="#007AFF" />
-                </View>
-                <Text style={styles.modernAddButtonText}>Add Client</Text>
-              </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <View style={styles.titleSection}>
+            <Text style={styles.mainTitle}>Client Management</Text>
+            <Text style={styles.mainSubtitle}>Manage your clients</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.modernAddButton}
+            onPress={handleAddNew}
+          >
+            <View style={styles.addButtonIcon}>
+              <PlusCircle size={18} color="#007AFF" />
             </View>
+            <Text style={styles.modernAddButtonText}>Add Client</Text>
+          </TouchableOpacity>
+        </View>
 
-            {/* Search Bar */}
-            <View style={styles.searchContainer}>
-              <View style={styles.searchInputWrapper}>
-                <Filter size={18} color="#999" style={styles.searchIcon} />
-                <TextInput
-                  style={styles.modernSearchInput}
-                  placeholder="Search by name/username"
-                  placeholderTextColor="#999"
-                  value={contactNameFilter || usernameFilter}
-                  onChangeText={text => {
-                    setContactNameFilter(text);
-                    setUsernameFilter(text);
-                  }}
-                />
-                {(contactNameFilter || usernameFilter) && (
-                  <TouchableOpacity
-                    onPress={handleClearFilters}
-                    style={styles.clearIconButton}
-                  >
-                    <X size={16} color="#999" />
-                  </TouchableOpacity>
-                )}
-              </View>
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchInputWrapper}>
+            <Filter size={18} color="#999" style={styles.searchIcon} />
+            <TextInput
+              style={styles.modernSearchInput}
+              placeholder="Search by name/username"
+              placeholderTextColor="#999"
+              value={contactNameFilter || usernameFilter}
+              onChangeText={text => {
+                setContactNameFilter(text);
+                setUsernameFilter(text);
+              }}
+            />
+            {(contactNameFilter || usernameFilter) && (
               <TouchableOpacity
-                style={styles.clearButton}
                 onPress={handleClearFilters}
+                style={styles.clearIconButton}
               >
-                <Text style={styles.clearButtonText}>Clear</Text>
+                <X size={16} color="#999" />
               </TouchableOpacity>
-            </View>
+            )}
+          </View>
+          <TouchableOpacity
+            style={styles.clearButton}
+            onPress={handleClearFilters}
+          >
+            <Text style={styles.clearButtonText}>Clear</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     </Animated.View>
   );
@@ -608,8 +605,10 @@ export default function ClientManagementPage() {
           )}
           keyExtractor={item => item._id}
           contentContainerStyle={[
-            filteredClients.length === 0 ? styles.emptyListContent : styles.listContent,
-            { paddingTop: 140},
+            filteredClients.length === 0
+              ? styles.emptyListContent
+              : styles.listContent,
+            { paddingTop: 140 },
           ]}
           onScroll={Animated.event(
             [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -866,7 +865,7 @@ const styles = StyleSheet.create({
     elevation: 6,
     width: '100%',
   },
-    headerContainer: {
+  headerContainer: {
     backgroundColor: '#FFF',
     // paddingTop: 16,
     paddingHorizontal: 20,
@@ -890,7 +889,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     paddingTop: 8,
   },
-   headerContent: {
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -903,22 +902,19 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
 
-  
-
-
   mainTitle: {
     fontSize: 26,
     fontWeight: '700',
     color: '#1a1a1a',
     letterSpacing: -0.5,
   },
-   mainSubtitle: {
+  mainSubtitle: {
     fontSize: 13,
     color: '#8e8e93',
     marginTop: 2,
     letterSpacing: 0.2,
   },
-    modernAddButton: {
+  modernAddButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#e3f2ff',
@@ -936,12 +932,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-   searchContainer: {
+  searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-   searchInputWrapper: {
+  searchInputWrapper: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -979,7 +975,7 @@ const styles = StyleSheet.create({
   },
 
   emptyListContent: { flexGrow: 1, justifyContent: 'center' },
-  listContent: {  paddingHorizontal: 10, },
+  listContent: { paddingHorizontal: 10 },
 
   card: {
     backgroundColor: '#fff',

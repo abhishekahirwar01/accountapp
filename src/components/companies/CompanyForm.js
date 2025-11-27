@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,7 +17,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { 
+import {
   X,
   ChevronLeft,
   ChevronRight,
@@ -25,15 +26,19 @@ import {
   AlertCircle,
   Check,
   Camera,
-  ChevronDown
+  ChevronDown,
 } from 'lucide-react-native';
 
 // --- Form Schema and Constants (Unchanged) ---
 const formSchema = z.object({
-  registrationNumber: z.string().min(1, "Registration number is required"),
-  businessName: z.string().min(2, "Business name must be at least 2 characters"),
-  businessType: z.string().min(2, "Business type must be at least 2 characters"),
-  address: z.string().min(5, "Address must be at least 5 characters"),
+  registrationNumber: z.string().min(1, 'Registration number is required'),
+  businessName: z
+    .string()
+    .min(2, 'Business name must be at least 2 characters'),
+  businessType: z
+    .string()
+    .min(2, 'Business type must be at least 2 characters'),
+  address: z.string().min(5, 'Address must be at least 5 characters'),
   City: z.string().optional(),
   addressState: z.string().optional(),
   Country: z.string().optional(),
@@ -41,12 +46,12 @@ const formSchema = z.object({
   Telephone: z.string().optional(),
   mobileNumber: z
     .string()
-    .min(10, "Enter a valid 10-digit mobile number")
-    .max(10, "Enter a valid 10-digit mobile number")
+    .min(10, 'Enter a valid 10-digit mobile number')
+    .max(10, 'Enter a valid 10-digit mobile number')
     .optional(),
   emailId: z
     .string()
-    .email("Please enter a valid email address")
+    .email('Please enter a valid email address')
     .optional()
     .or(z.literal('')),
   Website: z.string().optional(),
@@ -121,17 +126,17 @@ const FIELD_LABELS = {
 
 const getStepFields = (isClient) => ({
   1: [
-    ...(isClient ? [] : ["client"]),
-    "businessType",
-    "businessName",
-    "registrationNumber",
-    "address",
-    "Country",
-    "addressState",
-    "City",
-    "Pincode",
-    "Telephone",
-    "mobileNumber",
+    ...(isClient ? [] : ['client']),
+    'businessType',
+    'businessName',
+    'registrationNumber',
+    'address',
+    'Country',
+    'addressState',
+    'City',
+    'Pincode',
+    'Telephone',
+    'mobileNumber',
   ],
   2: [
     "gstin",
@@ -154,7 +159,14 @@ const getStepFields = (isClient) => ({
 });
 
 // --- Select Modal Component ---
-const SelectModal = ({ visible, options, onSelect, onClose, fieldName, value }) => {
+const SelectModal = ({
+  visible,
+  options,
+  onSelect,
+  onClose,
+  fieldName,
+  value,
+}) => {
   return (
     <Modal
       visible={visible}
@@ -176,10 +188,18 @@ const SelectModal = ({ visible, options, onSelect, onClose, fieldName, value }) 
             {options.map((option, index) => (
               <TouchableOpacity
                 key={index}
-                style={[styles.selectOption, option.value === value && styles.selectOptionActive]}
+                style={[
+                  styles.selectOption,
+                  option.value === value && styles.selectOptionActive,
+                ]}
                 onPress={() => onSelect(option.value)}
               >
-                <Text style={[styles.selectOptionText, option.value === value && styles.selectOptionTextActive]}>
+                <Text
+                  style={[
+                    styles.selectOptionText,
+                    option.value === value && styles.selectOptionTextActive,
+                  ]}
+                >
                   {option.label}
                 </Text>
                 {option.value === value && <Check size={20} color="#1e40af" />}
@@ -192,18 +212,23 @@ const SelectModal = ({ visible, options, onSelect, onClose, fieldName, value }) 
   );
 };
 
-export default function DetailedCompanyForm({ company, clients, onFormSubmit, onCancel }) {
+export default function DetailedCompanyForm({
+  company,
+  clients,
+  onFormSubmit,
+  onCancel,
+}) {
   const baseURL = 'https://accountapp-backend-shardaassociates.onrender.com';
-  
+
   // --- ALL HOOKS CALLED IN CONSISTENT ORDER ---
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [step, setStep] = useState(1);
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(
-    company?.logo ? `${baseURL}${company.logo}` : null
+    company?.logo ? `${baseURL}${company.logo}` : null,
   );
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
-  const [duplicateError, setDuplicateError] = useState("");
+  const [duplicateError, setDuplicateError] = useState('');
   const [role, setRole] = useState('customer');
   const [isSelectModalVisible, setIsSelectModalVisible] = useState(false);
   const [currentSelectField, setCurrentSelectField] = useState({
@@ -226,35 +251,39 @@ export default function DetailedCompanyForm({ company, clients, onFormSubmit, on
   } = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      registrationNumber: company?.registrationNumber || "",
-      businessName: company?.businessName || "",
-      businessType: company?.businessType || "",
-      address: company?.address || "",
-      City: company?.City || "",
-      addressState: company?.addressState || "",
-      Country: company?.Country || "",
-      Pincode: company?.Pincode || "",
-      Telephone: company?.Telephone || "",
-      mobileNumber: company?.mobileNumber || "",
-      emailId: company?.emailId || "",
-      Website: company?.Website || "",
-      PANNumber: company?.PANNumber || "",
-      IncomeTaxLoginPassword: company?.IncomeTaxLoginPassword || "",
-      gstin: company?.gstin || "",
-      gstState: company?.gstState || "",
-      RegistrationType: company?.RegistrationType || "",
-      PeriodicityofGSTReturns: company?.PeriodicityofGSTReturns || "",
-      GSTUsername: company?.GSTUsername || "",
-      GSTPassword: company?.GSTPassword || "",
-      ewayBillApplicable: company?.ewayBillApplicable ? "true" : "false",
-      EWBBillUsername: company?.EWBBillUsername || "",
-      EWBBillPassword: company?.EWBBillPassword || "",
-      TANNumber: company?.TANNumber || "",
-      TAXDeductionCollectionAcc: company?.TAXDeductionCollectionAcc || "",
-      DeductorType: company?.DeductorType || "",
-      TDSLoginUsername: company?.TDSLoginUsername || "",
-      TDSLoginPassword: company?.TDSLoginPassword || "",
-      client: company?.client ? (typeof company.client === 'string' ? company.client : company.client._id) : "",
+      registrationNumber: company?.registrationNumber || '',
+      businessName: company?.businessName || '',
+      businessType: company?.businessType || '',
+      address: company?.address || '',
+      City: company?.City || '',
+      addressState: company?.addressState || '',
+      Country: company?.Country || '',
+      Pincode: company?.Pincode || '',
+      Telephone: company?.Telephone || '',
+      mobileNumber: company?.mobileNumber || '',
+      emailId: company?.emailId || '',
+      Website: company?.Website || '',
+      PANNumber: company?.PANNumber || '',
+      IncomeTaxLoginPassword: company?.IncomeTaxLoginPassword || '',
+      gstin: company?.gstin || '',
+      gstState: company?.gstState || '',
+      RegistrationType: company?.RegistrationType || '',
+      PeriodicityofGSTReturns: company?.PeriodicityofGSTReturns || '',
+      GSTUsername: company?.GSTUsername || '',
+      GSTPassword: company?.GSTPassword || '',
+      ewayBillApplicable: company?.ewayBillApplicable ? 'true' : 'false',
+      EWBBillUsername: company?.EWBBillUsername || '',
+      EWBBillPassword: company?.EWBBillPassword || '',
+      TANNumber: company?.TANNumber || '',
+      TAXDeductionCollectionAcc: company?.TAXDeductionCollectionAcc || '',
+      DeductorType: company?.DeductorType || '',
+      TDSLoginUsername: company?.TDSLoginUsername || '',
+      TDSLoginPassword: company?.TDSLoginPassword || '',
+      client: company?.client
+        ? typeof company.client === 'string'
+          ? company.client
+          : company.client._id
+        : '',
     },
   });
 
@@ -267,91 +296,166 @@ export default function DetailedCompanyForm({ company, clients, onFormSubmit, on
   }, []);
 
   // Function to handle selection from the modal
-  const handleSelectOption = useCallback((name, value) => {
-    setValue(name, value, { shouldValidate: true });
-    setIsSelectModalVisible(false);
-  }, [setValue]);
+  const handleSelectOption = useCallback(
+    (name, value) => {
+      setValue(name, value, { shouldValidate: true });
+      setIsSelectModalVisible(false);
+    },
+    [setValue],
+  );
 
   // Duplicate check
-  const checkDuplicateRegistration = useCallback(async (regNumber) => {
-    if (!regNumber || regNumber.trim() === "") {
-      setDuplicateError("");
-      return;
-    }
-
-    if (company?.registrationNumber === regNumber) {
-      setDuplicateError("");
-      return;
-    }
-
-    setIsCheckingDuplicate(true);
-    setDuplicateError("");
-
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        Alert.alert("Error", "Authentication token not found");
+  const checkDuplicateRegistration = useCallback(
+    async regNumber => {
+      if (!regNumber || regNumber.trim() === '') {
+        setDuplicateError('');
         return;
       }
 
-      const response = await fetch(
-        `${baseURL}/api/companies/check-duplicate?registrationNumber=${encodeURIComponent(regNumber)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data = await response.json();
-      if (response.ok) {
-        if (data.exists) {
-          setDuplicateError("This registration number is already in use");
-        } else {
-          setDuplicateError("");
-        }
+      if (company?.registrationNumber === regNumber) {
+        setDuplicateError('');
+        return;
       }
-    } catch (error) {
-      console.error('Error checking duplicate:', error);
-    } finally {
-      setIsCheckingDuplicate(false);
-    }
-  }, [baseURL, company]);
+
+      setIsCheckingDuplicate(true);
+      setDuplicateError('');
+
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) {
+          Alert.alert('Error', 'Authentication token not found');
+          return;
+        }
+
+        const response = await fetch(
+          `${baseURL}/api/companies/check-duplicate?registrationNumber=${encodeURIComponent(
+            regNumber,
+          )}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+
+        const data = await response.json();
+        if (response.ok) {
+          if (data.exists) {
+            setDuplicateError('This registration number is already in use');
+          } else {
+            setDuplicateError('');
+          }
+        }
+      } catch (error) {
+        console.error('Error checking duplicate:', error);
+      } finally {
+        setIsCheckingDuplicate(false);
+      }
+    },
+    [baseURL, company],
+  );
 
   // Handle image selection
   const handleImageSelect = useCallback(() => {
-    Alert.alert(
-      "Select Logo",
-      "Choose an option",
-      [
-        {
-          text: "Camera",
-          onPress: () => console.log('Open camera'),
-        },
-        {
-          text: "Gallery",
-          onPress: () => console.log('Open gallery'),
-        },
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-      ]
-    );
+    Alert.alert('Select Logo', 'Choose an option', [
+      {
+        text: 'Camera',
+        onPress: () => console.log('Open camera'),
+      },
+      {
+        text: 'Gallery',
+        onPress: () => console.log('Open gallery'),
+      },
+      {
+        text: 'Cancel',
+        style: 'cancel',
+      },
+    ]);
   }, []);
 
- // Form submission
-  const onSubmit = useCallback(async (values) => {
-    if (duplicateError) {
-      Alert.alert("Validation Error", duplicateError);
-      return;
-    }
+  // Form submission
+  const onSubmit = useCallback(
+    async values => {
+      if (duplicateError) {
+        Alert.alert('Validation Error', duplicateError);
+        return;
+      }
 
-    setIsSubmitting(true);
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error("Authentication token not found");
+      setIsSubmitting(true);
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) throw new Error('Authentication token not found');
 
+        const url = company
+          ? `${baseURL}/api/companies/${company._id}`
+          : `${baseURL}/api/companies`;
+
+        const method = company ? 'PUT' : 'POST';
+        // --- START MODIFICATION ---
+        const { client, ...rest } = values;
+
+        // Construct the payload based on whether the user is a client (which might be handled
+        // automatically by the backend) OR if the company is being created by an admin/manager,
+        // requiring explicit client selection. Assuming backend expects the key 'client'
+        // for new creations by non-clients.
+
+        let payload = {
+          ...rest,
+          ewayBillApplicable: values.ewayBillApplicable === 'true',
+        };
+
+        // Only include the client field if a value exists (and the current user is NOT the client)
+        // If the API expects 'client' for new creations by managers/admins:
+        if (!company && client) {
+          payload.client = client;
+        }
+
+        // If updating, and 'client' field is present:
+        if (company && client) {
+          payload.client = client;
+        }
+        // --- END MODIFICATION ---
+
+        const headers = {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        };
+
+        const body = JSON.stringify(payload); // Use the corrected payload
+
+        const response = await fetch(url, {
+          method,
+          headers,
+          body,
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Operation failed');
+
+        Alert.alert(
+          'Success',
+          `${values.businessName} has been successfully ${
+            company ? 'updated' : 'created'
+          }.`,
+        );
+        onFormSubmit();
+      } catch (error) {
+        Alert.alert(
+          'Error',
+          error instanceof Error ? error.message : 'An error occurred',
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [baseURL, company, duplicateError, isClient, onFormSubmit],
+  );
+
+  // Navigation handlers
+  const handleNextStep = useCallback(async () => {
+    if (step === 1 && duplicateError) {
+      Alert.alert('Validation Error', duplicateError);
+      return;
       const url = company
         ? `${baseURL}/api/companies/${company._id}`
         : `${baseURL}/api/companies`;
@@ -428,101 +532,120 @@ export default function DetailedCompanyForm({ company, clients, onFormSubmit, on
       setStep(step + 1);
     }
   }, [step, duplicateError, isClient, trigger]);
+  }, [step, duplicateError, isClient, trigger]);
 
+  const handlePrevStep = useCallback(() => {
   const handlePrevStep = useCallback(() => {
     setStep(step - 1);
   }, [step]);
 
   // Render form field
-  const renderFormField = useCallback((name, isOptional = false) => {
-    const label = FIELD_LABELS[name] || name;
-    
-    return (
-      <View key={name} style={styles.formGroup}>
-        <Text style={styles.label}>
-          {label}
-          {!isOptional && <Text style={styles.required}> *</Text>}
-        </Text>
-        <Controller
-          control={control}
-          name={name}
-          render={({ field: { onChange, onBlur, value } }) => (
-            <View>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  errors[name] && styles.inputError,
-                ]}
-                value={value || ''}
-                onChangeText={(text) => {
-                  onChange(text);
-                  if (name === 'registrationNumber') {
-                    if (checkTimeoutRef.current) {
-                      clearTimeout(checkTimeoutRef.current);
+  const renderFormField = useCallback(
+    (name, isOptional = false) => {
+      const label = FIELD_LABELS[name] || name;
+
+      return (
+        <View key={name} style={styles.formGroup}>
+          <Text style={styles.label}>
+            {label}
+            {!isOptional && <Text style={styles.required}> *</Text>}
+          </Text>
+          <Controller
+            control={control}
+            name={name}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <View>
+                <TextInput
+                  style={[styles.textInput, errors[name] && styles.inputError]}
+                  value={value || ''}
+                  onChangeText={text => {
+                    onChange(text);
+                    if (name === 'registrationNumber') {
+                      if (checkTimeoutRef.current) {
+                        clearTimeout(checkTimeoutRef.current);
+                      }
+                      checkTimeoutRef.current = setTimeout(() => {
+                        checkDuplicateRegistration(text);
+                      }, 500);
                     }
-                    checkTimeoutRef.current = setTimeout(() => {
-                      checkDuplicateRegistration(text);
-                    }, 500);
-                  }
-                }}
-                onBlur={onBlur}
-                placeholder={`Enter ${label.toLowerCase()}`}
-                secureTextEntry={name.toLowerCase().includes('password')}
-              />
-              {name === 'registrationNumber' && isCheckingDuplicate && (
-                <View style={styles.checkingContainer}>
-                  <ActivityIndicator size="small" color="#0000ff" />
-                  <Text style={styles.checkingText}>Checking...</Text>
-                </View>
-              )}
-              {name === 'registrationNumber' && duplicateError && (
-                <View style={styles.duplicateErrorContainer}>
-                  <AlertCircle size={16} color="#dc2626" />
-                  <Text style={styles.duplicateError}>{duplicateError}</Text>
-                </View>
-              )}
-              {errors[name] && (
-                <Text style={styles.errorText}>{errors[name]?.message}</Text>
-              )}
-            </View>
-          )}
-        />
-      </View>
-    );
-  }, [control, errors, isCheckingDuplicate, duplicateError, checkDuplicateRegistration]);
+                  }}
+                  onBlur={onBlur}
+                  placeholder={`Enter ${label.toLowerCase()}`}
+                  secureTextEntry={name.toLowerCase().includes('password')}
+                />
+                {name === 'registrationNumber' && isCheckingDuplicate && (
+                  <View style={styles.checkingContainer}>
+                    <ActivityIndicator size="small" color="#0000ff" />
+                    <Text style={styles.checkingText}>Checking...</Text>
+                  </View>
+                )}
+                {name === 'registrationNumber' && duplicateError && (
+                  <View style={styles.duplicateErrorContainer}>
+                    <AlertCircle size={16} color="#dc2626" />
+                    <Text style={styles.duplicateError}>{duplicateError}</Text>
+                  </View>
+                )}
+                {errors[name] && (
+                  <Text style={styles.errorText}>{errors[name]?.message}</Text>
+                )}
+              </View>
+            )}
+          />
+        </View>
+      );
+    },
+    [
+      control,
+      errors,
+      isCheckingDuplicate,
+      duplicateError,
+      checkDuplicateRegistration,
+    ],
+  );
 
   // Render select field
-  const renderSelectField = useCallback((name, options, placeholder) => {
-    const currentValue = getValues(name);
+  const renderSelectField = useCallback(
+    (name, options, placeholder) => {
+      const currentValue = getValues(name);
 
-    return (
-      <View key={name} style={styles.formGroup}>
-        <Text style={styles.label}>{FIELD_LABELS[name] || name}</Text>
-        <Controller
-          control={control}
-          name={name}
-          render={({ field: { value } }) => (
-            <View>
-              <TouchableOpacity 
-                style={[styles.textInput, styles.selectInput, errors[name] && styles.inputError]}
-                onPress={() => openSelectModal(name, options, placeholder)}
-              >
-                <Text 
-                  style={[styles.selectText, !currentValue && styles.selectPlaceholderText]}
+      return (
+        <View key={name} style={styles.formGroup}>
+          <Text style={styles.label}>{FIELD_LABELS[name] || name}</Text>
+          <Controller
+            control={control}
+            name={name}
+            render={({ field: { value } }) => (
+              <View>
+                <TouchableOpacity
+                  style={[
+                    styles.textInput,
+                    styles.selectInput,
+                    errors[name] && styles.inputError,
+                  ]}
+                  onPress={() => openSelectModal(name, options, placeholder)}
                 >
-                  {options.find(opt => opt.value === currentValue)?.label || placeholder}
-                </Text>
-                <ChevronDown size={18} color="#6b7280" />
-              </TouchableOpacity>
-              {errors[name] && (
-                <Text style={styles.errorText}>{errors[name]?.message}</Text>
-              )}
-            </View>
-          )}
-        />
-      </View>
-    );
-  }, [control, errors, getValues, openSelectModal]);
+                  <Text
+                    style={[
+                      styles.selectText,
+                      !currentValue && styles.selectPlaceholderText,
+                    ]}
+                  >
+                    {options.find(opt => opt.value === currentValue)?.label ||
+                      placeholder}
+                  </Text>
+                  <ChevronDown size={18} color="#6b7280" />
+                </TouchableOpacity>
+                {errors[name] && (
+                  <Text style={styles.errorText}>{errors[name]?.message}</Text>
+                )}
+              </View>
+            )}
+          />
+        </View>
+      );
+    },
+    [control, errors, getValues, openSelectModal],
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -538,7 +661,7 @@ export default function DetailedCompanyForm({ company, clients, onFormSubmit, on
 
       {/* Stepper */}
       <View style={styles.stepper}>
-        {[1, 2, 3].map((stepNumber) => (
+        {[1, 2, 3].map(stepNumber => (
           <View key={stepNumber} style={styles.stepperItem}>
             <View
               style={[
@@ -566,43 +689,54 @@ export default function DetailedCompanyForm({ company, clients, onFormSubmit, on
                 step === stepNumber && styles.stepperLabelActive,
               ]}
             >
-              {stepNumber === 1 && "Basic Details"}
-              {stepNumber === 2 && "GST Details"}
-              {stepNumber === 3 && "TDS Details"}
+              {stepNumber === 1 && 'Basic Details'}
+              {stepNumber === 2 && 'GST Details'}
+              {stepNumber === 3 && 'TDS Details'}
             </Text>
           </View>
         ))}
       </View>
 
       {/* Form Content */}
-      <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.formContainer}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Step 1 */}
         {step === 1 && (
           <View style={styles.stepContainer}>
             {/* Client Selection (for admin only) */}
-            {!isClient && renderSelectField(
-              'client', 
-              clients.map(client => ({ 
-                label: `${client.contactName} - (${client.email})`, 
-                value: client._id 
-              })), 
-              "Select a client"
-            )}
+            {!isClient &&
+              renderSelectField(
+                'client',
+                clients.map(client => ({
+                  label: `${client.contactName} - (${client.email})`,
+                  value: client._id,
+                })),
+                'Select a client',
+              )}
 
             {/* Logo Upload */}
             <View style={styles.logoSection}>
               <Text style={styles.sectionLabel}>
-                Company Logo <Text style={styles.optionalText}>(Upload under 200 KB)</Text>
+                Company Logo{' '}
+                <Text style={styles.optionalText}>(Upload under 200 KB)</Text>
               </Text>
-              <TouchableOpacity style={styles.logoButton} onPress={handleImageSelect}>
+              <TouchableOpacity
+                style={styles.logoButton}
+                onPress={handleImageSelect}
+              >
                 <Camera size={24} color="#666" />
                 <Text style={styles.logoButtonText}>Select Logo</Text>
               </TouchableOpacity>
-              
+
               {logoPreview && (
                 <View style={styles.logoPreview}>
-                  <Image source={{ uri: logoPreview }} style={styles.logoImage} />
-                  <TouchableOpacity 
+                  <Image
+                    source={{ uri: logoPreview }}
+                    style={styles.logoImage}
+                  />
+                  <TouchableOpacity
                     style={styles.removeLogoButton}
                     onPress={() => {
                       setLogoFile(null);
@@ -617,7 +751,14 @@ export default function DetailedCompanyForm({ company, clients, onFormSubmit, on
 
             {/* Business Details */}
             <View style={styles.fieldsGrid}>
-              {renderSelectField('businessType', defaultBusinessTypes.map(type => ({ label: type, value: type })), "Select business type")}
+              {renderSelectField(
+                'businessType',
+                defaultBusinessTypes.map(type => ({
+                  label: type,
+                  value: type,
+                })),
+                'Select business type',
+              )}
               {renderFormField('businessName')}
               {renderFormField('registrationNumber')}
               {renderFormField('address')}
@@ -641,14 +782,25 @@ export default function DetailedCompanyForm({ company, clients, onFormSubmit, on
             <View style={styles.fieldsGrid}>
               {renderFormField('gstin', true)}
               {renderFormField('gstState', true)}
-              {renderSelectField('RegistrationType', gstRegistrationTypes.map(type => ({ label: type, value: type })), "Select registration type")}
+              {renderSelectField(
+                'RegistrationType',
+                gstRegistrationTypes.map(type => ({
+                  label: type,
+                  value: type,
+                })),
+                'Select registration type',
+              )}
               {renderFormField('PeriodicityofGSTReturns', true)}
               {renderFormField('GSTUsername', true)}
               {renderFormField('GSTPassword', true)}
-              {renderSelectField('ewayBillApplicable', [
-                { label: 'Yes', value: 'true' },
-                { label: 'No', value: 'false' }
-              ], "Select Yes or No")}
+              {renderSelectField(
+                'ewayBillApplicable',
+                [
+                  { label: 'Yes', value: 'true' },
+                  { label: 'No', value: 'false' },
+                ],
+                'Select Yes or No',
+              )}
               {renderFormField('EWBBillUsername', true)}
               {renderFormField('EWBBillPassword', true)}
             </View>
@@ -673,21 +825,21 @@ export default function DetailedCompanyForm({ company, clients, onFormSubmit, on
       <View style={styles.bottomNavigation}>
         <View style={styles.navButtons}>
           {step > 1 ? (
-            <TouchableOpacity 
-              style={[styles.button, styles.prevButton]} 
+            <TouchableOpacity
+              style={[styles.button, styles.prevButton]}
               onPress={handlePrevStep}
               disabled={isSubmitting}
             >
               <ChevronLeft size={20} color="#1e40af" />
               <Text style={styles.prevButtonText}>Previous</Text>
             </TouchableOpacity>
-          ) : ( 
+          ) : (
             <View style={styles.spacer} />
           )}
           
           {step < 3 ? (
-            <TouchableOpacity 
-              style={[styles.button, styles.nextButton]} 
+            <TouchableOpacity
+              style={[styles.button, styles.nextButton]}
               onPress={handleNextStep}
               disabled={isCheckingDuplicate}
             >
@@ -704,8 +856,12 @@ export default function DetailedCompanyForm({ company, clients, onFormSubmit, on
               )}
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity 
-              style={[styles.button, styles.submitButton, isSubmitting && styles.submitButtonDisabled]} 
+            <TouchableOpacity
+              style={[
+                styles.button,
+                styles.submitButton,
+                isSubmitting && styles.submitButtonDisabled,
+              ]}
               onPress={handleSubmit(onSubmit)}
               disabled={isSubmitting || !!duplicateError}
             >
@@ -713,14 +869,18 @@ export default function DetailedCompanyForm({ company, clients, onFormSubmit, on
                 <>
                   <ActivityIndicator size="small" color="white" />
                   <Text style={styles.submitButtonText}>
-                    {company ? "Saving..." : "Creating..."}
+                    {company ? 'Saving...' : 'Creating...'}
                   </Text>
                 </>
               ) : (
                 <>
-                  {company ? <Save size={20} color="white" /> : <PlusCircle size={20} color="white" />}
+                  {company ? (
+                    <Save size={20} color="white" />
+                  ) : (
+                    <PlusCircle size={20} color="white" />
+                  )}
                   <Text style={styles.submitButtonText}>
-                    {company ? "Save Changes" : "Create Company"}
+                    {company ? 'Save Changes' : 'Create Company'}
                   </Text>
                 </>
               )}
@@ -728,12 +888,12 @@ export default function DetailedCompanyForm({ company, clients, onFormSubmit, on
           )}
         </View>
       </View>
-      
+
       {/* The Actual Select Modal */}
       <SelectModal
         visible={isSelectModalVisible}
         options={currentSelectField.options}
-        onSelect={(value) => handleSelectOption(currentSelectField.name, value)}
+        onSelect={value => handleSelectOption(currentSelectField.name, value)}
         onClose={() => setIsSelectModalVisible(false)}
         fieldName={currentSelectField.name}
         value={getValues(currentSelectField.name)}
