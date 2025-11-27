@@ -41,7 +41,7 @@ import { BASE_URL } from '../../config';
 // ...existing code...
 
 export default function AnalyticsScreen() {
-    const route = useRoute(); // Add this line
+  const route = useRoute(); // Add this line
   const preSelectedClientId = route.params?.clientId; // Add this line
 
   const [clients, setClients] = useState([]);
@@ -59,11 +59,13 @@ export default function AnalyticsScreen() {
   const isMountedRef = useRef(true);
   const abortControllerRef = useRef(null);
 
-    // ✅ ADD THIS EFFECT FOR PRE-SELECTED CLIENT
+  // ✅ ADD THIS EFFECT FOR PRE-SELECTED CLIENT
   React.useEffect(() => {
     if (preSelectedClientId && clients.length > 0) {
       // Check if pre-selected client exists in clients list
-      const clientExists = clients.some(c => c && c._id === preSelectedClientId);
+      const clientExists = clients.some(
+        c => c && c._id === preSelectedClientId,
+      );
       if (clientExists) {
         setSelectedClientId(preSelectedClientId);
       }
@@ -416,11 +418,11 @@ export default function AnalyticsScreen() {
               <Text style={styles.pickerDisplay} numberOfLines={1}>
                 {value && items
                   ? // find matching item by id/value; fallback to placeholder
-                    (items.find(i => i && (i._id === value || i.value === value))
+                    items.find(i => i && (i._id === value || i.value === value))
                       ?.contactName ||
-                      items.find(i => i && (i._id === value || i.value === value))
-                        ?.businessName ||
-                      placeholder)
+                    items.find(i => i && (i._id === value || i.value === value))
+                      ?.businessName ||
+                    placeholder
                   : placeholder}
               </Text>
               <ChevronDown
@@ -553,30 +555,30 @@ export default function AnalyticsScreen() {
 
   return (
     <AppLayout>
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      {/* Header and Selection are fixed at the top */}
-      {renderHeaderAndSelection()}
+        {/* Header and Selection are fixed at the top */}
+        {renderHeaderAndSelection()}
 
-      {!selectedClient && !isClientsLoading ? (
-        <ScrollView contentContainerStyle={styles.noClientScroll}>
-          <View style={styles.noClientContainer}>
-            <Users size={48} color="#adb5bd" />
-            <Text style={styles.noClientText}>No Client Selected</Text>
-            <Text style={styles.noClientSubtext}>
-              Please select a client to view their data.
-            </Text>
+        {!selectedClient && !isClientsLoading ? (
+          <ScrollView contentContainerStyle={styles.noClientScroll}>
+            <View style={styles.noClientContainer}>
+              <Users size={48} color="#adb5bd" />
+              <Text style={styles.noClientText}>No Client Selected</Text>
+              <Text style={styles.noClientSubtext}>
+                Please select a client to view their data.
+              </Text>
+            </View>
+          </ScrollView>
+        ) : (
+          <View style={styles.tabsContainer}>
+            {renderMainTabs()}
+
+            <View style={styles.tabContentFlex}>{renderTabContent()}</View>
           </View>
-        </ScrollView>
-      ) : (
-        <View style={styles.tabsContainer}>
-          {renderMainTabs()}
-
-          <View style={styles.tabContentFlex}>{renderTabContent()}</View>
-        </View>
-      )}
-    </SafeAreaView>
+        )}
+      </SafeAreaView>
     </AppLayout>
   );
 }
@@ -616,11 +618,12 @@ const styles = StyleSheet.create({
   // --- Header ---
   headerContainer: {
     padding: 16,
+    paddingTop: 4,
     paddingBottom: 0,
     backgroundColor: '#fff',
   },
   headerTextContainer: {
-    marginBottom: 16,
+    marginBottom: 6,
   },
   headerTitle: {
     fontSize: 26,
@@ -634,8 +637,8 @@ const styles = StyleSheet.create({
 
   // --- Selection pickers ---
   selectionContainer: {
-    marginBottom: 10,
-    paddingTop: 10,
+    marginBottom: 4,
+    paddingTop: 4,
   },
   twoColumnSelection: {
     flexDirection: 'row',

@@ -87,16 +87,16 @@ const CompanyCard = ({ company, clientName, onEdit, onDelete }) => {
 
       {/* Actions Footer */}
       <View style={styles.footer}>
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.editButton]} 
+        <TouchableOpacity
+          style={[styles.actionButton, styles.editButton]}
           onPress={onEdit}
         >
           <Icon name="pencil" size={16} color="#fff" />
           <Text style={styles.actionButtonText}>Edit</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.deleteButton]} 
+        <TouchableOpacity
+          style={[styles.actionButton, styles.deleteButton]}
           onPress={onDelete}
         >
           <Icon name="trash-can" size={16} color="#fff" />
@@ -111,6 +111,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     margin: 16,
+    marginBottom: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
