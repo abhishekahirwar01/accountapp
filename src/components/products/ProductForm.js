@@ -59,9 +59,13 @@ const STANDARD_UNITS = [
   'Pack',
 ];
 
-export default function ProductForm({ navigation, route }) {
+export default function ProductForm({
+  navigation,
+  route,
+  onSuccess: onSuccessProp,
+}) {
   const product = route?.params?.product || null;
-  const onSuccess = route?.params?.onSuccess || (() => {});
+  const onSuccess = onSuccessProp || route?.params?.onSuccess || (() => {});
 
   const [existingUnits, setExistingUnits] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -306,8 +310,12 @@ export default function ProductForm({ navigation, route }) {
         );
       }
 
-      onSuccess(data.product);
-      navigation.goBack();
+      try {
+        onSuccess(data.product);
+      } catch (e) {}
+      if (navigation && typeof navigation.goBack === 'function') {
+        navigation.goBack();
+      }
     } catch (error) {
       Alert.alert('Error', error.message || 'Something went wrong.');
     } finally {
@@ -340,8 +348,12 @@ export default function ProductForm({ navigation, route }) {
               if (!res.ok)
                 throw new Error(data.message || 'Failed to delete product.');
 
-              onSuccess();
-              navigation.goBack();
+              try {
+                onSuccess();
+              } catch (e) {}
+              if (navigation && typeof navigation.goBack === 'function') {
+                navigation.goBack();
+              }
             } catch (error) {
               Alert.alert('Error', error.message);
             } finally {

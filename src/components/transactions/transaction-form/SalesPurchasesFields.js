@@ -183,19 +183,24 @@ const CustomCheckbox = ({ status, onPress, label, description }) => (
 );
 
 const CustomMenu = ({ visible, onDismiss, anchor, children }) => {
-  if (!visible) return null;
-
   return (
-    <Modal
-      transparent
-      visible={visible}
-      onRequestClose={onDismiss}
-      animationType="fade"
-    >
-      <Pressable style={styles.menuOverlay} onPress={onDismiss}>
-        <View style={styles.menuContainer}>{children}</View>
-      </Pressable>
-    </Modal>
+    <>
+      {/* Always render anchor so the opener is visible */}
+      {anchor}
+
+      {visible && (
+        <Modal
+          transparent
+          visible={visible}
+          onRequestClose={onDismiss}
+          animationType="fade"
+        >
+          <Pressable style={styles.menuOverlay} onPress={onDismiss}>
+            <View style={styles.menuContainer}>{children}</View>
+          </Pressable>
+        </Modal>
+      )}
+    </>
   );
 };
 

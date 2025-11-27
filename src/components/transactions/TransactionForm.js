@@ -3426,11 +3426,13 @@ export function TransactionForm({
             <CustomerForm
               initialName={newEntityName}
               onSuccess={handlePartyCreated}
+              hideHeader={true}
             />
           ) : (
             <VendorForm
               initialName={newEntityName}
               onSuccess={handlePartyCreated}
+              hideHeader={true}
             />
           )}
         </Dialog.Content>
@@ -3819,30 +3821,32 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 0,
     width: '90%',
-    maxHeight: '80%',
+    height: '80%',
   },
   dialogTitle: {
-    stickySubmitContainer: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      bottom: 0,
-      padding: 12,
-      backgroundColor: 'white',
-      borderTopWidth: 1,
-      borderTopColor: '#e0e0e0',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: -2 },
-      shadowOpacity: 0.06,
-      shadowRadius: 6,
-      elevation: 8,
-    },
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
+  stickySubmitContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 12,
+    backgroundColor: 'white',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 8,
+  },
   dialogContent: {
     padding: 16,
+    flex: 1,
+    minHeight: 0,
   },
   editAddressForm: {
     gap: 16,
