@@ -8,9 +8,7 @@ export function CompanyProvider({ children }) {
   const value = { selectedCompanyId, setSelectedCompanyId };
 
   return (
-    <CompanyContext.Provider value={value}>
-      {children}
-    </CompanyContext.Provider>
+    <CompanyContext.Provider value={value}>{children}</CompanyContext.Provider>
   );
 }
 

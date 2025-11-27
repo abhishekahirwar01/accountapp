@@ -1,130 +1,185 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
-  Text,
+  ScrollView,
   TextInput,
   TouchableOpacity,
   Modal,
-  StyleSheet,
-  Alert,
-  ScrollView,
+  RefreshControl,
+  Dimensions,
+  FlatList,
 } from 'react-native';
-import Feather from 'react-native-vector-icons/Feather';
-import { ServiceForm } from '../services/ServiceForm';
+import {
+  Card,
+  Button,
+  Searchbar,
+  ActivityIndicator,
+  Chip,
+  Dialog,
+  Portal,
+  TextInput as PaperTextInput,
+  List,
+  FAB,
+  Divider,
+  Surface,
+  Badge,
+  Menu,
+  IconButton,
+  Text,
+} from 'react-native-paper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+
+// Import your actual components and contexts
 import { ProductForm } from '../products/ProductForm';
+import { usePermissions } from '../../contexts/permission-context';
+import { useCompany } from '../../contexts/company-context';
+import { ServiceForm } from '../services/ServiceForm';
+import { useUserPermissions } from '../../contexts/user-permissions-context';
+import { capitalizeWords } from '../../lib/utils';
+import ProductTableRow from './ProductTableRow';
+import ProductMobileCard from './ProductMobileCard';
+import { BASE_URL } from '../../config';
+import { useToast } from '../hooks/useToast';
 
-const INITIAL_PRODUCTS = [
-  {
-    _id: '1',
-    name: 'Laptop Computer',
-    type: 'product',
-    stocks: 45,
-    unit: 'pcs',
-    createdByClient: 'client1',
-  },
-  {
-    _id: '2',
-    name: 'Wireless Mouse',
-    type: 'product',
-    stocks: 120,
-    unit: 'pcs',
-    createdByClient: 'client1',
-  },
-  {
-    _id: '3',
-    name: 'USB Cable',
-    type: 'product',
-    stocks: 200,
-    unit: 'pcs',
-    createdByClient: 'client1',
-  },
-  {
-    _id: '4',
-    name: 'IT Consulting',
-    type: 'service',
-    stocks: 0,
-    unit: null,
-    createdByClient: 'client1',
-  },
-  {
-    _id: '5',
-    name: 'Web Development',
-    type: 'service',
-    stocks: 0,
-    unit: null,
-    createdByClient: 'client1',
-  },
-];
+const { width } = Dimensions.get('window');
+const isTablet = width >= 768;
+const baseURL = BASE_URL;
 
-function StockEditForm({ product, onSuccess, onCancel }) {
+const StockEditForm = ({ product, onSuccess, onCancel }) => {
   const [newStock, setNewStock] = useState(product.stocks?.toString() || '0');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { showToast } = useToast();
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setIsSubmitting(true);
-    setTimeout(() => {
-      const updated = { ...product, stocks: parseInt(newStock) || 0 };
-      onSuccess(updated);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const res = await fetch(`${baseURL}/api/products/${product._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ stocks: parseInt(newStock) }),
+      });
+
+      if (!res.ok) throw new Error('Failed to update stock.');
+      const data = await res.json();
+
+      showToast('Stock updated successfully!', 'success');
+      onSuccess(data.product);
+    } catch (error) {
+      showToast('Failed to update stock', 'error', error.message);
+    } finally {
       setIsSubmitting(false);
-    }, 600);
+    }
   };
 
   return (
-    <View style={styles.formContainer}>
-      <Text style={styles.label}>Stock for {product.name}</Text>
-      <TextInput
-        style={styles.input}
+    <View style={{ padding: 16 }}>
+      <PaperTextInput
+        label={`Stock for ${product.name}`}
         value={newStock}
         onChangeText={setNewStock}
         keyboardType="numeric"
-        placeholder="Enter stock quantity"
+        mode="outlined"
+        style={{ marginBottom: 16 }}
       />
-      <View style={styles.formActions}>
-        <TouchableOpacity onPress={onCancel} style={styles.cancelBtn}>
-          <Text style={styles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+      <View
+        style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}
+      >
+        <Button mode="outlined" onPress={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          mode="contained"
           onPress={handleSubmit}
-          style={[styles.saveButton, isSubmitting && styles.disabledButton]}
+          loading={isSubmitting}
           disabled={isSubmitting}
         >
-          <Text style={styles.saveButtonText}>
-            {isSubmitting ? 'Saving...' : 'Save Changes'}
-          </Text>
-        </TouchableOpacity>
+          Save Changes
+        </Button>
       </View>
     </View>
   );
-}
+};
 
-function Segment({ label, active, onPress }) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={[styles.segmentBtn, active && styles.segmentBtnActive]}
-      activeOpacity={0.9}
-    >
-      <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
-}
+// Helper functions
+const getStockStatus = product => {
+  if (product.type === 'service') return null;
+  const stock = product.stocks ?? 0;
+  if (stock === 0)
+    return { status: 'out', color: '#ef4444', text: 'Out of Stock' };
+  if (stock <= 10)
+    return { status: 'low', color: '#f59e0b', text: 'Low Stock' };
+  return { status: 'in', color: '#10b981', text: 'In Stock' };
+};
 
-export default function ProductStock() {
-  const [products, setProducts] = useState(INITIAL_PRODUCTS);
+const getStockColor = stock => {
+  const stockValue = stock ?? 0;
+  if (stockValue > 10) return '#10b981';
+  if (stockValue > 0) return '#f59e0b';
+  return '#ef4444';
+};
+
+const ProductStock = ({ navigation }) => {
+  const [products, setProducts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [isAddServiceOpen, setIsAddServiceOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'PRODUCT' | 'SERVICE'
+  const [refreshing, setRefreshing] = useState(false);
+  const [fabOpen, setFabOpen] = useState(false);
+  const [role, setRole] = useState('user');
+  const [openNameDialog, setOpenNameDialog] = useState(null);
 
-  const role = 'client';
+  const { showToast } = useToast();
+  const { permissions } = usePermissions();
+  const { selectedCompanyId } = useCompany();
+  const { permissions: userCaps } = useUserPermissions();
 
-  const filteredProducts = products
-    .filter(p => activeTab === 'ALL' || p.type.toUpperCase() === activeTab)
-    .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const fetchProducts = async () => {
+    setIsLoading(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      // Get user role
+      const userRole = await AsyncStorage.getItem('role');
+      setRole(userRole || 'user');
+
+      const url = selectedCompanyId
+        ? `${baseURL}/api/products?companyId=${selectedCompanyId}`
+        : `${baseURL}/api/products`;
+
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error('Failed to fetch products.');
+      const data = await res.json();
+      setProducts(Array.isArray(data) ? data : data.products || []);
+    } catch (error) {
+      showToast('Failed to load products', 'error', error.message);
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, [selectedCompanyId]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchProducts();
+  };
 
   const handleEditClick = product => {
     setSelectedProduct(product);
@@ -137,160 +192,281 @@ export default function ProductStock() {
     );
     setIsEditDialogOpen(false);
     setSelectedProduct(null);
-    Alert.alert('Success', 'Stock updated successfully!');
   };
 
   const handleAddProductSuccess = newProduct => {
-    const productToAdd = {
-      ...newProduct,
-      _id: Date.now().toString(),
-      type: 'product',
-      stocks: Number(newProduct.stocks ?? 0),
-      unit: newProduct.unit ?? 'pcs',
-      createdByClient: 'client1',
-    };
-    setProducts(prev => [productToAdd, ...prev]);
+    setProducts(prev => [...prev, newProduct]);
     setIsAddProductOpen(false);
-    Alert.alert('Product Created!', `${newProduct.name} added.`);
+    showToast(
+      `${capitalizeWords(newProduct.name)} added.`,
+      'success',
+      'Product Created!',
+    );
+    fetchProducts();
   };
 
   const handleAddServiceSuccess = newService => {
-    const serviceToAdd = {
-      _id: Date.now().toString(),
+    const serviceAsProduct = {
+      _id: newService._id,
       name: newService.serviceName,
       type: 'service',
       stocks: 0,
-      unit: null,
-      createdByClient: 'client1',
+      createdByClient: newService.createdByClient,
+      price: undefined,
     };
-    setProducts(prev => [serviceToAdd, ...prev]);
+
+    setProducts(prev => [...prev, serviceAsProduct]);
     setIsAddServiceOpen(false);
-    Alert.alert('Service Created!', `${newService.serviceName} added.`);
+    showToast(
+      `${capitalizeWords(newService.serviceName)} added.`,
+      'success',
+      'Service Created!',
+    );
+    fetchProducts();
   };
 
-  const countAll = products.length;
-  const countProducts = products.filter(p => p.type === 'product').length;
-  const countServices = products.filter(p => p.type === 'service').length;
+  const filteredProducts = products.filter(p =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
+
+  const renderProductItem = ({ item }) => (
+    <ProductMobileCard
+      product={item}
+      onEditClick={handleEditClick}
+      role={role}
+      onNamePress={() => setOpenNameDialog(item.name)}
+    />
+  );
+
+  const renderTableRow = ({ item, index }) => (
+    <ProductTableRow
+      product={item}
+      onEditClick={handleEditClick}
+      role={role}
+      onNamePress={() => setOpenNameDialog(item.name)}
+      isLast={index === filteredProducts.length - 1}
+    />
+  );
+
+  if (
+    !permissions?.canCreateProducts &&
+    !userCaps?.canCreateInventory &&
+    (permissions?.maxInventories ?? 0) === 0
+  ) {
+    return null;
+  }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Product & Service Stock</Text>
-        <Text style={styles.subtitle}>Current inventory levels</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => setIsAddProductOpen(true)}
+    <View style={{ flex: 1, padding: 16 }}>
+      <Card style={{ marginBottom: 16 }}>
+        <Card.Content>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 16,
+            }}
           >
-            <Feather name="plus-circle" size={18} color="#fff" />
-            <Text style={styles.primaryButtonText}>Product</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => setIsAddServiceOpen(true)}
-          >
-            <Feather name="server" size={18} color="#2563eb" />
-            <Text style={styles.secondaryButtonText}>Service</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+            <View>
+              <Text variant="titleLarge" style={{ fontWeight: 'bold' }}>
+                Product & Service Stock
+              </Text>
+              <Text variant="bodyMedium" style={{ color: '#666' }}>
+                Current inventory levels and management
+              </Text>
+            </View>
 
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <Feather name="search" size={18} color="#6b7280" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search products or services"
-          value={searchTerm}
-          onChangeText={setSearchTerm}
-          keyboardType="visible-password"
-          placeholderTextColor="#94a3b8"
-        />
-      </View>
-
-      {/* Filter Segments */}
-      <View style={styles.segmentRow}>
-        <Segment
-          label={`All (${countAll})`}
-          active={activeTab === 'ALL'}
-          onPress={() => setActiveTab('ALL')}
-        />
-        <Segment
-          label={`Product (${countProducts})`}
-          active={activeTab === 'PRODUCT'}
-          onPress={() => setActiveTab('PRODUCT')}
-        />
-        <Segment
-          label={`Services (${countServices})`}
-          active={activeTab === 'SERVICE'}
-          onPress={() => setActiveTab('SERVICE')}
-        />
-      </View>
-
-      {/* Product/Service List */}
-      <View style={{ marginTop: 10, marginBottom: 10 }}>
-        {filteredProducts.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Feather name="package" size={32} color="#6b7280" />
-            <Text style={styles.emptyTitle}>No Items Found</Text>
-            <Text style={styles.emptyDescription}>
-              {searchTerm
-                ? `No items match "${searchTerm}".`
-                : "You haven't added any products or services yet."}
-            </Text>
+            {(permissions?.canCreateProducts || userCaps?.canCreateInventory) &&
+              isTablet && (
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Button
+                    mode="contained"
+                    onPress={() => setIsAddProductOpen(true)}
+                    icon="package-variant"
+                    compact
+                  >
+                    Product
+                  </Button>
+                  <Button
+                    mode="outlined"
+                    onPress={() => setIsAddServiceOpen(true)}
+                    icon="server"
+                    compact
+                  >
+                    Service
+                  </Button>
+                </View>
+              )}
           </View>
-        ) : (
-          filteredProducts.map(item => {
-            const isService = item.type === 'service';
-            return (
-              <View key={item._id} style={styles.productCard}>
-                <View style={styles.productHeader}>
-                  <View style={styles.productInfo}>
-                    <Feather
-                      name={isService ? 'server' : 'package'}
-                      size={22}
-                      color={isService ? '#8b5cf6' : '#2563eb'}
-                      style={{ marginRight: 8 }}
-                    />
-                    <View>
-                      <Text style={styles.productName}>{item.name}</Text>
-                      {isService && (
-                        <Text style={styles.serviceBadge}>Service</Text>
+
+          <Searchbar
+            placeholder="Search products or services..."
+            value={searchTerm}
+            onChangeText={setSearchTerm}
+            style={{ marginBottom: 16 }}
+          />
+
+          <ScrollView
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            style={{ maxHeight: 400 }}
+          >
+            {isLoading ? (
+              <View style={{ alignItems: 'center', padding: 32 }}>
+                <ActivityIndicator size="large" color="#3b82f6" />
+                <Text
+                  variant="bodyMedium"
+                  style={{ marginTop: 8, color: '#6b7280' }}
+                >
+                  Loading inventory...
+                </Text>
+              </View>
+            ) : filteredProducts.length > 0 ? (
+              <View>
+                {/* Tablet/Desktop Table View */}
+                {isTablet ? (
+                  <Surface
+                    style={{ elevation: 1, borderRadius: 8, marginBottom: 16 }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        padding: 16,
+                        borderBottomWidth: 1,
+                        borderBottomColor: '#e5e5e5',
+                        backgroundColor: '#f8fafc',
+                      }}
+                    >
+                      <View style={{ flex: 3 }}>
+                        <Text
+                          variant="bodyMedium"
+                          style={{ fontWeight: 'bold', color: '#374151' }}
+                        >
+                          Item
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          variant="bodyMedium"
+                          style={{ fontWeight: 'bold', color: '#374151' }}
+                        >
+                          Stock
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          variant="bodyMedium"
+                          style={{ fontWeight: 'bold', color: '#374151' }}
+                        >
+                          Unit
+                        </Text>
+                      </View>
+                      {role !== 'user' && (
+                        <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                          <Text
+                            variant="bodyMedium"
+                            style={{ fontWeight: 'bold', color: '#374151' }}
+                          >
+                            Actions
+                          </Text>
+                        </View>
                       )}
                     </View>
-                  </View>
-                  <View style={styles.stockInfo}>
-                    {isService ? (
-                      <Text style={styles.noStockText}>— no stock</Text>
-                    ) : (
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={styles.stockQuantity}>{item.stocks}</Text>
-                        <Text style={styles.unitText}>{item.unit ?? 'NA'}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-                {!isService && role !== 'user' && (
-                  <TouchableOpacity
-                    style={styles.editButton}
-                    onPress={() => handleEditClick(item)}
-                  >
-                    <Feather name="edit-3" size={16} color="#2563eb" />
-                    <Text style={styles.editButtonText}>Edit Stock</Text>
-                  </TouchableOpacity>
+                    <FlatList
+                      data={filteredProducts.slice(0, 4)}
+                      renderItem={renderTableRow}
+                      keyExtractor={item => item._id}
+                      scrollEnabled={false}
+                    />
+                  </Surface>
+                ) : (
+                  /* Mobile Card View */
+                  <FlatList
+                    data={filteredProducts.slice(0, 4)}
+                    renderItem={renderProductItem}
+                    keyExtractor={item => item._id}
+                    scrollEnabled={false}
+                    contentContainerStyle={{ gap: 12 }}
+                  />
                 )}
               </View>
-            );
-          })
-        )}
-      </View>
+            ) : (
+              <View style={{ alignItems: 'center', padding: 32 }}>
+                <View
+                  style={{
+                    backgroundColor: '#f3f4f6',
+                    padding: 16,
+                    borderRadius: 50,
+                    marginBottom: 16,
+                  }}
+                >
+                  <Icon name="package-variant" size={32} color="#8b5cf6" />
+                </View>
+                <Text
+                  variant="titleLarge"
+                  style={{ marginTop: 8, fontWeight: 'bold', color: '#1f2937' }}
+                >
+                  No Items Found
+                </Text>
+                <Text
+                  variant="bodyMedium"
+                  style={{
+                    textAlign: 'center',
+                    marginTop: 8,
+                    color: '#6b7280',
+                  }}
+                >
+                  {searchTerm
+                    ? `No items match "${searchTerm}". Try a different search term.`
+                    : 'Get started by adding your first product or service.'}
+                </Text>
+              </View>
+            )}
+          </ScrollView>
 
-      {/* Modals */}
-      <Modal visible={isEditDialogOpen} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Edit Stock</Text>
+          {filteredProducts.length > 3 && (
+            <Button
+              mode="outlined"
+              onPress={() => navigation.navigate('Inventory')}
+              style={{ marginTop: 16, borderColor: '#d1d5db' }}
+              textColor="#374151"
+              icon="chevron-right"
+            >
+              View More
+            </Button>
+          )}
+        </Card.Content>
+      </Card>
+
+      {/* Name Dialog */}
+      <Portal>
+        <Dialog
+          visible={!!openNameDialog}
+          onDismiss={() => setOpenNameDialog(null)}
+        >
+          <Dialog.Title>Product Name</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium">{capitalizeWords(openNameDialog)}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setOpenNameDialog(null)}>Close</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
+      {/* Edit Stock Dialog */}
+      <Portal>
+        <Dialog
+          visible={isEditDialogOpen}
+          onDismiss={() => setIsEditDialogOpen(false)}
+        >
+          <Dialog.Title>Edit Stock</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium" style={{ marginBottom: 16 }}>
+              Update the stock quantity for the selected product.
+            </Text>
             {selectedProduct && (
               <StockEditForm
                 product={selectedProduct}
@@ -298,203 +474,93 @@ export default function ProductStock() {
                 onCancel={() => setIsEditDialogOpen(false)}
               />
             )}
-          </View>
-        </View>
-      </Modal>
+          </Dialog.Content>
+        </Dialog>
+      </Portal>
 
-      <Modal visible={isAddProductOpen} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Create New Product</Text>
-            <ProductForm
-              onSuccess={handleAddProductSuccess}
-              onCancel={() => setIsAddProductOpen(false)}
-            />
-          </View>
-        </View>
-      </Modal>
+      {/* Add Product Dialog */}
+      <Portal>
+        <Dialog
+          visible={isAddProductOpen}
+          onDismiss={() => setIsAddProductOpen(false)}
+          style={{ maxHeight: '80%' }}
+        >
+          <Dialog.Title>Create New Product</Dialog.Title>
+          <Dialog.ScrollArea>
+            <ScrollView>
+              <Dialog.Content>
+                <Text variant="bodyMedium" style={{ marginBottom: 16 }}>
+                  Fill in the form to add a new product to your inventory.
+                </Text>
+                <ProductForm onSuccess={handleAddProductSuccess} />
+              </Dialog.Content>
+            </ScrollView>
+          </Dialog.ScrollArea>
+        </Dialog>
+      </Portal>
 
-      <Modal visible={isAddServiceOpen} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Create New Service</Text>
-            <ServiceForm
-              onSuccess={handleAddServiceSuccess}
-              onCancel={() => setIsAddServiceOpen(false)}
+      {/* Add Service Dialog */}
+      <Portal>
+        <Dialog
+          visible={isAddServiceOpen}
+          onDismiss={() => setIsAddServiceOpen(false)}
+          style={{ maxHeight: '80%' }}
+        >
+          <Dialog.Title>Create New Service</Dialog.Title>
+          <Dialog.ScrollArea>
+            <ScrollView>
+              <Dialog.Content>
+                <Text variant="bodyMedium" style={{ marginBottom: 16 }}>
+                  Fill in the form to add a new service to your offerings.
+                </Text>
+                <ServiceForm onSuccess={handleAddServiceSuccess} />
+              </Dialog.Content>
+            </ScrollView>
+          </Dialog.ScrollArea>
+        </Dialog>
+      </Portal>
+
+      {/* FAB for mobile */}
+      {(permissions?.canCreateProducts || userCaps?.canCreateInventory) &&
+        !isTablet && (
+          <Menu
+            visible={fabOpen}
+            onDismiss={() => setFabOpen(false)}
+            anchor={
+              <FAB
+                icon="plus"
+                style={{
+                  position: 'absolute',
+                  margin: 16,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: '#3b82f6',
+                }}
+                onPress={() => setFabOpen(true)}
+                color="white"
+              />
+            }
+          >
+            <Menu.Item
+              onPress={() => {
+                setFabOpen(false);
+                setIsAddProductOpen(true);
+              }}
+              title="Add Product"
+              leadingIcon="package-variant"
             />
-          </View>
-        </View>
-      </Modal>
-    </ScrollView>
+            <Menu.Item
+              onPress={() => {
+                setFabOpen(false);
+                setIsAddServiceOpen(true);
+              }}
+              title="Add Service"
+              leadingIcon="server"
+            />
+          </Menu>
+        )}
+    </View>
   );
-}
+};
 
-const styles = StyleSheet.create({
-  container: { paddingHorizontal: 0, backgroundColor: '#f9fafb' },
-  header: { marginVertical: 12, paddingHorizontal: 16 },
-  title: { fontSize: 22, fontWeight: '700', color: '#1f2937', letterSpacing: 0.2 },
-  subtitle: { fontSize: 14, color: '#6b7280', marginTop: 4 },
-  headerActions: { flexDirection: 'row', marginTop: 12, gap: 10 },
-  primaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2563eb',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    shadowColor: '#2563eb',
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  primaryButtonText: { color: '#fff', fontWeight: '600', marginLeft: 6, fontSize: 15 },
-  secondaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#2563eb',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: '#f1f5fd',
-  },
-  secondaryButtonText: { color: '#2563eb', fontWeight: '600', marginLeft: 6, fontSize: 15 },
-
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    marginTop: 12,
-    marginHorizontal: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  searchInput: { flex: 1, paddingVertical: 8, marginLeft: 8, fontSize: 15, color: '#1e293b' },
-
-  segmentRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 14,
-    marginHorizontal: 16,
-    marginBottom: 2,
-  },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    borderWidth: 1.5,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    marginHorizontal: 2,
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  segmentBtnActive: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
-  segmentText: { color: '#374151', fontWeight: '600', fontSize: 14 },
-  segmentTextActive: { color: '#fff' },
-
-  productCard: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 16,
-    marginVertical: 7,
-    marginHorizontal: 8,
-    shadowColor: '#2563eb',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  productHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  productInfo: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  productName: { fontSize: 17, fontWeight: '700', color: '#1f2937', letterSpacing: 0.1 },
-  serviceBadge: { fontSize: 12, color: '#8b5cf6', fontWeight: '700', marginTop: 2 },
-  stockInfo: { alignItems: 'flex-end' },
-  stockQuantity: { fontSize: 18, fontWeight: '700', color: '#2563eb' },
-  unitText: { fontSize: 13, color: '#64748b', fontWeight: '600' },
-  noStockText: { fontSize: 13, fontStyle: 'italic', color: '#6b7280' },
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-    alignSelf: 'flex-end',
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  editButtonText: { marginLeft: 4, color: '#2563eb', fontWeight: '700', fontSize: 14 },
-
-  emptyState: { alignItems: 'center', marginTop: 40 },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginTop: 6,
-    color: '#374151',
-  },
-  emptyDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginTop: 4,
-  },
-
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    padding: 16,
-  },
-  modalContent: {
-    width: '100%',
-    maxWidth: 480,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-  },
-
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1f2937',
-    marginBottom: 12,
-  },
-  formContainer: { paddingVertical: 12 },
-  label: { fontWeight: '600', marginBottom: 6, color: '#1f2937' },
-  input: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginBottom: 12,
-    fontSize: 15,
-    color: '#1e293b',
-  },
-  formActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
-  cancelBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
-  },
-  cancelButtonText: { color: '#374151', fontWeight: '600' },
-  saveButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: '#2563eb',
-  },
-  saveButtonText: { color: '#fff', fontWeight: '700' },
-  disabledButton: { backgroundColor: '#93c5fd' },
-});
+export default ProductStock;

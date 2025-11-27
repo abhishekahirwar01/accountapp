@@ -14,6 +14,8 @@ import Toast from 'react-native-toast-message';
 import { CompanyProvider } from './src/contexts/company-context';
 import { PermissionProvider } from './src/contexts/permission-context';
 import { UserPermissionsProvider } from './src/contexts/user-permissions-context';
+import { SupportProvider } from './src/contexts/support-context';
+
 
 // 1. DEFINE TOAST CONFIGURATION HERE TO RESOLVE THE ERROR
 const toastConfig = {
@@ -77,10 +79,12 @@ export default function App() {
         <CompanyProvider>
           <PermissionProvider>
             <UserPermissionsProvider>
+              <SupportProvider>
               <NavigationContainer ref={navigationRef}>
                 <StatusBar barStyle="dark-content" backgroundColor="#fff" />
                 <AppNavigator role={role} setRole={setRole} />
               </NavigationContainer>
+              </SupportProvider>
             </UserPermissionsProvider>
           </PermissionProvider>
         </CompanyProvider>

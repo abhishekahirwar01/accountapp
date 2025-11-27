@@ -2,26 +2,37 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   Modal,
   ScrollView,
+  TouchableOpacity,
   Image,
-  ActivityIndicator,
-  StyleSheet,
   Alert,
-
+  StyleSheet,
+  StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { BASE_URL } from '../../config';
+import {
+  Card,
+  Badge,
+  Button,
+  Dialog,
+  Portal,
+  ProgressBar,
+  Chip,
+} from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { BASE_URL } from '../../config';
 
 const UpdateWalkthrough = () => {
+  const baseURL = BASE_URL;
+  const navigation = useNavigation();
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [visible, setVisible] = useState(false);
 
   // Helper function to get user ID from token or user data
   const getUserIdFromToken = async () => {
@@ -83,42 +94,55 @@ const UpdateWalkthrough = () => {
         return;
       }
 
-      console.log('Fetching from:', `${BASE_URL}/api/update-notifications/user/${userId}`);
+      console.log(
+        'Fetching from:',
+        `${baseURL}/api/update-notifications/user/${userId}`,
+      );
 
-      // Fetch update notifications directly from backend
-      const response = await axios.get(`${BASE_URL}/api/update-notifications/user/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await axios.get(
+        `${baseURL}/api/update-notifications/user/${userId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
       const updateNotifications = response.data.notifications || [];
       console.log('Fetched update notifications:', updateNotifications.length);
 
-      // Filter out notifications that are in grace period (completed but not yet auto-dismissed)
-      const completedNotifications = JSON.parse(
-        await AsyncStorage.getItem('completedNotifications') || '{}'
+      // Filter out notifications that are in grace period
+      const completedNotificationsJSON = await AsyncStorage.getItem(
+        'completedNotifications',
       );
+      const completedNotifications = completedNotificationsJSON
+        ? JSON.parse(completedNotificationsJSON)
+        : {};
       const now = new Date();
 
-      const filteredNotifications = updateNotifications.filter((n) => {
-        // Check if it's in grace period
+      const filteredNotifications = updateNotifications.filter(n => {
         const completedData = completedNotifications[n._id];
         if (completedData) {
           const autoDismissAt = new Date(completedData.autoDismissAt);
-          return now >= autoDismissAt; // Grace period expired, hide it
+          return now >= autoDismissAt;
         }
-
-        return true; // Show if not in grace period
+        return true;
       });
 
       console.log('Filtered notifications:', filteredNotifications);
       if (filteredNotifications.length > 0) {
-        console.log('Features in first notification:', filteredNotifications[0]?.features);
+        console.log(
+          'Features in first notification:',
+          filteredNotifications[0]?.features,
+        );
       }
 
       setNotifications(filteredNotifications);
+
+      // Show badge if there are notifications
+      if (filteredNotifications.length > 0) {
+        setVisible(true);
+      }
     } catch (error) {
       console.error('Error fetching update notifications:', error);
-      Alert.alert('Error', 'Failed to fetch update notifications');
     } finally {
       setIsLoading(false);
     }
@@ -130,71 +154,90 @@ const UpdateWalkthrough = () => {
     // Set up auto-dismissal check every hour
     const autoDismissInterval = setInterval(() => {
       checkAndAutoDismissNotifications();
-    }, 60 * 60 * 1000); // Check every hour
+    }, 60 * 60 * 1000);
 
     return () => clearInterval(autoDismissInterval);
   }, []);
 
   // Function to check and auto-dismiss old notifications
   const checkAndAutoDismissNotifications = async () => {
-    const completedNotifications = JSON.parse(
-      await AsyncStorage.getItem('completedNotifications') || '{}'
-    );
-    const now = new Date();
+    try {
+      const completedNotificationsJSON = await AsyncStorage.getItem(
+        'completedNotifications',
+      );
+      const completedNotifications = completedNotificationsJSON
+        ? JSON.parse(completedNotificationsJSON)
+        : {};
+      const now = new Date();
 
-    for (const [notificationId, data] of Object.entries(completedNotifications)) {
-      const autoDismissAt = new Date(data.autoDismissAt);
+      for (const [notificationId, data] of Object.entries(
+        completedNotifications,
+      )) {
+        const autoDismissAt = new Date(data.autoDismissAt);
 
-      if (now >= autoDismissAt) {
-        try {
-          const token = await AsyncStorage.getItem('token');
-          const userId = await getUserIdFromToken();
+        if (now >= autoDismissAt) {
+          try {
+            const token = await AsyncStorage.getItem('token');
+            const userId = await getUserIdFromToken();
 
-          if (userId) {
-            // Dismiss the update notification
-            await axios.patch(`${BASE_URL}/api/update-notifications/dismiss/${notificationId}`, {
-              userId: userId
-            }, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            console.log(`Auto-dismissed update notification ${notificationId} after 36 hours`);
+            if (userId) {
+              await axios.patch(
+                `${baseURL}/api/update-notifications/dismiss/${notificationId}`,
+                { userId: userId },
+                { headers: { Authorization: `Bearer ${token}` } },
+              );
+              console.log(
+                `Auto-dismissed update notification ${notificationId} after 36 hours`,
+              );
+            }
+
+            delete completedNotifications[notificationId];
+            await AsyncStorage.setItem(
+              'completedNotifications',
+              JSON.stringify(completedNotifications),
+            );
+
+            fetchNotifications();
+          } catch (error) {
+            console.error(
+              `Error auto-dismissing notification ${notificationId}:`,
+              error,
+            );
           }
-
-          // Remove from AsyncStorage
-          delete completedNotifications[notificationId];
-          await AsyncStorage.setItem('completedNotifications', JSON.stringify(completedNotifications));
-
-          // Refresh notifications to hide the auto-dismissed one
-          fetchNotifications();
-        } catch (error) {
-          console.error(`Error auto-dismissing notification ${notificationId}:`, error);
         }
       }
+    } catch (error) {
+      console.error('Error in auto-dismiss check:', error);
     }
   };
 
-  // Mark notification as dismissed with delay (don't remove immediately)
-  const markAsReadWithDelay = async (notificationId) => {
+  // Mark notification as dismissed with delay
+  const markAsReadWithDelay = async notificationId => {
     try {
-      // Instead of dismissing immediately, we'll hide it from UI
-      // The backend will handle auto-dismissal after 36 hours
-      console.log(`Notification ${notificationId} completed - will auto-dismiss in 36 hours`);
-
-      // Store completion time in AsyncStorage for UI purposes
-      const completedNotifications = JSON.parse(
-        await AsyncStorage.getItem('completedNotifications') || '{}'
+      console.log(
+        `Notification ${notificationId} completed - will auto-dismiss in 36 hours`,
       );
+
+      const completedNotificationsJSON = await AsyncStorage.getItem(
+        'completedNotifications',
+      );
+      const completedNotifications = completedNotificationsJSON
+        ? JSON.parse(completedNotificationsJSON)
+        : {};
+
       completedNotifications[notificationId] = {
         completedAt: new Date().toISOString(),
-        autoDismissAt: new Date(Date.now() + 36 * 60 * 60 * 1000).toISOString() // 36 hours
+        autoDismissAt: new Date(Date.now() + 36 * 60 * 60 * 1000).toISOString(),
       };
-      await AsyncStorage.setItem('completedNotifications', JSON.stringify(completedNotifications));
 
-      // Update local state to hide from UI
+      await AsyncStorage.setItem(
+        'completedNotifications',
+        JSON.stringify(completedNotifications),
+      );
       setNotifications(prev => prev.filter(n => n._id !== notificationId));
+      setVisible(notifications.length > 1);
     } catch (error) {
       console.error('Error marking notification as dismissed:', error);
-      Alert.alert('Error', 'Failed to mark notification as read');
     }
   };
 
@@ -203,12 +246,40 @@ const UpdateWalkthrough = () => {
     notification.features.map(feature => ({
       ...feature,
       notificationTitle: notification.title,
-      version: notification.version
-    }))
+      version: notification.version,
+    })),
   );
 
   const totalSteps = allFeatures.length;
   const currentFeature = allFeatures[currentStep];
+
+  // Helper function to render markdown-style text
+  const renderMarkdown = text => {
+    const lines = text.split('\n');
+
+    return lines.map((line, lineIndex) => {
+      const parts = line.split(/(\*\*.*?\*\*)/g);
+      const processedLine = parts.map((part, partIndex) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return (
+            <Text key={`${lineIndex}-${partIndex}`} style={styles.boldText}>
+              {part.slice(2, -2)}
+            </Text>
+          );
+        }
+        return part;
+      });
+
+      return (
+        <Text
+          key={lineIndex}
+          style={line.trim() === '' ? styles.emptyLine : styles.normalLine}
+        >
+          {processedLine}
+        </Text>
+      );
+    });
+  };
 
   const handleNext = () => {
     if (currentStep < totalSteps - 1) {
@@ -224,59 +295,88 @@ const UpdateWalkthrough = () => {
 
   const handleTryItNow = () => {
     if (currentFeature) {
-      // You'll need to implement navigation based on your navigation library
-      // For example, with React Navigation:
-      // navigation.navigate(currentFeature.sectionUrl);
-      console.log('Navigate to:', currentFeature.sectionUrl);
-      Alert.alert('Navigation', `Would navigate to: ${currentFeature.sectionUrl}`);
+      // In React Native, navigate to the appropriate screen
+      // You'll need to map your section URLs to screen names
+      const screenMap = {
+        '/dashboard': 'Dashboard',
+        '/companies': 'Companies',
+        '/settings': 'Settings',
+        '/client-management': 'ClientManagement',
+        '/analytics': 'Analytics',
+        '/transactions': 'Transactions',
+      };
+
+      const targetScreen = screenMap[currentFeature.sectionUrl];
+      if (targetScreen) {
+        navigation.navigate(targetScreen);
+      } else {
+        Alert.alert(
+          'Feature Not Available',
+          'This feature is not available in the mobile app yet.',
+        );
+      }
     }
   };
 
   const handleComplete = async () => {
-    const token = await AsyncStorage.getItem('token');
-    const userId = await getUserIdFromToken();
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const userId = await getUserIdFromToken();
 
-    // Dismiss all notifications
-    for (const notification of notifications) {
-      try {
-        if (!notification._id) {
-          console.error('Notification _id is undefined or null:', notification);
-          continue;
+      for (const notification of notifications) {
+        try {
+          if (!notification._id) {
+            console.error(
+              'Notification _id is undefined or null:',
+              notification,
+            );
+            continue;
+          }
+
+          await axios.patch(
+            `${baseURL}/api/update-notifications/dismiss/${notification._id}`,
+            { userId: userId },
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+
+          const response = await axios.get(
+            `${baseURL}/api/notifications/user/${userId}`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            },
+          );
+
+          const allNotifications =
+            response.data.notifications || response.data || [];
+          const targetNotification = allNotifications.find(
+            n =>
+              n.entityId === notification._id &&
+              n.type === 'system' &&
+              n.action === 'update',
+          );
+
+          if (targetNotification) {
+            await axios.patch(
+              `${baseURL}/api/notifications/mark-as-read/${targetNotification._id}`,
+              {},
+              { headers: { Authorization: `Bearer ${token}` } },
+            );
+          }
+        } catch (error) {
+          console.error(
+            `Error dismissing notification ${notification._id}:`,
+            error,
+          );
         }
-
-        // Dismiss the update notification
-        await axios.patch(`${BASE_URL}/api/update-notifications/dismiss/${notification._id}`, {
-          userId: userId
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        // Also mark any related regular notifications as read
-        const response = await axios.get(`${BASE_URL}/api/notifications/user/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        const allNotifications = response.data.notifications || response.data || [];
-        const targetNotification = allNotifications.find((n) =>
-          n.entityId === notification._id && n.type === 'system' && n.action === 'update'
-        );
-
-        if (targetNotification) {
-          await axios.patch(`${BASE_URL}/api/notifications/mark-as-read/${targetNotification._id}`, {}, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-        }
-      } catch (error) {
-        console.error(`Error dismissing notification ${notification._id}:`, error);
       }
-    }
 
-    setIsOpen(false);
-    setCurrentStep(0);
-    // Refresh notifications to hide dismissed ones
-    fetchNotifications();
-    
-    Alert.alert('Success', 'All update notifications have been dismissed');
+      setIsOpen(false);
+      setCurrentStep(0);
+      setVisible(false);
+      fetchNotifications();
+    } catch (error) {
+      console.error('Error completing walkthrough:', error);
+    }
   };
 
   const handleSkip = () => {
@@ -285,169 +385,157 @@ const UpdateWalkthrough = () => {
   };
 
   // Don't show anything for master admins or if no notifications
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    const getUserData = async () => {
-      const userData = await AsyncStorage.getItem('user');
-      if (userData) {
-        setUser(JSON.parse(userData));
-      }
-    };
-    getUserData();
-  }, []);
-
-  if (notifications.length === 0 || user?.role === 'master') {
+  if (notifications.length === 0) {
     return null;
   }
 
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="small" color="#2196F3" />
-      </View>
-    );
-  }
+  const progress = totalSteps > 0 ? (currentStep + 1) / totalSteps : 0;
 
   return (
     <View>
       {/* New Badge */}
-      <TouchableOpacity
-        style={styles.newUpdatesBadge}
-        onPress={() => setIsOpen(true)}
-      >
-        <Icon name="sparkles" size={16} color="#fff" />
-        <Text style={styles.badgeText}>New Updates</Text>
-      </TouchableOpacity>
+      {visible && (
+        <TouchableOpacity
+          onPress={() => setIsOpen(true)}
+          style={styles.badgeContainer}
+        >
+          <View style={styles.badge}>
+            <Icon name="star" size={16} color="#fff" />
+            <Text style={styles.badgeText}>New Updates</Text>
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* Walkthrough Modal */}
       <Modal
         visible={isOpen}
         animationType="slide"
-        transparent={true}
-        onRequestClose={() => setIsOpen(false)}
+        presentationStyle="pageSheet"
+        onRequestClose={handleSkip}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <View style={styles.headerTop}>
-                <Text style={styles.modalTitle}>
-                  🚀 What's New in {currentFeature?.version || 'Latest Update'}
-                </Text>
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={handleSkip}
-                >
-                  <Icon name="close" size={20} color="#666" />
-                </TouchableOpacity>
-              </View>
-              
-              <View style={styles.progressContainer}>
-                <Text style={styles.progressText}>
-                  Step {currentStep + 1} of {totalSteps}
-                </Text>
-                <View style={styles.progressBar}>
-                  <View 
-                    style={[
-                      styles.progressFill,
-                      { width: `${((currentStep + 1) / totalSteps) * 100}%` }
-                    ]} 
-                  />
-                </View>
-              </View>
+        <View style={styles.modalContainer}>
+          <StatusBar backgroundColor="#fff" barStyle="dark-content" />
+
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerTop}>
+              <Text style={styles.title}>
+                🚀 What's New in {currentFeature?.version || 'Latest Update'}
+              </Text>
+              <TouchableOpacity onPress={handleSkip} style={styles.closeButton}>
+                <Icon name="close" size={24} color="#666" />
+              </TouchableOpacity>
             </View>
 
-            {/* Content */}
-            <ScrollView style={styles.contentScroll}>
-              {currentFeature && (
-                <View style={styles.featureCard}>
+            <View style={styles.progressContainer}>
+              <Text style={styles.stepText}>
+                Step {currentStep + 1} of {totalSteps}
+              </Text>
+              <ProgressBar
+                progress={progress}
+                color="#007AFF"
+                style={styles.progressBar}
+              />
+            </View>
+          </View>
+
+          {/* Content */}
+          <ScrollView
+            style={styles.content}
+            showsVerticalScrollIndicator={false}
+          >
+            {currentFeature && (
+              <Card style={styles.featureCard}>
+                <Card.Content>
                   <View style={styles.featureHeader}>
-                    <View style={styles.featureIcon}>
-                      <Icon name="check-circle" size={24} color="#2196F3" />
+                    <View style={styles.iconContainer}>
+                      <Icon name="check-circle" size={24} color="#007AFF" />
                     </View>
                     <View style={styles.featureTitleContainer}>
-                      <Text style={styles.featureName}>{currentFeature.name}</Text>
+                      <Text style={styles.featureName}>
+                        {currentFeature.name}
+                      </Text>
                       <Text style={styles.notificationTitle}>
                         {currentFeature.notificationTitle}
                       </Text>
                     </View>
                   </View>
 
-                  <View style={styles.featureContent}>
-                    <Text style={styles.featureDescription}>
-                      {currentFeature.description}
-                    </Text>
-
-                    {currentFeature.gifUrl && (
-                      <View style={styles.gifContainer}>
-                        <Image
-                          source={{ uri: currentFeature.gifUrl }}
-                          style={styles.featureImage}
-                          resizeMode="contain"
-                        />
-                      </View>
-                    )}
-
-                    <View style={styles.tipContainer}>
-                      <Text style={styles.tipText}>
-                        💡 <Text style={styles.tipBold}>Pro tip:</Text> Try this feature to see the improvements firsthand.
-                      </Text>
-                      <Text style={styles.noteText}>
-                        📅 <Text style={styles.noteBold}>Note:</Text> Click 'Remove Notification' when you've explored all features.
-                      </Text>
-                    </View>
+                  <View style={styles.descriptionContainer}>
+                    {renderMarkdown(currentFeature.description)}
                   </View>
-                </View>
-              )}
-            </ScrollView>
 
-            {/* Footer */}
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={[
-                  styles.navButton,
-                  styles.previousButton,
-                  currentStep === 0 && styles.disabledButton
-                ]}
-                onPress={handlePrevious}
-                disabled={currentStep === 0}
+                  {/* {currentFeature.gifUrl && (
+                    <View style={styles.imageContainer}>
+                      <Image
+                        source={{ uri: currentFeature.gifUrl }}
+                        style={styles.featureImage}
+                        resizeMode="contain"
+                      />
+                    </View>
+                  )} */}
+
+                  <View style={styles.tipContainer}>
+                    <Text style={styles.tipText}>
+                      💡 <Text style={styles.tipBold}>Pro tip:</Text> Try this
+                      feature to see the improvements firsthand.
+                    </Text>
+                    <Text style={styles.noteText}>
+                      📅 <Text style={styles.tipBold}>Note:</Text> Click 'Remove
+                      Notification' when you've explored all features.
+                    </Text>
+                  </View>
+                </Card.Content>
+              </Card>
+            )}
+          </ScrollView>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Button
+              mode="outlined"
+              onPress={handlePrevious}
+              disabled={currentStep === 0}
+              style={styles.navButton}
+            >
+              <Icon
+                name="chevron-left"
+                size={20}
+                color={currentStep === 0 ? '#ccc' : '#007AFF'}
+              />
+              Previous
+            </Button>
+
+            <View style={styles.footerRight}>
+              <Button
+                mode="text"
+                onPress={handleSkip}
+                style={styles.skipButton}
+                textColor="#666"
               >
-                <Icon name="chevron-left" size={20} color={currentStep === 0 ? '#999' : '#2196F3'} />
-                <Text style={[
-                  styles.navButtonText,
-                  currentStep === 0 && styles.disabledButtonText
-                ]}>
-                  Previous
-                </Text>
-              </TouchableOpacity>
+                Skip Tour
+              </Button>
 
-              <View style={styles.footerRight}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.skipButton]}
-                  onPress={handleSkip}
+              {currentStep === totalSteps - 1 ? (
+                <Button
+                  mode="outlined"
+                  onPress={handleComplete}
+                  style={styles.dismissButton}
+                  textColor="#d32f2f"
+                  icon="close"
                 >
-                  <Text style={styles.skipButtonText}>Skip Tour</Text>
-                </TouchableOpacity>
-
-                {currentStep === totalSteps - 1 ? (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.dismissButton]}
-                    onPress={handleComplete}
-                  >
-                    <Icon name="close" size={16} color="#D32F2F" />
-                    <Text style={styles.dismissButtonText}>Dismiss</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.nextButton]}
-                    onPress={handleNext}
-                  >
-                    <Text style={styles.nextButtonText}>Next</Text>
-                    <Icon name="chevron-right" size={20} color="#fff" />
-                  </TouchableOpacity>
-                )}
-              </View>
+                  Dismiss
+                </Button>
+              ) : (
+                <Button
+                  mode="contained"
+                  onPress={handleNext}
+                  style={styles.nextButton}
+                  icon="chevron-right"
+                >
+                  Next
+                </Button>
+              )}
             </View>
           </View>
         </View>
@@ -457,53 +545,40 @@ const UpdateWalkthrough = () => {
 };
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    padding: 10,
-    alignItems: 'center',
+  badgeContainer: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 1000,
   },
-  newUpdatesBadge: {
+  badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'linear-gradient(90deg, #2196F3, #9C27B0)',
-    backgroundColor: '#2196F3', // Fallback solid color
+    backgroundColor: 'linear-gradient(90deg, #007AFF, #5856D6)',
+    backgroundColor: '#007AFF', // Fallback for gradient
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   badgeText: {
     color: '#fff',
-    fontWeight: '600',
     fontSize: 12,
+    fontWeight: '600',
     marginLeft: 4,
   },
-  modalOverlay: {
+  modalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    width: '100%',
-    maxWidth: 500,
-    maxHeight: '80%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
-  modalHeader: {
-    padding: 20,
+  header: {
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#f0f0f0',
   },
   headerTop: {
     flexDirection: 'row',
@@ -511,10 +586,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  modalTitle: {
+  title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#000',
     flex: 1,
   },
   closeButton: {
@@ -523,47 +598,42 @@ const styles = StyleSheet.create({
   progressContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
-  progressText: {
+  stepText: {
     fontSize: 14,
     color: '#666',
+    marginRight: 12,
     minWidth: 80,
   },
   progressBar: {
     flex: 1,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 4,
-    height: 8,
-    overflow: 'hidden',
+    height: 6,
+    borderRadius: 3,
   },
-  progressFill: {
-    backgroundColor: '#2196F3',
-    height: '100%',
-    borderRadius: 4,
-  },
-  contentScroll: {
+  content: {
     flex: 1,
-    padding: 20,
+    padding: 16,
   },
   featureCard: {
-    borderWidth: 2,
-    borderColor: 'rgba(33, 150, 243, 0.2)',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 122, 255, 0.2)',
     borderRadius: 12,
-    backgroundColor: '#fff',
-    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   featureHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    alignItems: 'flex-start',
+    marginBottom: 16,
   },
-  featureIcon: {
+  iconContainer: {
     width: 40,
     height: 40,
-    backgroundColor: 'rgba(33, 150, 243, 0.1)',
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
@@ -575,23 +645,30 @@ const styles = StyleSheet.create({
   featureName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 2,
+    color: '#000',
+    marginBottom: 4,
   },
   notificationTitle: {
     fontSize: 14,
     color: '#666',
   },
-  featureContent: {
-    padding: 16,
-  },
-  featureDescription: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
+  descriptionContainer: {
     marginBottom: 16,
   },
-  gifContainer: {
+  normalLine: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#666',
+    marginBottom: 8,
+  },
+  emptyLine: {
+    height: 8,
+  },
+  boldText: {
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  imageContainer: {
     alignItems: 'center',
     marginBottom: 16,
   },
@@ -600,7 +677,7 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: '#f0f0f0',
   },
   tipContainer: {
     backgroundColor: 'rgba(0, 0, 0, 0.05)',
@@ -609,93 +686,42 @@ const styles = StyleSheet.create({
   },
   tipText: {
     fontSize: 14,
-    color: '#666',
     lineHeight: 20,
+    color: '#666',
     marginBottom: 8,
-  },
-  tipBold: {
-    fontWeight: 'bold',
-    color: '#333',
   },
   noteText: {
     fontSize: 12,
+    lineHeight: 18,
     color: '#666',
-    lineHeight: 16,
   },
-  noteBold: {
+  tipBold: {
     fontWeight: 'bold',
-    color: '#333',
+    color: '#000',
   },
-  modalFooter: {
+  footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: '#f0f0f0',
   },
   navButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  previousButton: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  disabledButton: {
-    opacity: 0.5,
-  },
-  navButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#2196F3',
-    marginLeft: 4,
-  },
-  disabledButtonText: {
-    color: '#999',
+    minWidth: 100,
   },
   footerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
   },
   skipButton: {
-    backgroundColor: 'transparent',
-  },
-  skipButtonText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
+    marginRight: 8,
   },
   dismissButton: {
-    borderWidth: 1,
-    borderColor: '#D32F2F',
-    backgroundColor: 'transparent',
-    gap: 4,
-  },
-  dismissButtonText: {
-    fontSize: 14,
-    color: '#D32F2F',
-    fontWeight: '500',
+    borderColor: 'rgba(211, 47, 47, 0.3)',
   },
   nextButton: {
-    backgroundColor: '#2196F3',
-    gap: 4,
-  },
-  nextButtonText: {
-    fontSize: 14,
-    color: '#fff',
-    fontWeight: '500',
+    backgroundColor: '#007AFF',
   },
 });
 

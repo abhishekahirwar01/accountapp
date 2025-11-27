@@ -9,19 +9,18 @@ import {
   Modal,
   RefreshControl,
 } from 'react-native';
-import { 
-  IconButton, 
-  Badge, 
-  ActivityIndicator, 
-  Card, 
-  Divider 
+import {
+  IconButton,
+  Badge,
+  ActivityIndicator,
+  Card,
+  Divider,
 } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import SocketListener from './SocketListener';
 import { BASE_URL } from '../../config';
-
 
 const Notification = ({ socket }) => {
   const [notifications, setNotifications] = useState([]);
@@ -33,153 +32,127 @@ const Notification = ({ socket }) => {
   const fetchNotifications = async () => {
     try {
       setIsLoading(true);
-      console.log("🔍 Starting fetchNotifications...", new Date().toISOString());
-      
-      const token = await AsyncStorage.getItem("token");
-      console.log("🔑 Token exists:", !!token);
-      
+
+      const token = await AsyncStorage.getItem('token');
+
       if (!token) {
-        setError("Authentication required");
+        setError('Authentication required');
         setIsLoading(false);
         return;
       }
 
-      const userData = await AsyncStorage.getItem("user");
-      console.log("👤 User data from storage:", userData);
-      
+      const userData = await AsyncStorage.getItem('user');
+
       if (!userData) {
-        setError("User data not found");
+        setError('User data not found');
         setIsLoading(false);
         return;
       }
-      
+
       const user = JSON.parse(userData);
-      console.log("📋 Parsed user object:", user);
-      
+
       const userId = user.id || user._id || user.userId || user.userID;
-      console.log("🆔 Extracted userId:", userId);
-      console.log("🎭 User role:", user.role);
-      
+
       if (!userId) {
-        console.error("❌ User ID not found in user data");
-        setError("User ID not found");
+        setError('User ID not found');
         setIsLoading(false);
         return;
       }
-      
+
       let notificationsData = [];
-      let apiUrl = "";
-      
-      if (user.role === "admin" || user.role === "master") {
+      let apiUrl = '';
+
+      if (user.role === 'admin' || user.role === 'master') {
         apiUrl = `${BASE_URL}/api/notifications/user/${userId}`;
-        console.log("🔗 Using USER API URL for admin:", apiUrl);
       } else {
         let clientId = user.clientId || user.clientID || user.client;
-        
+
         if (!clientId && user.companies && user.companies.length > 0) {
           clientId = user.companies[0]._id;
-          console.log("🏢 Using first company as client ID:", clientId);
         }
-        
+
         if (!clientId) {
           clientId = userId;
-          console.log("⚠️ No client ID found, using user ID as fallback:", clientId);
         }
-        
+
         apiUrl = `${BASE_URL}/api/notifications/client/${clientId}`;
-        console.log("🔗 Using CLIENT API URL:", apiUrl);
       }
 
       try {
-        console.log("🌐 Making API request to:", apiUrl);
         const response = await axios.get(apiUrl, {
           headers: {
-            Authorization: `Bearer ${token}`
-          }
+            Authorization: `Bearer ${token}`,
+          },
         });
-        
-        console.log("✅ API response received:", response.data);
-        
+
         if (Array.isArray(response.data)) {
           notificationsData = response.data;
-          console.log("📦 Response format: Direct array (client endpoint)");
-        } else if (response.data.notifications && Array.isArray(response.data.notifications)) {
+        } else if (
+          response.data.notifications &&
+          Array.isArray(response.data.notifications)
+        ) {
           notificationsData = response.data.notifications;
-          console.log("📦 Response format: Object with notifications array (user endpoint)");
         } else if (Array.isArray(response.data.data)) {
           notificationsData = response.data.data;
-          console.log("📦 Response format: Object with data array");
         } else {
           notificationsData = response.data || [];
-          console.log("📦 Response format: Fallback (unknown format)");
         }
-        
       } catch (apiError) {
-        console.error("❌ Error with primary API endpoint:", apiError.message);
-        
-        let fallbackUrl = "";
+        let fallbackUrl = '';
         if (apiUrl.includes('/user/')) {
-          let clientId = user.clientId || user.clientID || user.client || userId;
+          let clientId =
+            user.clientId || user.clientID || user.client || userId;
           fallbackUrl = `${BASE_URL}/api/notifications/client/${clientId}`;
         } else {
           fallbackUrl = `${BASE_URL}/api/notifications/user/${userId}`;
         }
-        
-        console.log("🔄 Trying fallback endpoint:", fallbackUrl);
+
         try {
           const fallbackResponse = await axios.get(fallbackUrl, {
             headers: {
-              Authorization: `Bearer ${token}`
-            }
+              Authorization: `Bearer ${token}`,
+            },
           });
-          console.log("✅ Fallback response received:", fallbackResponse.data);
-          
+
           if (Array.isArray(fallbackResponse.data)) {
             notificationsData = fallbackResponse.data;
-          } else if (fallbackResponse.data.notifications && Array.isArray(fallbackResponse.data.notifications)) {
+          } else if (
+            fallbackResponse.data.notifications &&
+            Array.isArray(fallbackResponse.data.notifications)
+          ) {
             notificationsData = fallbackResponse.data.notifications;
           } else if (Array.isArray(fallbackResponse.data.data)) {
             notificationsData = fallbackResponse.data.data;
           } else {
             notificationsData = fallbackResponse.data || [];
           }
-          
         } catch (fallbackError) {
-          console.error("❌ Both primary and fallback endpoints failed:", fallbackError);
-          throw new Error("Could not fetch notifications from any endpoint");
+          throw new Error('Could not fetch notifications from any endpoint');
         }
       }
-      
-      const uniqueNotifications = notificationsData.filter((notification, index, self) =>
-        index === self.findIndex(n => n._id === notification._id)
+
+      const uniqueNotifications = notificationsData.filter(
+        (notification, index, self) =>
+          index === self.findIndex(n => n._id === notification._id),
       );
-      
-      uniqueNotifications.sort((a, b) => 
-        new Date(b.metadata?.createdAt || b.createdAt || 0).getTime() - 
-        new Date(a.metadata?.createdAt || a.createdAt || 0).getTime()
+
+      uniqueNotifications.sort(
+        (a, b) =>
+          new Date(b.metadata?.createdAt || b.createdAt || 0).getTime() -
+          new Date(a.metadata?.createdAt || a.createdAt || 0).getTime(),
       );
-      
-      console.log("📊 Final notifications count:", uniqueNotifications.length);
+
       setNotifications(uniqueNotifications);
       setIsLoading(false);
-      
     } catch (err) {
-      console.error("❌ Error fetching notifications:", err);
-      console.error("📊 Error details:", {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status,
-        url: err.config?.url
-      });
-      
       if (err.response?.status === 404) {
-        setError("Notifications endpoint not found");
+        setError('Notifications endpoint not found');
       } else if (err.response?.status === 401) {
-        setError("Authentication failed");
+        setError('Authentication failed');
       } else {
-        setError(err.response?.data?.message || "Failed to load notifications");
+        setError(err.response?.data?.message || 'Failed to load notifications');
       }
-      
+
       setIsLoading(false);
     }
   };
@@ -201,94 +174,99 @@ const Notification = ({ socket }) => {
   }, [isModalVisible]);
 
   const handleNewNotification = () => {
-    console.log("🔔 New notification received");
     fetchNotifications();
   };
 
-  const markAsRead = async (notificationId) => {
+  const markAsRead = async notificationId => {
     try {
-      console.log("📝 Marking notification as read:", notificationId);
-      const token = await AsyncStorage.getItem("token");
-      await axios.patch(`${BASE_URL}/api/notifications/mark-as-read/${notificationId}`, {}, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      
-      setNotifications(notifications.map(notification => 
-        notification._id === notificationId 
-          ? { ...notification, read: true } 
-          : notification
-      ));
-      console.log("✅ Notification marked as read:", notificationId);
+      const token = await AsyncStorage.getItem('token');
+      await axios.patch(
+        `${BASE_URL}/api/notifications/mark-as-read/${notificationId}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      setNotifications(
+        notifications.map(notification =>
+          notification._id === notificationId
+            ? { ...notification, read: true }
+            : notification,
+        ),
+      );
     } catch (err) {
-      console.error("❌ Error marking notification as read:", err);
-      Alert.alert("Error", "Failed to mark notification as read");
+      Alert.alert('Error', 'Failed to mark notification as read');
     }
   };
 
   const markAllAsRead = async () => {
     try {
-      console.log("📝 Marking all notifications as read");
-      const token = await AsyncStorage.getItem("token");
-      
+      const token = await AsyncStorage.getItem('token');
+
       for (const notification of notifications.filter(n => !n.read)) {
         try {
-          await axios.patch(`${BASE_URL}/api/notifications/mark-as-read/${notification._id}`, {}, {
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
-          });
+          await axios.patch(
+            `${BASE_URL}/api/notifications/mark-as-read/${notification._id}`,
+            {},
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            },
+          );
         } catch (err) {
-          console.error(`❌ Error marking notification ${notification._id} as read:`, err);
+          // Continue with other notifications even if one fails
         }
       }
-      
-      setNotifications(notifications.map(notification => ({ ...notification, read: true })));
-      console.log("✅ All notifications marked as read");
+
+      setNotifications(
+        notifications.map(notification => ({ ...notification, read: true })),
+      );
     } catch (err) {
-      console.error("❌ Error marking all notifications as read:", err);
-      Alert.alert("Error", "Failed to mark all notifications as read");
+      Alert.alert('Error', 'Failed to mark all notifications as read');
     }
   };
 
   const getNotificationIcon = (type, action) => {
     switch (type) {
-      case "sales":
-        return "cart";
-      case "invoice":
-        return "file-document";
-      case "payment":
-        return "cash";
-      case "reminder":
-        return "clock";
-      case "user":
-        return "account";
+      case 'sales':
+        return 'cart';
+      case 'invoice':
+        return 'file-document';
+      case 'payment':
+        return 'cash';
+      case 'reminder':
+        return 'clock';
+      case 'user':
+        return 'account';
       default:
-        return action === "create" ? "check-circle" : "alert-circle";
+        return action === 'create' ? 'check-circle' : 'alert-circle';
     }
   };
 
-  const getIconColor = (type) => {
+  const getIconColor = type => {
     switch (type) {
-      case "sales":
-        return "#3b82f6";
-      case "invoice":
-        return "#6366f1";
-      case "payment":
-        return "#10b981";
-      case "reminder":
-        return "#f59e0b";
-      case "user":
-        return "#8b5cf6";
+      case 'sales':
+        return '#3b82f6';
+      case 'invoice':
+        return '#6366f1';
+      case 'payment':
+        return '#10b981';
+      case 'reminder':
+        return '#f59e0b';
+      case 'user':
+        return '#8b5cf6';
       default:
-        return "#6b7280";
+        return '#6b7280';
     }
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return "Unknown date";
-    
+  const formatDate = dateString => {
+    if (!dateString) return 'Unknown date';
+
     try {
       const date = new Date(dateString);
       const now = new Date();
@@ -296,9 +274,9 @@ const Notification = ({ socket }) => {
       const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
       const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
       const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-      
+
       if (diffInMinutes < 1) {
-        return "Just now";
+        return 'Just now';
       } else if (diffInMinutes < 60) {
         return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
       } else if (diffInHours < 24) {
@@ -309,8 +287,7 @@ const Notification = ({ socket }) => {
         return date.toLocaleDateString();
       }
     } catch (error) {
-      console.error("Error formatting date:", error, dateString);
-      return "Unknown date";
+      return 'Unknown date';
     }
   };
 
@@ -319,9 +296,9 @@ const Notification = ({ socket }) => {
   return (
     <>
       <SocketListener socket={socket} onNotification={handleNewNotification} />
-      
+
       {/* Notification Bell Icon */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.bellContainer}
         onPress={() => setIsModalVisible(true)}
       >
@@ -343,7 +320,7 @@ const Notification = ({ socket }) => {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerTop}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setIsModalVisible(false)}
                 style={styles.backButton}
               >
@@ -357,9 +334,11 @@ const Notification = ({ socket }) => {
               )}
             </View>
             <Text style={styles.headerSubtitle}>
-              {unreadCount > 0 
-                ? `You have ${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}`
-                : "You have no unread notifications"}
+              {unreadCount > 0
+                ? `You have ${unreadCount} unread notification${
+                    unreadCount !== 1 ? 's' : ''
+                  }`
+                : 'You have no unread notifications'}
             </Text>
           </View>
 
@@ -381,7 +360,7 @@ const Notification = ({ socket }) => {
               <View style={styles.centerContent}>
                 <Icon name="alert-circle" size={48} color="#ef4444" />
                 <Text style={styles.errorText}>{error}</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.retryButton}
                   onPress={fetchNotifications}
                 >
@@ -397,33 +376,38 @@ const Notification = ({ socket }) => {
                 </Text>
               </View>
             ) : (
-              notifications.map((notification) => (
-                <Card 
-                  key={notification._id} 
+              notifications.map(notification => (
+                <Card
+                  key={notification._id}
                   style={[
                     styles.notificationCard,
-                    notification.read && styles.readNotification
+                    notification.read && styles.readNotification,
                   ]}
                 >
                   <Card.Content>
                     <View style={styles.notificationContent}>
                       <View style={styles.iconContainer}>
-                        <Icon 
-                          name={getNotificationIcon(notification.type, notification.action)}
-                          size={20} 
+                        <Icon
+                          name={getNotificationIcon(
+                            notification.type,
+                            notification.action,
+                          )}
+                          size={20}
                           color={getIconColor(notification.type)}
                         />
                       </View>
                       <View style={styles.notificationText}>
                         <View style={styles.notificationHeader}>
-                          <Text style={[
-                            styles.notificationTitle,
-                            notification.read && styles.readText
-                          ]}>
+                          <Text
+                            style={[
+                              styles.notificationTitle,
+                              notification.read && styles.readText,
+                            ]}
+                          >
                             {notification.title}
                           </Text>
                           {!notification.read && (
-                            <TouchableOpacity 
+                            <TouchableOpacity
                               onPress={() => markAsRead(notification._id)}
                               style={styles.markReadButton}
                             >
@@ -435,7 +419,10 @@ const Notification = ({ socket }) => {
                           {notification.message}
                         </Text>
                         <Text style={styles.notificationTime}>
-                          {formatDate(notification.metadata?.createdAt || notification.createdAt)}
+                          {formatDate(
+                            notification.metadata?.createdAt ||
+                              notification.createdAt,
+                          )}
                         </Text>
                       </View>
                     </View>

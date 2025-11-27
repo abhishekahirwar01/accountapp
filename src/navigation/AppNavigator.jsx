@@ -25,6 +25,7 @@ import SettingsScreen from '../screens/main/SettingsScreen';
 import Reports from '../screens/main/reports/Reports';
 import Ledger from '../screens/main/ledger/Ledger';
 import CompanyForm from '../components/companies/CompanyForm';
+import { TransactionForm } from '../components/transactions/TransactionForm';
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
@@ -65,6 +66,7 @@ export default function AppNavigator() {
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="Reports" component={Reports} />
       <Stack.Screen name="Ledger" component={Ledger} />
+      <Stack.Screen name="TransactionForm" component={TransactionForm} />
 
       {/* ProfileScreen acts as user settings for non-master users */}
       <Stack.Screen name="InvoicePreview" component={InvoicePreview} />

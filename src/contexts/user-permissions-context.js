@@ -32,13 +32,11 @@ function getRoleFromToken(token) {
   if (!token) return null;
   try {
     const decoded = jwtDecode(token);
-    console.log('🔐 Decoded token role:', decoded.role || decoded.userRole);
     return (
       (decoded.role || decoded.userRole || decoded.r || '').toLowerCase() ||
       null
     );
   } catch (error) {
-    console.log('❌ JWT decode error:', error);
     return null;
   }
 }
@@ -51,16 +49,14 @@ export function UserPermissionsProvider({ children }) {
   const [showModal, setShowModal] = useState(false);
 
   const fetchPermissions = useCallback(async () => {
-    console.log('🔄 Fetching permissions...');
     setIsLoading(true);
     setError(null);
 
     try {
       const token = await AsyncStorage.getItem('token');
 
-      // ✅ Skip fetch completely if user is logged out
+      // Skip fetch completely if user is logged out
       if (!token) {
-        console.log('🚫 No token found — skipping permissions fetch.');
         setPermissions(null);
         setRole(null);
         setIsLoading(false);
@@ -68,27 +64,21 @@ export function UserPermissionsProvider({ children }) {
         return;
       }
 
-      console.log('🔐 Token found:', !!token);
       const currentRole = getRoleFromToken(token);
-      console.log('👤 Current role:', currentRole);
       setRole(currentRole);
 
-      // ✅ Non-user roles shortcut
+      // Non-user roles shortcut
       if (
         currentRole &&
         currentRole !== 'user' &&
         currentRole !== 'admin' &&
         currentRole !== 'manager'
       ) {
-        console.log(
-          '✅ Non-user role detected, applying ALL_ALLOWED permissions',
-        );
         setPermissions(ALL_ALLOWED);
         setIsLoading(false);
         return;
       }
 
-      console.log('🌐 Fetching permissions from API...');
       const res = await fetch(`${BASE_URL}/api/user-permissions/me/effective`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -101,7 +91,6 @@ export function UserPermissionsProvider({ children }) {
       }
 
       const data = await res.json();
-      console.log('✅ Permissions API response:', data);
 
       setPermissions({
         canCreateInventory: data.canCreateInventory,
@@ -119,9 +108,8 @@ export function UserPermissionsProvider({ children }) {
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Unknown error';
-      console.log('❌ Permissions fetch error:', msg);
 
-      // ✅ Only show modal if user *is logged in*
+      // Only show modal if user is logged in
       if (await AsyncStorage.getItem('token')) {
         setError(msg);
         setShowModal(true);
@@ -163,7 +151,6 @@ export function UserPermissionsProvider({ children }) {
     <UserPermissionsContext.Provider value={value}>
       {children}
 
-      {/* 🔔 Error Modal */}
       <Modal visible={showModal} transparent animationType="fade">
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
