@@ -15,9 +15,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useToast } from '../hooks/useToast';
 import ClientValidityCard from '../admin/settings/ClientValidityCard';
 import { BASE_URL } from '../../config';
+import { Picker } from '@react-native-picker/picker';
+import Icon from 'react-native-vector-icons/MaterialIcons'; // Make sure to install this package
 
 function slugifyUsername(s = '') {
-  return s.toLowerCase().replace(/[^a-z0-9_.]+/g, '').slice(0, 24);
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9_.]+/g, '')
+    .slice(0, 24);
 }
 
 function localSuggestions(base = '', tried) {
@@ -35,29 +40,56 @@ function localSuggestions(base = '', tried) {
     `${core}_co`,
     `${core}_app`,
   ];
-  return Array.from(new Set(seeds)).filter((s) => s && s !== tried).slice(0, 6);
+  return Array.from(new Set(seeds))
+    .filter(s => s && s !== tried)
+    .slice(0, 6);
 }
 
-export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel, hideAdvanced = false }) {
+export default function ClientForm({
+  client,
+  onSubmit: parentOnSubmit,
+  onCancel,
+  hideAdvanced = false,
+}) {
   const { toast } = useToast();
 
   // form state
   const [contactName, setContactName] = useState(client?.contactName || '');
-  const [clientUsername, setClientUsername] = useState(client?.clientUsername || '');
+  const [clientUsername, setClientUsername] = useState(
+    client?.clientUsername || '',
+  );
   const [email, setEmail] = useState(client?.email || '');
   const [phone, setPhone] = useState(client?.phone || '');
   const [password, setPassword] = useState('');
   const [maxCompanies, setMaxCompanies] = useState(client?.maxCompanies ?? 5);
   const [maxUsers, setMaxUsers] = useState(client?.maxUsers ?? 10);
-  const [maxInventories, setMaxInventories] = useState(client?.maxInventories ?? 50);
-  const [canSendInvoiceEmail, setCanSendInvoiceEmail] = useState(client?.canSendInvoiceEmail ?? false);
-  const [canSendInvoiceWhatsapp, setCanSendInvoiceWhatsapp] = useState(client?.canSendInvoiceWhatsapp ?? false);
-  const [canCreateUsers, setCanCreateUsers] = useState(client?.canCreateUsers ?? true);
-  const [canCreateCustomers, setCanCreateCustomers] = useState(client?.canCreateCustomers ?? true);
-  const [canCreateVendors, setCanCreateVendors] = useState(client?.canCreateVendors ?? true);
-  const [canCreateProducts, setCanCreateProducts] = useState(client?.canCreateProducts ?? true);
-  const [canCreateCompanies, setCanCreateCompanies] = useState(client?.canCreateCompanies ?? false);
-  const [canUpdateCompanies, setCanUpdateCompanies] = useState(client?.canUpdateCompanies ?? false);
+  const [maxInventories, setMaxInventories] = useState(
+    client?.maxInventories ?? 50,
+  );
+  const [canSendInvoiceEmail, setCanSendInvoiceEmail] = useState(
+    client?.canSendInvoiceEmail ?? false,
+  );
+  const [canSendInvoiceWhatsapp, setCanSendInvoiceWhatsapp] = useState(
+    client?.canSendInvoiceWhatsapp ?? false,
+  );
+  const [canCreateUsers, setCanCreateUsers] = useState(
+    client?.canCreateUsers ?? true,
+  );
+  const [canCreateCustomers, setCanCreateCustomers] = useState(
+    client?.canCreateCustomers ?? true,
+  );
+  const [canCreateVendors, setCanCreateVendors] = useState(
+    client?.canCreateVendors ?? true,
+  );
+  const [canCreateProducts, setCanCreateProducts] = useState(
+    client?.canCreateProducts ?? true,
+  );
+  const [canCreateCompanies, setCanCreateCompanies] = useState(
+    client?.canCreateCompanies ?? false,
+  );
+  const [canUpdateCompanies, setCanUpdateCompanies] = useState(
+    client?.canUpdateCompanies ?? false,
+  );
   const [validityAmount, setValidityAmount] = useState(30);
   const [validityUnit, setValidityUnit] = useState('days');
   const [eyeOpen, setEyeOpen] = useState(false);
@@ -94,16 +126,21 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
 
   // load token
   useEffect(() => {
-    AsyncStorage.getItem('token').then((t) => setAuthToken(t)).catch(() => setAuthToken(null));
+    AsyncStorage.getItem('token')
+      .then(t => setAuthToken(t))
+      .catch(() => setAuthToken(null));
   }, []);
 
   // expiry preview for create mode
   const expiryPreview = useMemo(() => {
     if (client) return null;
     const d = new Date();
-    if (validityUnit === 'days') d.setDate(d.getDate() + Number(validityAmount));
-    if (validityUnit === 'months') d.setMonth(d.getMonth() + Number(validityAmount));
-    if (validityUnit === 'years') d.setFullYear(d.getFullYear() + Number(validityAmount));
+    if (validityUnit === 'days')
+      d.setDate(d.getDate() + Number(validityAmount));
+    if (validityUnit === 'months')
+      d.setMonth(d.getMonth() + Number(validityAmount));
+    if (validityUnit === 'years')
+      d.setFullYear(d.getFullYear() + Number(validityAmount));
     return d.toDateString();
   }, [validityAmount, validityUnit, client]);
 
@@ -140,11 +177,17 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
 
     const t = setTimeout(async () => {
       try {
-        const params = new URLSearchParams({ username: raw, base: contactName || raw });
-        const res = await fetch(`${BASE_URL}/api/clients/check-username?${params.toString()}`, {
-          method: 'GET',
-          signal: controller.signal,
+        const params = new URLSearchParams({
+          username: raw,
+          base: contactName || raw,
         });
+        const res = await fetch(
+          `${BASE_URL}/api/clients/check-username?${params.toString()}`,
+          {
+            method: 'GET',
+            signal: controller.signal,
+          },
+        );
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
 
@@ -157,7 +200,12 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
           setUsernameSuggestions([]);
         } else {
           setUsernameAvailable(false);
-          setUsernameSuggestions((data.suggestions?.length ? data.suggestions : localSuggestions(contactName || raw, raw)).slice(0, 6));
+          setUsernameSuggestions(
+            (data.suggestions?.length
+              ? data.suggestions
+              : localSuggestions(contactName || raw, raw)
+            ).slice(0, 6),
+          );
         }
       } catch {
         if (!cancelled) {
@@ -206,50 +254,111 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
 
   const validateClientForm = useCallback(() => {
     if (!contactName || contactName.trim().length < 2) {
-      toast({ variant: 'destructive', title: 'Validation', description: 'Contact name must be at least 2 characters.' });
+      toast({
+        variant: 'destructive',
+        title: 'Validation',
+        description: 'Contact name must be at least 2 characters.',
+      });
       return false;
     }
-    if (!client && (!clientUsername || clientUsername.length < 4 || !/^[a-z0-9_.]{4,24}$/.test(clientUsername))) {
-      toast({ variant: 'destructive', title: 'Validation', description: 'Username must be 4–24 chars: lowercase letters, digits, dot or underscore.' });
+    if (
+      !client &&
+      (!clientUsername ||
+        clientUsername.length < 4 ||
+        !/^[a-z0-9_.]{4,24}$/.test(clientUsername))
+    ) {
+      toast({
+        variant: 'destructive',
+        title: 'Validation',
+        description:
+          'Username must be 4–24 chars: lowercase letters, digits, dot or underscore.',
+      });
       return false;
     }
     if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
-      toast({ variant: 'destructive', title: 'Validation', description: 'Enter a valid email.' });
+      toast({
+        variant: 'destructive',
+        title: 'Validation',
+        description: 'Enter a valid email.',
+      });
       return false;
     }
     if (!phone || phone.trim().length < 6) {
-      toast({ variant: 'destructive', title: 'Validation', description: 'Enter a valid phone number.' });
+      toast({
+        variant: 'destructive',
+        title: 'Validation',
+        description: 'Enter a valid phone number.',
+      });
       return false;
     }
     if (!client && (!password || password.length < 6)) {
-      toast({ variant: 'destructive', title: 'Validation', description: 'Password must be at least 6 characters.' });
+      toast({
+        variant: 'destructive',
+        title: 'Validation',
+        description: 'Password must be at least 6 characters.',
+      });
       return false;
     }
     if (checkingUsername) {
-      toast({ variant: 'destructive', title: 'Please wait', description: 'Still checking username availability.' });
+      toast({
+        variant: 'destructive',
+        title: 'Please wait',
+        description: 'Still checking username availability.',
+      });
       return false;
     }
     if (!client && usernameAvailable === false) {
-      toast({ variant: 'destructive', title: 'Username taken', description: 'Choose a different username.' });
+      toast({
+        variant: 'destructive',
+        title: 'Username taken',
+        description: 'Choose a different username.',
+      });
       return false;
     }
     return true;
-  }, [contactName, clientUsername, email, phone, password, checkingUsername, usernameAvailable, client, toast]);
+  }, [
+    contactName,
+    clientUsername,
+    email,
+    phone,
+    password,
+    checkingUsername,
+    usernameAvailable,
+    client,
+    toast,
+  ]);
 
-  const applyServerErrorsToUI = (message) => {
+  const applyServerErrorsToUI = message => {
     const lower = (message || '').toLowerCase();
     if (lower.includes('username')) {
       setUsernameAvailable(false);
-      setUsernameSuggestions(localSuggestions(contactName || clientUsername, clientUsername).slice(0, 6));
-      toast({ variant: 'destructive', title: 'Username error', description: message });
+      setUsernameSuggestions(
+        localSuggestions(contactName || clientUsername, clientUsername).slice(
+          0,
+          6,
+        ),
+      );
+      toast({
+        variant: 'destructive',
+        title: 'Username error',
+        description: message,
+      });
       return true;
     }
     if (lower.includes('email')) {
-      toast({ variant: 'destructive', title: 'Email error', description: message });
+      toast({
+        variant: 'destructive',
+        title: 'Email error',
+        description: message,
+      });
       return true;
     }
     if (lower.includes('phone')) {
-      toast({ variant: 'destructive', title: 'Phone error', description: message });
+      toast({
+        variant: 'destructive',
+        title: 'Phone error',
+        description: message,
+      });
       return true;
     }
     return false;
@@ -261,11 +370,14 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
-      
-      const res = await fetch(`${BASE_URL}/api/clients/${client._id}/permissions`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
+
+      const res = await fetch(
+        `${BASE_URL}/api/clients/${client._id}/permissions`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
       if (res.ok) {
         const data = await res.json();
         setCurrentPermissions({
@@ -326,15 +438,18 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
-      
-      const res = await fetch(`${BASE_URL}/api/clients/${client._id}/permissions`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+
+      const res = await fetch(
+        `${BASE_URL}/api/clients/${client._id}/permissions`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(currentPermissions),
         },
-        body: JSON.stringify(currentPermissions),
-      });
+      );
 
       if (!res.ok) {
         const errorData = await res.json();
@@ -349,7 +464,8 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
       toast({
         variant: 'destructive',
         title: 'Update Failed',
-        description: error instanceof Error ? error.message : 'Something went wrong.',
+        description:
+          error instanceof Error ? error.message : 'Something went wrong.',
       });
     } finally {
       setIsSavingPermissions(false);
@@ -372,14 +488,17 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
 
-      const res = await fetch(`${BASE_URL}/api/clients/reset-password/${client._id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${BASE_URL}/api/clients/reset-password/${client._id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ newpassword: newPassword }),
         },
-        body: JSON.stringify({ newpassword: newPassword }),
-      });
+      );
 
       if (!res.ok) {
         const errorData = await res.json();
@@ -396,7 +515,8 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
       toast({
         variant: 'destructive',
         title: 'Password Reset Failed',
-        description: error instanceof Error ? error.message : 'Something went wrong.',
+        description:
+          error instanceof Error ? error.message : 'Something went wrong.',
       });
     } finally {
       setIsSubmittingPassword(false);
@@ -410,12 +530,18 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        toast({ variant: 'destructive', title: 'Auth required', description: 'You must be logged in.' });
+        toast({
+          variant: 'destructive',
+          title: 'Auth required',
+          description: 'You must be logged in.',
+        });
         setIsSubmitting(false);
         return;
       }
 
-      const url = client ? `${BASE_URL}/api/clients/${client._id}` : `${BASE_URL}/api/clients`;
+      const url = client
+        ? `${BASE_URL}/api/clients/${client._id}`
+        : `${BASE_URL}/api/clients`;
       const method = client ? 'PATCH' : 'POST';
 
       const body = {
@@ -454,12 +580,19 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
       if (!res.ok) {
         const msg = data?.message || 'Failed to save client';
         applyServerErrorsToUI(msg);
-        toast({ variant: 'destructive', title: 'Save failed', description: msg });
+        toast({
+          variant: 'destructive',
+          title: 'Save failed',
+          description: msg,
+        });
         setIsSubmitting(false);
         return;
       }
 
-      toast({ title: `Client ${client ? 'updated' : 'created'}`, description: `${contactName} saved.` });
+      toast({
+        title: `Client ${client ? 'updated' : 'created'}`,
+        description: `${contactName} saved.`,
+      });
       parentOnSubmit?.(data);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Something went wrong';
@@ -476,7 +609,11 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
       style={[styles.tabButton, activeTab === tabName && styles.activeTab]}
       onPress={() => setActiveTab(tabName)}
     >
-      <Text style={[styles.tabText, activeTab === tabName && styles.activeTabText]}>{label}</Text>
+      <Text
+        style={[styles.tabText, activeTab === tabName && styles.activeTabText]}
+      >
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 
@@ -485,11 +622,11 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
     <ScrollView style={styles.tabContent}>
       <View style={styles.section}>
         <Text style={styles.label}>Contact Name</Text>
-        <TextInput 
-          style={styles.input} 
-          placeholder="e.g. John Doe" 
-          value={contactName} 
-          onChangeText={setContactName} 
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. John Doe"
+          value={contactName}
+          onChangeText={setContactName}
         />
       </View>
 
@@ -501,22 +638,48 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
             placeholder="e.g. johndoe"
             value={clientUsername}
             editable={!client}
-            onChangeText={(t) => setClientUsername(t.toLowerCase().replace(/\s+/g, ''))}
+            onChangeText={t =>
+              setClientUsername(t.toLowerCase().replace(/\s+/g, ''))
+            }
           />
           {!client && (
-            <View style={{ flexDirection: 'row', marginTop: 6, alignItems: 'center', gap: 8 }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                marginTop: 6,
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
               {checkingUsername ? <ActivityIndicator size="small" /> : null}
-              {usernameAvailable === true && !checkingUsername && <Text style={{ color: '#10b981' }}>Available ✓</Text>}
-              {usernameAvailable === false && !checkingUsername && <Text style={{ color: '#ef4444' }}>Taken ✗</Text>}
+              {usernameAvailable === true && !checkingUsername && (
+                <Text style={{ color: '#10b981' }}>Available ✓</Text>
+              )}
+              {usernameAvailable === false && !checkingUsername && (
+                <Text style={{ color: '#ef4444' }}>Taken ✗</Text>
+              )}
             </View>
           )}
           {!client && usernameSuggestions.length > 0 && (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-              {usernameSuggestions.map((s) => (
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 8,
+                marginTop: 8,
+              }}
+            >
+              {usernameSuggestions.map(s => (
                 <TouchableOpacity
                   key={s}
                   onPress={() => setClientUsername(s)}
-                  style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb' }}
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: '#e5e7eb',
+                  }}
                 >
                   <Text>{s}</Text>
                 </TouchableOpacity>
@@ -529,16 +692,23 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
       {!client && (
         <View style={styles.section}>
           <Text style={styles.label}>Password</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={styles.passwordContainer}>
             <TextInput
-              style={[styles.input, { flex: 1 }]}
+              style={[styles.input, styles.passwordInput]}
               placeholder="••••••••"
               secureTextEntry={!eyeOpen}
               value={password}
               onChangeText={setPassword}
             />
-            <TouchableOpacity onPress={() => setEyeOpen((v) => !v)} style={{ marginLeft: 8 }}>
-              <Text style={{ color: 'blue' }}>{eyeOpen ? 'Hide' : 'Show'}</Text>
+            <TouchableOpacity
+              onPress={() => setEyeOpen(v => !v)}
+              style={styles.eyeIcon}
+            >
+              <Icon
+                name={eyeOpen ? 'visibility' : 'visibility-off'}
+                size={24}
+                color="#666"
+              />
             </TouchableOpacity>
           </View>
         </View>
@@ -546,12 +716,12 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
 
       <View style={styles.section}>
         <Text style={styles.label}>Email</Text>
-        <TextInput 
-          style={styles.input} 
-          placeholder="contact@company.com" 
-          value={email} 
-          onChangeText={setEmail} 
-          keyboardType="email-address" 
+        <TextInput
+          style={styles.input}
+          placeholder="contact@company.com"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
         />
       </View>
 
@@ -561,7 +731,7 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
           style={styles.input}
           placeholder="+1 (555) 123-4567"
           value={phone}
-          onChangeText={(t) => setPhone(t.replace(/[^0-9+()-\s]/g, ''))}
+          onChangeText={t => setPhone(t.replace(/[^0-9+()-\s]/g, ''))}
           keyboardType="phone-pad"
         />
       </View>
@@ -570,73 +740,103 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
         <View style={styles.section}>
           <Text style={styles.label}>Account Validity</Text>
           <View style={{ flexDirection: 'row' }}>
-            <TextInput 
-              style={[styles.input, { flex: 1, marginRight: 10 }]} 
-              placeholder="e.g. 30" 
-              value={String(validityAmount)} 
-              onChangeText={(v) => setValidityAmount(Number(v || 0))} 
-              keyboardType="numeric" 
+            <TextInput
+              style={[styles.input, { flex: 1, marginRight: 10 }]}
+              placeholder="e.g. 30"
+              value={String(validityAmount)}
+              onChangeText={v => setValidityAmount(Number(v || 0))}
+              keyboardType="numeric"
             />
-            <TextInput 
-              style={[styles.input, { flex: 1 }]} 
-              placeholder="Unit (days, months, years)" 
-              value={validityUnit} 
-              onChangeText={setValidityUnit} 
-            />
+            <View style={[styles.inputAccountValidity, { flex: 1, padding: 0 }]}>
+              <Picker
+                selectedValue={validityUnit}
+                onValueChange={itemValue => setValidityUnit(itemValue)}
+                style={{ height: 50 }}
+              >
+                <Picker.Item label="Days" value="days" />
+                <Picker.Item label="Months" value="months" />
+                <Picker.Item label="Years" value="years" />
+              </Picker>
+            </View>
           </View>
-          {expiryPreview && <Text style={{ marginTop: 6, fontSize: 12, color: 'gray' }}>This account will expire on {expiryPreview}.</Text>}
+          {expiryPreview && (
+            <Text style={{ marginTop: 6, fontSize: 12, color: 'gray' }}>
+              This account will expire on {expiryPreview}.
+            </Text>
+          )}
         </View>
       )}
 
       {!hideAdvanced && (
         <>
-          <View style={styles.section}>
+          {/* <View style={styles.section}>
             <Text style={styles.label}>Max Companies</Text>
-            <TextInput 
-              style={styles.input} 
-              value={String(maxCompanies)} 
-              onChangeText={(v) => setMaxCompanies(Number(v || 0))} 
-              keyboardType="numeric" 
+            <TextInput
+              style={styles.input}
+              value={String(maxCompanies)}
+              onChangeText={v => setMaxCompanies(Number(v || 0))}
+              keyboardType="numeric"
             />
           </View>
 
           <View style={styles.section}>
             <Text style={styles.label}>Max Users</Text>
-            <TextInput 
-              style={styles.input} 
-              value={String(maxUsers)} 
-              onChangeText={(v) => setMaxUsers(Number(v || 0))} 
-              keyboardType="numeric" 
+            <TextInput
+              style={styles.input}
+              value={String(maxUsers)}
+              onChangeText={v => setMaxUsers(Number(v || 0))}
+              keyboardType="numeric"
             />
-          </View>
+          </View> */}
 
           <View style={styles.sectionRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Send Invoice via Email</Text>
             </View>
-            <RNSwitch value={canSendInvoiceEmail} onValueChange={setCanSendInvoiceEmail} />
+            <RNSwitch
+              value={canSendInvoiceEmail}
+              onValueChange={setCanSendInvoiceEmail}
+            />
           </View>
 
           <View style={styles.sectionRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Send Invoice via WhatsApp</Text>
             </View>
-            <RNSwitch value={canSendInvoiceWhatsapp} onValueChange={setCanSendInvoiceWhatsapp} />
+            <RNSwitch
+              value={canSendInvoiceWhatsapp}
+              onValueChange={setCanSendInvoiceWhatsapp}
+            />
           </View>
         </>
       )}
 
       {/* Action Buttons for General Tab */}
-      <View style={{ marginTop: 20, flexDirection: 'row', justifyContent: 'flex-end' }}>
+      <View
+        style={{
+          marginTop: 20,
+          flexDirection: 'row',
+          justifyContent: 'flex-end',
+        }}
+      >
         <View style={{ marginRight: 8 }}>
           <Button title="Cancel" onPress={onCancel} />
         </View>
         <TouchableOpacity
           onPress={handleSubmit}
           disabled={isSubmitting}
-          style={[styles.submitButton, isSubmitting ? styles.buttonDisabled : null]}
+          style={[
+            styles.submitButton,
+            isSubmitting ? styles.buttonDisabled : null,
+          ]}
         >
-          {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>{client ? 'Save Changes' : 'Create Client'}</Text>}
+          {isSubmitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.submitText}>
+              {client ? 'Save Changes' : 'Create Client'}
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -647,7 +847,9 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
     <ScrollView style={styles.tabContent}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Manage Permissions</Text>
-        <Text style={styles.sectionSubtitle}>Modify usage limits and feature access for this client.</Text>
+        <Text style={styles.sectionSubtitle}>
+          Modify usage limits and feature access for this client.
+        </Text>
       </View>
 
       <View style={styles.section}>
@@ -658,7 +860,9 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
             <TextInput
               style={styles.input}
               value={String(currentPermissions.maxCompanies || '')}
-              onChangeText={(v) => handlePermissionChange('maxCompanies', Number(v || 0))}
+              onChangeText={v =>
+                handlePermissionChange('maxCompanies', Number(v || 0))
+              }
               keyboardType="numeric"
             />
           </View>
@@ -667,7 +871,9 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
             <TextInput
               style={styles.input}
               value={String(currentPermissions.maxUsers || '')}
-              onChangeText={(v) => handlePermissionChange('maxUsers', Number(v || 0))}
+              onChangeText={v =>
+                handlePermissionChange('maxUsers', Number(v || 0))
+              }
               keyboardType="numeric"
             />
           </View>
@@ -676,7 +882,9 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
             <TextInput
               style={styles.input}
               value={String(currentPermissions.maxInventories || '')}
-              onChangeText={(v) => handlePermissionChange('maxInventories', Number(v || 0))}
+              onChangeText={v =>
+                handlePermissionChange('maxInventories', Number(v || 0))
+              }
               keyboardType="numeric"
             />
           </View>
@@ -690,68 +898,95 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
             <Text style={styles.permissionLabel}>Send Invoice via Email</Text>
             <RNSwitch
               value={currentPermissions.canSendInvoiceEmail}
-              onValueChange={(v) => handlePermissionChange('canSendInvoiceEmail', v)}
+              onValueChange={v =>
+                handlePermissionChange('canSendInvoiceEmail', v)
+              }
             />
           </View>
           <View style={styles.permissionItem}>
-            <Text style={styles.permissionLabel}>Send Invoice via WhatsApp</Text>
+            <Text style={styles.permissionLabel}>
+              Send Invoice via WhatsApp
+            </Text>
             <RNSwitch
               value={currentPermissions.canSendInvoiceWhatsapp}
-              onValueChange={(v) => handlePermissionChange('canSendInvoiceWhatsapp', v)}
+              onValueChange={v =>
+                handlePermissionChange('canSendInvoiceWhatsapp', v)
+              }
             />
           </View>
           <View style={styles.permissionItem}>
             <Text style={styles.permissionLabel}>Create Users</Text>
             <RNSwitch
               value={currentPermissions.canCreateUsers}
-              onValueChange={(v) => handlePermissionChange('canCreateUsers', v)}
+              onValueChange={v => handlePermissionChange('canCreateUsers', v)}
             />
           </View>
           <View style={styles.permissionItem}>
             <Text style={styles.permissionLabel}>Create Customers</Text>
             <RNSwitch
               value={currentPermissions.canCreateCustomers}
-              onValueChange={(v) => handlePermissionChange('canCreateCustomers', v)}
+              onValueChange={v =>
+                handlePermissionChange('canCreateCustomers', v)
+              }
             />
           </View>
           <View style={styles.permissionItem}>
             <Text style={styles.permissionLabel}>Create Vendors</Text>
             <RNSwitch
               value={currentPermissions.canCreateVendors}
-              onValueChange={(v) => handlePermissionChange('canCreateVendors', v)}
+              onValueChange={v => handlePermissionChange('canCreateVendors', v)}
             />
           </View>
           <View style={styles.permissionItem}>
             <Text style={styles.permissionLabel}>Create Products</Text>
             <RNSwitch
               value={currentPermissions.canCreateProducts}
-              onValueChange={(v) => handlePermissionChange('canCreateProducts', v)}
+              onValueChange={v =>
+                handlePermissionChange('canCreateProducts', v)
+              }
             />
           </View>
           <View style={styles.permissionItem}>
             <Text style={styles.permissionLabel}>Create Companies</Text>
             <RNSwitch
               value={currentPermissions.canCreateCompanies}
-              onValueChange={(v) => handlePermissionChange('canCreateCompanies', v)}
+              onValueChange={v =>
+                handlePermissionChange('canCreateCompanies', v)
+              }
             />
           </View>
           <View style={styles.permissionItem}>
             <Text style={styles.permissionLabel}>Update Companies</Text>
             <RNSwitch
               value={currentPermissions.canUpdateCompanies}
-              onValueChange={(v) => handlePermissionChange('canUpdateCompanies', v)}
+              onValueChange={v =>
+                handlePermissionChange('canUpdateCompanies', v)
+              }
             />
           </View>
         </View>
       </View>
 
-      <View style={{ marginTop: 20, flexDirection: 'row', justifyContent: 'flex-end' }}>
+      <View
+        style={{
+          marginTop: 20,
+          flexDirection: 'row',
+          justifyContent: 'flex-end',
+        }}
+      >
         <TouchableOpacity
           onPress={handleSavePermissions}
           disabled={isSavingPermissions}
-          style={[styles.submitButton, isSavingPermissions ? styles.buttonDisabled : null]}
+          style={[
+            styles.submitButton,
+            isSavingPermissions ? styles.buttonDisabled : null,
+          ]}
         >
-          {isSavingPermissions ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Save Permissions</Text>}
+          {isSavingPermissions ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.submitTextPermissions}>Save Permissions</Text>
+          )}
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -761,9 +996,11 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
   const renderValidityForm = () => (
     <ScrollView style={styles.tabContent}>
       <View style={styles.section}>
-        <ClientValidityCard 
-          clientId={client._id} 
-          onChanged={() => { /* optional refresh handled by parent */ }} 
+        <ClientValidityCard
+          clientId={client._id}
+          onChanged={() => {
+            /* optional refresh handled by parent */
+          }}
         />
       </View>
     </ScrollView>
@@ -772,36 +1009,53 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
   // Password Reset Form Section
   const renderPasswordForm = () => (
     <ScrollView style={styles.tabContent}>
-      <View style={styles.section}>
+      <View >
         <Text style={styles.sectionTitle}>Reset Password</Text>
         <Text style={styles.sectionSubtitle}>
-          Set a new password for {client.contactName}. They will be notified of this change.
+          Set a new password for {client.contactName}. They will be notified of
+          this change.
         </Text>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.label}>New Password</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={styles.passwordContainer}>
           <TextInput
-            style={[styles.input, { flex: 1 }]}
+            style={[styles.input, styles.passwordInput]}
             placeholder="Enter new password"
             secureTextEntry={!eyeOpenPassword}
             value={newPassword}
             onChangeText={setNewPassword}
           />
-          <TouchableOpacity onPress={() => setEyeOpenPassword((v) => !v)} style={{ marginLeft: 8 }}>
-            <Text style={{ color: 'blue' }}>{eyeOpenPassword ? 'Hide' : 'Show'}</Text>
+          <TouchableOpacity
+            onPress={() => setEyeOpenPassword(v => !v)}
+            style={styles.eyeIcon}
+          >
+            <Icon
+              name={eyeOpenPassword ? 'visibility' : 'visibility-off'}
+              size={24}
+              color="#666"
+            />
           </TouchableOpacity>
         </View>
       </View>
 
-      <View style={{ marginTop: 20 }}>
+      <View >
         <TouchableOpacity
           onPress={handleResetPassword}
           disabled={isSubmittingPassword || !newPassword.trim()}
-          style={[styles.submitButton, (isSubmittingPassword || !newPassword.trim()) ? styles.buttonDisabled : null]}
+          style={[
+            styles.submitButton,
+            isSubmittingPassword || !newPassword.trim()
+              ? styles.buttonDisabled
+              : null,
+          ]}
         >
-          {isSubmittingPassword ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Reset Password</Text>}
+          {isSubmittingPassword ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.submitTextPermissions}>Reset Password</Text>
+          )}
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -835,8 +1089,8 @@ export default function ClientForm({ client, onSubmit: parentOnSubmit, onCancel,
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
+  container: {
+    flex: 1,
     padding: 20,
     backgroundColor: '#fff',
   },
@@ -912,6 +1166,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#fff',
   },
+  inputAccountValidity: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    padding: 8,
+    fontSize: 16,
+    backgroundColor: '#fff',
+  },
+  passwordContainer: {
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  passwordInput: {
+    flex: 1,
+    paddingRight: 50, // Make space for the eye icon
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 12,
+    padding: 4,
+  },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -936,9 +1213,9 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     backgroundColor: '#2563eb',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 2,
     justifyContent: 'center',
     alignItems: 'center',
     minWidth: 120,
@@ -947,6 +1224,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
+  },
+  submitTextPermissions: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+    padding: 7,
   },
   buttonDisabled: {
     opacity: 0.6,

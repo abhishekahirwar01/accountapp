@@ -616,11 +616,12 @@ const styles = StyleSheet.create({
   // --- Header ---
   headerContainer: {
     padding: 16,
+    paddingTop:4,
     paddingBottom: 0,
     backgroundColor: '#fff',
   },
   headerTextContainer: {
-    marginBottom: 16,
+    marginBottom: 6,
   },
   headerTitle: {
     fontSize: 26,
@@ -634,8 +635,8 @@ const styles = StyleSheet.create({
 
   // --- Selection pickers ---
   selectionContainer: {
-    marginBottom: 10,
-    paddingTop: 10,
+    marginBottom: 4,
+    paddingTop: 4,
   },
   twoColumnSelection: {
     flexDirection: 'row',
@@ -648,6 +649,7 @@ const styles = StyleSheet.create({
   pickerFieldHalf: {
     flex: 1,
     marginHorizontal: 6,
+    
   },
   selectionLabel: {
     fontSize: 14,

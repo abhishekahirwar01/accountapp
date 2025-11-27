@@ -127,7 +127,7 @@ const CustomCarousel = ({
 
 const KpiCarousel = ({ data }) => {
   const { width: screenWidth } = Dimensions.get('window');
-  const kpiCardWidth = screenWidth * 0.45;
+  const kpiCardWidth = screenWidth * 0.43;
 
   const renderKpiItem = ({ item }) => (
     <View style={[styles.kpiCard, { width: kpiCardWidth }]}>
@@ -169,6 +169,85 @@ const KpiCarousel = ({ data }) => {
   );
 };
 
+// Validity Display Component
+const ValidityDisplay = ({ validity }) => {
+  if (!validity) {
+    return (
+      <View style={styles.clientDetail}>
+        <Icon name="calendar-clock" size={18} color="#6b7280" />
+        <Text style={styles.clientText}>Validity: Not set</Text>
+      </View>
+    );
+  }
+
+  const getStatusColor = status => {
+    switch (status) {
+      case 'active':
+        return '#10b981';
+      case 'expired':
+        return '#ef4444';
+      case 'disabled':
+        return '#6b7280';
+      default:
+        return '#3b82f6';
+    }
+  };
+
+  const getStatusBackground = status => {
+    switch (status) {
+      case 'active':
+        return '#d1fae5';
+      case 'expired':
+        return '#fee2e2';
+      case 'disabled':
+        return '#f3f4f6';
+      default:
+        return '#dbeafe';
+    }
+  };
+
+  const formatDate = dateString => {
+    if (!dateString) return 'Not set';
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  return (
+    <View style={styles.clientDetail}>
+      <Icon name="calendar-clock" size={18} color="#6b7280" />
+      <View style={styles.validityContainer}>
+        <Text style={styles.clientText}>
+          Expires: {formatDate(validity.expiresAt)}
+        </Text>
+        {validity.status && (
+          <View
+            style={[
+              styles.statusBadge,
+              {
+                backgroundColor: getStatusBackground(validity.status),
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.statusText,
+                {
+                  color: getStatusColor(validity.status),
+                },
+              ]}
+            >
+              {validity.status.charAt(0).toUpperCase() + validity.status.slice(1)}
+            </Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+};
+
 const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
   const [stats, setStats] = useState({
     totalSales: 0,
@@ -178,6 +257,7 @@ const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
   const [companies, setCompanies] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [validity, setValidity] = useState(null);
   const { width: screenWidth } = Dimensions.get('window');
   const cardWidth = screenWidth - 32;
 
@@ -191,6 +271,36 @@ const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
     } catch (error) {
       console.error('Error getting token:', error);
       throw new Error('Authentication token not found.');
+    }
+  };
+
+  // Fetch validity function
+  const fetchValidity = async () => {
+    if (!selectedClient?._id) return;
+    
+    try {
+      const token = await getAuthToken();
+      const response = await fetch(
+        `${BASE_URL}/api/account/${selectedClient._id}/validity`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.status === 404) {
+        setValidity(null);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch validity');
+      }
+
+      const data = await response.json();
+      setValidity(data.validity);
+    } catch (error) {
+      console.error('Error fetching validity:', error);
+      setValidity(null);
     }
   };
 
@@ -332,6 +442,9 @@ const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
         });
 
         setCompanies(companiesArr);
+        
+        // Fetch validity data
+        await fetchValidity();
       } catch (error) {
         console.error('Failed to load dashboard data:', error);
         Alert.alert(
@@ -374,9 +487,7 @@ const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
   ];
 
   const renderCarouselItem = ({ item, index }) => (
-    
     <View style={[styles.carouselItem, { width: cardWidth }]}>
-      
       <CompanyCardAnalytics
         company={item}
         showIndicators={true}
@@ -397,7 +508,7 @@ const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
           {Array.from({ length: 4 }).map((_, i) => (
             <View
               key={i}
-              style={[styles.loadingCard, { width: screenWidth * 0.45 }]}
+              style={[styles.loadingCard, { width: screenWidth * 0.43 }]}
             >
               <View style={styles.loadingHeader}>
                 <View style={styles.loadingText} />
@@ -476,13 +587,16 @@ const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
               <Icon name="phone" size={18} color="#6b7280" />
               <Text style={styles.clientText}>{selectedClient.phone}</Text>
             </View>
+            
+            {/* VALIDITY DISPLAY ADDED HERE */}
+            <ValidityDisplay validity={validity} />
           </View>
         </View>
       </View>
 
       {/* Companies Carousel */}
       <View style={styles.companiesSection}>
-        <Text style={styles.sectionTitle}>Companies</Text>
+        <Text style={{fontSize:20}} >Companies</Text>
         {companies.length > 0 ? (
           <CustomCarousel
             data={companies}
@@ -616,6 +730,23 @@ const styles = StyleSheet.create({
     color: '#3b82f6',
     textDecorationLine: 'underline',
   },
+  // Validity Styles
+  validityContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
   companiesSection: {
     flex: 1,
     marginTop: 8,
@@ -634,12 +765,13 @@ const styles = StyleSheet.create({
   },
   carouselControls: {
     position: 'absolute',
-    bottom: 16,
+    // bottom: 16,
     left: 0,
     right: 0,
+    top: '45%',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: -16,
     transform: [{ translateY: 0 }],
   },
   carouselButton: {

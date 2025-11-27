@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   StatusBar,
   RefreshControl,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -57,7 +58,118 @@ const getAppLoginUrl = slug =>
 const getApiLoginUrl = (slug, base = BASE_URL) =>
   slug ? `${base}/api/clients/${slug}/login` : '';
 
+// ---------- UI COMPONENTS ----------
+const Card = ({ children, style }) => (
+  <View style={[styles.card, style]}>{children}</View>
+);
+
+const Button = ({
+  children,
+  onPress,
+  variant = 'default',
+  size = 'default',
+  style,
+  disabled,
+  icon,
+  ...props
+}) => (
+  <TouchableOpacity
+    style={[
+      styles.button,
+      styles[`button${variant.charAt(0).toUpperCase() + variant.slice(1)}`],
+      styles[`button${size.charAt(0).toUpperCase() + size.slice(1)}`],
+      disabled && styles.buttonDisabled,
+      style,
+    ]}
+    onPress={onPress}
+    disabled={disabled}
+    {...props}
+  >
+    {icon && (
+      <View style={styles.buttonIcon}>
+        {icon}
+      </View>
+    )}
+    <Text
+      style={[
+        styles.buttonText,
+        styles[
+          `buttonText${variant.charAt(0).toUpperCase() + variant.slice(1)}`
+        ],
+      ]}
+    >
+      {children}
+    </Text>
+  </TouchableOpacity>
+);
+
+const Dialog = ({ visible, onClose, title, description, children }) => (
+  <Modal
+    visible={visible}
+    animationType="slide"
+    transparent={true}
+    onRequestClose={onClose}
+    statusBarTranslucent={true}
+  >
+    <View style={styles.modalOverlay}>
+      <View style={styles.dialogContent}>
+        <View style={styles.dialogHeader}>
+          <Text style={styles.dialogTitle}>{title}</Text>
+          <Text style={styles.dialogDescription}>{description}</Text>
+          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <X size={24} color="#6b7280" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.dialogBody}>{children}</View>
+      </View>
+    </View>
+  </Modal>
+);
+
+const AlertDialog = ({ visible, onClose, title, description, onConfirm }) => (
+  <Modal
+    visible={visible}
+    animationType="fade"
+    transparent={true}
+    onRequestClose={onClose}
+  >
+    <View style={styles.modalOverlay}>
+      <View style={styles.alertDialogContent}>
+        <Text style={styles.alertDialogTitle}>{title}</Text>
+        <Text style={styles.alertDialogDescription}>{description}</Text>
+        <View style={styles.alertDialogActions}>
+          <Button
+            variant="outline"
+            onPress={onClose}
+            style={styles.alertDialogButton}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onPress={onConfirm}
+            style={styles.alertDialogButton}
+          >
+            Continue
+          </Button>
+        </View>
+      </View>
+    </View>
+  </Modal>
+);
+
+// ---------- MAIN COMPONENT ----------
 export default function ClientManagementPage() {
+  // Animation refs - MUST BE DECLARED BEFORE ANY useEffect
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const HEADER_HEIGHT = 160;
+  const diffClamp = Animated.diffClamp(scrollY, 0, HEADER_HEIGHT);
+  const headerTranslateY = diffClamp.interpolate({
+    inputRange: [0, HEADER_HEIGHT],
+    outputRange: [0, -HEADER_HEIGHT],
+  });
+
+  // State declarations
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
@@ -80,7 +192,7 @@ export default function ClientManagementPage() {
   const { showToast } = useToast();
 
   // Fetch clients from API
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
@@ -110,11 +222,11 @@ export default function ClientManagementPage() {
       setIsLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     fetchClients();
-  }, []);
+  }, [fetchClients]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -388,468 +500,598 @@ export default function ClientManagementPage() {
     setUsernameFilter('');
   };
 
-  if (isLoading)
+  const renderAnimatedHeader = () => (
+    <Animated.View
+      style={[
+        styles.animatedHeader,styles.headerContainer,
+        { transform: [{ translateY: headerTranslateY }] },
+      ]}
+    >
+      <SafeAreaView style={styles.headerSafeArea}>
+       <View style={styles.headerContent}>
+              <View style={styles.titleSection}>
+                <Text style={styles.mainTitle}>Client Management</Text>
+                <Text style={styles.mainSubtitle}>Manage your clients</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modernAddButton}
+                onPress={handleAddNew}
+              >
+                <View style={styles.addButtonIcon}>
+                  <PlusCircle size={18} color="#007AFF" />
+                </View>
+                <Text style={styles.modernAddButtonText}>Add Client</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Search Bar */}
+            <View style={styles.searchContainer}>
+              <View style={styles.searchInputWrapper}>
+                <Filter size={18} color="#999" style={styles.searchIcon} />
+                <TextInput
+                  style={styles.modernSearchInput}
+                  placeholder="Search by name/username"
+                  placeholderTextColor="#999"
+                  value={contactNameFilter || usernameFilter}
+                  onChangeText={text => {
+                    setContactNameFilter(text);
+                    setUsernameFilter(text);
+                  }}
+                />
+                {(contactNameFilter || usernameFilter) && (
+                  <TouchableOpacity
+                    onPress={handleClearFilters}
+                    style={styles.clearIconButton}
+                  >
+                    <X size={16} color="#999" />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <TouchableOpacity
+                style={styles.clearButton}
+                onPress={handleClearFilters}
+              >
+                <Text style={styles.clearButtonText}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+      </SafeAreaView>
+    </Animated.View>
+  );
+
+  const renderEmptyState = () => (
+    <Card style={styles.emptyStateCard}>
+      <Users size={48} color="#9ca3af" />
+      <Text style={styles.emptyStateTitle}>No Clients Found</Text>
+      <Text style={styles.emptyStateDescription}>
+        {clients.length === 0
+          ? 'Add your first client to get started'
+          : 'Try changing your filters'}
+      </Text>
+      <Button
+        onPress={handleAddNew}
+        style={styles.emptyStateButton}
+        icon={<PlusCircle size={16} color="#fff" />}
+      >
+        Add Client
+      </Button>
+    </Card>
+  );
+
+  if (isLoading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading clients...</Text>
-        </View>
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Loading clients...</Text>
       </SafeAreaView>
     );
+  }
 
   return (
     <AppLayout>
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
-        <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
+        {renderAnimatedHeader()}
+
+        <Animated.FlatList
+          data={filteredClients}
+          renderItem={({ item: client }) => (
+            <ClientCard
+              key={client._id}
+              client={client}
+              onEdit={() => handleEdit(client)}
+              onDelete={() => handleDelete(client)}
+              onResetPassword={() => handleResetPassword(client)}
+              onManagePermissions={() => handleManagePermissions(client)}
+              copyToClipboard={copyToClipboard}
+              getAppLoginUrl={getAppLoginUrl}
+              getApiLoginUrl={slug => getApiLoginUrl(slug, BASE_URL)}
+            />
+          )}
+          keyExtractor={item => item._id}
+          contentContainerStyle={[
+            filteredClients.length === 0 ? styles.emptyListContent : styles.listContent,
+            { paddingTop: 140},
+          ]}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true },
+          )}
+          scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          ListEmptyComponent={renderEmptyState}
+          showsVerticalScrollIndicator={false}
+        />
+
+        {/* Add/Edit Modal */}
+        <Dialog
+          visible={isDialogOpen}
+          onClose={() => setIsDialogOpen(false)}
+          title={selectedClient ? 'Edit Client' : 'Add New Client'}
+          description={
+            selectedClient
+              ? `Update the details for ${selectedClient.contactName}.`
+              : 'Fill in the form below to add a new client.'
+          }
+        >
           <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
+            style={{ flexGrow: 0, maxHeight: 700 }}
+            contentContainerStyle={{ paddingBottom: 16 }}
+            keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.header}>
-              <View>
-                <Text style={styles.title}>Client Management</Text>
-                <Text style={styles.subtitle}>Manage your clients</Text>
-              </View>
-              <TouchableOpacity style={styles.addButton} onPress={handleAddNew}>
-                <PlusCircle size={20} color="#FFF" />
-                <Text style={styles.addButtonText}>Add Client</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Filters */}
-            <View style={styles.filtersRow}>
-              <TextInput
-                style={[styles.textInput, { flex: 1 }]}
-                placeholder="Filter by name"
-                value={contactNameFilter}
-                onChangeText={setContactNameFilter}
-              />
-              <TextInput
-                style={[styles.textInput, { flex: 1, marginLeft: 10 }]}
-                placeholder="Filter by username"
-                value={usernameFilter}
-                onChangeText={setUsernameFilter}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  styles.cancelButton,
-                  { marginLeft: 10 },
-                ]}
-                onPress={handleClearFilters}
-              >
-                <Text style={styles.cancelButtonText}>Clear</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Only Card View - No Toggle */}
-            <View style={styles.clientsGrid}>
-              {filteredClients.map(client => (
-                <ClientCard
-                  key={client._id}
-                  client={client}
-                  onEdit={() => handleEdit(client)}
-                  onDelete={() => handleDelete(client)}
-                  onResetPassword={() => handleResetPassword(client)}
-                  onManagePermissions={() => handleManagePermissions(client)}
-                  copyToClipboard={copyToClipboard}
-                  getAppLoginUrl={getAppLoginUrl}
-                  getApiLoginUrl={slug => getApiLoginUrl(slug, BASE_URL)}
-                />
-              ))}
-            </View>
-
-            {filteredClients.length === 0 && (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>No clients found</Text>
-                <Text style={styles.emptyStateSubtext}>
-                  {clients.length === 0
-                    ? 'Add your first client to get started'
-                    : 'Try changing your filters'}
-                </Text>
-              </View>
-            )}
+            <ClientForm
+              client={selectedClient}
+              onSubmit={onFormSubmit}
+              onCancel={() => setIsDialogOpen(false)}
+              hideAdvanced={false}
+              baseURL={BASE_URL}
+            />
           </ScrollView>
+        </Dialog>
 
-          {/* Add/Edit Modal */}
-          <Modal
-            visible={isDialogOpen}
-            transparent
-            animationType="slide"
-            onRequestClose={() => setIsDialogOpen(false)}
-          >
-            <SafeAreaView style={styles.modalSafeArea}>
-              <StatusBar backgroundColor="rgba(0,0,0,0.5)" />
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>
-                      {selectedClient ? 'Edit Client' : 'Add New Client'}
-                    </Text>
-                    <TouchableOpacity onPress={() => setIsDialogOpen(false)}>
-                      <X size={24} color="#666" />
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.modalText}>
-                    {selectedClient
-                      ? `Update the details for ${selectedClient.contactName}.`
-                      : 'Fill in the form below to add a new client.'}
-                  </Text>
+        {/* Delete Modal */}
+        <AlertDialog
+          visible={isAlertOpen}
+          onClose={() => setIsAlertOpen(false)}
+          title="Confirm Delete"
+          description={`Are you sure you want to delete ${clientToDelete?.contactName}?`}
+          onConfirm={confirmDelete}
+        />
 
-                  <ScrollView
-                    style={{ flexGrow: 0, maxHeight: 500 }}
-                    contentContainerStyle={{ paddingBottom: 16 }}
-                    keyboardShouldPersistTaps="handled"
+        {/* Reset Password Modal */}
+        <Modal
+          visible={isResetPasswordDialogOpen}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setIsResetPasswordDialogOpen(false)}
+        >
+          <SafeAreaView style={styles.modalSafeArea}>
+            <StatusBar backgroundColor="rgba(0,0,0,0.5)" />
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Reset Password</Text>
+                <Text style={styles.modalText}>
+                  Enter new password for {clientToResetPassword?.contactName}
+                </Text>
+                <View style={styles.passwordInputContainer}>
+                  <TextInput
+                    style={[styles.textInput, { flex: 1 }]}
+                    secureTextEntry={!eyeOpen}
+                    placeholder="New password"
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setEyeOpen(!eyeOpen)}
+                    style={{ marginLeft: 10 }}
                   >
-                    <ClientForm
-                      client={selectedClient}
-                      onSubmit={onFormSubmit}
-                      onCancel={() => setIsDialogOpen(false)}
-                      hideAdvanced={false}
-                      baseURL={BASE_URL}
-                    />
-                  </ScrollView>
+                    {eyeOpen ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.modalFooter}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={() => setIsResetPasswordDialogOpen(false)}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.primaryButton]}
+                    onPress={confirmResetPassword}
+                  >
+                    {isSubmittingPassword ? (
+                      <ActivityIndicator color="#FFF" />
+                    ) : (
+                      <Text style={styles.primaryButtonText}>
+                        Reset Password
+                      </Text>
+                    )}
+                  </TouchableOpacity>
                 </View>
               </View>
-            </SafeAreaView>
-          </Modal>
+            </View>
+          </SafeAreaView>
+        </Modal>
 
-          {/* Delete Modal */}
-          <Modal
-            visible={isAlertOpen}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setIsAlertOpen(false)}
-          >
-            <SafeAreaView style={styles.modalSafeArea}>
-              <StatusBar backgroundColor="rgba(0,0,0,0.5)" />
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Confirm Delete</Text>
-                  <Text style={styles.modalText}>
-                    Are you sure you want to delete{' '}
-                    {clientToDelete?.contactName}?
+        {/* Permissions Modal */}
+        <Modal
+          visible={isPermissionsDialogOpen}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setIsPermissionsDialogOpen(false)}
+        >
+          <SafeAreaView style={styles.modalSafeArea}>
+            <StatusBar backgroundColor="rgba(0,0,0,0.5)" />
+            <View style={styles.modalOverlay}>
+              <View style={styles.permissionsModal}>
+                <View style={styles.permissionsHeader}>
+                  <Text style={styles.permissionsTitle}>
+                    Permissions for {clientForPermissions?.contactName}
                   </Text>
-                  <View style={styles.modalFooter}>
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.cancelButton]}
-                      onPress={() => setIsAlertOpen(false)}
-                    >
-                      <Text style={styles.cancelButtonText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.deleteModalButton]}
-                      onPress={confirmDelete}
-                    >
-                      <Text style={styles.deleteModalButtonText}>Delete</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity
+                    onPress={() => setIsPermissionsDialogOpen(false)}
+                  >
+                    <X size={24} color="#666" />
+                  </TouchableOpacity>
                 </View>
-              </View>
-            </SafeAreaView>
-          </Modal>
-
-          {/* Reset Password Modal */}
-          <Modal
-            visible={isResetPasswordDialogOpen}
-            transparent
-            animationType="slide"
-            onRequestClose={() => setIsResetPasswordDialogOpen(false)}
-          >
-            <SafeAreaView style={styles.modalSafeArea}>
-              <StatusBar backgroundColor="rgba(0,0,0,0.5)" />
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Reset Password</Text>
-                  <Text style={styles.modalText}>
-                    Enter new password for {clientToResetPassword?.contactName}
+                <ScrollView style={{ paddingHorizontal: 20 }}>
+                  <Text style={styles.sectionTitle}>Feature Permissions</Text>
+                  {[
+                    {
+                      key: 'canCreateUsers',
+                      label: 'Create Users',
+                      icon: Users,
+                    },
+                    {
+                      key: 'canCreateCustomers',
+                      label: 'Create Customers',
+                      icon: User,
+                    },
+                    {
+                      key: 'canCreateVendors',
+                      label: 'Create Vendors',
+                      icon: Building,
+                    },
+                    {
+                      key: 'canCreateProducts',
+                      label: 'Create Products',
+                      icon: Package,
+                    },
+                    {
+                      key: 'canSendInvoiceEmail',
+                      label: 'Send Email Invoice',
+                      icon: Send,
+                    },
+                    {
+                      key: 'canSendInvoiceWhatsapp',
+                      label: 'Send WhatsApp Invoice',
+                      icon: MessageSquare,
+                    },
+                  ].map(({ key, label, icon: Icon }) => (
+                    <View key={key} style={styles.permissionItem}>
+                      <View style={styles.permissionLabel}>
+                        <Icon size={20} color="#666" />
+                        <Text style={styles.permissionText}>{label}</Text>
+                      </View>
+                      <Switch
+                        value={currentPermissions[key] || false}
+                        onValueChange={v => handlePermissionChange(key, v)}
+                      />
+                    </View>
+                  ))}
+                  <Text style={[styles.sectionTitle, { marginTop: 20 }]}>
+                    Usage Limits
                   </Text>
-                  <View style={styles.passwordInputContainer}>
-                    <TextInput
-                      style={[styles.textInput, { flex: 1 }]}
-                      secureTextEntry={!eyeOpen}
-                      placeholder="New password"
-                      value={newPassword}
-                      onChangeText={setNewPassword}
-                    />
-                    <TouchableOpacity
-                      onPress={() => setEyeOpen(!eyeOpen)}
-                      style={{ marginLeft: 10 }}
-                    >
-                      {eyeOpen ? <EyeOff size={20} /> : <Eye size={20} />}
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.modalFooter}>
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.cancelButton]}
-                      onPress={() => setIsResetPasswordDialogOpen(false)}
-                    >
-                      <Text style={styles.cancelButtonText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.primaryButton]}
-                      onPress={confirmResetPassword}
-                    >
-                      {isSubmittingPassword ? (
-                        <ActivityIndicator color="#FFF" />
-                      ) : (
-                        <Text style={styles.primaryButtonText}>
-                          Reset Password
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
+                  {[
+                    {
+                      key: 'maxCompanies',
+                      label: 'Max Companies',
+                      icon: Building,
+                    },
+                    { key: 'maxUsers', label: 'Max Users', icon: Users },
+                    {
+                      key: 'maxInventories',
+                      label: 'Max Inventories',
+                      icon: Package,
+                    },
+                  ].map(({ key, label, icon: Icon }) => (
+                    <View key={key} style={styles.limitItem}>
+                      <View style={styles.limitLabel}>
+                        <Icon size={20} color="#666" />
+                        <Text style={styles.limitText}>{label}</Text>
+                      </View>
+                      <TextInput
+                        style={styles.numberInput}
+                        keyboardType="numeric"
+                        value={String(currentPermissions[key] || 0)}
+                        onChangeText={t =>
+                          handlePermissionChange(
+                            key,
+                            Math.max(parseInt(t) || 0, 0),
+                          )
+                        }
+                      />
+                    </View>
+                  ))}
+                  <View style={{ height: 80 }} />
+                </ScrollView>
+
+                <View style={styles.permissionsFooter}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={() => setIsPermissionsDialogOpen(false)}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.primaryButton]}
+                    onPress={handleSavePermissions}
+                  >
+                    {isSavingPermissions ? (
+                      <ActivityIndicator color="#FFF" />
+                    ) : (
+                      <Text style={styles.primaryButtonText}>Save</Text>
+                    )}
+                  </TouchableOpacity>
                 </View>
               </View>
-            </SafeAreaView>
-          </Modal>
-
-          {/* Permissions Modal */}
-          <Modal
-            visible={isPermissionsDialogOpen}
-            transparent
-            animationType="slide"
-            onRequestClose={() => setIsPermissionsDialogOpen(false)}
-          >
-            <SafeAreaView style={styles.modalSafeArea}>
-              <StatusBar backgroundColor="rgba(0,0,0,0.5)" />
-              <View style={styles.modalOverlay}>
-                <View style={styles.permissionsModal}>
-                  <View style={styles.permissionsHeader}>
-                    <Text style={styles.permissionsTitle}>
-                      Permissions for {clientForPermissions?.contactName}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => setIsPermissionsDialogOpen(false)}
-                    >
-                      <X size={24} color="#666" />
-                    </TouchableOpacity>
-                  </View>
-                  <ScrollView style={{ paddingHorizontal: 20 }}>
-                    <Text style={styles.sectionTitle}>Feature Permissions</Text>
-                    {[
-                      {
-                        key: 'canCreateUsers',
-                        label: 'Create Users',
-                        icon: Users,
-                      },
-                      {
-                        key: 'canCreateCustomers',
-                        label: 'Create Customers',
-                        icon: User,
-                      },
-                      {
-                        key: 'canCreateVendors',
-                        label: 'Create Vendors',
-                        icon: Building,
-                      },
-                      {
-                        key: 'canCreateProducts',
-                        label: 'Create Products',
-                        icon: Package,
-                      },
-                      {
-                        key: 'canSendInvoiceEmail',
-                        label: 'Send Email Invoice',
-                        icon: Send,
-                      },
-                      {
-                        key: 'canSendInvoiceWhatsapp',
-                        label: 'Send WhatsApp Invoice',
-                        icon: MessageSquare,
-                      },
-                    ].map(({ key, label, icon: Icon }) => (
-                      <View key={key} style={styles.permissionItem}>
-                        <View style={styles.permissionLabel}>
-                          <Icon size={20} color="#666" />
-                          <Text style={styles.permissionText}>{label}</Text>
-                        </View>
-                        <Switch
-                          value={currentPermissions[key] || false}
-                          onValueChange={v => handlePermissionChange(key, v)}
-                        />
-                      </View>
-                    ))}
-                    <Text style={[styles.sectionTitle, { marginTop: 20 }]}>
-                      Usage Limits
-                    </Text>
-                    {[
-                      {
-                        key: 'maxCompanies',
-                        label: 'Max Companies',
-                        icon: Building,
-                      },
-                      { key: 'maxUsers', label: 'Max Users', icon: Users },
-                      {
-                        key: 'maxInventories',
-                        label: 'Max Inventories',
-                        icon: Package,
-                      },
-                    ].map(({ key, label, icon: Icon }) => (
-                      <View key={key} style={styles.limitItem}>
-                        <View style={styles.limitLabel}>
-                          <Icon size={20} color="#666" />
-                          <Text style={styles.limitText}>{label}</Text>
-                        </View>
-                        <TextInput
-                          style={styles.numberInput}
-                          keyboardType="numeric"
-                          value={String(currentPermissions[key] || 0)}
-                          onChangeText={t =>
-                            handlePermissionChange(
-                              key,
-                              Math.max(parseInt(t) || 0, 0),
-                            )
-                          }
-                        />
-                      </View>
-                    ))}
-                    <View style={{ height: 80 }} />
-                  </ScrollView>
-
-                  <View style={styles.permissionsFooter}>
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.cancelButton]}
-                      onPress={() => setIsPermissionsDialogOpen(false)}
-                    >
-                      <Text style={styles.cancelButtonText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.primaryButton]}
-                      onPress={handleSavePermissions}
-                    >
-                      {isSavingPermissions ? (
-                        <ActivityIndicator color="#FFF" />
-                      ) : (
-                        <Text style={styles.primaryButtonText}>Save</Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </SafeAreaView>
-          </Modal>
-        </View>
+            </View>
+          </SafeAreaView>
+        </Modal>
       </SafeAreaView>
     </AppLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
+  container: { flex: 1, backgroundColor: '#f8fafc' },
 
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#f8fafc',
   },
-  loadingText: {
-    marginTop: 10,
-    color: '#666',
-    fontSize: 16,
-  },
+  loadingText: { marginTop: 12, fontSize: 16, color: '#6b7280' },
 
-  header: {
+  animatedHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    zIndex: 10,
+    elevation: 6,
+    width: '100%',
+  },
+    headerContainer: {
+    backgroundColor: '#FFF',
+    // paddingTop: 16,
+    paddingHorizontal: 20,
+    // paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+  },
+  headerSafeArea: {
+    backgroundColor: '#fff',
+  },
+  headerInner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    paddingTop: 8,
+  },
+   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#FFF',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    marginBottom: 12,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#000',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
+    color: '#1f2937',
+    marginBottom: 2,
   },
 
-  addButton: {
+  
+
+
+  mainTitle: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    letterSpacing: -0.5,
+  },
+   mainSubtitle: {
+    fontSize: 13,
+    color: '#8e8e93',
+    marginTop: 2,
+    letterSpacing: 0.2,
+  },
+    modernAddButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#007AFF',
+    backgroundColor: '#e3f2ff',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#007AFF20',
   },
-  addButtonText: {
-    color: '#FFF',
+  addButtonIcon: {
+    marginRight: 6,
+  },
+  modernAddButtonText: {
+    color: '#007AFF',
     fontWeight: '600',
-    marginLeft: 8,
     fontSize: 14,
   },
-
-  clientsGrid: {
-    padding: 16,
-    gap: 16,
-  },
-
-  filtersRow: {
+   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    gap: 10,
   },
-
-  emptyState: {
+   searchInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: 40,
-    marginTop: 20,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 44,
+    borderWidth: 1,
+    borderColor: '#e8e8e8',
   },
-  emptyStateText: {
-    fontSize: 18,
+  searchIcon: {
+    marginRight: 8,
+  },
+  modernSearchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#1a1a1a',
+    padding: 0,
+  },
+  clearIconButton: {
+    padding: 4,
+  },
+  clearButton: {
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e8e8e8',
+  },
+  clearButtonText: {
     color: '#666',
-    marginBottom: 8,
     fontWeight: '600',
-  },
-  emptyStateSubtext: {
     fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-    lineHeight: 20,
   },
 
+  emptyListContent: { flexGrow: 1, justifyContent: 'center' },
+  listContent: {  paddingHorizontal: 10, },
+
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+
+  // Buttons
+  button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  buttonDefault: { backgroundColor: '#007AFF' },
+  buttonOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  buttonDestructive: { backgroundColor: '#ef4444' },
+  buttonSm: { paddingHorizontal: 12, paddingVertical: 6 },
+  buttonDisabled: { opacity: 0.5 },
+  buttonIcon: { marginRight: 8 },
+  buttonText: { fontSize: 14, fontWeight: '500', color: '#fff' },
+  buttonTextOutline: { color: '#374151' },
+
+  // Empty State
+  emptyStateCard: {
+    alignItems: 'center',
+    // padding: 48,
+    margin: 16,
+    backgroundColor: '#fff',
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginTop: 16,
+  },
+  emptyStateDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  emptyStateButton: { paddingHorizontal: 24, paddingVertical: 12 },
+
+  // Modals
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dialogContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    width: '95%',
+    height: '90%',
+  },
+  dialogHeader: {
+    padding: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  dialogTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 8,
+  },
+  dialogDescription: { fontSize: 14, color: '#6b7280', lineHeight: 20 },
+  closeButton: { position: 'absolute', top: 16, right: 16, padding: 4 },
+  dialogBody: { flex: 1 },
+
+  alertDialogContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  alertDialogTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 8,
+  },
+  alertDialogDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  alertDialogActions: {
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'flex-end',
+  },
+  alertDialogButton: { minWidth: 80 },
+
+  // Existing modal styles
   modalSafeArea: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
   },
   modalContent: {
     backgroundColor: '#FFF',
@@ -864,15 +1106,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
-
-  // Modal Header
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
-
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -885,7 +1124,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     lineHeight: 20,
   },
-
   modalButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -902,13 +1140,6 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: '600',
   },
-  deleteModalButton: {
-    backgroundColor: '#FF3B30',
-  },
-  deleteModalButtonText: {
-    color: '#FFF',
-    fontWeight: '600',
-  },
   primaryButton: {
     backgroundColor: '#007AFF',
   },
@@ -916,16 +1147,14 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontWeight: '600',
   },
-
   textInput: {
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 6,
-    padding: 12,
+    padding: 16,
     fontSize: 16,
     backgroundColor: '#FFF',
   },
-
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
@@ -933,7 +1162,6 @@ const styles = StyleSheet.create({
     color: '#000',
     marginTop: 8,
   },
-
   permissionItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -953,7 +1181,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     flex: 1,
   },
-
   limitItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -973,7 +1200,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     flex: 1,
   },
-
   numberInput: {
     borderWidth: 1,
     borderColor: '#ddd',
@@ -984,15 +1210,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     backgroundColor: '#FFF',
   },
-
-  // Password Input Container
   passwordInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 20,
   },
-
-  // Modal Footer
   modalFooter: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -1002,7 +1224,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#eee',
   },
-
   permissionsModal: {
     backgroundColor: '#FFF',
     borderRadius: 12,

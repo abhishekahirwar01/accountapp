@@ -1076,7 +1076,7 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
 
               {renderFormField('address', {
                 multiline: true,
-                style: styles.textArea,
+                // style: styles.textArea,
                 numberOfLines: 4,
                 textAlignVertical: 'top',
               })}

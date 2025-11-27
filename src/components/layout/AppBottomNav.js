@@ -32,7 +32,9 @@ const Collapsible = ({ defaultOpen, children }) => {
 
 const CollapsibleTrigger = ({ children, isOpen, setIsOpen, style }) => (
   <TouchableOpacity onPress={() => setIsOpen(!isOpen)} style={style}>
-    {React.Children.map(children, child => React.cloneElement(child, { isOpen }))}
+    {React.Children.map(children, child =>
+      React.cloneElement(child, { isOpen }),
+    )}
   </TouchableOpacity>
 );
 
@@ -46,7 +48,8 @@ export function AppSidebar() {
   const [currentUser, setCurrentUser] = useState(null);
   const { permissions: clientPermissions, isLoading: permissionsLoading } =
     usePermissions();
-  const { permissions: userCaps, isLoading: userPermissionsLoading } = useUserPermissions();
+  const { permissions: userCaps, isLoading: userPermissionsLoading } =
+    useUserPermissions();
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -60,17 +63,17 @@ export function AppSidebar() {
   const isAdmin = currentRole === 'master';
 
   // Consistent permission logic with web
-  const canSeeInventory = 
-    currentRole === 'admin' || 
-    (!!userCaps && userCaps.canCreateInventory) || 
+  const canSeeInventory =
+    currentRole === 'admin' ||
+    (!!userCaps && userCaps.canCreateInventory) ||
     currentRole === 'customer';
 
-  const canSeeCompanies = 
-    clientPermissions?.canCreateCompanies || 
+  const canSeeCompanies =
+    clientPermissions?.canCreateCompanies ||
     clientPermissions?.canUpdateCompanies;
 
-  const canSeeUsers = 
-    currentRole === 'admin' || 
+  const canSeeUsers =
+    currentRole === 'admin' ||
     (!!clientPermissions && clientPermissions.canCreateUsers);
 
   const isActive = screenName => route.name === screenName;
@@ -91,11 +94,16 @@ export function AppSidebar() {
       onPress={onPress}
       style={[
         isBottomNav ? styles.bottomNavButton : styles.menuButton,
-        isActive && (isBottomNav ? styles.bottomNavButtonActive : styles.menuButtonActive),
+        isActive &&
+          (isBottomNav
+            ? styles.bottomNavButtonActive
+            : styles.menuButtonActive),
       ]}
     >
       <View
-        style={isBottomNav ? styles.bottomNavButtonContent : styles.menuButtonContent}
+        style={
+          isBottomNav ? styles.bottomNavButtonContent : styles.menuButtonContent
+        }
       >
         <Ionicons
           name={icon}
@@ -104,7 +112,10 @@ export function AppSidebar() {
         />
         {!isBottomNav && (
           <Text
-            style={[styles.menuButtonText, isActive && styles.menuButtonTextActive]}
+            style={[
+              styles.menuButtonText,
+              isActive && styles.menuButtonTextActive,
+            ]}
           >
             {title}
           </Text>
@@ -134,7 +145,12 @@ export function AppSidebar() {
       onPress={onPress}
       style={[styles.subMenuButton, isActive && styles.subMenuButtonActive]}
     >
-      <Text style={[styles.subMenuButtonText, isActive && styles.subMenuButtonTextActive]}>
+      <Text
+        style={[
+          styles.subMenuButtonText,
+          isActive && styles.subMenuButtonTextActive,
+        ]}
+      >
         {title}
       </Text>
     </TouchableOpacity>
@@ -250,7 +266,7 @@ export function AppSidebar() {
         {/* Reports - Collapsible for Desktop, Simple for Mobile */}
         {!isMobile ? (
           <Collapsible defaultOpen={isReportsActive}>
-            <CollapsibleTrigger 
+            <CollapsibleTrigger
               style={styles.collapsibleTrigger}
               isOpen={reportsOpen}
               setIsOpen={setReportsOpen}
@@ -265,15 +281,28 @@ export function AppSidebar() {
               />
             </CollapsibleTrigger>
             <CollapsibleContent isOpen={reportsOpen}>
+              {/* For Reports */}
               <SubMenuButton
                 title="Profit & Loss"
-                isActive={isActive('ProfitLossReport')}
-                onPress={() => navigation.navigate('ProfitLossReport')}
+                isActive={
+                  isActive('Reports') &&
+                  route.params?.reportType === 'profit-loss'
+                }
+                onPress={() =>
+                  navigation.navigate('Reports', { reportType: 'profit-loss' })
+                }
               />
               <SubMenuButton
                 title="Balance Sheet"
-                isActive={isActive('BalanceSheetReport')}
-                onPress={() => navigation.navigate('BalanceSheetReport')}
+                isActive={
+                  isActive('Reports') &&
+                  route.params?.reportType === 'balance-sheet'
+                }
+                onPress={() =>
+                  navigation.navigate('Reports', {
+                    reportType: 'balance-sheet',
+                  })
+                }
               />
             </CollapsibleContent>
           </Collapsible>
@@ -281,8 +310,10 @@ export function AppSidebar() {
           <MenuButton
             icon="document-text-outline"
             title="Reports"
-            isActive={isReportsActive}
-            onPress={() => navigation.navigate('ProfitLossReport')}
+            isActive={isActive('Reports')}
+            onPress={() =>
+              navigation.navigate('Reports', { reportType: 'profit-loss' })
+            }
             isBottomNav={isMobile}
           />
         )}
@@ -290,7 +321,7 @@ export function AppSidebar() {
         {/* Ledger - Collapsible for Desktop, Simple for Mobile */}
         {!isMobile ? (
           <Collapsible defaultOpen={isLedgerActive}>
-            <CollapsibleTrigger 
+            <CollapsibleTrigger
               style={styles.collapsibleTrigger}
               isOpen={ledgerOpen}
               setIsOpen={setLedgerOpen}
@@ -305,15 +336,25 @@ export function AppSidebar() {
               />
             </CollapsibleTrigger>
             <CollapsibleContent isOpen={ledgerOpen}>
+              {/* For Ledger */}
               <SubMenuButton
                 title="Receivables"
-                isActive={isActive('LedgerReceivables')}
-                onPress={() => navigation.navigate('LedgerReceivables')}
+                isActive={
+                  isActive('Ledger') &&
+                  route.params?.ledgerType === 'receivables'
+                }
+                onPress={() =>
+                  navigation.navigate('Ledger', { ledgerType: 'receivables' })
+                }
               />
               <SubMenuButton
                 title="Payables"
-                isActive={isActive('LedgerPayables')}
-                onPress={() => navigation.navigate('LedgerPayables')}
+                isActive={
+                  isActive('Ledger') && route.params?.ledgerType === 'payables'
+                }
+                onPress={() =>
+                  navigation.navigate('Ledger', { ledgerType: 'payables' })
+                }
               />
             </CollapsibleContent>
           </Collapsible>
@@ -321,8 +362,10 @@ export function AppSidebar() {
           <MenuButton
             icon="document-outline"
             title="Ledger"
-            isActive={isLedgerActive}
-            onPress={() => navigation.navigate('LedgerReceivables')}
+            isActive={isActive('Ledger')}
+            onPress={() =>
+              navigation.navigate('Ledger', { ledgerType: 'receivables' })
+            }
             isBottomNav={isMobile}
           />
         )}
@@ -342,7 +385,9 @@ export function AppSidebar() {
 
     return (
       <SafeAreaView edges={['bottom']} style={styles.bottomNavWrapper}>
-        <View style={styles.bottomNav}>{isAdmin ? <AdminMenu /> : <CustomerMenu />}</View>
+        <View style={styles.bottomNav}>
+          {isAdmin ? <AdminMenu /> : <CustomerMenu />}
+        </View>
       </SafeAreaView>
     );
   }
@@ -356,7 +401,10 @@ export function AppSidebar() {
         </View>
       </View>
 
-      <ScrollView style={styles.sidebarMenu} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.sidebarMenu}
+        showsVerticalScrollIndicator={false}
+      >
         {isAdmin ? <AdminMenu /> : <CustomerMenu />}
       </ScrollView>
 
@@ -365,12 +413,16 @@ export function AppSidebar() {
           <View style={styles.userInfo}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
-                {currentUser?.initials || currentUser?.name?.charAt(0)?.toUpperCase() || 'U'}
+                {currentUser?.initials ||
+                  currentUser?.name?.charAt(0)?.toUpperCase() ||
+                  'U'}
               </Text>
             </View>
             <View style={styles.userDetails}>
               <Text style={styles.userName}>
-                {currentUser?.role === 'master' ? 'Master Administrator' : currentUser?.name}
+                {currentUser?.role === 'master'
+                  ? 'Master Administrator'
+                  : currentUser?.name}
               </Text>
               <Text style={styles.userEmail}>{currentUser?.email}</Text>
             </View>
