@@ -655,77 +655,120 @@ export const SalesPurchasesFields = props => {
   };
 
   const renderBalanceDisplay = () => {
-    if (partyBalance == null && vendorBalance == null) return null;
+    // Show customer balance for sales/receipt
+    if ((type === 'sales' || type === 'receipt') && partyBalance != null) {
+      const b = partyBalance;
 
-    let balance =
-      type === 'sales' || type === 'receipt' ? partyBalance : vendorBalance;
-    if (balance === 0 || balance === null) return null;
-
-    let isPositiveBalance =
-      type === 'sales' || type === 'receipt' ? balance > 0 : balance < 0;
-
-    let message = '';
-    if (type === 'sales') {
-      message =
-        balance > 0
-          ? `Customer needs to pay: ${formatCurrencyDisplay(balance)}`
-          : `Customer advance payment: ${formatCurrencyDisplay(
-              Math.abs(balance),
-            )}`;
-    } else if (type === 'purchases') {
-      message =
-        balance < 0
-          ? `You need to pay vendor: ${formatCurrencyDisplay(
-              Math.abs(balance),
-            )}`
-          : `Vendor advance payment: ${formatCurrencyDisplay(balance)}`;
-    } else if (type === 'receipt') {
-      message =
-        balance > 0
-          ? `Customer needs to pay: ${formatCurrencyDisplay(balance)}`
-          : `Customer advance payment: ${formatCurrencyDisplay(
-              Math.abs(balance),
-            )}`;
-    } else if (type === 'payment') {
-      message =
-        balance < 0
-          ? `You need to pay vendor: ${formatCurrencyDisplay(
-              Math.abs(balance),
-            )}`
-          : `Vendor advance payment: ${formatCurrencyDisplay(balance)}`;
-    }
-
-    return (
-      <CustomCard
-        style={[
-          styles.balanceCard,
-          {
-            backgroundColor: isPositiveBalance ? '#FEF2F2' : '#F0FDF4',
-            borderColor: isPositiveBalance ? '#FECACA' : '#BBF7D0',
-          },
-        ]}
-      >
-        <View style={styles.balanceHeader}>
-          <Icon
-            name={
-              isPositiveBalance
-                ? 'alert-circle-outline'
-                : 'check-circle-outline'
-            }
-            size={16}
-            color={isPositiveBalance ? '#DC2626' : '#16A34A'}
-          />
-          <Text
+      // Zero balance: neutral message
+      if (b === 0) {
+        return (
+          <CustomCard
             style={[
-              styles.balanceText,
-              { color: isPositiveBalance ? '#DC2626' : '#16A34A' },
+              styles.balanceCard,
+              { backgroundColor: '#F3F4F6', borderColor: '#E5E7EB' },
             ]}
           >
-            {message}
-          </Text>
-        </View>
-      </CustomCard>
-    );
+            <View style={{ paddingVertical: 6 }}>
+              <Text style={[styles.balanceLabel, { color: '#666' }]}>
+                Current Balance
+              </Text>
+              <Text style={[styles.balanceAmount, { color: '#374151' }]}>
+                {`Customer balance: ${formatCurrencyDisplay(0)}`}
+              </Text>
+            </View>
+          </CustomCard>
+        );
+      }
+
+      const isCustomerOwed = b > 0;
+      return (
+        <CustomCard
+          style={[
+            styles.balanceCard,
+            {
+              backgroundColor: isCustomerOwed ? '#FEF2F2' : '#F0FDF4',
+              borderColor: isCustomerOwed ? '#FECACA' : '#BBF7D0',
+            },
+          ]}
+        >
+          <View style={{ paddingVertical: 6 }}>
+            <Text style={[styles.balanceLabel, { color: '#666' }]}>
+              Current Balance
+            </Text>
+            <Text
+              style={[
+                styles.balanceAmount,
+                { color: isCustomerOwed ? '#DC2626' : '#16A34A' },
+              ]}
+            >
+              {isCustomerOwed
+                ? `Customer needs to pay: ${formatCurrencyDisplay(b)}`
+                : `Customer advance payment: ${formatCurrencyDisplay(
+                    Math.abs(b),
+                  )}`}
+            </Text>
+          </View>
+        </CustomCard>
+      );
+    }
+
+    // Show vendor balance for purchases/payment
+    if ((type === 'purchases' || type === 'payment') && vendorBalance != null) {
+      const b = vendorBalance;
+
+      if (b === 0) {
+        return (
+          <CustomCard
+            style={[
+              styles.balanceCard,
+              { backgroundColor: '#F3F4F6', borderColor: '#E5E7EB' },
+            ]}
+          >
+            <View style={{ paddingVertical: 6 }}>
+              <Text style={[styles.balanceLabel, { color: '#666' }]}>
+                Current Balance
+              </Text>
+              <Text style={[styles.balanceAmount, { color: '#374151' }]}>
+                {`Vendor balance: ${formatCurrencyDisplay(0)}`}
+              </Text>
+            </View>
+          </CustomCard>
+        );
+      }
+
+      const vendorPayable = b < 0; // negative means we owe vendor
+      return (
+        <CustomCard
+          style={[
+            styles.balanceCard,
+            {
+              backgroundColor: vendorPayable ? '#FEF2F2' : '#F0FDF4',
+              borderColor: vendorPayable ? '#FECACA' : '#BBF7D0',
+            },
+          ]}
+        >
+          <View style={{ paddingVertical: 6 }}>
+            <Text style={[styles.balanceLabel, { color: '#666' }]}>
+              Current Balance
+            </Text>
+            <Text
+              style={[
+                styles.balanceAmount,
+                { color: vendorPayable ? '#DC2626' : '#16A34A' },
+              ]}
+            >
+              {vendorPayable
+                ? `You need to pay vendor: ${formatCurrencyDisplay(
+                    Math.abs(b),
+                  )}`
+                : `Vendor advance payment: ${formatCurrencyDisplay(b)}`}
+            </Text>
+          </View>
+        </CustomCard>
+      );
+    }
+
+    return null;
   };
 
   const handleProductSelection = (value, index) => {
@@ -2712,6 +2755,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
   },
   balanceHeader: {
     flexDirection: 'row',
@@ -2721,6 +2769,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  balanceLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
+    color: '#666',
+  },
+  balanceAmount: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   noBanksContainer: {
     padding: 12,
