@@ -24,7 +24,10 @@ import { z } from 'zod';
 // Form Schema with Zod
 const formSchema = z.object({
   serviceName: z.string().min(2, 'Service name is required.'),
-  amount: z.coerce.number().min(0, 'Amount must be a positive number.').default(0),
+  amount: z.coerce
+    .number()
+    .min(0, 'Amount must be a positive number.')
+    .default(0),
   sac: z.string().optional(),
 });
 
@@ -71,19 +74,34 @@ export default function ServiceForm({
   const amountValue = watch('amount');
 
   // Format currency for display
-  const formatCurrency = (value) => {
-    if (value === '' || value === null || value === undefined) return '';
-    
-    const num = typeof value === 'string' ? Number(value.replace(/[^\d.]/g, '')) : value;
-    if (isNaN(num)) return String(value);
+  const formatCurrency = value => {
+    if (value === '' || value === null || value === undefined || value === 0)
+      return '';
+
+    // Handle both string and number inputs
+    const numValue =
+      typeof value === 'string'
+        ? parseFloat(value.replace(/[^\d.]/g, ''))
+        : value;
+
+    if (isNaN(numValue) || numValue === 0) return '';
 
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(num);
+    }).format(numValue);
   };
+
+  // Parse currency back to number
+  const parseCurrency = value => {
+    if (!value) return 0;
+    const raw = value.replace(/[^\d.]/g, '');
+    return raw === '' ? 0 : parseFloat(raw);
+  };
+
+  // We'll use a simple numeric input pattern (stringified form value)
 
   // Debounced SAC search
   useEffect(() => {
@@ -115,7 +133,7 @@ export default function ServiceForm({
     return () => clearTimeout(timer);
   }, [sacValue, sacSelectedFromDropdown, service]);
 
-  const handleSACSelect = (sac) => {
+  const handleSACSelect = sac => {
     setValue('sac', sac.code);
     setShowSacSuggestions(false);
     setSacSelectedFromDropdown(true);
@@ -123,35 +141,29 @@ export default function ServiceForm({
     Keyboard.dismiss();
   };
 
-  const handleSACInputFocus = () => {
-    if (sacValue && sacValue.length >= 2) {
-      setIsLoadingSacSuggestions(true);
-      const results = searchSACCodes(sacValue);
-      setSacSuggestions(results);
-      setShowSacSuggestions(true);
-      setIsLoadingSacSuggestions(false);
-    } else {
-      setShowSacSuggestions(true);
-    }
-  };
+  // No separate display state: bind TextInput value to the form-controlled value
 
-  const handleSACInputBlur = () => {
-    setTimeout(() => {
-      setShowSacSuggestions(false);
-    }, 200);
-  };
-
-  const onSubmit = async (values) => {
+  const onSubmit = async values => {
     // Validate SAC code before submission
     if (values.sac && values.sac.trim() && !sacSelectedFromDropdown) {
       const validSAC = getSACByCode(values.sac.trim());
       if (!validSAC) {
         setError('sac', {
           type: 'manual',
-          message: 'Please select a valid SAC code from the dropdown suggestions.',
+          message:
+            'Please select a valid SAC code from the dropdown suggestions.',
         });
         return;
       }
+    }
+
+    // Ensure amount is properly set
+    if (!values.amount || values.amount === 0) {
+      setError('amount', {
+        type: 'manual',
+        message: 'Please enter a valid amount.',
+      });
+      return;
     }
 
     setIsSubmitting(true);
@@ -185,8 +197,8 @@ export default function ServiceForm({
       if (!service && onServiceCreated) {
         onServiceCreated();
       }
-      
-      if (navigation) {
+
+      if (navigation && typeof navigation.goBack === 'function') {
         navigation.goBack();
       }
     } catch (error) {
@@ -198,7 +210,7 @@ export default function ServiceForm({
 
   const handleDelete = async () => {
     if (!service?._id || !onDelete) return;
-    
+
     Alert.alert(
       'Confirm Delete',
       'Are you sure you want to delete this service?',
@@ -213,22 +225,29 @@ export default function ServiceForm({
               const token = await AsyncStorage.getItem('token');
               if (!token) throw new Error('Authentication token not found.');
 
-              const res = await fetch(`${BASE_URL}/api/services/${service._id}`, {
-                method: 'DELETE',
-                headers: {
-                  Authorization: `Bearer ${token}`,
+              const res = await fetch(
+                `${BASE_URL}/api/services/${service._id}`,
+                {
+                  method: 'DELETE',
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                  },
                 },
-              });
+              );
 
               if (!res.ok) {
                 const data = await res.json();
                 throw new Error(data.message || 'Failed to delete service.');
               }
 
-              Alert.alert('Success', `${service.serviceName} has been deleted.`);
-              onDelete(service);
-              
-              if (navigation) {
+              Alert.alert(
+                'Success',
+                `${service.serviceName} has been deleted.`,
+              );
+              try {
+                onDelete(service);
+              } catch (e) {}
+              if (navigation && typeof navigation.goBack === 'function') {
                 navigation.goBack();
               }
             } catch (error) {
@@ -240,25 +259,6 @@ export default function ServiceForm({
         },
       ],
     );
-  };
-
-  // Render SAC Suggestions
-  const renderSacSuggestions = () => {
-    return sacSuggestions.map((sac, index) => (
-      <TouchableOpacity
-        key={sac.code}
-        style={styles.sacItem}
-        onPress={() => handleSACSelect(sac)}
-      >
-        <View style={styles.sacCodeContainer}>
-          <Text style={styles.sacCode}>{sac.code}</Text>
-          <View style={styles.sacBadge}>
-            <Text style={styles.sacBadgeText}>SAC</Text>
-          </View>
-        </View>
-        <Text style={styles.sacDescription}>{sac.description}</Text>
-      </TouchableOpacity>
-    ));
   };
 
   return (
@@ -292,45 +292,28 @@ export default function ServiceForm({
           )}
         </View>
 
-        {/* Amount Field */}
+        {/* Amount Field - Fixed */}
         <View style={styles.field}>
           <Text style={styles.label}>Amount</Text>
           <Controller
             control={control}
             name="amount"
-            render={({ field: { onChange, onBlur, value } }) => {
-              const [displayValue, setDisplayValue] = useState(
-                value ? formatCurrency(value) : ''
-              );
-
-              return (
-                <TextInput
-                  style={[styles.input, errors.amount && styles.inputError]}
-                  placeholder="₹0"
-                  keyboardType="decimal-pad"
-                  value={displayValue}
-                  onChangeText={(text) => {
-                    const raw = text.replace(/[^\d.]/g, '');
-                    const parts = raw.split('.');
-                    if (parts.length > 2) return;
-                    
-                    setDisplayValue(formatCurrency(raw));
-                    onChange(raw === '' ? 0 : parseFloat(raw));
-                  }}
-                  onBlur={() => {
-                    onBlur();
-                    if (displayValue) {
-                      const num = parseFloat(displayValue.replace(/[^\d.]/g, ''));
-                      if (!isNaN(num)) {
-                        const formatted = formatCurrency(num);
-                        setDisplayValue(formatted);
-                        onChange(num);
-                      }
-                    }
-                  }}
-                />
-              );
-            }}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                style={[styles.input, errors.amount && styles.inputError]}
+                placeholder="0"
+                keyboardType="decimal-pad"
+                value={String(value ?? '')}
+                onChangeText={text => {
+                  const cleaned = text.replace(/[^\d.]/g, '');
+                  const parts = cleaned.split('.');
+                  if (parts.length > 2) return;
+                  if (parts[1] && parts[1].length > 2) return;
+                  onChange(cleaned === '' ? 0 : cleaned);
+                }}
+                onBlur={onBlur}
+              />
+            )}
           />
           {errors.amount && (
             <Text style={styles.error}>{errors.amount.message}</Text>
@@ -382,7 +365,7 @@ export default function ServiceForm({
                           style={styles.searchInput}
                           placeholder="Search SAC codes (e.g., 9954)"
                           value={value}
-                          onChangeText={(text) => {
+                          onChangeText={text => {
                             onChange(text);
                             setSacSelectedFromDropdown(false);
                             if (text.length >= 2) {
@@ -407,7 +390,7 @@ export default function ServiceForm({
 
                       <FlatList
                         data={sacSuggestions}
-                        keyExtractor={(item) => item.code}
+                        keyExtractor={item => item.code}
                         renderItem={({ item }) => (
                           <TouchableOpacity
                             style={styles.sacItem}

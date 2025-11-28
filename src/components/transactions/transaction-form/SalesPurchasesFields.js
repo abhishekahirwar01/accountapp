@@ -11,14 +11,14 @@ import {
   Modal,
   Pressable,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useForm, useWatch, Controller } from 'react-hook-form';
 import Toast from 'react-native-toast-message';
 import { formatCurrency } from '../../../lib/pdf-utils';
 import { Combobox } from '../../ui/Combobox';
 import QuillEditor from '../../ui/QuillEditor';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Picker } from '@react-native-picker/picker';
 import { HSNSearchInput, SACSearchInput } from './transactionForm-parts';
 import { handleHSNSelect, handleSACSelect } from './transaction-utils';
 import { BASE_URL } from '../../../config';
@@ -183,19 +183,24 @@ const CustomCheckbox = ({ status, onPress, label, description }) => (
 );
 
 const CustomMenu = ({ visible, onDismiss, anchor, children }) => {
-  if (!visible) return null;
-
   return (
-    <Modal
-      transparent
-      visible={visible}
-      onRequestClose={onDismiss}
-      animationType="fade"
-    >
-      <Pressable style={styles.menuOverlay} onPress={onDismiss}>
-        <View style={styles.menuContainer}>{children}</View>
-      </Pressable>
-    </Modal>
+    <>
+      {/* Always render anchor so the opener is visible */}
+      {anchor}
+
+      {visible && (
+        <Modal
+          transparent
+          visible={visible}
+          onRequestClose={onDismiss}
+          animationType="fade"
+        >
+          <Pressable style={styles.menuOverlay} onPress={onDismiss}>
+            <View style={styles.menuContainer}>{children}</View>
+          </Pressable>
+        </Modal>
+      )}
+    </>
   );
 };
 
@@ -1800,8 +1805,10 @@ export const SalesPurchasesFields = props => {
           </TouchableOpacity>
 
           {expandedSections.transaction && (
-            <View style={styles.sectionContent}>
-              <View style={styles.row}>
+            <View
+              style={[styles.sectionContent, styles.transactionDetailsInner]}
+            >
+              <View style={styles.transactionRow}>
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Company</Text>
                   <View ref={ref => registerFieldRef('company', ref)}>
@@ -1860,6 +1867,7 @@ export const SalesPurchasesFields = props => {
                               color="#6B7280"
                             />
                           </TouchableOpacity>
+
                           {showDatePicker && (
                             <DateTimePicker
                               value={value || new Date()}
@@ -1975,7 +1983,7 @@ export const SalesPurchasesFields = props => {
                 </View>
               </View>
 
-              <View style={styles.row}>
+              <View style={styles.transactionRow}>
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>{partyLabel}</Text>
                   <View ref={ref => registerFieldRef('party', ref)}>
@@ -2600,22 +2608,41 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 12,
   },
+  transactionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  transactionDetailsInner: {
+    backgroundColor: '#ffffff',
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    borderRadius: 8,
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: '#EEF2F6',
+    marginVertical: 12,
+  },
   inputGroup: {
     flex: 1,
-    minWidth: 150,
+    minWidth: 180,
   },
   label: {
     fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 4,
+    fontWeight: '600',
+    marginBottom: 6,
     color: '#374151',
   },
   picker: {
-    height: 50,
+    height: 56,
     backgroundColor: 'white',
     borderWidth: 1,
     borderColor: '#D1D5DB',
-    borderRadius: 6,
+    borderRadius: 8,
   },
   button: {
     paddingHorizontal: 16,
@@ -2647,19 +2674,19 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   dateButton: {
-    height: 50,
+    height: 56,
     borderWidth: 1,
     borderColor: '#D1D5DB',
-    borderRadius: 6,
-    paddingHorizontal: 12,
+    borderRadius: 8,
+    paddingHorizontal: 14,
     backgroundColor: 'white',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   dateButtonText: {
-    fontSize: 14,
-    color: '#374151',
+    fontSize: 15,
+    color: '#111827',
   },
   dueDateContainer: {
     flexDirection: 'row',
@@ -2667,7 +2694,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   quickButton: {
-    height: 50,
+    height: 40,
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: '#D1D5DB',
@@ -2677,7 +2704,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   quickButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#374151',
   },
   balanceCard: {
@@ -2780,10 +2807,10 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   textInput: {
-    height: 40,
+    height: 48,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 6,
+    borderColor: '#E6EEF5',
+    borderRadius: 8,
     paddingHorizontal: 12,
     backgroundColor: 'white',
     fontSize: 14,

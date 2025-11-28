@@ -1,14 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
 import {
-  TextInput,
-  Button,
-  Card,
-  Modal,
-  Portal,
-  Text,
-  Checkbox,
-} from 'react-native-paper';
+  View,
+  StyleSheet,
+  ScrollView,
+  Modal as RNModal,
+  TouchableOpacity,
+} from 'react-native';
+import { TextInput, Button, Card, Text, Checkbox } from 'react-native-paper';
 import { Calendar } from 'react-native-calendars';
 import { Combobox } from '../../ui/Combobox';
 import { formatCurrency } from '../../../lib/pdf-utils';
@@ -372,91 +370,140 @@ export const ReceiptPaymentFields = props => {
       </View>
 
       {/* Modals */}
-      <Portal>
-        <Modal
-          visible={companyModalVisible}
-          onDismiss={() => setCompanyModalVisible(false)}
-          contentContainerStyle={styles.modalContainer}
-        >
-          <Text variant="headlineSmall" style={styles.modalTitle}>
-            Select Company
-          </Text>
-          <ScrollView style={styles.modalContent}>
-            {companies.map(company => (
-              <Card
-                key={company._id}
-                style={styles.optionCard}
-                onPress={() => {
-                  setFormValue('company', company._id);
-                  setCompanyModalVisible(false);
-                }}
-              >
-                <Card.Content>
-                  <Text>{company.businessName}</Text>
-                </Card.Content>
-              </Card>
-            ))}
-          </ScrollView>
-          <Button onPress={() => setCompanyModalVisible(false)}>Cancel</Button>
-        </Modal>
-      </Portal>
+      <RNModal
+        visible={companyModalVisible}
+        onRequestClose={() => setCompanyModalVisible(false)}
+        transparent={true}
+        animationType="slide"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeaderRow}>
+              <Text variant="headlineSmall" style={styles.modalTitle}>
+                Select Company
+              </Text>
+              <Button onPress={() => setCompanyModalVisible(false)}>✕</Button>
+            </View>
 
-      <Portal>
-        <Modal
-          visible={datePickerVisible}
-          onDismiss={() => setDatePickerVisible(false)}
-          contentContainerStyle={styles.modalContainer}
-        >
-          <Text variant="headlineSmall" style={styles.modalTitle}>
-            Select Date
-          </Text>
-          <Calendar
-            onDayPress={day => {
-              setFormValue('date', day.dateString);
-              setDatePickerVisible(false);
-            }}
-            markedDates={{
-              [watch('date')]: {
-                selected: true,
-                selectedColor: '#2196F3',
-              },
-            }}
-            style={styles.calendar}
-          />
-          <Button onPress={() => setDatePickerVisible(false)}>Cancel</Button>
-        </Modal>
-      </Portal>
+            <ScrollView contentContainerStyle={styles.modalContent}>
+              {companies.map(company => (
+                <TouchableOpacity
+                  key={company._id}
+                  onPress={() => {
+                    setFormValue('company', company._id);
+                    setCompanyModalVisible(false);
+                  }}
+                >
+                  <Card style={styles.optionCard}>
+                    <Card.Content>
+                      <Text style={styles.optionText}>
+                        {company.businessName}
+                      </Text>
+                    </Card.Content>
+                  </Card>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
 
-      <Portal>
-        <Modal
-          visible={paymentMethodModalVisible}
-          onDismiss={() => setPaymentMethodModalVisible(false)}
-          contentContainerStyle={styles.modalContainer}
-        >
-          <Text variant="headlineSmall" style={styles.modalTitle}>
-            Select Payment Method
-          </Text>
-          <ScrollView style={styles.modalContent}>
-            {paymentMethodsForReceipt.map(method => (
-              <Card
-                key={method}
-                style={styles.optionCard}
-                onPress={() => {
-                  setFormValue('paymentMethod', method);
-                  setPaymentMethodModalVisible(false);
-                }}
+            <View style={styles.modalActions}>
+              <Button
+                mode="outlined"
+                onPress={() => setCompanyModalVisible(false)}
               >
-                <Card.Content>
-                  <Text>{method}</Text>
-                </Card.Content>
-              </Card>
-            ))}
-          </ScrollView>
-          <Button onPress={() => setPaymentMethodModalVisible(false)}>
-            Cancel
-          </Button>
-        </Modal>
-      </Portal>
+                Cancel
+              </Button>
+            </View>
+          </View>
+        </View>
+      </RNModal>
+
+      <RNModal
+        visible={datePickerVisible}
+        onRequestClose={() => setDatePickerVisible(false)}
+        transparent={true}
+        animationType="slide"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeaderRow}>
+              <Text variant="headlineSmall" style={styles.modalTitle}>
+                Select Date
+              </Text>
+              <Button onPress={() => setDatePickerVisible(false)}>✕</Button>
+            </View>
+
+            <Calendar
+              onDayPress={day => {
+                setFormValue('date', day.dateString);
+                setDatePickerVisible(false);
+              }}
+              markedDates={{
+                [watch('date')]: {
+                  selected: true,
+                  selectedColor: '#2196F3',
+                },
+              }}
+              style={styles.calendar}
+            />
+
+            <View style={styles.modalActions}>
+              <Button
+                mode="outlined"
+                onPress={() => setDatePickerVisible(false)}
+              >
+                Cancel
+              </Button>
+            </View>
+          </View>
+        </View>
+      </RNModal>
+
+      <RNModal
+        visible={paymentMethodModalVisible}
+        onRequestClose={() => setPaymentMethodModalVisible(false)}
+        transparent={true}
+        animationType="slide"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeaderRow}>
+              <Text variant="headlineSmall" style={styles.modalTitle}>
+                Select Payment Method
+              </Text>
+              <Button onPress={() => setPaymentMethodModalVisible(false)}>
+                ✕
+              </Button>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.modalContent}>
+              {paymentMethodsForReceipt.map(method => (
+                <TouchableOpacity
+                  key={method}
+                  onPress={() => {
+                    setFormValue('paymentMethod', method);
+                    setPaymentMethodModalVisible(false);
+                  }}
+                >
+                  <Card style={styles.optionCard}>
+                    <Card.Content>
+                      <Text style={styles.optionText}>{method}</Text>
+                    </Card.Content>
+                  </Card>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <Button
+                mode="outlined"
+                onPress={() => setPaymentMethodModalVisible(false)}
+              >
+                Cancel
+              </Button>
+            </View>
+          </View>
+        </View>
+      </RNModal>
     </View>
   );
 };
@@ -522,14 +569,37 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     backgroundColor: 'white',
-    padding: 20,
-    margin: 20,
-    borderRadius: 8,
+    padding: 16,
+    marginHorizontal: 20,
+    borderRadius: 10,
     maxHeight: '80%',
+    width: '100%',
+    maxWidth: 720,
   },
   modalTitle: {
     fontWeight: 'bold',
     marginBottom: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalActions: {
+    marginTop: 12,
+    alignItems: 'flex-end',
+  },
+  optionText: {
+    fontSize: 16,
+    color: '#111827',
   },
   modalContent: {
     maxHeight: 400,
