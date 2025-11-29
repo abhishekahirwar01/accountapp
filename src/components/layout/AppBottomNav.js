@@ -281,28 +281,15 @@ export function AppSidebar() {
               />
             </CollapsibleTrigger>
             <CollapsibleContent isOpen={reportsOpen}>
-              {/* For Reports */}
               <SubMenuButton
                 title="Profit & Loss"
-                isActive={
-                  isActive('Reports') &&
-                  route.params?.reportType === 'profit-loss'
-                }
-                onPress={() =>
-                  navigation.navigate('Reports', { reportType: 'profit-loss' })
-                }
+                isActive={isActive('ProfitLossReport')}
+                onPress={() => navigation.navigate('ProfitLossReport')}
               />
               <SubMenuButton
                 title="Balance Sheet"
-                isActive={
-                  isActive('Reports') &&
-                  route.params?.reportType === 'balance-sheet'
-                }
-                onPress={() =>
-                  navigation.navigate('Reports', {
-                    reportType: 'balance-sheet',
-                  })
-                }
+                isActive={isActive('BalanceSheetReport')}
+                onPress={() => navigation.navigate('BalanceSheetReport')}
               />
             </CollapsibleContent>
           </Collapsible>
@@ -310,10 +297,8 @@ export function AppSidebar() {
           <MenuButton
             icon="document-text-outline"
             title="Reports"
-            isActive={isActive('Reports')}
-            onPress={() =>
-              navigation.navigate('Reports', { reportType: 'profit-loss' })
-            }
+            isActive={isReportsActive}
+            onPress={() => navigation.navigate('ProfitLossReport')}
             isBottomNav={isMobile}
           />
         )}
@@ -336,25 +321,15 @@ export function AppSidebar() {
               />
             </CollapsibleTrigger>
             <CollapsibleContent isOpen={ledgerOpen}>
-              {/* For Ledger */}
               <SubMenuButton
                 title="Receivables"
-                isActive={
-                  isActive('Ledger') &&
-                  route.params?.ledgerType === 'receivables'
-                }
-                onPress={() =>
-                  navigation.navigate('Ledger', { ledgerType: 'receivables' })
-                }
+                isActive={isActive('LedgerReceivables')}
+                onPress={() => navigation.navigate('LedgerReceivables')}
               />
               <SubMenuButton
                 title="Payables"
-                isActive={
-                  isActive('Ledger') && route.params?.ledgerType === 'payables'
-                }
-                onPress={() =>
-                  navigation.navigate('Ledger', { ledgerType: 'payables' })
-                }
+                isActive={isActive('LedgerPayables')}
+                onPress={() => navigation.navigate('LedgerPayables')}
               />
             </CollapsibleContent>
           </Collapsible>
@@ -362,10 +337,8 @@ export function AppSidebar() {
           <MenuButton
             icon="document-outline"
             title="Ledger"
-            isActive={isActive('Ledger')}
-            onPress={() =>
-              navigation.navigate('Ledger', { ledgerType: 'receivables' })
-            }
+            isActive={isLedgerActive}
+            onPress={() => navigation.navigate('LedgerReceivables')}
             isBottomNav={isMobile}
           />
         )}
