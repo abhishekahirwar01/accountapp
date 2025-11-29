@@ -14,6 +14,7 @@ const TabsContext = createContext();
 // Main Tabs component
 export const Tabs = ({ defaultValue, value, onValueChange, children, style }) => {
   const [activeTab, setActiveTab] = useState(value || defaultValue);
+  
 
   const handleValueChange = (newValue) => {
     setActiveTab(newValue);
