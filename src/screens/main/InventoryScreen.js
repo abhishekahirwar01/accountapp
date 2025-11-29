@@ -1,828 +1,439 @@
-// InventoryScreen.js
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
+  StyleSheet,
+  Alert,
   TouchableOpacity,
   FlatList,
-  Alert,
   RefreshControl,
-  ActivityIndicator,
   Modal,
-  TextInput,
-  Animated,
-  Platform,
 } from 'react-native';
-import { Card, Button, Badge, Checkbox, IconButton } from 'react-native-paper';
+import {
+  Card,
+  Button,
+  Portal,
+  Dialog,
+  Paragraph,
+  Chip,
+  Checkbox,
+  FAB,
+} from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-// --- CONSTANTS AND UTILITIES ---
+// Import your forms and Excel component
+import { ServiceForm } from '../../components/services/ServiceForm';
+import { ProductForm } from '../../components/products/ProductForm';
+import ExcelImportExport from '../../components/ui/ExcelImportExport';
 
-// Color Constants for easy management
-const PRIMARY_COLOR = '#0066CC'; // Brighter, more common corporate blue
-const DANGER_COLOR = '#D32F2F'; // Standard Red
-const SUCCESS_COLOR = '#388E3C'; // Standard Green
-const WARNING_COLOR = '#FBC02D'; // Standard Amber
-const LIGHT_BACKGROUND = '#F9FAFB';
-const TEXT_COLOR = '#212121'; // Darker text
-const SUBTLE_TEXT_COLOR = '#757575'; // Medium grey text
-const BORDER_COLOR = '#E0E0E0';
+// ------------------------------------------
+// 1. PROFESSIONAL UI CONSTANTS
+// ------------------------------------------
 
-// Icons
-const PackageIcon = () => <Icon name="package-variant" size={20} color={PRIMARY_COLOR} />;
-const ServerIcon = () => <Icon name="server" size={20} color={PRIMARY_COLOR} />;
-const IndianRupeeIcon = ({ size = 14, color = SUBTLE_TEXT_COLOR }) => <Icon name="currency-inr" size={size} color={color} />;
-const ChevronLeftIcon = () => <Icon name="chevron-left" size={18} />;
-const ChevronRightIcon = () => <Icon name="chevron-right" size={18} />;
-const PlusCircleIcon = () => <Icon name="plus-circle" size={18} color="white" />;
-const EditIcon = ({ color = PRIMARY_COLOR }) => <Icon name="pencil" size={20} color={color} />;
-const TrashIcon = ({ color = DANGER_COLOR }) => <Icon name="trash-can-outline" size={20} color={color} />;
-const CloseIcon = ({ color = TEXT_COLOR }) => <Icon name="close" size={24} color={color} />;
-const StockStatusIcon = ({ color }) => <Icon name="circle" size={10} color={color} style={{ marginRight: 6 }} />;
-
-const ITEMS_PER_PAGE = 10;
-
-// Toast Component
-const Toast = ({ visible, message, type, onHide }) => {
-  const opacity = React.useRef(new Animated.Value(0)).current;
-
-  React.useEffect(() => {
-    if (visible) {
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-
-      const timer = setTimeout(() => {
-        hideToast();
-      }, 3000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [visible, opacity]);
-
-  const hideToast = () => {
-    Animated.timing(opacity, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => {
-      onHide();
-    });
-  };
-
-  if (!visible) return null;
-
-  const getToastStyle = () => {
-    switch (type) {
-      case 'error':
-        return styles.toastError;
-      case 'success':
-        return styles.toastSuccess;
-      default:
-        return styles.toastInfo;
-    }
-  };
-
-  const getIconName = () => {
-    switch (type) {
-      case 'error':
-        return 'alert-circle';
-      case 'success':
-        return 'check-circle';
-      default:
-        return 'information';
-    }
-  };
-
-  return (
-    <Animated.View style={[styles.toastContainer, getToastStyle(), { opacity }]}>
-      <Icon name={getIconName()} size={20} color="white" />
-      <Text style={styles.toastText}>{message}</Text>
-      <TouchableOpacity onPress={hideToast} style={styles.toastCloseButton}>
-        <Icon name="close" size={16} color="white" />
-      </TouchableOpacity>
-    </Animated.View>
-  );
+const COLORS = {
+  primary: '#0056b3', // Deep, corporate blue
+  secondary: '#6c757d', // Muted grey for secondary info
+  background: '#f8f9fa', // Very light grey screen background
+  card: '#ffffff', // Clean white for cards
+  border: '#e9ecef', // Light border color
+  success: '#28a745', // Standard green
+  danger: '#dc3545', // Standard red
+  warning: '#ffc107', // Standard yellow-orange
+  textPrimary: '#212529', // Dark text
+  textSecondary: '#6c757d', // Lighter text for details
 };
 
-// Custom useToast hook
-const useToast = () => {
-  const [toast, setToast] = useState({
-    visible: false,
-    message: '',
-    type: 'info',
-  });
-
-  const showToast = (message, type = 'info') => {
-    setToast({ visible: true, message, type });
-  };
-
-  const hideToast = () => {
-    setToast(prev => ({ ...prev, visible: false }));
-  };
-
-  return {
-    toast,
-    showToast,
-    hideToast,
-  };
+const TYPOGRAPHY = {
+  h1: 24,
+  h2: 18,
+  body: 16,
+  caption: 12,
 };
 
-// Utility functions
-const formatCurrencyINR = (value) => {
-  if (value === null || value === undefined || value === "") return "₹0.00";
-  const num = typeof value === "string" ? parseFloat(value) : value;
-  if (isNaN(num)) return "₹0.00";
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(num);
-};
+// ------------------------------------------
+// 2. HARDCODED DATA
+// ------------------------------------------
 
-const extractNumber = (value) => {
-  if (!value) return 0;
-  const strValue = String(value);
-  const numeric = strValue.replace(/[^0-9.]/g, "");
-  return numeric ? Number(numeric) : 0;
-};
+const HARDCODED_COMPANIES = [
+  {
+    _id: '1',
+    name: 'My Company',
+    email: 'contact@mycompany.com',
+    phone: '+91-8989773689',
+  },
+];
 
-// API Configuration
-const BASE_URL = 'https://accountbackend.sharda.co.in';
+const HARDCODED_PRODUCTS = [
+  {
+    _id: '1',
+    name: 'Laptop',
+    stocks: 15,
+    unit: 'Piece',
+    hsn: '8471',
+    createdAt: '2024-01-15T10:30:00.000Z',
+  },
+  {
+    _id: '2',
+    name: 'Wireless Mouse',
+    stocks: 50,
+    unit: 'Piece',
+    hsn: '8471',
+    createdAt: '2024-01-16T14:20:00.000Z',
+  },
+  {
+    _id: '3',
+    name: 'Mechanical Keyboard',
+    stocks: 25,
+    unit: 'Piece',
+    hsn: '8471',
+    createdAt: '2024-01-17T09:15:00.000Z',
+  },
+  {
+    _id: '4',
+    name: '24-inch Monitor',
+    stocks: 10,
+    unit: 'Piece',
+    hsn: '8528',
+    createdAt: '2024-01-18T11:45:00.000Z',
+  },
+];
 
-// Excel Import Export Component
-const ExcelImportExport = ({
-  templateData,
-  templateFileName,
-  onImportSuccess,
-  expectedColumns,
-  transformImportData,
-  activeTab
-}) => {
-  const handleExportPress = () => {
-    Alert.alert(
-      'Excel Export',
-      `Template for ${activeTab} will be downloaded`,
-      [{ text: 'OK' }]
-    );
-    console.log('Exporting template:', templateFileName);
-  };
+const HARDCODED_SERVICES = [
+  {
+    _id: '1',
+    serviceName: 'Web Development',
+    description: 'Custom website development',
+    sac: '998314',
+    createdAt: '2024-01-10T08:00:00.000Z',
+  },
+  {
+    _id: '2',
+    serviceName: 'Mobile App Development',
+    description: 'Cross-platform mobile applications',
+    sac: '998314',
+    createdAt: '2024-01-12T13:30:00.000Z',
+  },
+  {
+    _id: '3',
+    serviceName: 'Digital Marketing',
+    description: 'SEO and social media marketing',
+    sac: '998339',
+    createdAt: '2024-01-14T16:45:00.000Z',
+  },
+];
 
-  const handleImportPress = () => {
-    Alert.alert(
-      'Excel Import',
-      'Select Excel file to import',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Proceed to Import',
-          onPress: () => {
-            Alert.alert('File Picker', 'File selection logic goes here. Processing started...');
-          }
-        },
-      ]
-    );
-  };
+// ------------------------------------------
+// 3. MAIN COMPONENT LOGIC
+// ------------------------------------------
 
-  return (
-    <View style={styles.excelContainer}>
-      <Button
-        mode="outlined"
-        onPress={handleExportPress}
-        style={styles.excelButton}
-        icon="download"
-        labelStyle={{ color: PRIMARY_COLOR, fontWeight: '600', fontSize: 13 }}
-        contentStyle={{ height: 40 }}
-      >
-        Export
-      </Button>
-      <Button
-        mode="contained"
-        onPress={handleImportPress}
-        style={[styles.excelButton, { backgroundColor: PRIMARY_COLOR }]}
-        icon="upload"
-        contentStyle={{ height: 40 }}
-        labelStyle={{ fontSize: 13 }}
-      >
-        Import
-      </Button>
-    </View>
-  );
-};
-
-// --- MAIN SCREEN COMPONENT ---
-
-export default function InventoryScreen() {
-  const [activeTab, setActiveTab] = useState('products');
-  const [products, setProducts] = useState([]);
-  const [services, setServices] = useState([]);
-  const [productCurrentPage, setProductCurrentPage] = useState(1);
-  const [serviceCurrentPage, setServiceCurrentPage] = useState(1);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
-  const [isLoadingServices, setIsLoadingServices] = useState(true);
-  const [isProductFormOpen, setIsProductFormOpen] = useState(false);
-  const [productToEdit, setProductToEdit] = useState(null);
-  const [productToDelete, setProductToDelete] = useState(null);
-  const [selectedProducts, setSelectedProducts] = useState([]);
-  const [lastSelectedIndex, setLastSelectedIndex] = useState(null);
-  const [isServiceFormOpen, setIsServiceFormOpen] = useState(false);
-  const [serviceToEdit, setServiceToEdit] = useState(null);
-  const [serviceToDelete, setServiceToDelete] = useState(null);
-  const [companies, setCompanies] = useState([]);
-  const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
+const InventoryScreen = () => {
+  // Main States
+  const [products, setProducts] = useState(HARDCODED_PRODUCTS);
+  const [services, setServices] = useState(HARDCODED_SERVICES);
+  const [companies, setCompanies] = useState(HARDCODED_COMPANIES);
   const [refreshing, setRefreshing] = useState(false);
-  const [role, setRole] = useState(null);
+  const [activeTab, setActiveTab] = useState('products');
+  const [selectedProducts, setSelectedProducts] = useState([]);
 
-  const { toast, showToast, hideToast } = useToast();
+  // Dialog States
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
+  const [deleteType, setDeleteType] = useState('');
+  const [bulkDeleteDialogVisible, setBulkDeleteDialogVisible] = useState(false);
 
-  // Get token and role from storage
-  const getAuthData = async () => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      const userRole = await AsyncStorage.getItem('role');
-      setRole(userRole);
-      return token;
-    } catch (error) {
-      console.error('Error getting auth data:', error);
-      return null;
-    }
+  // Form States
+  const [isProductFormOpen, setIsProductFormOpen] = useState(false);
+  const [isServiceFormOpen, setIsServiceFormOpen] = useState(false);
+  const [productToEdit, setProductToEdit] = useState(null);
+  const [serviceToEdit, setServiceToEdit] = useState(null);
+
+  // Mock user data (Changed to 'admin' to show all features by default)
+  const [userRole, setUserRole] = useState('admin');
+
+  // Load initial data
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setCompanies(HARDCODED_COMPANIES);
+    setProducts(HARDCODED_PRODUCTS);
+    setServices(HARDCODED_SERVICES);
   };
-
-  // API Functions (Fetching real data)
-  const fetchCompanies = useCallback(async () => {
-    setIsLoadingCompanies(true);
-    try {
-      const token = await getAuthData();
-      if (!token) throw new Error("Authentication token not found.");
-
-      const res = await fetch(`${BASE_URL}/api/companies/my`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) throw new Error("Failed to fetch companies.");
-
-      const data = await res.json();
-      setCompanies(Array.isArray(data) ? data : data.companies || []);
-    } catch (err) {
-      console.error('Error fetching companies:', err);
-      showToast('Failed to load companies', 'error');
-      setCompanies([]);
-    } finally {
-      setIsLoadingCompanies(false);
-    }
-  }, []);
-
-  const fetchProducts = useCallback(async () => {
-    setIsLoadingProducts(true);
-    try {
-      const token = await getAuthData();
-      if (!token) throw new Error("Authentication token not found.");
-
-      const res = await fetch(`${BASE_URL}/api/products`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) throw new Error("Failed to fetch products.");
-
-      const data = await res.json();
-      setProducts(Array.isArray(data) ? data : data.products || []);
-      setProductCurrentPage(1);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      showToast('Failed to load products', 'error');
-      setProducts([]);
-    } finally {
-      setIsLoadingProducts(false);
-    }
-  }, []);
-
-  const fetchServices = useCallback(async () => {
-    setIsLoadingServices(true);
-    try {
-      const token = await getAuthData();
-      if (!token) throw new Error("Authentication token not found.");
-
-      const res = await fetch(`${BASE_URL}/api/services`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) throw new Error("Failed to fetch services.");
-
-      const data = await res.json();
-      setServices(Array.isArray(data) ? data : data.services || []);
-      setServiceCurrentPage(1);
-    } catch (error) {
-      console.error('Error fetching services:', error);
-      showToast('Failed to load services', 'error');
-      setServices([]);
-    } finally {
-      setIsLoadingServices(false);
-    }
-  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchCompanies(), fetchProducts(), fetchServices()]);
+    await loadData();
     setRefreshing(false);
-    showToast('Data refreshed', 'success');
-  }, [fetchCompanies, fetchProducts, fetchServices]);
+  }, []);
 
-  useEffect(() => {
-    const initializeData = async () => {
-      await fetchCompanies();
-      await fetchProducts();
-      await fetchServices();
-    };
-    initializeData();
-  }, [fetchCompanies, fetchProducts, fetchServices]);
-
-  const handleExcelImportSuccess = (importedData) => {
-    showToast(`File selected for ${activeTab}. Data submission logic to API required.`, 'info');
+  // Excel Import Success Handler
+  const handleExcelImportSuccess = importedData => {
+    if (activeTab === 'products') {
+      const newProducts = importedData.map((item, index) => ({
+        _id: Date.now().toString() + index,
+        name: item['Item Name'] || item.name,
+        stocks: parseInt(item['Stock'] || item.stocks) || 0,
+        unit: item['Unit'] || item.unit || 'Piece',
+        hsn: item['HSN'] || item.hsn || '',
+        createdAt: new Date().toISOString(),
+      }));
+      setProducts(prev => [...newProducts, ...prev]);
+    } else {
+      const newServices = importedData.map((item, index) => ({
+        _id: Date.now().toString() + index,
+        serviceName: item['Service Name'] || item.serviceName,
+        description: item['Description'] || item.description || '',
+        sac: item['SAC'] || item.sac || '',
+        createdAt: new Date().toISOString(),
+      }));
+      setServices(prev => [...newServices, ...prev]);
+    }
+    Alert.alert(
+      'Success',
+      `Successfully imported ${importedData.length} new ${activeTab}.`,
+    );
   };
 
-  const openCreateProduct = () => {
-    setProductToEdit(null);
-    setIsProductFormOpen(true);
-  };
-
-  const openCreateService = () => {
-    setServiceToEdit(null);
-    setIsServiceFormOpen(true);
-  };
-
-  const openEditProduct = (product) => {
+  // Product Form Handlers
+  const openProductForm = (product = null) => {
     setProductToEdit(product);
     setIsProductFormOpen(true);
   };
 
-  const openEditService = (service) => {
+  const handleProductSuccess = savedProduct => {
+    setIsProductFormOpen(false);
+    setProductToEdit(null);
+
+    if (productToEdit) {
+      setProducts(prev =>
+        prev.map(p =>
+          p._id === savedProduct._id ? { ...p, ...savedProduct } : p,
+        ),
+      );
+      Alert.alert('Success', 'Product updated successfully');
+    } else {
+      const newProduct = {
+        ...savedProduct,
+        _id: Date.now().toString(),
+        createdAt: new Date().toISOString(),
+      };
+      setProducts(prev => [newProduct, ...prev]);
+      Alert.alert('Success', 'Product added successfully');
+    }
+  };
+
+  const handleProductCancel = () => {
+    setIsProductFormOpen(false);
+    setProductToEdit(null);
+  };
+
+  // Service Form Handlers
+  const openServiceForm = (service = null) => {
     setServiceToEdit(service);
     setIsServiceFormOpen(true);
   };
 
-  const saveProduct = async (productData) => {
-    const token = await getAuthData();
-    if (!token) throw new Error("Authentication token not found.");
-
-    const isEditing = !!productData._id;
-    const url = isEditing
-      ? `${BASE_URL}/api/products/${productData._id}`
-      : `${BASE_URL}/api/products`;
-    const method = isEditing ? 'PUT' : 'POST';
-
-    const res = await fetch(url, {
-      method: method,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(productData),
-    });
-
-    if (!res.ok) {
-      const errorData = await res.json();
-      throw new Error(errorData.message || `Failed to ${isEditing ? 'update' : 'create'} product.`);
-    }
-
-    return res.json();
-  };
-
-  const saveService = async (serviceData) => {
-    const token = await getAuthData();
-    if (!token) throw new Error("Authentication token not found.");
-
-    const isEditing = !!serviceData._id;
-    const url = isEditing
-      ? `${BASE_URL}/api/services/${serviceData._id}`
-      : `${BASE_URL}/api/services`;
-    const method = isEditing ? 'PUT' : 'POST';
-
-    const res = await fetch(url, {
-      method: method,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(serviceData),
-    });
-
-    if (!res.ok) {
-      const errorData = await res.json();
-      throw new Error(errorData.message || `Failed to ${isEditing ? 'update' : 'create'} service.`);
-    }
-
-    return res.json();
-  };
-
-  const onProductSaved = (savedProduct) => {
-    setIsProductFormOpen(false);
-    setProductToEdit(null);
-    fetchProducts();
-    showToast('Product saved successfully', 'success');
-  };
-
-  const onServiceSaved = (savedService) => {
+  const handleServiceSuccess = savedService => {
     setIsServiceFormOpen(false);
     setServiceToEdit(null);
-    fetchServices();
-    showToast('Service saved successfully', 'success');
+
+    if (serviceToEdit) {
+      setServices(prev =>
+        prev.map(s =>
+          s._id === savedService._id ? { ...s, ...savedService } : s,
+        ),
+      );
+      Alert.alert('Success', 'Service updated successfully');
+    } else {
+      const newService = {
+        ...savedService,
+        _id: Date.now().toString(),
+        createdAt: new Date().toISOString(),
+      };
+      setServices(prev => [newService, ...prev]);
+      Alert.alert('Success', 'Service added successfully');
+    }
   };
 
-  const confirmDeleteProduct = (product) => {
-    setProductToDelete(product);
-    setServiceToDelete(null);
-    Alert.alert(
-      'Delete Product',
-      `Are you sure you want to delete ${product.name}? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: handleDelete },
-      ]
-    );
+  const handleServiceDelete = serviceToDelete => {
+    setServices(prev => prev.filter(s => s._id !== serviceToDelete._id));
+    setIsServiceFormOpen(false);
+    setServiceToEdit(null);
+    Alert.alert('Success', 'Service deleted successfully');
   };
 
-  const confirmDeleteService = (service) => {
-    setServiceToDelete(service);
-    setProductToDelete(null);
-    Alert.alert(
-      'Delete Service',
-      `Are you sure you want to delete ${service.serviceName}? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: handleDelete },
-      ]
-    );
+  const handleServiceCancel = () => {
+    setIsServiceFormOpen(false);
+    setServiceToEdit(null);
+  };
+
+  // Delete handlers
+  const confirmDelete = (item, type) => {
+    if (userRole === 'user') {
+      Alert.alert(
+        'Permission Denied',
+        'You do not have permission to delete items.',
+      );
+      return;
+    }
+    setItemToDelete(item);
+    setDeleteType(type);
+    setDeleteDialogVisible(true);
   };
 
   const handleDelete = async () => {
     try {
-      const token = await getAuthData();
-      if (!token) throw new Error("Authentication token not found.");
-
-      if (productToDelete) {
-        const res = await fetch(`${BASE_URL}/api/products/${productToDelete._id}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) throw new Error("Failed to delete product.");
-
-        setProducts((prev) => prev.filter((p) => p._id !== productToDelete._id));
-        showToast('Product deleted successfully', 'success');
-      } else if (serviceToDelete) {
-        const res = await fetch(`${BASE_URL}/api/services/${serviceToDelete._id}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) throw new Error("Failed to delete service.");
-
-        setServices((prev) => prev.filter((s) => s._id !== serviceToDelete._id));
-        showToast('Service deleted successfully', 'success');
+      if (deleteType === 'product') {
+        setProducts(prev => prev.filter(p => p._id !== itemToDelete._id));
+        Alert.alert('Success', 'Product deleted successfully');
+      } else if (deleteType === 'service') {
+        setServices(prev => prev.filter(s => s._id !== itemToDelete._id));
+        Alert.alert('Success', 'Service deleted successfully');
       }
     } catch (error) {
-      console.error("Deletion API Error:", error);
-      showToast('Deletion failed: ' + error.message, 'error');
+      Alert.alert('Error', 'Failed to delete item');
     } finally {
-      setProductToDelete(null);
-      setServiceToDelete(null);
+      setDeleteDialogVisible(false);
+      setItemToDelete(null);
+      setDeleteType('');
     }
   };
 
-  const handleSelectProduct = (productId, checked, index) => {
-    if (checked) {
-      setSelectedProducts((prev) => [...prev, productId]);
+  const handleSelectProduct = productId => {
+    if (userRole === 'user') return;
+    setSelectedProducts(prev =>
+      prev.includes(productId)
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId],
+    );
+  };
+
+  const handleSelectAllProducts = () => {
+    if (userRole === 'user') return;
+    if (selectedProducts.length === products.length) {
+      setSelectedProducts([]);
     } else {
-      setSelectedProducts((prev) => prev.filter((id) => id !== productId));
+      setSelectedProducts(products.map(p => p._id));
     }
-    setLastSelectedIndex(index ?? null);
   };
 
-  const handleCheckboxChange = (productId, checked, index) => {
-    handleSelectProduct(productId, checked, index);
+  const confirmBulkDelete = () => {
+    if (userRole === 'user') {
+      Alert.alert(
+        'Permission Denied',
+        'You do not have permission to delete items.',
+      );
+      return;
+    }
+    if (selectedProducts.length === 0) {
+      Alert.alert('Info', 'Please select products to delete');
+      return;
+    }
+    setBulkDeleteDialogVisible(true);
   };
 
   const handleBulkDeleteProducts = async () => {
-    if (selectedProducts.length === 0) {
-      showToast('No products selected', 'error');
-      return;
+    try {
+      setProducts(prev => prev.filter(p => !selectedProducts.includes(p._id)));
+      Alert.alert(
+        'Success',
+        `${selectedProducts.length} products deleted successfully`,
+      );
+      setSelectedProducts([]);
+      setBulkDeleteDialogVisible(false);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to delete products');
     }
-
-    Alert.alert(
-      'Bulk Delete',
-      `Are you sure you want to delete ${selectedProducts.length} products?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const token = await getAuthData();
-              if (!token) throw new Error("Authentication token not found.");
-
-              const res = await fetch(`${BASE_URL}/api/products/bulk-delete`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ ids: selectedProducts }),
-              });
-
-              if (!res.ok) throw new Error("Failed to perform bulk delete.");
-
-              showToast(`${selectedProducts.length} products deleted successfully`, 'success');
-              setSelectedProducts([]);
-              fetchProducts();
-            } catch (error) {
-              console.error("Bulk Deletion API Error:", error);
-              showToast('Bulk deletion failed: ' + error.message, 'error');
-            }
-          }
-        },
-      ]
-    );
   };
 
-  // Pagination (Unchanged, dynamic)
-  const productTotalPages = Math.ceil(products.length / ITEMS_PER_PAGE);
-  const serviceTotalPages = Math.ceil(services.length / ITEMS_PER_PAGE);
+  // Permission checks
+  const canCreateItems = userRole !== 'user';
+  const canDeleteItems = userRole !== 'user';
+  const canEditItems = userRole !== 'user';
 
-  const paginatedProducts = useMemo(() => {
-    const startIndex = (productCurrentPage - 1) * ITEMS_PER_PAGE;
-    const endIndex = startIndex + ITEMS_PER_PAGE;
-    return products.slice(startIndex, endIndex);
-  }, [products, productCurrentPage]);
-
-  const paginatedServices = useMemo(() => {
-    const startIndex = (serviceCurrentPage - 1) * ITEMS_PER_PAGE;
-    const endIndex = startIndex + ITEMS_PER_PAGE;
-    return services.slice(startIndex, endIndex);
-  }, [services, serviceCurrentPage]);
-
-  const goToNextProductPage = () => {
-    setProductCurrentPage((prev) => Math.min(prev + 1, productTotalPages));
-  };
-
-  const goToPrevProductPage = () => {
-    setProductCurrentPage((prev) => Math.max(prev - 1, 1));
-  };
-
-  const goToNextServicePage = () => {
-    setServiceCurrentPage((prev) => Math.min(prev + 1, serviceTotalPages));
-  };
-
-  const goToPrevServicePage = () => {
-    setServiceCurrentPage((prev) => Math.max(prev - 1, 1));
-  };
-
-  // Render Action Buttons
-  const renderActionButtons = () => {
-    if (role === 'user' || role === null) {
-      return null;
-    }
-
-    return (
-      <View style={styles.actionBarContent}>
-        <View style={styles.excelContainer}>
-          <ExcelImportExport
-            templateData={
-              activeTab === 'products'
-                ? [{ "Item Name": "Eg: Laptop", "Stock": "10", "Unit": "Piece", "Cost Price": "50000", "Selling Price": "60000", "HSN": "8471" }]
-                : [{ "Service Name": "Eg: Consulting", "Amount": "5000", "SAC": "998311" }]
-            }
-            templateFileName={`inventory_template_${activeTab}.xlsx`}
-            onImportSuccess={handleExcelImportSuccess}
-            expectedColumns={
-              activeTab === 'products'
-                ? ["Item Name", "Stock", "Unit", "Cost Price", "Selling Price", "HSN"]
-                : ["Service Name", "Amount", "SAC"]
-            }
-            transformImportData={(data) => data}
-            activeTab={activeTab}
-          />
-        </View>
-
-        <View style={styles.actionButtonsContainer}>
-          <Button
-            mode="outlined"
-            onPress={openCreateService}
-            style={styles.serviceButton}
-            icon="server"
-            labelStyle={{ color: PRIMARY_COLOR, fontWeight: '600', fontSize: 13 }}
-            contentStyle={{ height: 40 }}
-          >
-            Add Service
-          </Button>
-          <Button
-            mode="contained"
-            onPress={openCreateProduct}
-            style={styles.addButton}
-            icon="package-variant"
-            contentStyle={{ height: 40 }}
-            labelStyle={{ fontSize: 13 }}
-          >
-            Add Product
-          </Button>
-        </View>
-      </View>
-    );
-  };
-
-  const renderTabButton = (title, value, count) => (
-    <TouchableOpacity
-      style={[
-        styles.tabButton,
-        activeTab === value && styles.tabButtonActive,
-      ]}
-      onPress={() => setActiveTab(value)}
-    >
-      <Text style={[
-        styles.tabButtonText,
-        activeTab === value && styles.tabButtonTextActive,
-      ]}>
-        {title} ({count})
-      </Text>
-    </TouchableOpacity>
-  );
-
-  const renderProductItem = ({ item: product, index }) => {
-    const absoluteIndex = (productCurrentPage - 1) * ITEMS_PER_PAGE + index;
-    const stock = product.stocks ?? 0;
-
-    let stockText;
-    let stockColor;
-    if (stock > 10) {
-      stockText = `${stock} in stock`;
-      stockColor = SUCCESS_COLOR;
-    } else if (stock > 0) {
-      stockText = `Low stock: ${stock}`;
-      stockColor = WARNING_COLOR;
-    } else {
-      stockText = 'Out of stock';
-      stockColor = DANGER_COLOR;
-    }
-
-    const sellingPrice = product.sellingPrice ? formatCurrencyINR(product.sellingPrice) : "-";
-    const unitText = product.unit ?? "Piece";
-
-
-    return (
-      <Card style={styles.itemCard} key={product._id}>
-        <Card.Content style={styles.cardContent}>
-
-          {/* Header Row: Checkbox, Name, Price, Stock Status */}
-          <View style={styles.itemHeader}>
-            {role !== 'user' && (
-              <View style={styles.checkboxWrapper}>
-                <Checkbox
-                  status={selectedProducts.includes(product._id) ? 'checked' : 'unchecked'}
-                  onPress={() => handleCheckboxChange(
-                    product._id,
-                    !selectedProducts.includes(product._id),
-                    absoluteIndex
-                  )}
-                  color={PRIMARY_COLOR}
-                />
-              </View>
-            )}
-
-            <View style={styles.itemTitleContainer}>
-              <PackageIcon />
-              <View style={styles.itemTextContainer}>
-                <Text style={styles.itemName}>{product.name}</Text>
-                <Text style={styles.companyName}>
-                  {typeof product.company === 'object' && product.company?.businessName
-                    ? product.company.businessName
-                    : "-"}
-                </Text>
-              </View>
-            </View>
-
-            {/* Price and Stock Status on the right */}
-            <View style={styles.priceStockContainer}>
-              <Text style={styles.itemPrice}>{sellingPrice}</Text>
-              <View style={styles.stockBadgeClean}>
-                <StockStatusIcon color={stockColor} />
-                <Text style={[styles.stockTextClean, { color: stockColor }]}>
-                  {stockText}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Details Section - Simple single column list */}
-          <View style={styles.itemDetailsClean}>
-            <View style={styles.detailRowClean}>
-              <Text style={styles.detailLabelClean}>Cost Price:</Text>
-              <Text style={styles.detailValueClean}>
-                {product.costPrice ? formatCurrencyINR(product.costPrice) : "-"}
-              </Text>
-            </View>
-
-            <View style={styles.detailRowClean}>
-              <Text style={styles.detailLabelClean}>Unit / HSN:</Text>
-              <Text style={styles.detailValueClean}>
-                {unitText} {product.hsn ? `(${product.hsn})` : ''}
-              </Text>
-            </View>
-          </View>
-
-
-          {/* Action Buttons */}
-          {role !== 'user' && (
-            <View style={styles.actionButtons}>
-              <Button
-                mode="outlined"
-                onPress={() => openEditProduct(product)}
-                style={styles.editButton}
-                labelStyle={{ color: PRIMARY_COLOR, fontSize: 13 }}
-                contentStyle={{ gap: 4 }}
-              >
-                <EditIcon color={PRIMARY_COLOR} />
-                <Text style={styles.buttonText}>Edit</Text>
-              </Button>
-
-              <Button
-                mode="outlined"
-                onPress={() => confirmDeleteProduct(product)}
-                style={styles.deleteButton}
-                labelStyle={{ color: DANGER_COLOR, fontSize: 13 }}
-                contentStyle={{ gap: 4 }}
-              >
-                <TrashIcon color={DANGER_COLOR} />
-                <Text style={styles.buttonText}>Delete</Text>
-              </Button>
+  // Render functions
+  const renderProductItem = ({ item }) => (
+    <Card style={professionalStyles.itemCard} key={item._id}>
+      <Card.Content>
+        <View style={professionalStyles.itemHeader}>
+          {canDeleteItems && (
+            <View style={professionalStyles.productSelection}>
+              <Checkbox.Android
+                status={
+                  selectedProducts.includes(item._id) ? 'checked' : 'unchecked'
+                }
+                onPress={() => handleSelectProduct(item._id)}
+                disabled={userRole === 'user'}
+                color={COLORS.primary}
+              />
             </View>
           )}
-        </Card.Content>
-      </Card>
-    );
-  };
-
-  const renderServiceItem = ({ item: service }) => (
-    <Card style={styles.itemCard}>
-      <Card.Content style={styles.cardContent}>
-        <View style={styles.itemHeader}>
-          <View style={styles.itemTitleContainer}>
-            <ServerIcon />
-            <View style={styles.itemTextContainer}>
-              <Text style={styles.itemName}>{service.serviceName}</Text>
-              <Badge style={styles.serviceBadge}>Service Item</Badge>
+          <View style={professionalStyles.itemInfo}>
+            <Icon name="package-variant" size={20} color={COLORS.secondary} />
+            <View style={professionalStyles.itemTextContainer}>
+              <Text style={professionalStyles.itemName}>{item.name}</Text>
+              <View style={professionalStyles.detailsRow}>
+                <Text style={professionalStyles.stockText}>
+                  Unit: {item.unit || 'Piece'}
+                </Text>
+              </View>
             </View>
           </View>
-
-          <View style={styles.priceStockContainer}>
-            <Text style={styles.itemPrice}>
-              {formatCurrencyINR(service.amount || 0)}
+          <View style={professionalStyles.stockInfo}>
+            <Text
+              style={[
+                professionalStyles.stockValue,
+                {
+                  color:
+                    (item.stocks || 0) > 0 ? COLORS.success : COLORS.danger,
+                },
+              ]}
+            >
+              {item.stocks || 0}
             </Text>
           </View>
         </View>
 
-        <View style={styles.itemDetailsClean}>
-          <View style={styles.detailRowClean}>
-            <Text style={styles.detailLabelClean}>SAC Code:</Text>
-            <Text style={styles.detailValueClean}>{service.sac ?? "N/A"}</Text>
-          </View>
-
-          <View style={styles.detailRowClean}>
-            <Text style={styles.detailLabelClean}>Created On:</Text>
-            <Text style={styles.detailValueClean}>
-              {service.createdAt ? new Date(service.createdAt).toLocaleDateString() : "—"}
+        <View style={professionalStyles.metaInfo}>
+          <View style={professionalStyles.metaItem}>
+            <Text style={professionalStyles.metaLabel}>HSN:</Text>
+            <Text style={professionalStyles.metaValue}>
+              {item.hsn || 'N/A'}
             </Text>
           </View>
+          <Text style={professionalStyles.createdDate}>
+            createdAt:{' '}
+            {item.createdAt
+              ? new Date(item.createdAt).toLocaleDateString()
+              : '—'}
+          </Text>
         </View>
 
-        {/* Action Buttons */}
-        {role !== 'user' && (
-          <View style={styles.actionButtons}>
+        {canEditItems && (
+          <View style={professionalStyles.actions}>
             <Button
               mode="outlined"
-              onPress={() => openEditService(service)}
-              style={styles.editButton}
-              labelStyle={{ color: PRIMARY_COLOR, fontSize: 13 }}
-              contentStyle={{ gap: 4 }}
+              onPress={() => openProductForm(item)}
+              style={professionalStyles.actionButton}
+              textColor={COLORS.primary}
             >
-              <EditIcon color={PRIMARY_COLOR} />
-              <Text style={styles.buttonText}>Edit</Text>
+              <Icon name="pencil" size={16} />
+              Edit
             </Button>
-
             <Button
               mode="outlined"
-              onPress={() => confirmDeleteService(service)}
-              style={styles.deleteButton}
-              labelStyle={{ color: DANGER_COLOR, fontSize: 13 }}
-              contentStyle={{ gap: 4 }}
+              onPress={() => confirmDelete(item, 'product')}
+              style={[
+                professionalStyles.actionButton,
+                professionalStyles.deleteButton,
+              ]}
+              textColor={COLORS.danger}
             >
-              <TrashIcon color={DANGER_COLOR} />
-              <Text style={styles.buttonText}>Delete</Text>
+              <Icon name="delete" size={16} color={COLORS.danger} />
+              Delete
             </Button>
           </View>
         )}
@@ -830,939 +441,835 @@ export default function InventoryScreen() {
     </Card>
   );
 
-  const renderPagination = (currentPage, totalPages, onPrev, onNext, itemType) => (
-    <View style={styles.paginationContainer}>
-      <Text style={styles.paginationText}>
-        Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, itemType === 'products' ? products.length : services.length)} of {itemType === 'products' ? products.length : services.length} {itemType}
-      </Text>
+  const renderServiceItem = ({ item }) => (
+    <Card style={professionalStyles.itemCard} key={item._id}>
+      <Card.Content>
+        <View style={professionalStyles.itemHeader}>
+          <View style={professionalStyles.itemInfo}>
+            <Icon name="server" size={20} color={COLORS.secondary} />
+            <View style={professionalStyles.itemTextContainer}>
+              <Text style={professionalStyles.itemName}>
+                {item.serviceName}
+              </Text>
+              {item.description && (
+                <Text
+                  style={professionalStyles.itemDescription}
+                  numberOfLines={2}
+                >
+                  {item.description}
+                </Text>
+              )}
+            </View>
+            <Chip
+              mode="outlined"
+              style={professionalStyles.serviceChip}
+              textStyle={{ color: COLORS.primary }}
+            >
+              Service
+            </Chip>
+          </View>
+        </View>
 
-      {totalPages > 1 && (
-        <View style={styles.paginationButtons}>
-          <Button
-            mode="outlined"
-            onPress={onPrev}
-            disabled={currentPage === 1}
-            style={styles.paginationButton}
-            labelStyle={{ color: currentPage === 1 ? SUBTLE_TEXT_COLOR : PRIMARY_COLOR }}
-          >
-            <ChevronLeftIcon />
-            <Text>Previous</Text>
-          </Button>
-
-          <Text style={styles.pageNumber}>
-            Page {currentPage} of {totalPages}
+        <View style={professionalStyles.metaInfo}>
+          <View style={professionalStyles.metaItem}>
+            <Text style={professionalStyles.metaLabel}>SAC:</Text>
+            <Text style={professionalStyles.metaValue}>
+              {item.sac || 'N/A'}
+            </Text>
+          </View>
+          <Text style={professionalStyles.createdDate}>
+            Added:{' '}
+            {item.createdAt
+              ? new Date(item.createdAt).toLocaleDateString()
+              : '—'}
           </Text>
+        </View>
 
+        {canEditItems && (
+          <View style={professionalStyles.actions}>
+            <Button
+              mode="outlined"
+              onPress={() => openServiceForm(item)}
+              style={professionalStyles.actionButton}
+              textColor={COLORS.primary}
+            >
+              <Icon name="pencil" size={16} />
+              Edit
+            </Button>
+            <Button
+              mode="outlined"
+              onPress={() => confirmDelete(item, 'service')}
+              style={[
+                professionalStyles.actionButton,
+                professionalStyles.deleteButton,
+              ]}
+              textColor={COLORS.danger}
+            >
+              <Icon name="delete" size={16} color={COLORS.danger} />
+              Delete
+            </Button>
+          </View>
+        )}
+      </Card.Content>
+    </Card>
+  );
+
+  const renderEmptyState = type => (
+    <Card style={professionalStyles.emptyStateCard}>
+      <Card.Content style={professionalStyles.emptyStateContent}>
+        <Icon
+          name={type === 'products' ? 'package-variant' : 'server'}
+          size={48}
+          color={COLORS.secondary}
+        />
+        <Text style={professionalStyles.emptyStateTitle}>
+          No {type === 'products' ? 'Products' : 'Services'} Found
+        </Text>
+        <Text style={professionalStyles.emptyStateDescription}>
+          Create your first {type.slice(0, -1)} to get started, or import from
+          an Excel file.
+        </Text>
+        {canCreateItems && (
           <Button
             mode="contained"
-            onPress={onNext}
-            disabled={currentPage === totalPages}
-            style={[styles.paginationButton, { backgroundColor: currentPage === totalPages ? '#9CA3AF' : PRIMARY_COLOR }]}
-            labelStyle={{ color: 'white' }}
+            onPress={() =>
+              type === 'products' ? openProductForm() : openServiceForm()
+            }
+            style={professionalStyles.emptyStateButton}
+            contentStyle={{ paddingHorizontal: 10 }}
+            buttonColor={COLORS.primary}
           >
-            <Text>Next</Text>
-            <ChevronRightIcon />
+            <Icon name="plus-circle" size={16} />
+            Add {type === 'products' ? 'Product' : 'Service'}
           </Button>
-        </View>
-      )}
-    </View>
+        )}
+      </Card.Content>
+    </Card>
   );
 
-  const renderEmptyState = (type) => (
-    <View style={styles.emptyState}>
-      {type === 'products' ? <PackageIcon /> : <ServerIcon />}
-      <Text style={styles.emptyStateTitle}>No {type === 'products' ? 'Products' : 'Services'} Found</Text>
-      <Text style={styles.emptyStateDescription}>
-        Create your first {type.slice(0, -1)} to get started.
-      </Text>
-      {role !== 'user' && (
-        <Button
-          mode="contained"
-          onPress={type === 'products' ? openCreateProduct : openCreateService}
-          style={styles.emptyStateButton}
-        >
-          <PlusCircleIcon />
-          <Text style={{ color: 'white', fontWeight: '600', marginLeft: 5 }}>Add {type === 'products' ? 'Product' : 'Service'}</Text>
-        </Button>
-      )}
-    </View>
-  );
-
-  const renderProductForm = () => (
-    <View style={styles.formContainer}>
-      <Text style={styles.formTitle}>
-        {productToEdit ? 'Edit Product' : 'Create New Product'}
-      </Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Product Name"
-        placeholderTextColor="#9CA3AF"
-        value={productToEdit?.name || ''}
-        onChangeText={(text) => setProductToEdit(prev => ({ ...prev, name: text }))}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Cost Price (₹)"
-        placeholderTextColor="#9CA3AF"
-        keyboardType="numeric"
-        value={productToEdit?.costPrice?.toString() || ''}
-        onChangeText={(text) => setProductToEdit(prev => ({ ...prev, costPrice: text }))}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Selling Price (₹)"
-        placeholderTextColor="#9CA3AF"
-        keyboardType="numeric"
-        value={productToEdit?.sellingPrice?.toString() || ''}
-        onChangeText={(text) => setProductToEdit(prev => ({ ...prev, sellingPrice: text }))}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Stock"
-        placeholderTextColor="#9CA3AF"
-        keyboardType="numeric"
-        value={productToEdit?.stocks?.toString() || ''}
-        onChangeText={(text) => setProductToEdit(prev => ({ ...prev, stocks: text }))}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Unit (e.g., Piece, Kg, Meter)"
-        placeholderTextColor="#9CA3AF"
-        value={productToEdit?.unit || ''}
-        onChangeText={(text) => setProductToEdit(prev => ({ ...prev, unit: text }))}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="HSN Code"
-        placeholderTextColor="#9CA3AF"
-        value={productToEdit?.hsn || ''}
-        onChangeText={(text) => setProductToEdit(prev => ({ ...prev, hsn: text }))}
-      />
-
-      <View style={styles.formButtons}>
-        <Button
-          mode="outlined"
-          onPress={() => setIsProductFormOpen(false)}
-          style={styles.cancelButton}
-          labelStyle={{ color: SUBTLE_TEXT_COLOR, fontWeight: '600' }}
-        >
-          <Text>Cancel</Text>
-        </Button>
-
-        <Button
-          mode="contained"
-          onPress={async () => {
-            try {
-              if (!productToEdit?.name || productToEdit?.stocks === undefined || productToEdit?.stocks === null) {
-                  showToast('Product name and stock are required.', 'error');
-                  return;
-              }
-              
-              const productToSave = {
-                ...productToEdit,
-                company: productToEdit?.company || (productToEdit?._id ? undefined : (companies.length > 0 ? companies[0]._id : undefined)),
-              };
-
-              const savedProduct = await saveProduct(productToSave);
-              onProductSaved(savedProduct);
-
-            } catch (error) {
-              console.error("Product Save Error:", error);
-              showToast('Failed to save product: ' + error.message, 'error');
-            }
-          }}
-          style={styles.saveButton}
-          labelStyle={{ color: 'white', fontWeight: '600' }}
-        >
-          <Text>Save</Text>
-        </Button>
-      </View>
-    </View>
-  );
-
-  const renderServiceForm = () => (
-    <View style={styles.formContainer}>
-      <Text style={styles.formTitle}>
-        {serviceToEdit ? 'Edit Service' : 'Create New Service'}
-      </Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Service Name"
-        placeholderTextColor="#9CA3AF"
-        value={serviceToEdit?.serviceName || ''}
-        onChangeText={(text) => setServiceToEdit(prev => ({ ...prev, serviceName: text }))}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Amount (₹)"
-        placeholderTextColor="#9CA3AF"
-        keyboardType="numeric"
-        value={serviceToEdit?.amount?.toString() || ''}
-        onChangeText={(text) => setServiceToEdit(prev => ({ ...prev, amount: text }))}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="SAC Code"
-        placeholderTextColor="#9CA3AF"
-        value={serviceToEdit?.sac || ''}
-        onChangeText={(text) => setServiceToEdit(prev => ({ ...prev, sac: text }))}
-      />
-
-      <View style={styles.formButtons}>
-        <Button
-          mode="outlined"
-          onPress={() => setIsServiceFormOpen(false)}
-          style={styles.cancelButton}
-          labelStyle={{ color: SUBTLE_TEXT_COLOR, fontWeight: '600' }}
-        >
-          <Text>Cancel</Text>
-        </Button>
-
-        <Button
-          mode="contained"
-          onPress={async () => {
-            try {
-              if (!serviceToEdit?.serviceName || serviceToEdit?.amount === undefined || serviceToEdit?.amount === null) {
-                  showToast('Service name and amount are required.', 'error');
-                  return;
-              }
-              const savedService = await saveService(serviceToEdit);
-              onServiceSaved(savedService);
-            } catch (error) {
-              console.error("Service Save Error:", error);
-              showToast('Failed to save service: ' + error.message, 'error');
-            }
-          }}
-          style={styles.saveButton}
-          labelStyle={{ color: 'white', fontWeight: '600' }}
-        >
-          <Text>Save</Text>
-        </Button>
-      </View>
-    </View>
-  );
-
-
-  // Initial Loading Screen
-  if (isLoadingCompanies) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={PRIMARY_COLOR} />
-        <Text style={styles.loadingText}>Loading company settings...</Text>
-      </View>
-    );
-  }
-
-  // Company Setup Required Screen (If no companies are linked)
   if (companies.length === 0) {
     return (
-      <View style={styles.setupRequiredContainer}>
-        <Card style={styles.setupCard}>
-          <Card.Content>
-            <View style={styles.setupIcon}>
-              <Icon name="office-building" size={48} color={PRIMARY_COLOR} />
-            </View>
-            <Text style={styles.setupTitle}>Company Setup Required</Text>
-            <Text style={styles.setupDescription}>
-              Your company account needs to be configured to access inventory features. Please contact support.
-            </Text>
+      <SafeAreaView style={professionalStyles.safeArea}>
+        <ScrollView contentContainerStyle={professionalStyles.centerContainer}>
+          <Card style={professionalStyles.setupCard}>
+            <Card.Content style={professionalStyles.setupContent}>
+              <View style={professionalStyles.iconContainer}>
+                <Icon name="office-building" size={32} color={COLORS.primary} />
+              </View>
+              <Text style={professionalStyles.setupTitle}>
+                Company Setup Required
+              </Text>
+              <Text style={professionalStyles.setupDescription}>
+                It looks like your company account isn't fully set up. Please
+                contact our support team to enable all features.
+              </Text>
 
-            <View style={styles.contactButtons}>
-              <Button mode="contained" style={[styles.contactButton, { backgroundColor: PRIMARY_COLOR }]} onPress={() => Alert.alert('Contact', 'Simulating call to +91-8989773689')}>
-                <Icon name="phone" size={20} color="white" />
-                <Text style={[styles.contactButtonText, { color: 'white' }]}>+91-8989773689</Text>
-              </Button>
-
-              <Button mode="outlined" style={styles.contactButton} labelStyle={{ color: PRIMARY_COLOR }} onPress={() => Alert.alert('Contact', 'Simulating email to support')}>
-                <Icon name="email" size={20} color={PRIMARY_COLOR} />
-                <Text style={styles.contactButtonText}>Email Us</Text>
-              </Button>
-            </View>
-          </Card.Content>
-        </Card>
-      </View>
+              <View style={professionalStyles.contactButtons}>
+                <Button
+                  mode="contained"
+                  onPress={() => Alert.alert('Call', 'Calling +91-8989773689')}
+                  style={professionalStyles.contactButton}
+                  buttonColor={COLORS.primary}
+                  icon="phone"
+                >
+                  +91-8989773689
+                </Button>
+                <Button
+                  mode="outlined"
+                  onPress={() =>
+                    Alert.alert('Email', 'Emailing support@company.com')
+                  }
+                  style={professionalStyles.contactButton}
+                  textColor={COLORS.primary}
+                  icon="email"
+                >
+                  Email Us
+                </Button>
+              </View>
+            </Card.Content>
+          </Card>
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
-  // Main Inventory Screen
   return (
-    <View style={styles.container}>
-      {/* Toast Component */}
-      <Toast
-        visible={toast.visible}
-        message={toast.message}
-        type={toast.type}
-        onHide={hideToast}
-      />
+    <SafeAreaView style={professionalStyles.safeArea}>
+      <View style={professionalStyles.container}>
+        <ScrollView
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.primary]}
+            />
+          }
+        >
+          {/* Header */}
+          <View style={professionalStyles.header}>
+            <View>
+              <Text style={professionalStyles.title}>Inventory Management</Text>
+              <Text style={professionalStyles.subtitle}>
+                Track and manage your products and services
+              </Text>
+            </View>
 
-      <View style={styles.header}>
-        <Text style={styles.title}>Inventory Management</Text>
-        <Text style={styles.subtitle}>Track and manage your products and services.</Text>
-      </View>
+            {canCreateItems && (
+              <View style={professionalStyles.headerButtons}>
+                <ExcelImportExport
+                  templateData={[
+                    activeTab === 'products'
+                      ? {
+                          'Item Name': 'Eg: Laptop',
+                          Stock: 10,
+                          Unit: 'Piece',
+                          HSN: '8471',
+                        }
+                      : {
+                          'Service Name': 'Eg: Consulting',
+                          Description: 'One hour consulting',
+                          SAC: '998311',
+                        },
+                  ]}
+                  templateFileName={`inventory_template_${activeTab}.xlsx`}
+                  onImportSuccess={handleExcelImportSuccess}
+                  expectedColumns={
+                    activeTab === 'products'
+                      ? ['Item Name', 'Stock', 'Unit', 'HSN']
+                      : ['Service Name', 'Description', 'SAC']
+                  }
+                  transformImportData={data => data}
+                  activeTab={activeTab}
+                />
 
-      <View style={styles.actionBar}>
-        {renderActionButtons()}
-      </View>
-
-      <View style={styles.tabContainer}>
-        {renderTabButton('Products', 'products', products.length)}
-        {renderTabButton('Services', 'services', services.length)}
-      </View>
-
-      <ScrollView
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY_COLOR]} tintColor={PRIMARY_COLOR} />
-        }
-        style={styles.content}
-        contentContainerStyle={{ paddingBottom: 20 }}
-      >
-        {activeTab === 'products' && (
-          <>
-            {isLoadingProducts ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={PRIMARY_COLOR} />
-                <Text style={styles.loadingText}>Loading products...</Text>
+                <Button
+                  mode="outlined"
+                  onPress={() => openProductForm()}
+                  style={professionalStyles.headerButton}
+                  textColor={COLORS.primary}
+                >
+                  <Icon name="plus-circle" size={16} />
+                  Add Product
+                </Button>
+                <Button
+                  mode="contained"
+                  onPress={() => openServiceForm()}
+                  style={professionalStyles.headerButton}
+                  buttonColor={COLORS.primary}
+                >
+                  <Icon name="plus-circle" size={16} />
+                  Add Service
+                </Button>
               </View>
-            ) : products.length === 0 ? (
-              renderEmptyState('products')
-            ) : (
-              <>
-                {selectedProducts.length > 0 && role !== 'user' && (
-                  <View style={styles.bulkActions}>
-                    <Text style={styles.bulkActionsText}>
-                      **{selectedProducts.length} item{selectedProducts.length > 1 ? 's' : ''} selected**
-                    </Text>
+            )}
+          </View>
+
+          {/* Bulk Actions */}
+          {selectedProducts.length > 0 &&
+            activeTab === 'products' &&
+            canDeleteItems && (
+              <Card style={professionalStyles.bulkActionCard}>
+                <Card.Content>
+                  <View style={professionalStyles.bulkActions}>
+                    <View style={professionalStyles.bulkActionInfo}>
+                      <Text style={professionalStyles.bulkActionText}>
+                        {selectedProducts.length} product(s) selected
+                      </Text>
+                      <TouchableOpacity onPress={handleSelectAllProducts}>
+                        <Text style={professionalStyles.selectAllText}>
+                          {selectedProducts.length === products.length
+                            ? 'Deselect All'
+                            : 'Select All'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                     <Button
                       mode="contained"
-                      onPress={handleBulkDeleteProducts}
-                      style={styles.bulkDeleteButton}
+                      onPress={confirmBulkDelete}
+                      style={professionalStyles.bulkDeleteButton}
+                      buttonColor={COLORS.danger}
+                      icon="delete"
                     >
-                      <TrashIcon color="white" />
-                      <Text style={styles.bulkDeleteText}>Delete Selected</Text>
+                      Delete Selected
                     </Button>
                   </View>
-                )}
-
-                <FlatList
-                  data={paginatedProducts}
-                  renderItem={renderProductItem}
-                  keyExtractor={item => item._id}
-                  scrollEnabled={false}
-                />
-
-                {renderPagination(
-                  productCurrentPage,
-                  productTotalPages,
-                  goToPrevProductPage,
-                  goToNextProductPage,
-                  'products'
-                )}
-              </>
+                </Card.Content>
+              </Card>
             )}
-          </>
-        )}
 
-        {activeTab === 'services' && (
-          <>
-            {isLoadingServices ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={PRIMARY_COLOR} />
-                <Text style={styles.loadingText}>Loading services...</Text>
+          {/* Tabs and Main Content */}
+          <Card style={professionalStyles.mainCard}>
+            <Card.Content>
+              <View style={professionalStyles.tabs}>
+                <TouchableOpacity
+                  style={[
+                    professionalStyles.tab,
+                    activeTab === 'products' && professionalStyles.activeTab,
+                  ]}
+                  onPress={() => setActiveTab('products')}
+                >
+                  <Text
+                    style={[
+                      professionalStyles.tabText,
+                      activeTab === 'products' &&
+                        professionalStyles.activeTabText,
+                    ]}
+                  >
+                    Products ({products.length})
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    professionalStyles.tab,
+                    activeTab === 'services' && professionalStyles.activeTab,
+                  ]}
+                  onPress={() => setActiveTab('services')}
+                >
+                  <Text
+                    style={[
+                      professionalStyles.tabText,
+                      activeTab === 'services' &&
+                        professionalStyles.activeTabText,
+                    ]}
+                  >
+                    Services ({services.length})
+                  </Text>
+                </TouchableOpacity>
               </View>
-            ) : services.length === 0 ? (
-              renderEmptyState('services')
-            ) : (
-              <>
-                <FlatList
-                  data={paginatedServices}
-                  renderItem={renderServiceItem}
-                  keyExtractor={item => item._id}
-                  scrollEnabled={false}
+
+              {/* Products Tab Content */}
+              {activeTab === 'products' && (
+                <View style={professionalStyles.tabContent}>
+                  {products.length === 0 ? (
+                    renderEmptyState('products')
+                  ) : (
+                    <FlatList
+                      data={products}
+                      renderItem={renderProductItem}
+                      keyExtractor={item => item._id}
+                      scrollEnabled={false}
+                    />
+                  )}
+                </View>
+              )}
+
+              {/* Services Tab Content */}
+              {activeTab === 'services' && (
+                <View style={professionalStyles.tabContent}>
+                  {services.length === 0 ? (
+                    renderEmptyState('services')
+                  ) : (
+                    <FlatList
+                      data={services}
+                      renderItem={renderServiceItem}
+                      keyExtractor={item => item._id}
+                      scrollEnabled={false}
+                    />
+                  )}
+                </View>
+              )}
+            </Card.Content>
+          </Card>
+        </ScrollView>
+
+        {/* Product Form Modal */}
+        <Modal
+          visible={isProductFormOpen}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={handleProductCancel}
+        >
+          <SafeAreaView style={professionalStyles.modalSafeArea}>
+            <View style={professionalStyles.modalOverlay}>
+              <View style={professionalStyles.modalContent}>
+                <View style={professionalStyles.modalHeader}>
+                  <Text style={professionalStyles.modalTitle}>
+                    {productToEdit ? 'Edit Product' : 'Create New Product'}
+                  </Text>
+                  <Text style={professionalStyles.modalDescription}>
+                    {productToEdit
+                      ? 'Update the product details.'
+                      : 'Fill in the form to add a new product.'}
+                  </Text>
+                </View>
+                <ProductForm
+                  product={productToEdit}
+                  onSuccess={handleProductSuccess}
+                  onCancel={handleProductCancel}
+                  visible={isProductFormOpen}
                 />
+              </View>
+            </View>
+          </SafeAreaView>
+        </Modal>
 
-                {renderPagination(
-                  serviceCurrentPage,
-                  serviceTotalPages,
-                  goToPrevServicePage,
-                  goToNextServicePage,
-                  'services'
-                )}
-              </>
-            )}
-          </>
+        {/* Service Form Modal */}
+        <Modal
+          visible={isServiceFormOpen}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={handleServiceCancel}
+        >
+          <SafeAreaView style={professionalStyles.modalSafeArea}>
+            <View style={professionalStyles.modalOverlay}>
+              <View style={professionalStyles.modalContent}>
+                <View style={professionalStyles.modalHeader}>
+                  <Text style={professionalStyles.modalTitle}>
+                    {serviceToEdit ? 'Edit Service' : 'Create New Service'}
+                  </Text>
+                  <Text style={professionalStyles.modalDescription}>
+                    {serviceToEdit
+                      ? 'Update the service details.'
+                      : 'Fill in the form to add a new service.'}
+                  </Text>
+                </View>
+                <ServiceForm
+                  service={serviceToEdit}
+                  onSuccess={handleServiceSuccess}
+                  onDelete={handleServiceDelete}
+                  onCancel={handleServiceCancel}
+                  visible={isServiceFormOpen}
+                />
+              </View>
+            </View>
+          </SafeAreaView>
+        </Modal>
+
+        {/* Delete Dialogs */}
+        <Portal>
+          <Dialog
+            visible={deleteDialogVisible}
+            onDismiss={() => setDeleteDialogVisible(false)}
+          >
+            <Dialog.Title>Confirm Delete</Dialog.Title>
+            <Dialog.Content>
+              <Paragraph>
+                Are you sure you want to delete this {deleteType}? This action
+                cannot be undone.
+              </Paragraph>
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button
+                onPress={() => setDeleteDialogVisible(false)}
+                textColor={COLORS.secondary}
+              >
+                Cancel
+              </Button>
+              <Button onPress={handleDelete} textColor={COLORS.danger}>
+                Delete
+              </Button>
+            </Dialog.Actions>
+          </Dialog>
+
+          <Dialog
+            visible={bulkDeleteDialogVisible}
+            onDismiss={() => setBulkDeleteDialogVisible(false)}
+          >
+            <Dialog.Title>Confirm Bulk Delete</Dialog.Title>
+            <Dialog.Content>
+              <Paragraph>
+                Are you sure you want to delete {selectedProducts.length}{' '}
+                product(s)? This action cannot be undone.
+              </Paragraph>
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button
+                onPress={() => setBulkDeleteDialogVisible(false)}
+                textColor={COLORS.secondary}
+              >
+                Cancel
+              </Button>
+              <Button
+                onPress={handleBulkDeleteProducts}
+                textColor={COLORS.danger}
+              >
+                Delete {selectedProducts.length} Items
+              </Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
+
+        {/* FAB for adding new items */}
+        {canCreateItems && (
+          <FAB
+            icon="plus"
+            style={professionalStyles.fab}
+            onPress={() =>
+              activeTab === 'products' ? openProductForm() : openServiceForm()
+            }
+            color={COLORS.card}
+            backgroundColor={COLORS.primary}
+          />
         )}
-      </ScrollView>
-
-      {/* Product Form Modal */}
-      <Modal
-        visible={isProductFormOpen}
-        animationType="slide"
-        onRequestClose={() => setIsProductFormOpen(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalHeaderTitle}>{productToEdit ? 'Edit Product' : 'Create Product'}</Text>
-            <TouchableOpacity onPress={() => setIsProductFormOpen(false)} style={styles.modalCloseButton}>
-              <CloseIcon />
-            </TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={styles.modalContent}>
-            {renderProductForm()}
-          </ScrollView>
-        </View>
-      </Modal>
-
-      {/* Service Form Modal */}
-      <Modal
-        visible={isServiceFormOpen}
-        animationType="slide"
-        onRequestClose={() => setIsServiceFormOpen(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalHeaderTitle}>{serviceToEdit ? 'Edit Service' : 'Create Service'}</Text>
-            <TouchableOpacity onPress={() => setIsServiceFormOpen(false)} style={styles.modalCloseButton}>
-              <CloseIcon />
-            </TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={styles.modalContent}>
-            {renderServiceForm()}
-          </ScrollView>
-        </View>
-      </Modal>
-    </View>
+      </View>
+    </SafeAreaView>
   );
-}
+};
 
-// --- UPDATED STYLES (Clean/Flat Design) ---
+// ------------------------------------------
+// 4. PROFESSIONAL STYLES
+// ------------------------------------------
 
-const styles = StyleSheet.create({
-  // General & Layout
+const professionalStyles = StyleSheet.create({
+  // --- Global Layout ---
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
   container: {
     flex: 1,
-    backgroundColor: LIGHT_BACKGROUND,
+    backgroundColor: COLORS.background,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: COLORS.background,
   },
 
-  // Header & Title
+  // --- Header ---
   header: {
     padding: 20,
-    paddingTop: Platform.OS === 'android' ? 20 : 40,
-    backgroundColor: 'white',
+    backgroundColor: COLORS.card,
     borderBottomWidth: 1,
-    borderBottomColor: BORDER_COLOR,
+    borderBottomColor: COLORS.border,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: TEXT_COLOR,
-    marginBottom: 4,
+    fontSize: TYPOGRAPHY.h1,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
   },
   subtitle: {
-    fontSize: 14,
-    color: SUBTLE_TEXT_COLOR,
+    fontSize: TYPOGRAPHY.body,
+    color: COLORS.textSecondary,
+    marginTop: 4,
   },
-
-  // Action Bar & Buttons
-  actionBar: {
-    padding: 16,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER_COLOR,
-  },
-  actionBarContent: {
+  headerButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    flexShrink: 0,
-    alignSelf: 'flex-start',
-  },
-  excelContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    flexShrink: 1,
-    flexWrap: 'wrap',
-  },
-  excelButton: {
-    minWidth: 100,
-    borderRadius: 8,
-    height: 40,
-    flexGrow: 1,
-    justifyContent: 'center',
-    borderColor: PRIMARY_COLOR,
-  },
-  serviceButton: {
-    borderColor: PRIMARY_COLOR,
-    borderRadius: 8,
-    justifyContent: 'center',
-  },
-  addButton: {
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 8,
-    justifyContent: 'center',
-  },
-
-  // Tabs
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: 'white',
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER_COLOR,
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 12,
+    marginTop: 16,
+    gap: 10,
     alignItems: 'center',
-    borderBottomWidth: 3,
-    borderBottomColor: 'transparent',
   },
-  tabButtonActive: {
-    borderBottomColor: PRIMARY_COLOR,
-  },
-  tabButtonText: {
-    fontSize: 15,
-    color: SUBTLE_TEXT_COLOR,
-    fontWeight: '500',
-  },
-  tabButtonTextActive: {
-    color: PRIMARY_COLOR,
-    fontWeight: '700',
-  },
-
-  content: {
+  headerButton: {
     flex: 1,
-    paddingVertical: 8,
+    borderRadius: 8,
+    borderColor: COLORS.primary,
   },
 
-  // Item Card (Cleaner Design)
-  itemCard: {
+  // --- Bulk Actions ---
+  bulkActionCard: {
     marginHorizontal: 16,
-    marginVertical: 6, // Less vertical margin
-    borderRadius: 10,
-    elevation: 2, // Softer shadow
+    marginBottom: 10,
+    marginTop: 16,
+    backgroundColor: COLORS.warning + '10',
+    borderColor: COLORS.warning,
+    borderWidth: 1,
+    borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    backgroundColor: 'white',
+    shadowOpacity: 0.1,
+    shadowRadius: 1.5,
+    elevation: 2,
   },
-  cardContent: {
-    padding: 16,
+  bulkActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
   },
-  checkboxWrapper: {
-    marginRight: 8,
-    alignSelf: 'flex-start',
-    marginTop: -8,
+  bulkActionInfo: {
+    flex: 1,
+  },
+  bulkActionText: {
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    fontSize: TYPOGRAPHY.body,
+  },
+  selectAllText: {
+    color: COLORS.primary,
+    fontSize: TYPOGRAPHY.caption,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  bulkDeleteButton: {
+    backgroundColor: COLORS.danger,
+    borderRadius: 6,
+    marginLeft: 10,
   },
 
+  // --- Main Card & Tabs ---
+  mainCard: {
+    margin: 16,
+    marginTop: 0,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  tabs: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    marginBottom: 0,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  activeTab: {
+    borderBottomWidth: 3,
+    borderBottomColor: COLORS.primary,
+  },
+  tabText: {
+    fontSize: TYPOGRAPHY.body,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+  activeTabText: {
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  tabContent: {
+    minHeight: 200,
+    paddingTop: 16,
+  },
+
+  // --- Item Card (Clean & Compact) ---
+  itemCard: {
+    marginBottom: 12,
+    borderRadius: 8,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
   itemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER_COLOR,
-    paddingBottom: 10,
-  },
-  itemTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    flex: 1,
-    marginRight: 10,
-  },
-  itemTextContainer: {
-    marginLeft: 10,
-    flexShrink: 1,
-  },
-  itemName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: TEXT_COLOR,
-    marginBottom: 2,
-  },
-  companyName: {
-    fontSize: 12,
-    color: SUBTLE_TEXT_COLOR,
-    fontWeight: '400',
-  },
-  serviceBadge: {
-    backgroundColor: PRIMARY_COLOR,
-    marginTop: 4,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 6,
-    fontWeight: '700',
-    fontSize: 10,
-  },
-
-  // Price & Stock container (Right side of header)
-  priceStockContainer: {
-    alignItems: 'flex-end',
-    minWidth: 100,
-  },
-  itemPrice: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: TEXT_COLOR,
-    marginBottom: 4,
-  },
-  stockBadgeClean: {
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 2,
-  },
-  stockTextClean: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-
-
-  // Item Details (Single column list)
-  itemDetailsClean: {
-    marginBottom: 12,
-  },
-  detailRowClean: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  detailLabelClean: {
-    fontSize: 13,
-    color: SUBTLE_TEXT_COLOR,
-    fontWeight: '500',
-    minWidth: 100,
-  },
-  detailValueClean: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: TEXT_COLOR,
-    flex: 1,
-    textAlign: 'right',
-  },
-
-  // Card Action Buttons
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: BORDER_COLOR,
-  },
-  editButton: {
-    height: 40,
-    minWidth: 80,
-    borderColor: PRIMARY_COLOR,
-    borderRadius: 8,
-    justifyContent: 'center',
-  },
-  deleteButton: {
-    height: 40,
-    minWidth: 80,
-    borderColor: DANGER_COLOR,
-    borderRadius: 8,
-    justifyContent: 'center',
-  },
-  buttonText: {
-    marginLeft: 4,
-    fontWeight: '600',
-    fontSize: 13,
-  },
-
-  // Pagination
-  paginationContainer: {
-    padding: 16,
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    marginVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
-  },
-  paginationText: {
-    fontSize: 13,
-    color: SUBTLE_TEXT_COLOR,
-    textAlign: 'center',
     marginBottom: 10,
   },
-  paginationButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  productSelection: {
+    marginRight: 4,
   },
-  paginationButton: {
+  itemInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    minWidth: 100,
-    height: 36,
-    borderRadius: 8,
+    flex: 1,
+    flexWrap: 'wrap',
   },
-  pageNumber: {
-    fontSize: 14,
+  itemTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 8,
+  },
+  itemName: {
+    fontSize: TYPOGRAPHY.h2,
     fontWeight: '700',
-    color: PRIMARY_COLOR,
+    color: COLORS.textPrimary,
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 12,
+  },
+  stockText: {
+    fontSize: TYPOGRAPHY.body,
+    color: COLORS.textSecondary,
+  },
+  itemDescription: {
+    fontSize: TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+  },
+  stockInfo: {
+    alignItems: 'flex-end',
+    minWidth: 50,
+  },
+  stockValue: {
+    fontSize: TYPOGRAPHY.h2,
+    fontWeight: 'bold',
   },
 
-  // Bulk Actions
-  bulkActions: {
-    padding: 12,
-    backgroundColor: '#FFF8E1', // Light yellow background
-    marginHorizontal: 16,
-    marginVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: WARNING_COLOR,
+  // --- Meta Info ---
+  metaInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    marginBottom: 12,
   },
-  bulkActionsText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: DANGER_COLOR,
-  },
-  bulkDeleteButton: {
+  metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: DANGER_COLOR,
-    borderRadius: 6,
-    height: 36,
-    paddingHorizontal: 12,
+    gap: 6,
   },
-  bulkDeleteText: {
-    color: 'white',
+  metaLabel: {
+    fontSize: TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+  metaValue: {
+    fontSize: TYPOGRAPHY.caption,
+    color: COLORS.textPrimary,
     fontWeight: '600',
-    fontSize: 13,
+  },
+  createdDate: {
+    fontSize: TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    fontStyle: 'italic',
   },
 
-  // Empty State & Setup (minimal changes)
-  emptyState: {
+  // --- Actions ---
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 12,
+    gap: 10,
+  },
+  actionButton: {
+    minWidth: 100,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  deleteButton: {
+    borderColor: COLORS.danger,
+  },
+  serviceChip: {
+    marginLeft: 'auto',
+    height: 30,
+    backgroundColor: COLORS.primary + '10',
+    borderColor: COLORS.primary + '30',
+  },
+
+  // --- Empty & Setup States ---
+  emptyStateCard: {
+    marginVertical: 40,
+    paddingVertical: 30,
+    borderRadius: 12,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  emptyStateContent: {
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-    margin: 16,
-    backgroundColor: 'white',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: PRIMARY_COLOR + '30',
-    borderStyle: 'dashed',
   },
   emptyStateTitle: {
-    fontSize: 22,
+    fontSize: TYPOGRAPHY.h2,
     fontWeight: '700',
-    color: TEXT_COLOR,
     marginTop: 16,
     marginBottom: 8,
+    color: COLORS.textPrimary,
   },
   emptyStateDescription: {
-    fontSize: 15,
-    color: SUBTLE_TEXT_COLOR,
+    fontSize: TYPOGRAPHY.body,
+    color: COLORS.textSecondary,
     textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  emptyStateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 8,
-    paddingVertical: 10,
+    marginBottom: 20,
     paddingHorizontal: 20,
   },
-
-  // Loading & Setup
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: SUBTLE_TEXT_COLOR,
-  },
-  setupRequiredContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    backgroundColor: LIGHT_BACKGROUND,
+  emptyStateButton: {
+    marginTop: 10,
+    backgroundColor: COLORS.primary,
+    borderRadius: 6,
   },
   setupCard: {
-    width: '100%',
-    maxWidth: 400,
+    margin: 20,
     borderRadius: 12,
-    elevation: 6,
-    shadowColor: PRIMARY_COLOR,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
+    shadowOpacity: 0.1,
+    shadowRadius: 5.46,
+    elevation: 8,
   },
-  setupIcon: {
+  setupContent: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  iconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.primary + '20',
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
   },
   setupTitle: {
-    fontSize: 20,
+    fontSize: TYPOGRAPHY.h1,
     fontWeight: '700',
-    textAlign: 'center',
     marginBottom: 10,
-    color: TEXT_COLOR,
+    textAlign: 'center',
+    color: COLORS.textPrimary,
   },
   setupDescription: {
-    fontSize: 14,
-    color: SUBTLE_TEXT_COLOR,
+    fontSize: TYPOGRAPHY.body,
+    color: COLORS.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
-    lineHeight: 20,
+    lineHeight: 22,
   },
   contactButtons: {
+    width: '100%',
     gap: 12,
   },
   contactButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 8,
+    marginHorizontal: 0,
     borderRadius: 8,
-  },
-  contactButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
   },
 
-  // Modal Forms (cleaner)
-  modalContainer: {
+  // --- Modal & FAB ---
+  modalSafeArea: {
     flex: 1,
-    backgroundColor: LIGHT_BACKGROUND,
+    backgroundColor: 'rgba(33, 37, 41, 0.75)',
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(33, 37, 41, 0.75)',
+    justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
-    paddingTop: Platform.OS === 'android' ? 16 : 40,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER_COLOR,
-    backgroundColor: 'white',
-  },
-  modalHeaderTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: TEXT_COLOR,
-  },
-  modalCloseButton: {
-    padding: 5,
+    padding: 20,
   },
   modalContent: {
-    flexGrow: 1,
-    padding: 24,
-    backgroundColor: LIGHT_BACKGROUND,
-  },
-  formContainer: {
-    flex: 1,
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 24,
-    elevation: 4,
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '90%',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 20,
   },
-  formTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: TEXT_COLOR,
-    marginBottom: 20,
-    textAlign: 'left',
+  modalHeader: {
+    padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    paddingBottom: 10,
+    borderBottomColor: COLORS.border,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    padding: 14,
-    marginBottom: 16,
-    fontSize: 16,
-    backgroundColor: 'white',
-    color: TEXT_COLOR,
+  modalTitle: {
+    fontSize: TYPOGRAPHY.h1,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    marginBottom: 4,
   },
-  formButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 20,
+  modalDescription: {
+    fontSize: TYPOGRAPHY.body,
+    color: COLORS.textSecondary,
   },
-  cancelButton: {
-    flex: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    height: 48,
-    justifyContent: 'center',
-  },
-  saveButton: {
-    flex: 1,
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 8,
-    height: 48,
-    justifyContent: 'center',
-  },
-  // Toast Styles
-  toastContainer: {
+  fab: {
     position: 'absolute',
-    top: 50,
-    left: 20,
-    right: 20,
-    padding: 12,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    zIndex: 1000,
-  },
-  toastSuccess: {
-    backgroundColor: SUCCESS_COLOR,
-  },
-  toastError: {
-    backgroundColor: DANGER_COLOR,
-  },
-  toastInfo: {
-    backgroundColor: PRIMARY_COLOR,
-  },
-  toastText: {
-    flex: 1,
-    color: 'white',
-    fontSize: 15,
-    fontWeight: '500',
-    marginLeft: 10,
-    marginRight: 8,
-  },
-  toastCloseButton: {
-    padding: 4,
+    margin: 24,
+    right: 0,
+    bottom: 0,
   },
 });
+
+export default InventoryScreen;

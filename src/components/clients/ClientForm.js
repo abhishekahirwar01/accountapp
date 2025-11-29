@@ -15,8 +15,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useToast } from '../hooks/useToast';
 import ClientValidityCard from '../admin/settings/ClientValidityCard';
 import { BASE_URL } from '../../config';
-import { Picker } from '@react-native-picker/picker';
-import Icon from 'react-native-vector-icons/MaterialIcons'; // Make sure to install this package
 
 function slugifyUsername(s = '') {
   return s
@@ -692,9 +690,9 @@ export default function ClientForm({
       {!client && (
         <View style={styles.section}>
           <Text style={styles.label}>Password</Text>
-          <View style={styles.passwordContainer}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TextInput
-              style={[styles.input, styles.passwordInput]}
+              style={[styles.input, { flex: 1 }]}
               placeholder="••••••••"
               secureTextEntry={!eyeOpen}
               value={password}
@@ -702,13 +700,9 @@ export default function ClientForm({
             />
             <TouchableOpacity
               onPress={() => setEyeOpen(v => !v)}
-              style={styles.eyeIcon}
+              style={{ marginLeft: 8 }}
             >
-              <Icon
-                name={eyeOpen ? 'visibility' : 'visibility-off'}
-                size={24}
-                color="#666"
-              />
+              <Text style={{ color: 'blue' }}>{eyeOpen ? 'Hide' : 'Show'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -747,17 +741,12 @@ export default function ClientForm({
               onChangeText={v => setValidityAmount(Number(v || 0))}
               keyboardType="numeric"
             />
-            <View style={[styles.inputAccountValidity, { flex: 1, padding: 0 }]}>
-              <Picker
-                selectedValue={validityUnit}
-                onValueChange={itemValue => setValidityUnit(itemValue)}
-                style={{ height: 50 }}
-              >
-                <Picker.Item label="Days" value="days" />
-                <Picker.Item label="Months" value="months" />
-                <Picker.Item label="Years" value="years" />
-              </Picker>
-            </View>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              placeholder="Unit (days, months, years)"
+              value={validityUnit}
+              onChangeText={setValidityUnit}
+            />
           </View>
           {expiryPreview && (
             <Text style={{ marginTop: 6, fontSize: 12, color: 'gray' }}>
@@ -769,7 +758,7 @@ export default function ClientForm({
 
       {!hideAdvanced && (
         <>
-          {/* <View style={styles.section}>
+          <View style={styles.section}>
             <Text style={styles.label}>Max Companies</Text>
             <TextInput
               style={styles.input}
@@ -787,7 +776,7 @@ export default function ClientForm({
               onChangeText={v => setMaxUsers(Number(v || 0))}
               keyboardType="numeric"
             />
-          </View> */}
+          </View>
 
           <View style={styles.sectionRow}>
             <View style={{ flex: 1 }}>
@@ -985,7 +974,7 @@ export default function ClientForm({
           {isSavingPermissions ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.submitTextPermissions}>Save Permissions</Text>
+            <Text style={styles.submitText}>Save Permissions</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -1009,7 +998,7 @@ export default function ClientForm({
   // Password Reset Form Section
   const renderPasswordForm = () => (
     <ScrollView style={styles.tabContent}>
-      <View >
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Reset Password</Text>
         <Text style={styles.sectionSubtitle}>
           Set a new password for {client.contactName}. They will be notified of
@@ -1019,9 +1008,9 @@ export default function ClientForm({
 
       <View style={styles.section}>
         <Text style={styles.label}>New Password</Text>
-        <View style={styles.passwordContainer}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TextInput
-            style={[styles.input, styles.passwordInput]}
+            style={[styles.input, { flex: 1 }]}
             placeholder="Enter new password"
             secureTextEntry={!eyeOpenPassword}
             value={newPassword}
@@ -1029,18 +1018,16 @@ export default function ClientForm({
           />
           <TouchableOpacity
             onPress={() => setEyeOpenPassword(v => !v)}
-            style={styles.eyeIcon}
+            style={{ marginLeft: 8 }}
           >
-            <Icon
-              name={eyeOpenPassword ? 'visibility' : 'visibility-off'}
-              size={24}
-              color="#666"
-            />
+            <Text style={{ color: 'blue' }}>
+              {eyeOpenPassword ? 'Hide' : 'Show'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      <View >
+      <View style={{ marginTop: 20 }}>
         <TouchableOpacity
           onPress={handleResetPassword}
           disabled={isSubmittingPassword || !newPassword.trim()}
@@ -1054,7 +1041,7 @@ export default function ClientForm({
           {isSubmittingPassword ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.submitTextPermissions}>Reset Password</Text>
+            <Text style={styles.submitText}>Reset Password</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -1166,29 +1153,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#fff',
   },
-  inputAccountValidity: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    padding: 8,
-    fontSize: 16,
-    backgroundColor: '#fff',
-  },
-  passwordContainer: {
-    position: 'relative',
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  passwordInput: {
-    flex: 1,
-    paddingRight: 50, // Make space for the eye icon
-  },
-  eyeIcon: {
-    position: 'absolute',
-    right: 12,
-    padding: 4,
-  },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1213,9 +1177,9 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     backgroundColor: '#2563eb',
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    borderRadius: 2,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
     minWidth: 120,
@@ -1224,12 +1188,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
-  },
-  submitTextPermissions: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
-    padding: 7,
   },
   buttonDisabled: {
     opacity: 0.6,

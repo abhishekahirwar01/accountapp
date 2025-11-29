@@ -13,8 +13,6 @@ import {
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
@@ -22,65 +20,37 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import UserForm from '../../components/users/UserForm';
 import { UserCard } from '../../components/users/UserCard';
 import { UserTable } from '../../components/users/UserTable';
-import { BASE_URL } from '../../config';
+
 // Icons
-const PlusCircleIcon = ({ style }) => <Icon name="plus-circle" size={20} color="#FFFFFF" style={style} />;
-const LayoutGridIcon = ({ color }) => <Icon name="view-grid" size={20} color={color || "#374151"} />;
-const ListIcon = ({ color }) => <Icon name="view-list" size={20} color={color || "#374151"} />;
-const CopyIcon = ({ color }) => <Icon name="content-copy" size={20} color={color || "#3b82f6"} />;
-const CheckIcon = ({ color }) => <Icon name="check-circle" size={20} color={color || "#10b981"} />;
+const PlusCircleIcon = ({ style }) => (
+  <Icon name="plus-circle" size={20} color="#FFFFFF" style={style} />
+);
+const LayoutGridIcon = ({ color }) => (
+  <Icon name="view-grid" size={20} color={color || '#374151'} />
+);
+const ListIcon = ({ color }) => (
+  <Icon name="view-list" size={20} color={color || '#374151'} />
+);
+const CopyIcon = ({ color }) => (
+  <Icon name="content-copy" size={20} color={color || '#3b82f6'} />
+);
+const CheckIcon = ({ color }) => (
+  <Icon name="check-circle" size={20} color={color || '#10b981'} />
+);
 const PhoneIcon = () => <Icon name="phone" size={20} color="#ffffff" />;
 const EmailIcon = () => <Icon name="email" size={20} color="#3b82f6" />;
-const BuildingIcon = () => <Icon name="office-building" size={24} color="#3b82f6" />;
+const BuildingIcon = () => (
+  <Icon name="office-building" size={24} color="#3b82f6" />
+);
 const AlertIcon = () => <Icon name="alert-circle" size={48} color="#dc2626" />;
-const UsersLargeIcon = () => <Icon name="account-group" size={48} color="#6b7280" />;
-
-// --- Helper Function for Token Retrieval ---
-const getAuthTokenFromStorage = async () => {
-  try {
-    const token = await AsyncStorage.getItem('token'); 
-    console.log('🔑 Token exists:', !!token);
-    
-    if (token) {
-      return token;
-    } else {
-      console.warn('AsyncStorage Token Not Found. Authentication will likely fail.');
-      return ''; 
-    }
-  } catch (error) {
-    console.error('Error retrieving token from AsyncStorage:', error);
-    return '';
-  }
-};
-
-const extractUniqueCompanies = (usersData) => {
-  const companyMap = new Map();
-  
-  if (!Array.isArray(usersData)) {
-    console.error("User data is not an array for company extraction:", usersData);
-    return [];
-  }
-
-  usersData.forEach(user => {
-    if (user.companies && Array.isArray(user.companies)) {
-      user.companies.forEach(company => {
-        if (company._id && !companyMap.has(company._id)) {
-          
-          companyMap.set(company._id, company);
-        }
-      });
-    }
-  });
-
-  return Array.from(companyMap.values());
-};
-// --------------------------------------------------------------------------
+const UsersLargeIcon = () => (
+  <Icon name="account-group" size={48} color="#6b7280" />
+);
 
 export default function UsersScreen() {
-  // --- START OF HOOKS DECLARATION (MUST BE UNCONDITIONAL) ---
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 600;
-  const isMobile = width < 768;
+  const isMobile = width < 768; // Mobile devices के लिए breakpoint
 
   const [users, setUsers] = useState([]);
   const [companies, setCompanies] = useState([]);
@@ -93,17 +63,62 @@ export default function UsersScreen() {
   const [copied, setCopied] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Hardcoded user definitions removed.
+  // Hardcoded Data
+  const hardcodedCompanies = useMemo(
+    () => [
+      { _id: '1', businessName: 'Tech Solutions Inc.' },
+      { _id: '2', businessName: 'Marketing Pro' },
+      { _id: '3', businessName: 'Finance Corp' },
+    ],
+    [],
+  );
+
+  const hardcodedUsers = useMemo(
+    () => [
+      {
+        _id: '1',
+        userId: 'USR001',
+        userName: 'John Doe',
+        email: 'john@example.com',
+        contactNumber: '+1234567890',
+        role: 'admin',
+        status: 'Active',
+        address: '123 Main St, New York, NY',
+        companies: ['1', '2'],
+      },
+      {
+        _id: '2',
+        userId: 'USR002',
+        userName: 'Jane Smith',
+        email: 'jane@example.com',
+        contactNumber: '+0987654321',
+        role: 'user',
+        status: 'Active',
+        address: '456 Oak Ave, Los Angeles, CA',
+        companies: ['1'],
+      },
+      {
+        _id: '3',
+        userId: 'USR003',
+        userName: 'Mike Johnson',
+        email: 'mike@example.com',
+        contactNumber: '+1122334455',
+        role: 'user',
+        status: 'Inactive',
+        address: '789 Pine St, Chicago, IL',
+        companies: ['2', '3'],
+      },
+    ],
+    [],
+  );
 
   const userLoginUrl = 'https://yourapp.com/user-login';
 
-  // --- END OF HOOKS DECLARATION ---
-  
   const copyToClipboard = async () => {
     try {
       await Clipboard.setString(userLoginUrl);
       setCopied(true);
-      // Alert.alert('URL Copied!', 'Share this link with your users for login.');
+      Alert.alert('URL Copied!', 'Share this link with your users for login.');
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       Alert.alert('Failed to copy URL', 'Please copy the URL manually.');
@@ -113,59 +128,25 @@ export default function UsersScreen() {
   const fetchUsersAndCompanies = async () => {
     setIsLoading(true);
     try {
-      const authToken = await getAuthTokenFromStorage();
-      const API_URL = `${BASE_URL}/api/users`; 
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      console.log('Fetching users from API...');
-      
-      const response = await fetch(API_URL, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`, 
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const apiUsers = await response.json();
-      
-      console.log('Fetched User Data:', apiUsers);
-      
-      // Set states from fetched data
-      setUsers(apiUsers); 
-      
-      const extractedCompanies = extractUniqueCompanies(apiUsers);
-      setCompanies(extractedCompanies); 
-      console.log('Extracted Company Data (Full Objects):', extractedCompanies);
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+      // Set hardcoded data
+      setUsers(hardcodedUsers);
+      setCompanies(hardcodedCompanies);
     } catch (err) {
-      console.error('API Fetch Error:', err);
-      // Simplified authentication error message now that the debug button is gone
-      if (err.message.includes('401') || err.message.includes('400')) {
-          Alert.alert('Authentication Required', 'Please ensure you are logged in and have a valid token stored to access user data.');
-      } else {
-          Alert.alert('Error', `Failed to fetch data. (Error: ${err.message})`);
-      }
-      
-      // Set to empty arrays on API error/failure
-      setUsers([]);
-      setCompanies([]);
+      Alert.alert('Error', 'Failed to fetch data');
     } finally {
       setIsLoading(false);
       setRefreshing(false);
     }
   };
 
-  // useEffects (Hooks) are correctly placed after state declarations
   useEffect(() => {
     fetchUsersAndCompanies();
-  }, []);
+  }, [hardcodedUsers, hardcodedCompanies]);
 
+  // Mobile devices के लिए automatically card view set करें
   useEffect(() => {
     if (isMobile) {
       setViewMode('card');
@@ -187,34 +168,39 @@ export default function UsersScreen() {
     setSelectedUser(null);
   };
 
-  const handleSave = async (formData) => {
+  const handleSave = async formData => {
     try {
+      // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       if (selectedUser) {
-        setUsers(prev => prev.map(user =>
-          user._id === selectedUser._id ? { ...user, ...formData } : user
-        ));
+        // Update existing user
+        setUsers(prev =>
+          prev.map(user =>
+            user._id === selectedUser._id ? { ...user, ...formData } : user,
+          ),
+        );
         Alert.alert('Success', 'User updated successfully');
       } else {
+        // Create new user
         const newUser = {
           _id: Date.now().toString(),
           userId: `USR${String(users.length + 1).padStart(3, '0')}`,
           ...formData,
           status: 'Active',
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
         };
         setUsers(prev => [...prev, newUser]);
         Alert.alert('Success', 'User created successfully');
       }
-      
+
       handleCloseForm();
     } catch (error) {
       Alert.alert('Error', 'Operation failed');
     }
   };
 
-  const openDeleteDialog = (user) => {
+  const openDeleteDialog = user => {
     setUserToDelete(user);
     setIsDeleteModalOpen(true);
   };
@@ -224,39 +210,23 @@ export default function UsersScreen() {
     setUserToDelete(null);
   };
 
- const handleDelete = async () => {
-    if (!userToDelete) return;
-    
-    try {
-      const authToken = await getAuthTokenFromStorage();
-      if (!authToken) throw new Error("Authentication token not found.");
-      
-      const deleteUrl = `${BASE_URL}/api/users/${userToDelete._id}`;
-      
-      const res = await fetch(deleteUrl, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
+  const handleDelete = async () => {
+    if (!userToDelete) return;
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || "Failed to delete user.");
-      }
+    try {
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      Alert.alert('Success', 'User deleted successfully');
-      fetchUsersAndCompanies(); // Refresh data
-      closeDeleteDialog();
-    } catch (error) {
-      Alert.alert(
-        'Deletion Failed', 
-        error instanceof Error ? error.message : "Something went wrong."
-      );
-    }
-  };
+      setUsers(prev => prev.filter(user => user._id !== userToDelete._id));
+      Alert.alert('Success', 'User deleted successfully');
+      closeDeleteDialog();
+    } catch (error) {
+      Alert.alert('Error', 'Deletion failed');
+    }
+  };
 
   const companyMap = useMemo(() => {
     const map = new Map();
-    companies.forEach((company) => {
+    companies.forEach(company => {
       map.set(company._id, company.businessName);
     });
     return map;
@@ -275,16 +245,19 @@ export default function UsersScreen() {
           <View style={styles.deleteIconContainer}>
             <AlertIcon />
           </View>
-          
+
           <Text style={styles.deleteModalTitle}>Are you sure?</Text>
-          
+
           <Text style={styles.deleteModalDescription}>
-            This action cannot be undone. This will permanently delete the user account.
+            This action cannot be undone. This will permanently delete the user
+            account.
           </Text>
 
           {userToDelete && (
             <View style={styles.userToDeleteInfo}>
-              <Text style={styles.userToDeleteName}>{userToDelete.userName}</Text>
+              <Text style={styles.userToDeleteName}>
+                {userToDelete.userName}
+              </Text>
               <Text style={styles.userToDeleteEmail}>{userToDelete.email}</Text>
             </View>
           )}
@@ -296,7 +269,7 @@ export default function UsersScreen() {
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={styles.deleteConfirmButton}
               onPress={handleDelete}
@@ -318,14 +291,24 @@ export default function UsersScreen() {
       onRequestClose={handleCloseForm}
     >
       <SafeAreaView style={styles.modalOverlay}>
-        <View style={[styles.dialogContent, { maxWidth: isSmallScreen ? '95%' : 600 }]}>
+        <View
+          style={[
+            styles.dialogContent,
+            { maxWidth: isSmallScreen ? '95%' : 600 },
+          ]}
+        >
           <View style={styles.dialogHeader}>
             <Text style={styles.dialogTitle}>
-              {selectedUser ? "Edit User" : "Add New User"}
+              {selectedUser ? 'Edit User' : 'Add New User'}
             </Text>
-            <Text style={styles.dialogDescription}>Fill in the form below.</Text>
+            <Text style={styles.dialogDescription}>
+              Fill in the form below.
+            </Text>
           </View>
-          <ScrollView style={styles.formContainer} contentContainerStyle={styles.formContentPadding}>
+          <ScrollView
+            style={styles.formContainer}
+            contentContainerStyle={styles.formContentPadding}
+          >
             <UserForm
               user={selectedUser}
               allCompanies={companies}
@@ -351,7 +334,6 @@ export default function UsersScreen() {
     );
   }
 
-  // If company data fails to load or is empty, show the setup required screen
   if (companies.length === 0) {
     return (
       <SafeAreaView style={styles.emptyContainer}>
@@ -368,10 +350,17 @@ export default function UsersScreen() {
           </Text>
 
           {/* Call-to-Action Buttons */}
-          <View style={[styles.contactButtons, { flexDirection: isSmallScreen ? 'column' : 'row' }]}>
+          <View
+            style={[
+              styles.contactButtons,
+              { flexDirection: isSmallScreen ? 'column' : 'row' },
+            ]}
+          >
             <TouchableOpacity
               style={styles.phoneButton}
-              onPress={() => Alert.alert('Dialing', 'Calling +91-8989773689...')}
+              onPress={() =>
+                Alert.alert('Dialing', 'Calling +91-8989773689...')
+              }
             >
               <PhoneIcon />
               <Text style={styles.phoneButtonText}>+91-8989773689</Text>
@@ -379,15 +368,22 @@ export default function UsersScreen() {
 
             <TouchableOpacity
               style={styles.emailButton}
-              onPress={() => Alert.alert('Email', 'Opening email client for support@company.com...')}
+              onPress={() =>
+                Alert.alert(
+                  'Email',
+                  'Opening email client for support@company.com...',
+                )
+              }
             >
               <EmailIcon />
               <Text style={styles.emailButtonText}>Email Us</Text>
             </TouchableOpacity>
           </View>
-          
+
           {/* Support Hours */}
-          <Text style={styles.supportText}>Support available Monday - Friday, 9:00 AM to 5:00 PM IST</Text>
+          <Text style={styles.supportText}>
+            Support available Monday - Friday, 9:00 AM to 5:00 PM IST
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -402,8 +398,37 @@ export default function UsersScreen() {
         }
       >
         <View style={styles.pageContent}>
-          
-       
+          {/* User Login URL Card */}
+          <View style={styles.urlCard}>
+            <View style={styles.urlContent}>
+              <Text style={styles.urlTitle}>User Login URL</Text>
+              <Text
+                style={styles.urlText}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {userLoginUrl}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.copyButton, copied && styles.copiedButton]}
+              onPress={copyToClipboard}
+            >
+              {copied ? (
+                <CheckIcon color="white" />
+              ) : (
+                <CopyIcon color="#3b82f6" />
+              )}
+              <Text
+                style={[
+                  styles.copyButtonText,
+                  copied && styles.copiedButtonText,
+                ]}
+              >
+                {copied ? 'Copied!' : 'Copy URL'}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Header and Actions */}
           <View style={styles.header}>
@@ -416,49 +441,48 @@ export default function UsersScreen() {
               {!isMobile && (
                 <View style={styles.viewToggle}>
                   <TouchableOpacity
-                    style={[styles.viewButton, viewMode === "card" && styles.activeViewButton]}
-                    onPress={() => setViewMode("card")}
+                    style={[
+                      styles.viewButton,
+                      viewMode === 'card' && styles.activeViewButton,
+                    ]}
+                    onPress={() => setViewMode('card')}
                   >
-                    <LayoutGridIcon color={viewMode === "card" ? "#3b82f6" : "#374151"} />
+                    <LayoutGridIcon
+                      color={viewMode === 'card' ? '#3b82f6' : '#374151'}
+                    />
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.viewButton, viewMode === "list" && styles.activeViewButton]}
-                    onPress={() => setViewMode("list")}
+                    style={[
+                      styles.viewButton,
+                      viewMode === 'list' && styles.activeViewButton,
+                    ]}
+                    onPress={() => setViewMode('list')}
                   >
-                    <ListIcon color={viewMode === "list" ? "#3b82f6" : "#374151"} />
+                    <ListIcon
+                      color={viewMode === 'list' ? '#3b82f6' : '#374151'}
+                    />
                   </TouchableOpacity>
                 </View>
               )}
-              <TouchableOpacity style={styles.addButton} onPress={() => handleOpenForm()}>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => handleOpenForm()}
+              >
                 <PlusCircleIcon />
                 <Text style={styles.addButtonText}>Add User</Text>
               </TouchableOpacity>
             </View>
           </View>
 
-             {/* User Login URL Card */}
-          <View style={styles.urlCard}>
-            <View style={styles.urlContent}>
-              <Text style={styles.urlTitle}>User Login URL</Text>
-              <Text style={styles.urlText} numberOfLines={1} ellipsizeMode="tail">
-                {userLoginUrl}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.copyButton, copied && styles.copiedButton]}
-              onPress={copyToClipboard}
-            >
-              {copied ? <CheckIcon color="white" /> : <CopyIcon color="#3b82f6" />}
-              <Text style={[styles.copyButtonText, copied && styles.copiedButtonText]}>
-                {copied ? "Copied!" : "Copy URL"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           {/* Users List/Card View */}
-          <View style={[styles.contentCard, viewMode === 'list' && styles.contentCardNoPadding]}>
+          <View
+            style={[
+              styles.contentCard,
+              viewMode === 'list' && styles.contentCardNoPadding,
+            ]}
+          >
             {users.length > 0 ? (
-              
+              // Mobile devices के लिए हमेशा card view दिखाएं
               isMobile || viewMode === 'card' ? (
                 <View style={styles.userCardGrid}>
                   <UserCard
@@ -483,7 +507,10 @@ export default function UsersScreen() {
                 <Text style={styles.noUsersDescription}>
                   Get started by adding your first user.
                 </Text>
-                <TouchableOpacity style={styles.addUserButton} onPress={() => handleOpenForm()}>
+                <TouchableOpacity
+                  style={styles.addUserButton}
+                  onPress={() => handleOpenForm()}
+                >
                   <PlusCircleIcon />
                   <Text style={styles.addUserButtonText}>Add User</Text>
                 </TouchableOpacity>
@@ -491,7 +518,7 @@ export default function UsersScreen() {
             )}
           </View>
         </View>
-        
+
         <UserFormModal />
         <DeleteConfirmationModal />
       </ScrollView>
@@ -511,7 +538,7 @@ const styles = StyleSheet.create({
   pageContent: {
     paddingBottom: 20,
   },
-  
+
   // --- Loader Styles ---
   loaderContainer: {
     flex: 1,
@@ -625,12 +652,12 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     textAlign: 'center',
   },
-  
+
   // --- User Login URL Card Styles ---
   urlCard: {
     backgroundColor: '#dbeafe',
     borderRadius: 12,
-    padding: 8,
+    padding: 16,
     marginHorizontal: 16,
     marginBottom: 20,
     flexDirection: 'row',
@@ -662,11 +689,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderWidth: 1,
     borderColor: '#bfdbfe',
-    paddingVertical: 6,
+    paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 6,
     gap: 6,
-    marginTop:15
   },
   copiedButton: {
     backgroundColor: '#10b981',
@@ -687,7 +713,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginHorizontal: 16,
-    marginBottom: 10,
+    marginBottom: 20,
     flexWrap: 'wrap',
   },
   headerText: {
@@ -697,7 +723,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#1f2937',
-    marginBottom: 0,
+    marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
@@ -735,7 +761,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 8,
     gap: 8,
-    marginTop: 6,
   },
   addButtonText: {
     color: 'white',
@@ -747,14 +772,14 @@ const styles = StyleSheet.create({
   contentCard: {
     backgroundColor: 'white',
     borderRadius: 12,
-    // marginHorizontal: 8,
+    marginHorizontal: 8,
     marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    // elevation: 3,
-    // padding: 15,
+    elevation: 3,
+    padding: 15,
   },
   contentCardNoPadding: {
     padding: 0,
