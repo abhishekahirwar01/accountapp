@@ -651,6 +651,7 @@ const styles = StyleSheet.create({
   pickerFieldHalf: {
     flex: 1,
     marginHorizontal: 6,
+    
   },
   selectionLabel: {
     fontSize: 14,

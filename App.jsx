@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StatusBar } from 'react-native';
+import { StatusBar, View, Text } from 'react-native'; // <-- ADDED View and Text
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import {
@@ -9,10 +9,34 @@ import {
 import AppNavigator from './src/navigation/AppNavigator';
 import { navigationRef } from './src/navigation/RootNavigation';
 
+import Toast from 'react-native-toast-message';
+
 import { CompanyProvider } from './src/contexts/company-context';
 import { PermissionProvider } from './src/contexts/permission-context';
 import { UserPermissionsProvider } from './src/contexts/user-permissions-context';
 import { SupportProvider } from './src/contexts/support-context';
+
+
+// 1. DEFINE TOAST CONFIGURATION HERE TO RESOLVE THE ERROR
+const toastConfig = {
+  custom_success: ({ text1, text2, props, ...rest }) => (
+    <View style={{ 
+        height: 60, 
+        width: '90%', 
+        backgroundColor: '#10b981', // Green color
+        padding: 12, 
+        borderRadius: 8,
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'flex-start',
+        elevation: 5,
+    }}>
+      <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>{text1}</Text>
+      <Text style={{ color: '#e5e5e5', fontSize: 12 }}>{text2}</Text>
+    </View>
+  ),
+  // You can define other custom types or override default types here
+};
 
 
 const theme = {
@@ -65,6 +89,9 @@ export default function App() {
           </PermissionProvider>
         </CompanyProvider>
       </SafeAreaProvider>
+      
+      {/* 2. RENDER THE TOAST COMPONENT WITH THE CONFIGURATION */}
+      <Toast config={toastConfig} /> 
     </PaperProvider>
   );
 }

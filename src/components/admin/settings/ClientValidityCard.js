@@ -447,10 +447,10 @@ export function ClientValidityCard({ clientId, onChanged }) {
     }
   }
 
-  const handleSaveExactDate = () => {
-    setDraft(d => ({ ...d, exactDate }));
-    setExactDirty(false);
-  };
+  // const handleSaveExactDate = () => {
+  //   setDraft(d => ({ ...d, exactDate }));
+  //   setExactDirty(false);
+  // };
 
   // Date picker handlers
   const handleDateChange = (event, date) => {
@@ -543,7 +543,7 @@ export function ClientValidityCard({ clientId, onChanged }) {
                 />
               )}
             </View>
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={[
                 styles.button,
                 styles.outlineButton,
@@ -554,7 +554,7 @@ export function ClientValidityCard({ clientId, onChanged }) {
             >
               {saving && <ActivityIndicator size="small" color="#6b7280" />}
               <Text style={styles.outlineButtonText}>Save Exact Date</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
 
@@ -603,11 +603,11 @@ export function ClientValidityCard({ clientId, onChanged }) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#ebeef1ff',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#dbeafe',
-    margin: 16,
+    // margin: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -648,7 +648,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   statCard: {
     flex: 1,
@@ -707,17 +707,17 @@ const styles = StyleSheet.create({
     color: '#1f2937',
   },
   separator: {
-    height: 1,
-    backgroundColor: '#e5e7eb',
+    height: 2,
+    backgroundColor: '#cccfd6ff',
     marginVertical: 16,
   },
   section: {
     marginBottom: 16,
   },
   sectionLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 8,
+    fontSize: 18,
+    color: '#000000ff',
+    marginBottom: 12,
   },
   exactDateRow: {
     flexDirection: 'row',
@@ -729,7 +729,7 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#000000ff',
     marginBottom: 4,
   },
   dateInput: {

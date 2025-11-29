@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+// import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -62,7 +63,7 @@ const formSchema = z.object({
   PeriodicityofGSTReturns: z.string().optional(),
   GSTUsername: z.string().optional(),
   GSTPassword: z.string().optional(),
-  ewayBillApplicable: z.enum(['true', 'false']),
+  ewayBillApplicable: z.enum(["true", "false"]),
   EWBBillUsername: z.string().optional(),
   EWBBillPassword: z.string().optional(),
   TANNumber: z.string().optional(),
@@ -74,56 +75,56 @@ const formSchema = z.object({
 });
 
 const defaultBusinessTypes = [
-  'Sole Proprietorship',
-  'Partnership',
-  'Private Limited Company',
-  'Limited Company',
-  'Others',
+  "Sole Proprietorship",
+  "Partnership",
+  "Private Limited Company",
+  "Limited Company",
+  "Others",
 ];
 
 const gstRegistrationTypes = [
-  'Sole Proprietorship',
-  'Partnership',
-  'LLP',
-  'Private Limited Company',
-  'Public Limited Company',
-  'Section 8 Company',
-  'Others',
+  "Sole Proprietorship",
+  "Partnership",
+  "LLP",
+  "Private Limited Company",
+  "Public Limited Company",
+  "Section 8 Company",
+  "Others",
 ];
 
 const FIELD_LABELS = {
-  client: 'Assign to Client',
-  businessType: 'Business Type',
-  businessName: 'Business Name',
-  registrationNumber: 'Registration Number',
-  address: 'Address',
-  City: 'City',
-  addressState: 'State',
-  Country: 'Country',
-  Pincode: 'Pincode',
-  Telephone: 'Telephone',
-  mobileNumber: 'Mobile Number',
-  emailId: 'Email ID',
-  Website: 'Website',
-  PANNumber: 'PAN Number',
-  IncomeTaxLoginPassword: 'Income Tax Login Password',
-  gstin: 'GSTIN',
-  gstState: 'GST State',
-  RegistrationType: 'Registration Type',
-  PeriodicityofGSTReturns: 'Periodicity of GST Returns',
-  GSTUsername: 'GST Username',
-  GSTPassword: 'GST Password',
-  ewayBillApplicable: 'E-Way Bill Applicable',
-  EWBBillUsername: 'EWB Username',
-  EWBBillPassword: 'EWB Password',
-  TANNumber: 'TAN Number',
-  TAXDeductionCollectionAcc: 'Tax Deduction/Collection A/c',
-  DeductorType: 'Deductor Type',
-  TDSLoginUsername: 'TDS Login Username',
-  TDSLoginPassword: 'TDS Login Password',
+  client: "Assign to Client",
+  businessType: "Business Type",
+  businessName: "Business Name",
+  registrationNumber: "Registration Number",
+  address: "Address",
+  City: "City",
+  addressState: "State",
+  Country: "Country",
+  Pincode: "Pincode",
+  Telephone: "Telephone",
+  mobileNumber: "Mobile Number",
+  emailId: "Email ID",
+  Website: "Website",
+  PANNumber: "PAN Number",
+  IncomeTaxLoginPassword: "Income Tax Login Password",
+  gstin: "GSTIN",
+  gstState: "GST State",
+  RegistrationType: "Registration Type",
+  PeriodicityofGSTReturns: "Periodicity of GST Returns",
+  GSTUsername: "GST Username",
+  GSTPassword: "GST Password",
+  ewayBillApplicable: "E-Way Bill Applicable",
+  EWBBillUsername: "EWB Username",
+  EWBBillPassword: "EWB Password",
+  TANNumber: "TAN Number",
+  TAXDeductionCollectionAcc: "Tax Deduction/Collection A/c",
+  DeductorType: "Deductor Type",
+  TDSLoginUsername: "TDS Login Username",
+  TDSLoginPassword: "TDS Login Password",
 };
 
-const getStepFields = isClient => ({
+const getStepFields = (isClient) => ({
   1: [
     ...(isClient ? [] : ['client']),
     'businessType',
@@ -138,22 +139,22 @@ const getStepFields = isClient => ({
     'mobileNumber',
   ],
   2: [
-    'gstin',
-    'gstState',
-    'RegistrationType',
-    'PeriodicityofGSTReturns',
-    'GSTUsername',
-    'GSTPassword',
-    'ewayBillApplicable',
-    'EWBBillUsername',
-    'EWBBillPassword',
+    "gstin",
+    "gstState",
+    "RegistrationType",
+    "PeriodicityofGSTReturns",
+    "GSTUsername",
+    "GSTPassword",
+    "ewayBillApplicable",
+    "EWBBillUsername",
+    "EWBBillPassword",
   ],
   3: [
-    'TANNumber',
-    'TAXDeductionCollectionAcc',
-    'DeductorType',
-    'TDSLoginUsername',
-    'TDSLoginPassword',
+    "TANNumber",
+    "TAXDeductionCollectionAcc",
+    "DeductorType",
+    "TDSLoginUsername",
+    "TDSLoginPassword",
   ],
 });
 
@@ -451,20 +452,89 @@ export default function DetailedCompanyForm({
   );
 
   // Navigation handlers
+//   const handleNextStep = useCallback(async () => {
+//     if (step === 1 && duplicateError) {
+//       Alert.alert('Validation Error', duplicateError);
+//       return;
+//       const url = company
+//         ? `${baseURL}/api/companies/${company._id}`
+//         : `${baseURL}/api/companies`;
+
+//       const method = company ? "PUT" : "POST";
+//       
+//       // --- START MODIFICATION ---
+//       const { client, ...rest } = values;
+
+//       // Construct the payload based on whether the user is a client (which might be handled
+//       // automatically by the backend) OR if the company is being created by an admin/manager, 
+//       // requiring explicit client selection. Assuming backend expects the key 'client' 
+//       // for new creations by non-clients.
+
+//       let payload = {
+//           ...rest,
+//           ewayBillApplicable: values.ewayBillApplicable === "true",
+//       };
+
+//       // Only include the client field if a value exists (and the current user is NOT the client)
+//       // If the API expects 'client' for new creations by managers/admins:
+//       if (!company && client) {
+//           payload.client = client;
+//       }
+
+//       // If updating, and 'client' field is present:
+//       if (company && client) {
+//           payload.client = client;
+//       }
+//       // --- END MODIFICATION ---
+      
+//       const headers = {
+//         Authorization: `Bearer ${token}`,
+//         'Content-Type': 'application/json'
+//       };
+
+//       const body = JSON.stringify(payload); // Use the corrected payload
+
+//       const response = await fetch(url, {
+//         method,
+//         headers,
+//         body,
+//       });
+
+//       const data = await response.json();
+//       if (!response.ok) throw new Error(data.message || "Operation failed");
+
+//       Alert.alert(
+//         "Success",
+//         `${values.businessName} has been successfully ${company ? "updated" : "created"}.`
+//       );
+//       onFormSubmit();
+//     } catch (error) {
+//       Alert.alert(
+//         "Error",
+//         error instanceof Error ? error.message : "An error occurred"
+//       );
+//     } finally {
+//       setIsSubmitting(false);
+//     }
+//   }, [baseURL, company, duplicateError, isClient, onFormSubmit]);
+
+  // Navigation handlers
   const handleNextStep = useCallback(async () => {
     if (step === 1 && duplicateError) {
-      Alert.alert('Validation Error', duplicateError);
+      Alert.alert("Validation Error", duplicateError);
       return;
     }
 
     const currentStepFields = getStepFields(isClient)[step];
     const isValid = await trigger(currentStepFields);
-
+    
     if (isValid) {
       setStep(step + 1);
     }
   }, [step, duplicateError, isClient, trigger]);
 
+
+ 
   const handlePrevStep = useCallback(() => {
     setStep(step - 1);
   }, [step]);
@@ -766,7 +836,7 @@ export default function DetailedCompanyForm({
           ) : (
             <View style={styles.spacer} />
           )}
-
+          
           {step < 3 ? (
             <TouchableOpacity
               style={[styles.button, styles.nextButton]}
