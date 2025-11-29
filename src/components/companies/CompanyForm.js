@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+// import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -452,71 +452,71 @@ export default function DetailedCompanyForm({
   );
 
   // Navigation handlers
-  const handleNextStep = useCallback(async () => {
-    if (step === 1 && duplicateError) {
-      Alert.alert('Validation Error', duplicateError);
-      return;
-      const url = company
-        ? `${baseURL}/api/companies/${company._id}`
-        : `${baseURL}/api/companies`;
+//   const handleNextStep = useCallback(async () => {
+//     if (step === 1 && duplicateError) {
+//       Alert.alert('Validation Error', duplicateError);
+//       return;
+//       const url = company
+//         ? `${baseURL}/api/companies/${company._id}`
+//         : `${baseURL}/api/companies`;
 
-      const method = company ? "PUT" : "POST";
-      
-      // --- START MODIFICATION ---
-      const { client, ...rest } = values;
+//       const method = company ? "PUT" : "POST";
+//       
+//       // --- START MODIFICATION ---
+//       const { client, ...rest } = values;
 
-      // Construct the payload based on whether the user is a client (which might be handled
-      // automatically by the backend) OR if the company is being created by an admin/manager, 
-      // requiring explicit client selection. Assuming backend expects the key 'client' 
-      // for new creations by non-clients.
+//       // Construct the payload based on whether the user is a client (which might be handled
+//       // automatically by the backend) OR if the company is being created by an admin/manager, 
+//       // requiring explicit client selection. Assuming backend expects the key 'client' 
+//       // for new creations by non-clients.
 
-      let payload = {
-          ...rest,
-          ewayBillApplicable: values.ewayBillApplicable === "true",
-      };
+//       let payload = {
+//           ...rest,
+//           ewayBillApplicable: values.ewayBillApplicable === "true",
+//       };
 
-      // Only include the client field if a value exists (and the current user is NOT the client)
-      // If the API expects 'client' for new creations by managers/admins:
-      if (!company && client) {
-          payload.client = client;
-      }
+//       // Only include the client field if a value exists (and the current user is NOT the client)
+//       // If the API expects 'client' for new creations by managers/admins:
+//       if (!company && client) {
+//           payload.client = client;
+//       }
 
-      // If updating, and 'client' field is present:
-      if (company && client) {
-          payload.client = client;
-      }
-      // --- END MODIFICATION ---
+//       // If updating, and 'client' field is present:
+//       if (company && client) {
+//           payload.client = client;
+//       }
+//       // --- END MODIFICATION ---
       
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
+//       const headers = {
+//         Authorization: `Bearer ${token}`,
+//         'Content-Type': 'application/json'
+//       };
 
-      const body = JSON.stringify(payload); // Use the corrected payload
+//       const body = JSON.stringify(payload); // Use the corrected payload
 
-      const response = await fetch(url, {
-        method,
-        headers,
-        body,
-      });
+//       const response = await fetch(url, {
+//         method,
+//         headers,
+//         body,
+//       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Operation failed");
+//       const data = await response.json();
+//       if (!response.ok) throw new Error(data.message || "Operation failed");
 
-      Alert.alert(
-        "Success",
-        `${values.businessName} has been successfully ${company ? "updated" : "created"}.`
-      );
-      onFormSubmit();
-    } catch (error) {
-      Alert.alert(
-        "Error",
-        error instanceof Error ? error.message : "An error occurred"
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [baseURL, company, duplicateError, isClient, onFormSubmit]);
+//       Alert.alert(
+//         "Success",
+//         `${values.businessName} has been successfully ${company ? "updated" : "created"}.`
+//       );
+//       onFormSubmit();
+//     } catch (error) {
+//       Alert.alert(
+//         "Error",
+//         error instanceof Error ? error.message : "An error occurred"
+//       );
+//     } finally {
+//       setIsSubmitting(false);
+//     }
+//   }, [baseURL, company, duplicateError, isClient, onFormSubmit]);
 
   // Navigation handlers
   const handleNextStep = useCallback(async () => {
@@ -532,9 +532,9 @@ export default function DetailedCompanyForm({
       setStep(step + 1);
     }
   }, [step, duplicateError, isClient, trigger]);
-  }, [step, duplicateError, isClient, trigger]);
 
-  const handlePrevStep = useCallback(() => {
+
+ 
   const handlePrevStep = useCallback(() => {
     setStep(step - 1);
   }, [step]);

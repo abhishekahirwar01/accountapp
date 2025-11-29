@@ -8,8 +8,9 @@ import {
   Keyboard,
   StyleSheet,
   Modal,
-  SafeAreaView, // To handle notches and status bar area
+  // To handle notches and status bar area
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Check,
   ChevronsUpDown,
