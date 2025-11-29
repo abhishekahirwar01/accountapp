@@ -8,16 +8,23 @@ import {
   Keyboard,
   StyleSheet,
   Modal,
-  TouchableWithoutFeedback,
+  SafeAreaView, // To handle notches and status bar area
 } from 'react-native';
-import { Check, ChevronsUpDown, PlusCircle } from 'lucide-react-native';
+import {
+  Check,
+  ChevronsUpDown,
+  PlusCircle,
+  ArrowLeft,
+  X,
+  Search, // Added Search icon import
+} from 'lucide-react-native';
 
 export function Combobox({
   options,
   value,
   onChange,
   placeholder = 'Enter Name',
-  searchPlaceholder = 'Enter Name',
+  searchPlaceholder = 'Search names...',
   noResultsText = 'No results found.',
   creatable = false,
   onCreate,
@@ -46,17 +53,18 @@ export function Combobox({
     }
   }, [searchValue, options]);
 
-  // Reset search when modal opens/closes
+  // Focus input when modal opens
   useEffect(() => {
     if (open) {
-      setSearchValue('');
-      // Focus input after a short delay to ensure modal is open
+      // Set the search value to the current selection label, or empty string
+      setSearchValue(selectedOption?.label || '');
+      // Focus input after a short delay
       setTimeout(() => inputRef.current?.focus(), 100);
     } else {
-      // Reset to selected value when closing
-      setSearchValue(selectedOption?.label || '');
+      // Reset search value on close to ensure the trigger text is correct
+      setSearchValue('');
     }
-  }, [open]);
+  }, [open, selectedOption]);
 
   // Create new option
   const handleCreate = async () => {
@@ -84,6 +92,18 @@ export function Combobox({
   // Handle input change
   const handleInputChange = text => {
     setSearchValue(text);
+  };
+
+  // Clear search value
+  const handleClearSearch = () => {
+    setSearchValue('');
+    inputRef.current?.focus();
+  };
+
+  // Close the modal
+  const handleClose = () => {
+    setOpen(false);
+    Keyboard.dismiss();
   };
 
   // Check if we should show create option
@@ -119,92 +139,102 @@ export function Combobox({
         <ChevronsUpDown size={16} color="#666" />
       </TouchableOpacity>
 
-      {/* Dropdown Modal */}
+      {/* Dropdown Modal (Full Screen) */}
       <Modal
         visible={open}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setOpen(false)}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={handleClose}
       >
-        <TouchableWithoutFeedback onPress={() => setOpen(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.dropdownContainer}>
-                {/* Search Input */}
-                <View style={styles.searchContainer}>
-                  <TextInput
-                    ref={inputRef}
-                    style={styles.searchInput}
-                    placeholder={searchPlaceholder}
-                    placeholderTextColor="#999"
-                    value={searchValue}
-                    onChangeText={handleInputChange}
-                  />
-                </View>
+        <SafeAreaView style={styles.modalContent}>
+          {/* Dropdown Container (Full Screen) */}
+          <View style={styles.dropdownContainer}>
+            {/* Search Header/Input */}
+            <View style={styles.searchHeader}>
+              {/* Back Button */}
+              <TouchableOpacity onPress={handleClose} style={styles.backButton}>
+                <ArrowLeft size={24} color="#111827" />
+              </TouchableOpacity>
 
-                {/* Options List */}
-                <ScrollView
-                  style={styles.optionsList}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  {filteredOptions.map(item => (
-                    <TouchableOpacity
-                      key={item.value}
-                      style={[
-                        styles.optionItem,
-                        value === item.value && styles.selectedOption,
-                      ]}
-                      onPress={() => handleSelect(item.value)}
-                    >
-                      <Check
-                        size={16}
-                        color={value === item.value ? '#007AFF' : 'transparent'}
-                        style={styles.checkIcon}
-                      />
-                      <Text
-                        style={[
-                          styles.optionText,
-                          value === item.value && styles.selectedOptionText,
-                        ]}
-                      >
-                        {item.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+              {/* Search Input Container */}
+              <View style={styles.searchInputWrapper}>
+                {/* Search Icon */}
+                <Search size={20} color="#6B7280" style={styles.searchIcon} />
 
-                  {/* No Results */}
-                  {filteredOptions.length === 0 && !showCreateOption && (
-                    <View style={styles.emptyState}>
-                      <Text style={styles.emptyText}>{noResultsText}</Text>
-                    </View>
-                  )}
+                <TextInput
+                  ref={inputRef}
+                  style={styles.fullScreenSearchInput}
+                  placeholder={searchPlaceholder}
+                  placeholderTextColor="#999"
+                  value={searchValue}
+                  onChangeText={handleInputChange}
+                />
 
-                  {/* Create Option */}
-                  {showCreateOption && (
-                    <TouchableOpacity
-                      style={styles.createOption}
-                      onPress={handleCreate}
-                      disabled={isCreating}
-                    >
-                      <PlusCircle size={16} color="#007AFF" />
-                      <Text style={styles.createText}>
-                        {isCreating ? 'Creating...' : `Create "${searchValue}"`}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </ScrollView>
-
-                {/* Close Button */}
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={() => setOpen(false)}
-                >
-                  <Text style={styles.closeButtonText}>Close</Text>
-                </TouchableOpacity>
+                {/* Clear Button */}
+                {searchValue.length > 0 && (
+                  <TouchableOpacity
+                    onPress={handleClearSearch}
+                    style={styles.clearButton}
+                  >
+                    <X size={20} color="#6B7280" />
+                  </TouchableOpacity>
+                )}
               </View>
-            </TouchableWithoutFeedback>
+            </View>
+
+            {/* Options List */}
+            <ScrollView
+              style={styles.optionsListFullScreen}
+              keyboardShouldPersistTaps="handled"
+            >
+              {filteredOptions.map(item => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[
+                    styles.optionItem,
+                    value === item.value && styles.selectedOption,
+                  ]}
+                  onPress={() => handleSelect(item.value)}
+                >
+                  <Check
+                    size={16}
+                    color={value === item.value ? '#007AFF' : 'transparent'}
+                    style={styles.checkIcon}
+                  />
+                  <Text
+                    style={[
+                      styles.optionText,
+                      value === item.value && styles.selectedOptionText,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+
+              {/* No Results */}
+              {filteredOptions.length === 0 && !showCreateOption && (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyText}>{noResultsText}</Text>
+                </View>
+              )}
+
+              {/* Create Option */}
+              {showCreateOption && (
+                <TouchableOpacity
+                  style={styles.createOption}
+                  onPress={handleCreate}
+                  disabled={isCreating}
+                >
+                  <PlusCircle size={16} color="#007AFF" />
+                  <Text style={styles.createText}>
+                    {isCreating ? 'Creating...' : `Create "${searchValue}"`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
           </View>
-        </TouchableWithoutFeedback>
+        </SafeAreaView>
       </Modal>
     </View>
   );
@@ -238,44 +268,56 @@ const styles = StyleSheet.create({
   placeholderText: {
     color: '#6B7280',
   },
-  modalOverlay: {
+  // --- Modal Changes for Full Screen ---
+  modalContent: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    backgroundColor: '#FFFFFF', // White background for the full screen
   },
   dropdownContainer: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    width: '100%',
-    maxWidth: 400,
-    maxHeight: '80%',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
-  searchContainer: {
-    padding: 16,
+  searchHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    backgroundColor: 'transparent',
   },
-  searchInput: {
-    fontSize: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 6,
-    backgroundColor: '#F9FAFB',
+  backButton: {
+    padding: 8,
+    marginRight: 8,
   },
-  optionsList: {
-    maxHeight: 300,
+  searchInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFEFEF', // Light grey background for the input field
+    borderRadius: 20, // Rounded corners
+    height: 40,
   },
+  searchIcon: {
+    marginLeft: 10, // Added margin for the Search icon
+  },
+  fullScreenSearchInput: {
+    flex: 1,
+    fontSize: 18,
+    paddingVertical: 8,
+    // Removed left padding as the icon is now providing visual spacing
+    paddingHorizontal: 8,
+    color: '#111827',
+  },
+  clearButton: {
+    padding: 8,
+    marginLeft: 4,
+    marginRight: 4,
+  },
+  optionsListFullScreen: {
+    flex: 1, // Take remaining space
+  },
+  // --- Option List Styles ---
   optionItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -321,16 +363,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6B7280',
     textAlign: 'center',
-  },
-  closeButton: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    fontSize: 16,
-    color: '#6B7280',
-    fontWeight: '500',
   },
 });
