@@ -1,165 +1,139 @@
-import React, { useState, useMemo } from 'react';
+// screens/TransactionsScreen.js
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from 'react';
 import {
   View,
   Text,
+  ScrollView,
   TouchableOpacity,
+  Alert,
+  RefreshControl,
   FlatList,
   Modal,
-  StyleSheet,
-  ScrollView,
   ActivityIndicator,
+  StyleSheet,
+  Dimensions,
+  Linking,
+  Platform,
+  PermissionsAndroid,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import InvoicePreview from '../../components/invoices/InvoicePreview';
-import columns from '../../components/transactions/columns';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import RNFS from 'react-native-fs';
+import Pdf from 'react-native-pdf';
+import { useCompany } from '../../contexts/company-context';
+import { useToast } from '../../components/hooks/useToast';
+import { useUserPermissions } from '../../contexts/user-permissions-context';
+import { useClientPagination } from '../../components/hooks/use-client-pagination';
+import { ClientPagination } from '../../components/transactions/transaction-form/client-pagination';
+
+// Icons
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import Feather from 'react-native-vector-icons/Feather';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+
+// Custom components
 import DataTable from '../../components/transactions/DataTable';
-import TransactionForm from '../../components/transactions/TransactionForm';
+import { TransactionForm } from '../../components/transactions/TransactionForm';
+import ProformaForm from '../../components/transactions/ProformaForm';
+import InvoicePreview from '../../components/invoices/InvoicePreview';
+import { columns, useColumns } from '../../components/transactions/columns';
+import {
+  TableSkeleton,
+  MobileTableSkeleton,
+} from '../../components/transactions/transaction-form/table-skeleton';
+import { BASE_URL } from '../../config';
 
-// ===========================
-// Hardcoded Dummy Data
-// ===========================
-const DUMMY_COMPANIES = [
-  { _id: 'c1', businessName: 'Acme Corp' },
-  { _id: 'c2', businessName: 'Globex Ltd' },
-];
-const DUMMY_PARTIES = [
-  { _id: 'p1', name: 'John Doe', email: 'john@example.com' },
-  { _id: 'p2', name: 'Jane Smith', email: 'jane@example.com' },
-];
-const DUMMY_PRODUCTS = [
-  { _id: 'prod1', name: 'Widget' },
-  { _id: 'prod2', name: 'Gadget' },
-];
-const DUMMY_SERVICES = [
-  { _id: 'srv1', serviceName: 'Consulting' },
-  { _id: 'srv2', serviceName: 'Development' },
-];
-const DUMMY_TRANSACTIONS = [
-  {
-    _id: 't1',
-    date: '2025-10-01',
-    type: 'sales',
-    company: 'c1',
-    party: 'p1',
-    amount: 10000,
-    products: [
-      {
-        product: 'prod1',
-        quantity: 2,
-        unitType: 'pcs',
-        pricePerUnit: 5000,
-        amount: 10000,
-      },
-    ],
-    services: [],
-  },
-  {
-    _id: 't2',
-    date: '2025-10-02',
-    type: 'purchases',
-    company: 'c2',
-    party: 'p2',
-    amount: 7000,
-    products: [
-      {
-        product: 'prod2',
-        quantity: 1,
-        unitType: 'pcs',
-        pricePerUnit: 7000,
-        amount: 7000,
-      },
-    ],
-    services: [],
-  },
-  {
-    _id: 't3',
-    date: '2025-10-03',
-    type: 'receipt',
-    company: 'c1',
-    party: 'p1',
-    amount: 5000,
-    products: [],
-    services: [],
-  },
-  {
-    _id: 't4',
-    date: '2025-10-04',
-    type: 'payment',
-    company: 'c2',
-    party: 'p2',
-    amount: 3000,
-    products: [],
-    services: [],
-  },
-  {
-    _id: 't5',
-    date: '2025-10-05',
-    type: 'journal',
-    company: 'c1',
-    party: null,
-    amount: 1200,
-    products: [],
-    services: [
-      { service: 'srv1', description: 'Yearly consulting', amount: 1200 },
-    ],
-    narration: 'Yearly consulting adjustment',
-    description: 'Yearly consulting adjustment',
-  },
-];
+const { width, height } = Dimensions.get('window');
 
+// Format currency for Indian Rupees
 const formatCurrency = amount => {
-  return `₹${amount.toLocaleString('en-IN')}`;
+  if (!amount) return '₹0.00';
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+  }).format(amount);
 };
 
-const TABS = [
-  { key: 'all', label: 'All', icon: 'view-list' },
-  { key: 'sales', label: 'Sales', icon: 'trending-up' },
-  { key: 'purchases', label: 'Purchases', icon: 'cart' },
-  { key: 'receipt', label: 'Receipts', icon: 'receipt' },
-  { key: 'payment', label: 'Payments', icon: 'credit-card' },
-  { key: 'journal', label: 'Journals', icon: 'file-document' },
-];
-
-// User permission simulation
-const USER_ROLE = 'master'; // 'master', 'client', or null
-const USER_CAPS = {
-  canCreateSaleEntries: true,
-  canCreatePurchaseEntries: true,
-  canCreateReceiptEntries: true,
-  canCreatePaymentEntries: true,
-  canCreateJournalEntries: true,
+// Tab types
+const TABS = {
+  ALL: 'all',
+  SALES: 'sales',
+  PURCHASES: 'purchases',
+  PROFORMA: 'proforma',
+  RECEIPTS: 'receipts',
+  PAYMENTS: 'payments',
+  JOURNALS: 'journals',
 };
 
-// ===========================
-// Main Component
-// ===========================
-export default function TransactionsScreen() {
+// Skeleton Loading Component
+const LoadingSkeleton = ({ isMobile = false }) => {
+  if (isMobile) {
+    return <MobileTableSkeleton />;
+  }
+
+  return <TableSkeleton />;
+};
+
+const TransactionsScreen = () => {
+  // State
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isProformaFormOpen, setIsProformaFormOpen] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isItemsDialogOpen, setIsItemsDialogOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isPdfViewOpen, setIsPdfViewOpen] = useState(false);
+  const [pdfUri, setPdfUri] = useState(null);
+  const [isLoadingPdf, setIsLoadingPdf] = useState(false);
+
   const [transactionToDelete, setTransactionToDelete] = useState(null);
   const [transactionToEdit, setTransactionToEdit] = useState(null);
   const [transactionToPreview, setTransactionToPreview] = useState(null);
   const [itemsToView, setItemsToView] = useState([]);
-  const [activeTab, setActiveTab] = useState('all');
-  const [loading, setLoading] = useState(false);
 
-  // Simulate initial fetch
-  const [companies] = useState(DUMMY_COMPANIES);
-  const [parties] = useState(DUMMY_PARTIES);
-  const [productsList] = useState(DUMMY_PRODUCTS);
-  const [servicesList] = useState(DUMMY_SERVICES);
-  const [transactions, setTransactions] = useState(DUMMY_TRANSACTIONS);
+  const [activeTab, setActiveTab] = useState(TABS.ALL);
+  const [vendors, setVendors] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [purchases, setPurchases] = useState([]);
+  const [proforma, setProforma] = useState([]);
+  const [receipts, setReceipts] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [journals, setJournals] = useState([]);
 
-  // Permissions
-  const isSuper = USER_ROLE === 'master' || USER_ROLE === 'client';
-  const canSales = isSuper || !!USER_CAPS.canCreateSaleEntries;
-  const canPurchases = isSuper || !!USER_CAPS.canCreatePurchaseEntries;
-  const canReceipt = isSuper || !!USER_CAPS.canCreateReceiptEntries;
-  const canPayment = isSuper || !!USER_CAPS.canCreatePaymentEntries;
-  const canJournal = isSuper || !!USER_CAPS.canCreateJournalEntries;
+  const [companies, setCompanies] = useState([]);
+  const [productsList, setProductsList] = useState([]);
+  const [servicesList, setServicesList] = useState([]);
+  const [parties, setParties] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
+
+  const [defaultTransactionType, setDefaultTransactionType] = useState(null);
+  const [prefillFromTransaction, setPrefillFromTransaction] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Hooks
+  const { selectedCompanyId } = useCompany();
+  const { toast } = useToast();
+  const { permissions: userCaps, role } = useUserPermissions();
+
+  const isSuper = role === 'master' || role === 'client';
+
+  // Permission checks
+  const canSales = isSuper || !!userCaps?.canCreateSaleEntries;
+  const canPurchases = isSuper || !!userCaps?.canCreatePurchaseEntries;
+  const canReceipt = isSuper || !!userCaps?.canCreateReceiptEntries;
+  const canPayment = isSuper || !!userCaps?.canCreatePaymentEntries;
+  const canJournal = isSuper || !!userCaps?.canCreateJournalEntries;
+
   const allowedTypes = useMemo(() => {
     const arr = [];
     if (canSales) arr.push('sales');
@@ -169,59 +143,698 @@ export default function TransactionsScreen() {
     if (canJournal) arr.push('journal');
     return arr;
   }, [canSales, canPurchases, canReceipt, canPayment, canJournal]);
+
   const canCreateAny = allowedTypes.length > 0;
 
-  // Lookup maps
+  // Tab to form type mapping
+  const tabToFormType = tab => {
+    switch (tab) {
+      case TABS.SALES:
+        return 'sales';
+      case TABS.PURCHASES:
+        return 'purchases';
+      case TABS.RECEIPTS:
+        return 'receipt';
+      case TABS.PAYMENTS:
+        return 'payment';
+      case TABS.JOURNALS:
+        return 'journal';
+      default:
+        return null;
+    }
+  };
+
+  // Company ID helper
+  const getCompanyId = c => {
+    if (!c) return null;
+    if (typeof c === 'object') return c._id || null;
+    return c || null;
+  };
+
+  // Fetch transactions
+  const fetchTransactions = useCallback(async () => {
+    if (initialLoad) {
+      setIsLoading(true);
+    }
+    setIsRefreshing(true);
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const queryParam = selectedCompanyId
+        ? `?companyId=${selectedCompanyId}`
+        : '';
+
+      const parseResponse = (data, possibleArrayKeys = []) => {
+        if (Array.isArray(data)) return data;
+
+        if (data?.success && Array.isArray(data?.data)) return data.data;
+        if (data?.success && Array.isArray(data?.entries)) return data.entries;
+
+        for (const key of possibleArrayKeys) {
+          if (Array.isArray(data?.[key])) return data[key];
+        }
+
+        for (const key in data) {
+          if (Array.isArray(data[key])) {
+            console.warn(`Found array in unexpected key: ${key}`);
+            return data[key];
+          }
+        }
+
+        return [];
+      };
+
+      const fetchData = async (url, parser, endpointName) => {
+        try {
+          const response = await fetch(`${BASE_URL}${url}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (!response.ok) {
+            throw new Error(
+              `${endpointName} failed: ${response.status} ${response.statusText}`,
+            );
+          }
+
+          const data = await response.json();
+          return parser(data);
+        } catch (error) {
+          console.error(`Error fetching ${endpointName}:`, error);
+          throw error;
+        }
+      };
+
+      const maybeFetch = (condition, task, fallback) =>
+        condition ? task() : Promise.resolve(fallback);
+
+      const [
+        salesArray,
+        purchasesArray,
+        proformaArray,
+        receiptsArray,
+        paymentsArray,
+        journalsArray,
+        companiesArray,
+        partiesArray,
+        vendorsArray,
+        productsArray,
+        servicesArray,
+      ] = await Promise.all([
+        maybeFetch(
+          canSales,
+          () =>
+            fetchData(
+              `/api/sales${queryParam}`,
+              data => parseResponse(data, ['salesEntries', 'sales', 'entries']),
+              'sales',
+            ),
+          [],
+        ),
+        maybeFetch(
+          canPurchases,
+          () =>
+            fetchData(
+              `/api/purchase${queryParam}`,
+              data =>
+                parseResponse(data, [
+                  'purchaseEntries',
+                  'purchases',
+                  'entries',
+                ]),
+              'purchases',
+            ),
+          [],
+        ),
+        maybeFetch(
+          canSales,
+          () =>
+            fetchData(
+              `/api/proforma${queryParam}`,
+              data =>
+                parseResponse(data, ['proformaEntries', 'proforma', 'entries']),
+              'proforma',
+            ),
+          [],
+        ),
+        maybeFetch(
+          canReceipt,
+          () =>
+            fetchData(
+              `/api/receipts${queryParam}`,
+              data =>
+                parseResponse(data, ['receiptEntries', 'receipts', 'entries']),
+              'receipts',
+            ),
+          [],
+        ),
+        maybeFetch(
+          canPayment,
+          () =>
+            fetchData(
+              `/api/payments${queryParam}`,
+              data =>
+                parseResponse(data, ['paymentEntries', 'payments', 'entries']),
+              'payments',
+            ),
+          [],
+        ),
+        maybeFetch(
+          canJournal,
+          () =>
+            fetchData(
+              `/api/journals${queryParam}`,
+              data =>
+                parseResponse(data, ['journalEntries', 'journals', 'entries']),
+              'journals',
+            ),
+          [],
+        ),
+        fetchData(
+          '/api/companies/my',
+          data => parseResponse(data, ['companies', 'data']),
+          'companies',
+        ),
+        fetchData(
+          '/api/parties',
+          data => parseResponse(data, ['parties', 'customers', 'data']),
+          'parties',
+        ),
+        fetchData(
+          '/api/vendors',
+          data => parseResponse(data, ['vendors', 'suppliers', 'data']),
+          'vendors',
+        ),
+        fetchData(
+          '/api/products',
+          data => parseResponse(data, ['products', 'items', 'data']),
+          'products',
+        ),
+        fetchData(
+          '/api/services',
+          data => parseResponse(data, ['services', 'data']),
+          'services',
+        ),
+      ]);
+
+      // Update state
+      setSales(salesArray.map(p => ({ ...p, type: 'sales' })));
+      setPurchases(purchasesArray.map(p => ({ ...p, type: 'purchases' })));
+      setProforma(proformaArray.map(p => ({ ...p, type: 'proforma' })));
+      setReceipts(receiptsArray.map(r => ({ ...r, type: 'receipt' })));
+      setPayments(paymentsArray.map(p => ({ ...p, type: 'payment' })));
+      setJournals(
+        journalsArray.map(j => ({
+          ...j,
+          description: j.narration || j.description,
+          type: 'journal',
+        })),
+      );
+
+      setCompanies(companiesArray);
+      setParties(partiesArray);
+      setVendors(vendorsArray);
+      setProductsList(productsArray);
+      setServicesList(servicesArray);
+    } catch (error) {
+      console.error('Fetch transactions error:', error);
+      toast('Failed to load transactions', 'error', error.message);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+      setInitialLoad(false);
+    }
+  }, [
+    selectedCompanyId,
+    canSales,
+    canPurchases,
+    canReceipt,
+    canPayment,
+    canJournal,
+    toast,
+    initialLoad,
+  ]);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
+
+  // Data processing
   const productNameById = useMemo(() => {
-    const m = new Map();
-    for (const p of productsList) m.set(p._id, p.name || '(unnamed product)');
-    return m;
+    const map = new Map();
+    productsList.forEach(p => {
+      map.set(String(p._id), p.name || '(unnamed product)');
+    });
+    return map;
   }, [productsList]);
+
   const serviceNameById = useMemo(() => {
-    const m = new Map();
-    for (const s of servicesList) m.set(s._id, s.serviceName);
-    return m;
+    const map = new Map();
+    servicesList.forEach(s => {
+      map.set(String(s._id), s.serviceName || '');
+    });
+    return map;
   }, [servicesList]);
-  const companyMap = useMemo(() => {
-    const m = new Map();
-    companies.forEach(c => m.set(c._id, c.businessName));
-    return m;
-  }, [companies]);
-  const partyMap = useMemo(() => {
-    const m = new Map();
-    parties.forEach(p => m.set(p._id, p.name));
-    return m;
-  }, [parties]);
 
-  // Transaction Data Filtering
-  const filteredData = useMemo(() => {
-    if (activeTab === 'all') return transactions;
-    return transactions.filter(t => t.type === activeTab);
-  }, [activeTab, transactions]);
+  // Filter data based on company
+  const userCompanyIds = useMemo(() => companies.map(c => c._id), [companies]);
 
-  // Handlers
-  const handleOpenForm = (tx = null) => {
-    setTransactionToEdit(tx);
+  const filteredSales = useMemo(() => {
+    const base = selectedCompanyId
+      ? sales.filter(s => getCompanyId(s.company) === selectedCompanyId)
+      : sales.filter(s => userCompanyIds.includes(getCompanyId(s.company)));
+    return base;
+  }, [sales, selectedCompanyId, userCompanyIds]);
+
+  const filteredPurchases = useMemo(() => {
+    const base = selectedCompanyId
+      ? purchases.filter(p => getCompanyId(p.company) === selectedCompanyId)
+      : purchases.filter(p => userCompanyIds.includes(getCompanyId(p.company)));
+    return base;
+  }, [purchases, selectedCompanyId, userCompanyIds]);
+
+  const filteredProforma = useMemo(() => {
+    const base = selectedCompanyId
+      ? proforma.filter(p => getCompanyId(p.company) === selectedCompanyId)
+      : proforma.filter(p => userCompanyIds.includes(getCompanyId(p.company)));
+    return base;
+  }, [proforma, selectedCompanyId, userCompanyIds]);
+
+  const filteredReceipts = useMemo(() => {
+    const base = selectedCompanyId
+      ? receipts.filter(r => getCompanyId(r.company) === selectedCompanyId)
+      : receipts.filter(r => userCompanyIds.includes(getCompanyId(r.company)));
+    return base;
+  }, [receipts, selectedCompanyId, userCompanyIds]);
+
+  const filteredPayments = useMemo(() => {
+    const base = selectedCompanyId
+      ? payments.filter(p => getCompanyId(p.company) === selectedCompanyId)
+      : payments.filter(p => userCompanyIds.includes(getCompanyId(p.company)));
+    return base;
+  }, [payments, selectedCompanyId, userCompanyIds]);
+
+  const filteredJournals = useMemo(() => {
+    const base = selectedCompanyId
+      ? journals.filter(j => getCompanyId(j.company) === selectedCompanyId)
+      : journals.filter(j => userCompanyIds.includes(getCompanyId(j.company)));
+    return base;
+  }, [journals, selectedCompanyId, userCompanyIds]);
+
+  // Visible data based on permissions
+  const visibleSales = canSales ? filteredSales : [];
+  const visiblePurchases = canPurchases ? filteredPurchases : [];
+  const visibleProforma = canSales ? filteredProforma : [];
+  const visibleReceipts = canReceipt ? filteredReceipts : [];
+  const visiblePayments = canPayment ? filteredPayments : [];
+  const visibleJournals = canJournal ? filteredJournals : [];
+
+  const allVisibleTransactions = useMemo(() => {
+    return [
+      ...visibleSales,
+      ...visiblePurchases,
+      ...visibleProforma,
+      ...visibleReceipts,
+      ...visiblePayments,
+      ...visibleJournals,
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [
+    visibleSales,
+    visiblePurchases,
+    visibleProforma,
+    visibleReceipts,
+    visiblePayments,
+    visibleJournals,
+  ]);
+
+  // Client-side pagination hooks
+  const allPagination = useClientPagination({
+    data: allVisibleTransactions,
+    initialPageSize: 20,
+  });
+
+  const salesPagination = useClientPagination({
+    data: filteredSales,
+    initialPageSize: 20,
+  });
+
+  const purchasesPagination = useClientPagination({
+    data: filteredPurchases,
+    initialPageSize: 20,
+  });
+
+  const proformaPagination = useClientPagination({
+    data: filteredProforma,
+    initialPageSize: 20,
+  });
+
+  const receiptsPagination = useClientPagination({
+    data: filteredReceipts,
+    initialPageSize: 20,
+  });
+
+  const paymentsPagination = useClientPagination({
+    data: filteredPayments,
+    initialPageSize: 20,
+  });
+
+  const journalsPagination = useClientPagination({
+    data: filteredJournals,
+    initialPageSize: 20,
+  });
+
+  // Get current pagination based on active tab
+  const getCurrentPagination = () => {
+    switch (activeTab) {
+      case TABS.ALL:
+        return allPagination;
+      case TABS.SALES:
+        return salesPagination;
+      case TABS.PURCHASES:
+        return purchasesPagination;
+      case TABS.PROFORMA:
+        return proformaPagination;
+      case TABS.RECEIPTS:
+        return receiptsPagination;
+      case TABS.PAYMENTS:
+        return paymentsPagination;
+      case TABS.JOURNALS:
+        return journalsPagination;
+      default:
+        return allPagination;
+    }
+  };
+
+  // Get current data based on active tab
+  const getCurrentData = () => {
+    switch (activeTab) {
+      case TABS.ALL:
+        return allVisibleTransactions;
+      case TABS.SALES:
+        return filteredSales;
+      case TABS.PURCHASES:
+        return filteredPurchases;
+      case TABS.PROFORMA:
+        return filteredProforma;
+      case TABS.RECEIPTS:
+        return filteredReceipts;
+      case TABS.PAYMENTS:
+        return filteredPayments;
+      case TABS.JOURNALS:
+        return filteredJournals;
+      default:
+        return allVisibleTransactions;
+    }
+  };
+
+  // Handle PDF generation and download
+  const handleDownloadInvoice = async transaction => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      setIsLoadingPdf(true);
+      toast('Generating invoice PDF...', 'info');
+
+      // Request permissions for Android
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+          {
+            title: 'Storage Permission',
+            message: 'App needs access to storage to download files',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          },
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          toast(
+            'Permission denied',
+            'error',
+            'Cannot download without storage permission',
+          );
+          setIsLoadingPdf(false);
+          return;
+        }
+      }
+
+      // Generate PDF
+      const response = await fetch(
+        `${BASE_URL}/api/invoices/generate-pdf/${transaction._id}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      if (!response.ok) throw new Error('Failed to generate PDF');
+
+      // Create blob
+      const blob = await response.blob();
+
+      // Generate filename
+      const fileName = `invoice_${
+        transaction.invoiceNumber || transaction._id
+      }_${new Date().getTime()}.pdf`;
+
+      // Determine download directory
+      const downloadDir =
+        Platform.OS === 'ios'
+          ? RNFS.DocumentDirectoryPath
+          : RNFS.DownloadDirectoryPath;
+
+      const filePath = `${downloadDir}/${fileName}`;
+
+      // Convert blob to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+
+      reader.onloadend = async () => {
+        const base64data = reader.result.split(',')[1];
+
+        try {
+          await RNFS.writeFile(filePath, base64data, 'base64');
+
+          // Set PDF URI for viewing
+          const fileUri =
+            Platform.OS === 'ios' ? `file://${filePath}` : `file://${filePath}`;
+
+          setPdfUri(fileUri);
+
+          toast('Invoice downloaded', 'success', `Saved to: ${fileName}`);
+
+          // Show options for view/share
+          Alert.alert(
+            'Invoice Downloaded',
+            'What would you like to do with the invoice?',
+            [
+              {
+                text: 'View',
+                onPress: () => setIsPdfViewOpen(true),
+              },
+              {
+                text: 'Share',
+                onPress: () => handleShareInvoice(filePath, fileName),
+              },
+              {
+                text: 'Save Only',
+                style: 'cancel',
+              },
+            ],
+          );
+        } catch (error) {
+          console.error('File write error:', error);
+          toast('File save failed', 'error', error.message);
+        } finally {
+          setIsLoadingPdf(false);
+        }
+      };
+
+      reader.onerror = () => {
+        setIsLoadingPdf(false);
+        toast('File conversion failed', 'error');
+      };
+    } catch (error) {
+      console.error('Download error:', error);
+      toast(
+        'Download failed',
+        'error',
+        error.message || 'Something went wrong',
+      );
+      setIsLoadingPdf(false);
+    }
+  };
+
+  // Handle sharing invoice
+  const handleShareInvoice = async (filePath, fileName) => {
+    try {
+      const fileExists = await RNFS.exists(filePath);
+      if (!fileExists) {
+        toast('File not found', 'error');
+        return;
+      }
+
+      // For iOS, we need to use a different URI format
+      const shareUri =
+        Platform.OS === 'ios' ? `file://${filePath}` : `file://${filePath}`;
+
+      const shareOptions = {
+        title: 'Share Invoice',
+        message: 'Check out this invoice',
+        url: shareUri,
+        type: 'application/pdf',
+        filename: fileName,
+      };
+
+      const result = await Share.share(shareOptions);
+
+      if (result.action === Share.sharedAction) {
+        toast('Invoice shared successfully', 'success');
+      }
+    } catch (error) {
+      console.error('Share error:', error);
+      toast('Share failed', 'error', error.message);
+    }
+  };
+
+  // Handle direct view PDF without download
+  const handleViewInvoice = async transaction => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      setIsLoadingPdf(true);
+      toast('Loading invoice...', 'info');
+
+      // Generate PDF
+      const response = await fetch(
+        `${BASE_URL}/api/invoices/generate-pdf/${transaction._id}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      if (!response.ok) throw new Error('Failed to generate PDF');
+
+      // Create blob
+      const blob = await response.blob();
+
+      // Generate filename
+      const fileName = `invoice_${
+        transaction.invoiceNumber || transaction._id
+      }_${new Date().getTime()}.pdf`;
+
+      // Determine temporary directory
+      const tempDir = RNFS.TemporaryDirectoryPath;
+      const filePath = `${tempDir}/${fileName}`;
+
+      // Convert blob to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+
+      reader.onloadend = async () => {
+        const base64data = reader.result.split(',')[1];
+
+        try {
+          await RNFS.writeFile(filePath, base64data, 'base64');
+
+          // Set PDF URI for viewing
+          const fileUri =
+            Platform.OS === 'ios' ? `file://${filePath}` : `file://${filePath}`;
+
+          setPdfUri(fileUri);
+          setIsPdfViewOpen(true);
+        } catch (error) {
+          console.error('File write error:', error);
+          toast('Failed to load PDF', 'error', error.message);
+        } finally {
+          setIsLoadingPdf(false);
+        }
+      };
+
+      reader.onerror = () => {
+        setIsLoadingPdf(false);
+        toast('File conversion failed', 'error');
+      };
+    } catch (error) {
+      console.error('View invoice error:', error);
+      toast(
+        'Failed to load invoice',
+        'error',
+        error.message || 'Something went wrong',
+      );
+      setIsLoadingPdf(false);
+    }
+  };
+
+  // Combined invoice actions handler
+  const handleInvoiceActions = transaction => {
+    Alert.alert('Invoice Actions', 'Choose an action for this invoice', [
+      {
+        text: 'View Invoice',
+        onPress: () => handleViewInvoice(transaction),
+      },
+      {
+        text: 'Download & Save',
+        onPress: () => handleDownloadInvoice(transaction),
+      },
+      {
+        text: 'Share Invoice',
+        onPress: () => {
+          // For share, we need to download first
+          handleDownloadInvoice(transaction);
+        },
+      },
+      {
+        text: 'Cancel',
+        style: 'cancel',
+      },
+    ]);
+  };
+
+  // Event handlers
+  const handleOpenForm = (transaction = null, type = null) => {
+    setTransactionToEdit(transaction);
+    setDefaultTransactionType(type);
     setIsFormOpen(true);
   };
-  const handleOpenDeleteDialog = tx => {
-    setTransactionToDelete(tx);
+
+  const handleOpenDeleteDialog = transaction => {
+    setTransactionToDelete(transaction);
     setIsAlertOpen(true);
   };
-  const handleOpenPreviewDialog = tx => {
-    setTransactionToPreview(tx);
+
+  const handleOpenPreviewDialog = transaction => {
+    setTransactionToPreview(transaction);
     setIsPreviewOpen(true);
   };
+
   const handleViewItems = tx => {
-    const prods = (tx.products || []).map(p => ({
-      itemType: 'product',
-      name: productNameById.get(p.product) || p.product?.name || '(product)',
-      quantity: p.quantity ?? '',
-      unitType: p.unitType ?? '',
-      pricePerUnit: p.pricePerUnit ?? '',
-      description: '',
-      amount: Number(p.amount) || 0,
-    }));
+    const prods = (tx.products || []).map(p => {
+      const productName =
+        productNameById.get(p.product) || p.product?.name || '(product)';
+      const productId =
+        typeof p.product === 'object' ? p.product._id : p.product;
+      const productObj = productsList.find(prod => prod._id === productId);
+      const hsnCode = productObj?.hsn || '';
+
+      return {
+        itemType: 'product',
+        name: productName,
+        quantity: p.quantity ?? '',
+        unitType: p.unitType ?? '',
+        pricePerUnit: p.pricePerUnit ?? '',
+        description: '',
+        amount: Number(p.amount) || 0,
+        hsnCode,
+        gstPercentage: p.gstPercentage,
+        gstRate: p.gstPercentage,
+        lineTax: p.lineTax,
+      };
+    });
+
     const svcArr = Array.isArray(tx.services)
       ? tx.services
       : Array.isArray(tx.service)
@@ -229,6 +842,7 @@ export default function TransactionsScreen() {
       : tx.services
       ? [tx.services]
       : [];
+
     const svcs = svcArr.map(s => {
       const id =
         typeof s.service === 'object'
@@ -237,11 +851,16 @@ export default function TransactionsScreen() {
             (typeof s.serviceName === 'object'
               ? s.serviceName._id
               : s.serviceName);
+
       const name =
         (id && serviceNameById.get(String(id))) ||
         (typeof s.service === 'object' && s.service.serviceName) ||
         (typeof s.serviceName === 'object' && s.serviceName.serviceName) ||
         '(service)';
+
+      const serviceObj = servicesList.find(svc => svc._id === id);
+      const sacCode = serviceObj?.sac || '';
+
       return {
         itemType: 'service',
         name,
@@ -250,220 +869,743 @@ export default function TransactionsScreen() {
         pricePerUnit: '',
         description: s.description || '',
         amount: Number(s.amount) || 0,
+        sacCode,
+        gstPercentage: s.gstPercentage,
+        gstRate: s.gstPercentage,
+        lineTax: s.lineTax,
       };
     });
+
     setItemsToView([...prods, ...svcs]);
     setIsItemsDialogOpen(true);
   };
-  const handleDeleteTransaction = () => {
-    setTransactions(prev =>
-      prev.filter(t => t._id !== transactionToDelete._id),
-    );
-    setIsAlertOpen(false);
-    setTransactionToDelete(null);
-  };
-  const handleUpdateTransaction = updatedTransaction => {
-    setTransactions(prev =>
-      prev.map(t =>
-        t._id === updatedTransaction._id ? updatedTransaction : t,
-      ),
-    );
-    setIsFormOpen(false);
-    setTransactionToEdit(null);
-  };
-  const handleSendInvoice = tx => {
-    alert(`Invoice sent to ${partyMap.get(tx.party) || 'customer'}`);
+
+  const handleDeleteTransaction = async () => {
+    if (!transactionToDelete) return;
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const endpointMap = {
+        sales: `/api/sales/${transactionToDelete._id}`,
+        purchases: `/api/purchase/${transactionToDelete._id}`,
+        receipt: `/api/receipts/${transactionToDelete._id}`,
+        payment: `/api/payments/${transactionToDelete._id}`,
+        journal: `/api/journals/${transactionToDelete._id}`,
+        proforma: `/api/proforma/${transactionToDelete._id}`,
+      };
+
+      const endpoint = endpointMap[transactionToDelete.type];
+      if (!endpoint)
+        throw new Error(
+          `Invalid transaction type: ${transactionToDelete.type}`,
+        );
+
+      const res = await fetch(`${BASE_URL}${endpoint}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to delete transaction.');
+      }
+
+      toast(
+        'Transaction Deleted',
+        'success',
+        'Transaction has been successfully removed.',
+      );
+      fetchTransactions();
+    } catch (error) {
+      toast(
+        'Deletion Failed',
+        'error',
+        error.message || 'Something went wrong.',
+      );
+    } finally {
+      setIsAlertOpen(false);
+      setTransactionToDelete(null);
+    }
   };
 
-  // Renderers
-  const renderTabButton = tab => {
-    // Only show allowed tabs
-    if (
-      (tab.key === 'sales' && !canSales) ||
-      (tab.key === 'purchases' && !canPurchases) ||
-      (tab.key === 'receipts' && !canReceipt) ||
-      (tab.key === 'payments' && !canPayment) ||
-      (tab.key === 'journals' && !canJournal)
-    ) {
-      return null;
+  const handleSendInvoice = async tx => {
+    try {
+      const token = (await AsyncStorage.getItem('token')) || '';
+      const res = await fetch(`${BASE_URL}/api/sales/${tx._id}/send-invoice`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Failed to send invoice');
+
+      toast('Invoice sent', 'success', "Sent to customer's email.");
+    } catch (e) {
+      toast('Send failed', 'error', e.message || 'Something went wrong.');
     }
+  };
+
+  const handleTabChange = tab => {
+    setActiveTab(tab);
+    setIsDropdownOpen(false);
+  };
+
+  const companyMap = useMemo(() => {
+    const map = new Map();
+    companies.forEach(company => {
+      map.set(company._id, company.businessName);
+    });
+    return map;
+  }, [companies]);
+
+  // Updated columns configuration with invoice actions
+  const tableColumns = useMemo(() => {
+    const baseCols = columns({
+      onViewItems: handleViewItems,
+      onPreview: handleOpenPreviewDialog,
+      onEdit: transaction => {
+        if (transaction.type === 'proforma') {
+          setIsProformaFormOpen(true);
+          setTransactionToEdit(transaction);
+        } else {
+          handleOpenForm(transaction);
+        }
+      },
+      onDelete: handleOpenDeleteDialog,
+      onSendInvoice: handleSendInvoice,
+      onDownloadInvoice: handleInvoiceActions,
+      onViewInvoice: handleViewInvoice,
+      companyMap: companyMap,
+      serviceNameById: serviceNameById,
+      userRole: role,
+      onConvertToSales: transaction => {
+        setTransactionToEdit(null);
+        setDefaultTransactionType('sales');
+        setIsFormOpen(true);
+        setPrefillFromTransaction(transaction);
+      },
+    });
+
+    // Remove company column if only one company
+    if (companies.length <= 1) {
+      return baseCols.filter(col => col.id !== 'company');
+    }
+    return baseCols;
+  }, [companyMap, companies.length, serviceNameById, role]);
+
+  // Provide a transaction manager object (stubs) so the bottom-of-file
+  // render calls (action sheet, pdf viewer, dialogs) have a defined
+  // object to call. `useColumns` returns columns + renderer stubs.
+  const transactionManager = useColumns({
+    onViewItems: handleViewItems,
+    onPreview: handleOpenPreviewDialog,
+    onEdit: transaction => {
+      if (transaction.type === 'proforma') {
+        setIsProformaFormOpen(true);
+        setTransactionToEdit(transaction);
+      } else {
+        handleOpenForm(transaction);
+      }
+    },
+    onDownloadInvoice: handleInvoiceActions,
+    onDelete: handleOpenDeleteDialog,
+    companyMap,
+    serviceNameById,
+    onSendInvoice: handleSendInvoice,
+    userRole: role || undefined,
+    onConvertToSales: transaction => {
+      setTransactionToEdit(null);
+      setDefaultTransactionType('sales');
+      setIsFormOpen(true);
+      setPrefillFromTransaction(transaction);
+    },
+  });
+
+  // Tab icons
+  const getTabIcon = tab => {
+    switch (tab) {
+      case TABS.SALES:
+        return 'trending-up';
+      case TABS.PURCHASES:
+        return 'shopping-cart';
+      case TABS.PROFORMA:
+        return 'file-text';
+      case TABS.RECEIPTS:
+        return 'receipt';
+      case TABS.PAYMENTS:
+        return 'credit-card';
+      case TABS.JOURNALS:
+        return 'file-text';
+      default:
+        return 'list';
+    }
+  };
+
+  // Render tab buttons
+  const renderTabButton = (tab, label) => {
+    const isActive = activeTab === tab;
     return (
       <TouchableOpacity
-        key={tab.key}
-        style={[
-          styles.tabButton,
-          activeTab === tab.key && styles.tabButtonActive,
-        ]}
-        onPress={() => setActiveTab(tab.key)}
+        key={tab}
+        style={[styles.tabButton, isActive && styles.activeTabButton]}
+        onPress={() => handleTabChange(tab)}
       >
-        <Icon
-          name={tab.icon}
-          size={20}
-          style={activeTab === tab.key ? styles.tabIconActive : styles.tabIcon}
+        <Feather
+          name={getTabIcon(tab)}
+          size={16}
+          color={isActive ? '#3b82f6' : '#6b7280'}
         />
-        <Text
-          style={
-            activeTab === tab.key ? styles.tabLabelActive : styles.tabLabel
-          }
-        >
-          {tab.label}
+        <Text style={[styles.tabText, isActive && styles.activeTabText]}>
+          {label}
         </Text>
       </TouchableOpacity>
     );
   };
 
-  // DataTable columns config
-  const tableColumns = columns({
-    onViewItems: handleViewItems,
-    onPreview: handleOpenPreviewDialog,
-    onEdit: handleOpenForm,
-    onDelete: handleOpenDeleteDialog,
-    companyMap,
-    serviceNameById,
-    onSendInvoice: handleSendInvoice,
-  });
+  // Render content based on loading state
+  const renderContent = () => {
+    const data = getCurrentData();
+    const currentPagination = getCurrentPagination();
 
-  // Loading and No Company UI
-  if (loading) {
-    return (
-      <View style={styles.centeredFull}>
-        <ActivityIndicator size="large" color="#6366f1" />
-      </View>
-    );
-  }
-  if (!companies.length) {
-    return (
-      <View style={styles.centeredFull}>
-        <View style={styles.companyCard}>
-          <Icon name="office-building" size={40} color="#2563eb" />
-          <Text style={styles.companyTitle}>Company Setup Required</Text>
-          <Text style={styles.companyDesc}>
-            Contact us to enable your company account and access all features.
-          </Text>
-          <TouchableOpacity
-            style={styles.ctaButton}
-            onPress={() => alert('Call +91-8989773689')}
-          >
-            <Icon name="phone" size={22} color="#fff" />
-            <Text style={styles.ctaButtonText}>+91-8989773689</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.ctaButtonOutline}
-            onPress={() => alert('Email: support@company.com')}
-          >
-            <Icon name="email" size={22} color="#2563eb" />
-            <Text style={styles.ctaButtonOutlineText}>Email Us</Text>
-          </TouchableOpacity>
+    if (isLoading && initialLoad) {
+      return (
+        <View style={styles.skeletonContainer}>
+          <LoadingSkeleton isMobile={width <= 768} />
         </View>
-      </View>
-    );
-  }
+      );
+    }
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView keyboardShouldPersistTaps="handled">
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Transactions</Text>
-            <Text style={styles.subtitle}>
-              A list of all financial activities for the selected company.
-            </Text>
-          </View>
+    if (data.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Icon name="receipt" size={80} color="#d1d5db" />
+          <Text style={styles.emptyText}>No transactions found</Text>
+          <Text style={styles.emptySubtext}>
+            Create your first transaction to get started
+          </Text>
           {canCreateAny && (
             <TouchableOpacity
-              style={styles.newButton}
-              onPress={() => handleOpenForm()}
+              style={styles.createFirstButton}
+              onPress={() => handleOpenForm(null)}
             >
-              <Icon name="plus-circle" size={20} color="#fff" />
-              <Text style={styles.newButtonText}>New Transaction</Text>
+              <Icon name="add" size={20} color="white" />
+              <Text style={styles.createFirstButtonText}>
+                Create First Transaction
+              </Text>
             </TouchableOpacity>
           )}
         </View>
+      );
+    }
 
-        {/* Tabs */}
-        <ScrollView
-          horizontal
-          style={styles.tabRow}
-          showsHorizontalScrollIndicator={false}
-        >
-          {TABS.map(renderTabButton)}
-        </ScrollView>
-
-        {/* TABLE */}
-        <View style={styles.tableWrapper}>
-          <DataTable
-            columns={tableColumns}
-            data={filteredData}
-            companyMap={companyMap}
-            partyMap={partyMap}
-          />
-        </View>
-      </ScrollView>
-
-      {/* Transaction Form Modal */}
-<Modal visible={isFormOpen} transparent animationType="fade">
-  <View style={styles.modalOverlay}>
-    <View style={styles.modalCard}>
-      {/* External Header */}
-      <View style={styles.modalHeader}>
-        <View>
-          <Text style={styles.modalTitle}>
-            {transactionToEdit ? 'Edit Transaction' : 'Create Transaction'}
-          </Text>
-          <Text style={styles.modalDescription}>
-            {transactionToEdit 
-              ? 'Update transaction details' 
-              : 'Record a new sales, purchase, or other transaction'
-            }
-          </Text>
-        </View>
-        <TouchableOpacity 
-          style={styles.modalCloseButton}
-          onPress={() => setIsFormOpen(false)}
-        >
-          <Text style={styles.modalCloseText}>✕</Text>
-        </TouchableOpacity>
-      </View>
-      
-      {/* Form Content */}
-      <View style={styles.modalContent}>
-        <TransactionForm
-          transactionToEdit={transactionToEdit}
-          onFormSubmit={handleUpdateTransaction}
-          onClose={() => setIsFormOpen(false)}
-          defaultType={
-            transactionToEdit
-              ? transactionToEdit.type
-              : allowedTypes[0] || 'sales'
-          }
+    return (
+      <View style={styles.tableContainer}>
+        <DataTable
+          columns={tableColumns}
+          data={currentPagination.paginatedData}
+          key={`${refreshTrigger}-${currentPagination.page}`}
         />
       </View>
-    </View>
-  </View>
-</Modal>
+    );
+  };
 
-      {/* Delete Dialog */}
-      <Modal visible={isAlertOpen} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.alertModal}>
+  // Handle refresh
+  const onRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchTransactions();
+    setIsRefreshing(false);
+  };
+
+  // Main render function for content
+  const renderMainContent = () => {
+    if (companies.length === 0 && !isLoading) {
+      return (
+        <View style={styles.companySetupContainer}>
+          <ScrollView
+            contentContainerStyle={styles.companySetupScrollContainer}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={onRefresh}
+                colors={['#3b82f6']}
+              />
+            }
+          >
+            <View style={styles.companySetupContent}>
+              <View style={styles.iconContainer}>
+                <Icon name="business" size={64} color="#3b82f6" />
+              </View>
+
+              <Text style={styles.companySetupTitle}>
+                Company Setup Required
+              </Text>
+              <Text style={styles.companySetupDescription}>
+                Contact us to enable your company account and access all
+                features.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.contactButton}
+                onPress={() => Linking.openURL('tel:+918989773689')}
+              >
+                <Icon name="phone" size={20} color="white" />
+                <Text style={styles.contactButtonText}>+91-8989773689</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.emailButton}
+                onPress={() => Linking.openURL('mailto:support@company.com')}
+              >
+                <Icon name="email" size={20} color="#3b82f6" />
+                <Text style={styles.emailButtonText}>Email Us</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      );
+    }
+
+    return (
+      <>
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Transactions</Text>
+            <Text style={styles.subtitle}>
+              A list of all financial activities for the selected company
+            </Text>
+          </View>
+
+          {canCreateAny && (
+            <View style={styles.headerButtons}>
+              <TouchableOpacity
+                style={styles.newTransactionButton}
+                onPress={() => handleOpenForm(null)}
+              >
+                <Icon name="add-circle" size={20} color="white" />
+                <Text style={styles.newTransactionButtonText}>
+                  New Transaction
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.proformaButton}
+                onPress={() => setIsProformaFormOpen(true)}
+              >
+                <Icon name="description" size={20} color="#3b82f6" />
+                <Text style={styles.proformaButtonText}>Proforma Invoice</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* Tabs for large screens */}
+        {width > 768 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.tabContainer}>
+              {renderTabButton(TABS.ALL, 'All')}
+              {canSales && renderTabButton(TABS.SALES, 'Sales')}
+              {canPurchases && renderTabButton(TABS.PURCHASES, 'Purchases')}
+              {canSales && renderTabButton(TABS.PROFORMA, 'Proforma')}
+              {canReceipt && renderTabButton(TABS.RECEIPTS, 'Receipts')}
+              {canPayment && renderTabButton(TABS.PAYMENTS, 'Payments')}
+              {canJournal && renderTabButton(TABS.JOURNALS, 'Journals')}
+            </View>
+          </ScrollView>
+        )}
+
+        {/* Dropdown for mobile */}
+        {width <= 768 && (
+          <View style={styles.dropdownContainer}>
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => setIsDropdownOpen(!isDropdownOpen)}
+            >
+              <View style={styles.dropdownButtonContent}>
+                <Feather
+                  name={getTabIcon(activeTab)}
+                  size={20}
+                  color="#374151"
+                />
+                <Text style={styles.dropdownButtonText}>
+                  {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+                </Text>
+              </View>
+              <Feather
+                name={isDropdownOpen ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color="#374151"
+              />
+            </TouchableOpacity>
+
+            {isDropdownOpen && (
+              <View style={styles.dropdownMenu}>
+                <ScrollView style={styles.dropdownScroll}>
+                  <TouchableOpacity
+                    style={[
+                      styles.dropdownItem,
+                      activeTab === TABS.ALL && styles.activeDropdownItem,
+                    ]}
+                    onPress={() => handleTabChange(TABS.ALL)}
+                  >
+                    <Feather
+                      name={getTabIcon(TABS.ALL)}
+                      size={18}
+                      color={activeTab === TABS.ALL ? '#3b82f6' : '#6b7280'}
+                    />
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        activeTab === TABS.ALL && styles.activeDropdownItemText,
+                      ]}
+                    >
+                      All Transactions
+                    </Text>
+                    {activeTab === TABS.ALL && (
+                      <Feather name="check" size={18} color="#3b82f6" />
+                    )}
+                  </TouchableOpacity>
+
+                  {canSales && (
+                    <TouchableOpacity
+                      style={[
+                        styles.dropdownItem,
+                        activeTab === TABS.SALES && styles.activeDropdownItem,
+                      ]}
+                      onPress={() => handleTabChange(TABS.SALES)}
+                    >
+                      <Feather
+                        name={getTabIcon(TABS.SALES)}
+                        size={18}
+                        color={activeTab === TABS.SALES ? '#3b82f6' : '#6b7280'}
+                      />
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          activeTab === TABS.SALES &&
+                            styles.activeDropdownItemText,
+                        ]}
+                      >
+                        Sales
+                      </Text>
+                      {activeTab === TABS.SALES && (
+                        <Feather name="check" size={18} color="#3b82f6" />
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                  {canPurchases && (
+                    <TouchableOpacity
+                      style={[
+                        styles.dropdownItem,
+                        activeTab === TABS.PURCHASES &&
+                          styles.activeDropdownItem,
+                      ]}
+                      onPress={() => handleTabChange(TABS.PURCHASES)}
+                    >
+                      <Feather
+                        name={getTabIcon(TABS.PURCHASES)}
+                        size={18}
+                        color={
+                          activeTab === TABS.PURCHASES ? '#3b82f6' : '#6b7280'
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          activeTab === TABS.PURCHASES &&
+                            styles.activeDropdownItemText,
+                        ]}
+                      >
+                        Purchases
+                      </Text>
+                      {activeTab === TABS.PURCHASES && (
+                        <Feather name="check" size={18} color="#3b82f6" />
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                  {canSales && (
+                    <TouchableOpacity
+                      style={[
+                        styles.dropdownItem,
+                        activeTab === TABS.PROFORMA &&
+                          styles.activeDropdownItem,
+                      ]}
+                      onPress={() => handleTabChange(TABS.PROFORMA)}
+                    >
+                      <Feather
+                        name={getTabIcon(TABS.PROFORMA)}
+                        size={18}
+                        color={
+                          activeTab === TABS.PROFORMA ? '#3b82f6' : '#6b7280'
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          activeTab === TABS.PROFORMA &&
+                            styles.activeDropdownItemText,
+                        ]}
+                      >
+                        Proforma
+                      </Text>
+                      {activeTab === TABS.PROFORMA && (
+                        <Feather name="check" size={18} color="#3b82f6" />
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                  {canReceipt && (
+                    <TouchableOpacity
+                      style={[
+                        styles.dropdownItem,
+                        activeTab === TABS.RECEIPTS &&
+                          styles.activeDropdownItem,
+                      ]}
+                      onPress={() => handleTabChange(TABS.RECEIPTS)}
+                    >
+                      <Feather
+                        name={getTabIcon(TABS.RECEIPTS)}
+                        size={18}
+                        color={
+                          activeTab === TABS.RECEIPTS ? '#3b82f6' : '#6b7280'
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          activeTab === TABS.RECEIPTS &&
+                            styles.activeDropdownItemText,
+                        ]}
+                      >
+                        Receipts
+                      </Text>
+                      {activeTab === TABS.RECEIPTS && (
+                        <Feather name="check" size={18} color="#3b82f6" />
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                  {canPayment && (
+                    <TouchableOpacity
+                      style={[
+                        styles.dropdownItem,
+                        activeTab === TABS.PAYMENTS &&
+                          styles.activeDropdownItem,
+                      ]}
+                      onPress={() => handleTabChange(TABS.PAYMENTS)}
+                    >
+                      <Feather
+                        name={getTabIcon(TABS.PAYMENTS)}
+                        size={18}
+                        color={
+                          activeTab === TABS.PAYMENTS ? '#3b82f6' : '#6b7280'
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          activeTab === TABS.PAYMENTS &&
+                            styles.activeDropdownItemText,
+                        ]}
+                      >
+                        Payments
+                      </Text>
+                      {activeTab === TABS.PAYMENTS && (
+                        <Feather name="check" size={18} color="#3b82f6" />
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                  {canJournal && (
+                    <TouchableOpacity
+                      style={[
+                        styles.dropdownItem,
+                        activeTab === TABS.JOURNALS &&
+                          styles.activeDropdownItem,
+                      ]}
+                      onPress={() => handleTabChange(TABS.JOURNALS)}
+                    >
+                      <Feather
+                        name={getTabIcon(TABS.JOURNALS)}
+                        size={18}
+                        color={
+                          activeTab === TABS.JOURNALS ? '#3b82f6' : '#6b7280'
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          activeTab === TABS.JOURNALS &&
+                            styles.activeDropdownItemText,
+                        ]}
+                      >
+                        Journals
+                      </Text>
+                      {activeTab === TABS.JOURNALS && (
+                        <Feather name="check" size={18} color="#3b82f6" />
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Content */}
+        <View style={styles.content}>
+          {allowedTypes.length === 0 ? (
+            <View style={styles.noAccessContainer}>
+              <Icon name="block" size={48} color="#ef4444" />
+              <Text style={styles.noAccessTitle}>No transaction access</Text>
+              <Text style={styles.noAccessDescription}>
+                You don't have permission to view transaction entries. Please
+                contact your administrator.
+              </Text>
+            </View>
+          ) : (
+            renderContent()
+          )}
+        </View>
+      </>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {companies.length === 0 && !isLoading ? (
+        renderMainContent()
+      ) : (
+        <View style={styles.mainContainer}>{renderMainContent()}</View>
+      )}
+
+      {/* Modals */}
+      {/* Transaction Form Modal */}
+      <Modal
+        visible={isFormOpen}
+        animationType="slide"
+        onRequestClose={() => {
+          setIsFormOpen(false);
+          setTransactionToEdit(null);
+          setPrefillFromTransaction(null);
+          setDefaultTransactionType(null);
+        }}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              {transactionToEdit
+                ? 'Edit Transaction'
+                : 'Create a New Transaction'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                setIsFormOpen(false);
+                setTransactionToEdit(null);
+                setPrefillFromTransaction(null);
+                setDefaultTransactionType(null);
+              }}
+            >
+              <Icon name="close" size={24} color="#374151" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalScroll}>
+            <TransactionForm
+              transactionToEdit={transactionToEdit}
+              onFormSubmit={() => {
+                setIsFormOpen(false);
+                setTransactionToEdit(null);
+                setPrefillFromTransaction(null);
+                fetchTransactions();
+                setRefreshTrigger(prev => prev + 1);
+              }}
+              defaultType={
+                defaultTransactionType ||
+                tabToFormType(activeTab) ||
+                allowedTypes[0] ||
+                'sales'
+              }
+              serviceNameById={serviceNameById}
+              prefillFrom={prefillFromTransaction}
+            />
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Proforma Form Modal */}
+      <Modal
+        visible={isProformaFormOpen}
+        animationType="slide"
+        onRequestClose={() => {
+          setIsProformaFormOpen(false);
+          setTransactionToEdit(null);
+        }}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              {transactionToEdit?.type === 'proforma'
+                ? 'Edit Proforma Invoice'
+                : 'Create Proforma Invoice'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                setIsProformaFormOpen(false);
+                setTransactionToEdit(null);
+              }}
+            >
+              <Icon name="close" size={24} color="#374151" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalScroll}>
+            <ProformaForm
+              transactionToEdit={transactionToEdit}
+              onFormSubmit={() => {
+                setIsProformaFormOpen(false);
+                setTransactionToEdit(null);
+                fetchTransactions();
+                setRefreshTrigger(prev => prev + 1);
+              }}
+              serviceNameById={serviceNameById}
+            />
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Alert Dialog */}
+      <Modal
+        visible={isAlertOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsAlertOpen(false)}
+      >
+        <View style={styles.alertOverlay}>
+          <View style={styles.alertDialog}>
             <Text style={styles.alertTitle}>Are you absolutely sure?</Text>
-            <Text style={styles.alertDesc}>
+            <Text style={styles.alertDescription}>
               This action cannot be undone. This will permanently delete the
               transaction.
             </Text>
-            <View style={styles.alertActions}>
+
+            <View style={styles.alertButtons}>
               <TouchableOpacity
+                style={[styles.alertButton, styles.cancelButton]}
                 onPress={() => setIsAlertOpen(false)}
-                style={styles.alertCancel}
               >
-                <Text style={styles.alertCancelText}>Cancel</Text>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
+
               <TouchableOpacity
+                style={[styles.alertButton, styles.deleteButton]}
                 onPress={handleDeleteTransaction}
-                style={styles.alertContinue}
               >
-                <Text style={styles.alertContinueText}>Continue</Text>
+                <Text style={styles.deleteButtonText}>Delete</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -471,323 +1613,861 @@ export default function TransactionsScreen() {
       </Modal>
 
       {/* Invoice Preview Modal */}
-      <Modal visible={isPreviewOpen} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.previewModal}>
+      <Modal
+        visible={isPreviewOpen}
+        animationType="slide"
+        onRequestClose={() => {
+          setIsPreviewOpen(false);
+          setIsEditMode(false);
+        }}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Invoice Preview</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setIsPreviewOpen(false);
+                setIsEditMode(false);
+              }}
+            >
+              <Icon name="close" size={24} color="#374151" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalScroll}>
             {transactionToPreview && (
               <InvoicePreview
                 transaction={transactionToPreview}
-                company={
-                  companies.find(c => c._id === transactionToPreview.company) ||
-                  null
-                }
-                party={
-                  parties.find(p => p._id === transactionToPreview.party) ||
-                  null
-                }
+                company={companies.find(
+                  c => c._id === transactionToPreview.company?._id,
+                )}
+                party={parties.find(
+                  p =>
+                    p._id === transactionToPreview?.party?._id ||
+                    transactionToPreview?.party === p._id,
+                )}
                 serviceNameById={serviceNameById}
-                onClose={() => setIsPreviewOpen(false)}
               />
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* PDF Viewer Modal */}
+      <Modal
+        visible={isPdfViewOpen}
+        animationType="slide"
+        onRequestClose={() => {
+          setIsPdfViewOpen(false);
+          setPdfUri(null);
+        }}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Invoice PDF</Text>
+            <View style={styles.pdfActions}>
+              {pdfUri && (
+                <TouchableOpacity
+                  style={styles.pdfActionButton}
+                  onPress={() =>
+                    handleShareInvoice(
+                      pdfUri.replace('file://', ''),
+                      'invoice.pdf',
+                    )
+                  }
+                >
+                  <Icon name="share" size={20} color="#3b82f6" />
+                  <Text style={styles.pdfActionText}>Share</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => {
+                  setIsPdfViewOpen(false);
+                  setPdfUri(null);
+                }}
+              >
+                <Icon name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.pdfContainer}>
+            {isLoadingPdf ? (
+              <View style={styles.pdfLoading}>
+                <ActivityIndicator size="large" color="#3b82f6" />
+                <Text style={styles.pdfLoadingText}>Loading PDF...</Text>
+              </View>
+            ) : pdfUri ? (
+              <Pdf
+                source={{ uri: pdfUri, cache: true }}
+                onLoadComplete={(numberOfPages, filePath) => {
+                  console.log(`Number of pages: ${numberOfPages}`);
+                }}
+                onPageChanged={(page, numberOfPages) => {
+                  console.log(`Current page: ${page}`);
+                }}
+                onError={error => {
+                  console.error('PDF Error:', error);
+                  toast('Failed to load PDF', 'error');
+                }}
+                onPressLink={uri => {
+                  console.log(`Link pressed: ${uri}`);
+                }}
+                style={styles.pdf}
+              />
+            ) : (
+              <View style={styles.pdfError}>
+                <Icon name="error" size={48} color="#ef4444" />
+                <Text style={styles.pdfErrorText}>No PDF available</Text>
+              </View>
             )}
           </View>
         </View>
       </Modal>
 
       {/* Items Dialog Modal */}
-      <Modal visible={isItemsDialogOpen} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.itemsModal}>
-            <Text style={styles.itemsTitle}>Item Details</Text>
-            <ScrollView style={{ maxHeight: 350 }}>
-              {itemsToView.map((item, idx) => (
-                <View key={idx} style={styles.itemRow}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Icon
-                      name={item.itemType === 'service' ? 'server' : 'cube'}
-                      size={18}
-                      color="#6b7280"
-                    />
-                    <Text style={{ marginLeft: 8, fontWeight: 'bold' }}>
-                      {item.name ?? '—'}
-                    </Text>
-                  </View>
-                  {item.itemType === 'service' && !!item.description && (
-                    <Text
-                      style={{
-                        color: '#6b7280',
-                        fontSize: 12,
-                        marginBottom: 4,
-                      }}
-                    >
-                      {item.description}
-                    </Text>
-                  )}
-                  <View style={styles.itemDetailsRow}>
-                    <Text style={styles.itemDetail}>
-                      Type:{' '}
-                      <Text style={{ fontWeight: 'bold' }}>
-                        {item.itemType}
+      <Modal
+        visible={isItemsDialogOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsItemsDialogOpen(false)}
+      >
+        <View style={styles.itemsDialogContainer}>
+          <View style={styles.itemsDialog}>
+            <View style={styles.itemsDialogHeader}>
+              <Text style={styles.itemsDialogTitle}>Item Details</Text>
+              <Text style={styles.itemsDialogDescription}>
+                A detailed list of all items in this transaction
+              </Text>
+              <TouchableOpacity
+                style={styles.closeItemsButton}
+                onPress={() => setIsItemsDialogOpen(false)}
+              >
+                <Icon name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.itemsList}>
+              {/* Summary Section */}
+              {itemsToView.length > 0 && (
+                <View style={styles.summaryContainer}>
+                  <View style={styles.summaryRow}>
+                    <View style={styles.summaryItem}>
+                      <Text style={styles.summaryLabel}>Subtotal</Text>
+                      <Text style={styles.summaryValue}>
+                        {formatCurrency(
+                          itemsToView.reduce(
+                            (sum, item) => sum + Number(item.amount || 0),
+                            0,
+                          ),
+                        )}
                       </Text>
-                    </Text>
-                    <Text style={styles.itemDetail}>
-                      Qty:{' '}
-                      <Text style={{ fontWeight: 'bold' }}>
-                        {item.quantity || '—'}
+                    </View>
+
+                    <View style={styles.summaryItem}>
+                      <Text style={styles.summaryLabel}>Tax Total</Text>
+                      <Text style={styles.summaryValue}>
+                        {formatCurrency(
+                          itemsToView.reduce((sum, item) => {
+                            const lineTax = item.lineTax;
+                            if (lineTax !== undefined && lineTax !== null) {
+                              return sum + Number(lineTax);
+                            }
+                            const gstRate =
+                              item.gstPercentage ||
+                              item.gstRate ||
+                              item.gst ||
+                              0;
+                            const taxableValue = item.amount || 0;
+                            const taxAmount = (taxableValue * gstRate) / 100;
+                            return sum + taxAmount;
+                          }, 0),
+                        )}
                       </Text>
-                    </Text>
-                    <Text style={styles.itemDetail}>
-                      Price:{' '}
-                      <Text style={{ fontWeight: 'bold' }}>
-                        {item.pricePerUnit
-                          ? formatCurrency(Number(item.pricePerUnit))
-                          : '—'}
+                    </View>
+
+                    <View style={styles.summaryItem}>
+                      <Text style={styles.summaryLabel}>Grand Total</Text>
+                      <Text style={styles.grandTotal}>
+                        {formatCurrency(
+                          itemsToView.reduce(
+                            (sum, item) => sum + Number(item.amount || 0),
+                            0,
+                          ) +
+                            itemsToView.reduce((sum, item) => {
+                              const lineTax = item.lineTax;
+                              if (lineTax !== undefined && lineTax !== null) {
+                                return sum + Number(lineTax);
+                              }
+                              const gstRate =
+                                item.gstPercentage ||
+                                item.gstRate ||
+                                item.gst ||
+                                0;
+                              const taxableValue = item.amount || 0;
+                              const taxAmount = (taxableValue * gstRate) / 100;
+                              return sum + taxAmount;
+                            }, 0),
+                        )}
                       </Text>
-                    </Text>
-                    <Text style={styles.itemDetail}>
-                      Total:{' '}
-                      <Text style={{ fontWeight: 'bold' }}>
-                        {formatCurrency(Number(item.amount))}
-                      </Text>
-                    </Text>
+                    </View>
                   </View>
                 </View>
-              ))}
+              )}
+
+              {/* Items List */}
+              {itemsToView.map((item, index) => {
+                const isService = item.itemType === 'service';
+                const qty =
+                  !isService && item.quantity
+                    ? `${item.quantity} ${item.unitType || 'Piece'}`
+                    : '—';
+                const rate = !isService
+                  ? formatCurrency(Number(item.pricePerUnit || 0))
+                  : '—';
+                const total = formatCurrency(Number(item.amount || 0));
+                const hsnSacCode = isService ? item.sacCode : item.hsnCode;
+
+                return (
+                  <View key={index} style={styles.itemCard}>
+                    {/* Item Header */}
+                    <View style={styles.itemHeader}>
+                      <Icon
+                        name={isService ? 'dns' : 'inventory'}
+                        size={20}
+                        color="#6b7280"
+                      />
+                      <View style={styles.itemHeaderInfo}>
+                        <Text style={styles.itemName}>{item.name || '—'}</Text>
+                        <View style={styles.itemBadges}>
+                          <View style={styles.itemTypeBadge}>
+                            <Text style={styles.itemTypeText}>
+                              {item.itemType || '—'}
+                            </Text>
+                          </View>
+                          <Text style={styles.hsnSacText}>
+                            HSN/SAC: {hsnSacCode || '—'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Service Description */}
+                    {isService && item.description && (
+                      <Text style={styles.itemDescription}>
+                        {item.description}
+                      </Text>
+                    )}
+
+                    {/* Item Details */}
+                    <View style={styles.itemDetails}>
+                      <View style={styles.detailColumn}>
+                        <Text style={styles.detailLabel}>Quantity</Text>
+                        <Text style={styles.detailValue}>{qty}</Text>
+                      </View>
+
+                      <View style={styles.detailColumn}>
+                        <Text style={styles.detailLabel}>Price/Unit</Text>
+                        <Text style={styles.detailValue}>{rate}</Text>
+                      </View>
+
+                      <View style={styles.totalContainer}>
+                        <Text style={styles.totalLabel}>Total Amount</Text>
+                        <Text style={styles.totalValue}>{total}</Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
             </ScrollView>
-            <TouchableOpacity
-              onPress={() => setIsItemsDialogOpen(false)}
-              style={styles.closeButton}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
+      {/* Transaction manager modals (action sheet, PDF viewer, email dialogs, copy success) */}
+      {transactionManager?.renderActionSheet &&
+        transactionManager.renderActionSheet()}
+      {transactionManager?.renderMailStatusDialog &&
+        transactionManager.renderMailStatusDialog()}
+      {transactionManager?.renderPdfViewer &&
+        transactionManager.renderPdfViewer()}
+      {transactionManager?.renderEmailNotConnectedDialog &&
+        transactionManager.renderEmailNotConnectedDialog()}
+      {transactionManager?.renderCopySuccess &&
+        transactionManager.renderCopySuccess()}
     </SafeAreaView>
   );
-}
+};
 
-// ===========================
-// Styles
-// ===========================
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f7f7fc' },
-  centeredFull: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  headerRow: {
+  container: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  mainContainer: {
+    flex: 1,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+  },
+  skeletonContainer: {
+    flex: 1,
+    padding: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    minHeight: 300,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  createFirstButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+    marginTop: 20,
+  },
+  createFirstButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  header: {
+    padding: 16,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#111827',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  newTransactionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 8,
+  },
+  newTransactionButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  proformaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 8,
+  },
+  proformaButtonText: {
+    color: '#3b82f6',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  tabButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 8,
+    borderRadius: 6,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+  },
+  activeTabButton: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#3b82f6',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  activeTabText: {
+    color: '#3b82f6',
+  },
+  dropdownContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  dropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    backgroundColor: 'white',
+  },
+  dropdownButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dropdownButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: 70,
+    left: 16,
+    right: 16,
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    zIndex: 1000,
+    maxHeight: 300,
+  },
+  dropdownScroll: {
+    maxHeight: 300,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+    gap: 12,
+  },
+  activeDropdownItem: {
+    backgroundColor: '#eff6ff',
+  },
+  dropdownItemText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#374151',
+  },
+  activeDropdownItemText: {
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  content: {
+    flex: 1,
+    padding: 16,
+  },
+  tableContainer: {
+    flex: 1,
+  },
+  noAccessContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    margin: 16,
+  },
+  noAccessTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 16,
+  },
+  noAccessDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'white',
+  },
+  modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#22223b' },
-  subtitle: { color: '#9ca3af', fontSize: 13, marginTop: 2 },
-  newButton: {
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  pdfActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#6366f1',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    gap: 12,
   },
-  newButtonText: {
-    color: '#fff',
-    marginLeft: 6,
+  pdfActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#f3f4f6',
+    gap: 6,
+  },
+  pdfActionText: {
+    fontSize: 14,
+    color: '#3b82f6',
     fontWeight: '500',
-    fontSize: 15,
   },
-  tabRow: { flexDirection: 'row', paddingVertical: 5, paddingHorizontal: 10 },
-  tabButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 22,
-    backgroundColor: '#e0e7ff',
-  },
-  tabButtonActive: { backgroundColor: '#6366f1' },
-  tabIcon: { color: '#6366f1' },
-  tabIconActive: { color: '#fff' },
-  tabLabel: { marginLeft: 6, color: '#6366f1', fontWeight: 'bold' },
-  tabLabelActive: { marginLeft: 6, color: '#fff', fontWeight: 'bold' },
-  tableWrapper: {
-    marginHorizontal: 12,
-    marginVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#fff',
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-  },
-  modalOverlay: {
+  modalScroll: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.15)',
+  },
+  pdfContainer: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  pdf: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  pdfLoading: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  formModal: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 12,
-    width: '90%',
-    maxHeight: '90%',
-  },
-  alertModal: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: 22,
-    minWidth: 280,
-    alignItems: 'center',
-  },
-  alertTitle: { fontWeight: 'bold', fontSize: 17, marginBottom: 6 },
-  alertDesc: { color: '#6b7280', textAlign: 'center', marginBottom: 18 },
-  alertActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
-  alertCancel: {
-    flex: 1,
-    alignItems: 'center',
-    padding: 8,
-    backgroundColor: '#e5e7eb',
-    borderRadius: 10,
-    marginRight: 6,
-  },
-  alertContinue: {
-    flex: 1,
-    alignItems: 'center',
-    padding: 8,
-    backgroundColor: '#6366f1',
-    borderRadius: 10,
-    marginLeft: 6,
-  },
-  alertCancelText: { color: '#22223b', fontWeight: 'bold' },
-  alertContinueText: { color: '#fff', fontWeight: 'bold' },
-  previewModal: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: 10,
-    width: '95%',
-    maxHeight: '93%',
-  },
-  itemsModal: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: 18,
-    width: '92%',
-    maxHeight: '90%',
-  },
-  itemsTitle: {
-    fontWeight: 'bold',
-    fontSize: 19,
-    marginBottom: 10,
-    alignSelf: 'center',
-  },
-  itemRow: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f1f1',
-    paddingVertical: 10,
-  },
-  itemDetailsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginTop: 3,
-  },
-  itemDetail: { fontSize: 13, color: '#374151', marginRight: 10 },
-  closeButton: {
-    marginTop: 15,
-    backgroundColor: '#6366f1',
-    borderRadius: 12,
-    alignItems: 'center',
-    paddingVertical: 9,
-    alignSelf: 'center',
-    width: 110,
-  },
-  closeButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-  companyCard: {
-    backgroundColor: '#ecf2fe',
-    borderRadius: 16,
-    padding: 10,
-    alignItems: 'center',
-    maxWidth: 320,
-  },
-  companyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#22223b',
-    marginTop: 10,
-  },
-  companyDesc: {
+  pdfLoadingText: {
+    marginTop: 12,
+    fontSize: 16,
     color: '#6b7280',
+  },
+  pdfError: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pdfErrorText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#ef4444',
+  },
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  alertDialog: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  alertDescription: {
     fontSize: 14,
-    textAlign: 'center',
-    marginVertical: 10,
+    color: '#6b7280',
+    marginBottom: 20,
   },
-  ctaButton: {
+  alertButtons: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2563eb',
-    borderRadius: 12,
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  alertButton: {
+    paddingHorizontal: 16,
     paddingVertical: 10,
-    paddingHorizontal: 18,
-    marginTop: 8,
+    borderRadius: 6,
   },
-  ctaButtonText: { color: '#fff', fontWeight: 'bold', marginLeft: 8 },
-  ctaButtonOutline: {
-    flexDirection: 'row',
+  cancelButton: {
+    backgroundColor: '#f3f4f6',
+  },
+  cancelButtonText: {
+    color: '#374151',
+    fontWeight: '500',
+  },
+  deleteButton: {
+    backgroundColor: '#ef4444',
+  },
+  deleteButtonText: {
+    color: 'white',
+    fontWeight: '500',
+  },
+  itemsDialogContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
     alignItems: 'center',
-    borderColor: '#2563eb',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    marginTop: 8,
   },
-  ctaButtonOutlineText: { color: '#2563eb', fontWeight: 'bold', marginLeft: 8 },
-   modalCard: {
-    width: '100%',
-    maxWidth: 500,
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: '#fff',
-    maxHeight: '90%',
+  itemsDialog: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    width: '95%',
+    maxWidth: 600,
+    maxHeight: '80%',
   },
-  modalHeader: {
+  itemsDialogHeader: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  itemsDialogTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  itemsDialogDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  closeItemsButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+  },
+  itemsList: {
+    maxHeight: 400,
+  },
+  summaryContainer: {
+    padding: 16,
+    backgroundColor: '#f9fafb',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-    backgroundColor: '#f8fafc',
   },
-  modalTitle: { 
-    fontSize: 18, 
-    fontWeight: '700', 
-    color: '#1e293b',
+  summaryItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: '#6b7280',
     marginBottom: 4,
   },
-  modalDescription: { 
-    color: '#64748b', 
-    fontSize: 14,
+  summaryValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
   },
-  modalCloseButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#e2e8f0',
+  grandTotal: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  itemCard: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  itemHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 12,
+  },
+  itemHeaderInfo: {
+    flex: 1,
+  },
+  itemName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  itemBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  itemTypeBadge: {
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  itemTypeText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#3b82f6',
+  },
+  hsnSacText: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  itemDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  itemDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  detailColumn: {
+    flex: 1,
+  },
+  detailLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  totalContainer: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  totalLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  totalValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  companySetupContainer: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  companySetupScrollContainer: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 10,
   },
-  modalCloseText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#64748b',
+  companySetupContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    maxWidth: 400,
+    width: '100%',
   },
-  modalContent: {
-    maxHeight: 600, // Adjust as needed
+  iconContainer: {
+    width: 96,
+    height: 96,
+    backgroundColor: '#eff6ff',
+    borderRadius: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  companySetupTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  companySetupDescription: {
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  contactButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+    width: '100%',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  contactButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  emailButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  emailButtonText: {
+    color: '#3b82f6',
+    fontWeight: '600',
+    fontSize: 16,
   },
 });
+
+export default TransactionsScreen;

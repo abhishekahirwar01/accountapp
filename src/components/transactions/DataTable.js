@@ -1,778 +1,291 @@
-import React, { useState, useEffect } from 'react';
+// components/transactions/DataTable.js
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
-  ScrollView,
-  TouchableOpacity,
   TextInput,
   StyleSheet,
-  Dimensions,
+  TouchableOpacity,
+  ScrollView,
 } from 'react-native';
+import Feather from 'react-native-vector-icons/Feather';
+import { getColumnLabel, getColumnValue } from './columns';
 
-const DataTable = ({
-  data = [],
-  companyMap,
-  serviceNameById,
-  onViewItems,
-  onPreview,
-  onEdit,
-  onDelete,
-  pageSize = 10,
-}) => {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [searchText, setSearchText] = useState('');
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
-  const [selectedRows, setSelectedRows] = useState([]);
-  const [screenWidth, setScreenWidth] = useState(
-    Dimensions.get('window').width,
-  );
+export default function DataTable({ columns, data }) {
+  const [filter, setFilter] = useState('');
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDirection, setSortDirection] = useState('asc');
 
-  // Define columns matching web structure
-  const columns = [
-    {
-      key: 'date',
-      header: 'Date',
-      width: 100,
-      render: (item) => (
-        <Text style={styles.cellText}>
-          {new Date(item.date).toLocaleDateString('en-IN')}
-        </Text>
-      ),
-    },
-    {
-      key: 'type',
-      header: 'Type',
-      width: 100,
-      render: (item) => (
-        <Text style={[styles.cellText, styles.typeCell]}>
-          {item.type?.charAt(0).toUpperCase() + item.type?.slice(1)}
-        </Text>
-      ),
-    },
-    {
-      key: 'invoiceNumber',
-      header: 'Invoice No',
-      width: 120,
-      render: (item) => (
-        <Text style={styles.cellText}>
-          {item.invoiceNumber || '—'}
-        </Text>
-      ),
-    },
-    {
-      key: 'party',
-      header: 'Party',
-      width: 150,
-      render: (item) => (
-        <Text style={styles.cellText}>
-          {item.party || item.description || '—'}
-        </Text>
-      ),
-    },
-    {
-      key: 'amount',
-      header: 'Amount',
-      width: 120,
-      render: (item) => (
-        <Text style={[styles.cellText, styles.amountCell]}>
-          {new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR',
-          }).format(item.amount || 0)}
-        </Text>
-      ),
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      width: 100,
-      render: (item) => (
-        <View style={[
-          styles.statusBadge,
-          item.status === 'Paid' && styles.statusPaid,
-          item.status === 'Pending' && styles.statusPending,
-          item.status === 'Completed' && styles.statusCompleted,
-        ]}>
-          <Text style={styles.statusText}>
-            {item.status || '—'}
-          </Text>
-        </View>
-      ),
-    },
-    {
-      key: 'company',
-      header: 'Company',
-      width: 120,
-      render: (item) => (
-        <Text style={styles.cellText}>
-          {companyMap?.get(item.company) || '—'}
-        </Text>
-      ),
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      width: 120,
-      render: (item) => (
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.viewButton]}
-            onPress={() => onViewItems?.(item)}
-          >
-            <Text style={styles.actionButtonText}>View Items</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.previewButton]}
-            onPress={() => onPreview?.(item)}
-          >
-            <Text style={styles.actionButtonText}>Preview</Text>
-          </TouchableOpacity>
-        </View>
-      ),
-    },
-  ];
+  const filteredData = useMemo(() => {
+    if (!filter.trim()) return data;
 
-  // Filtered and sorted data
-  const filteredData = data.filter(item =>
-    columns.some(column => {
-      if (column.key === 'actions') return false;
-      const value = item[column.key];
-      return String(value || '').toLowerCase().includes(searchText.toLowerCase());
-    }),
-  );
+    return data.filter(item => {
+      const searchableText = Object.values(item)
+        .filter(val => typeof val === 'string')
+        .join(' ')
+        .toLowerCase();
 
-  // Sorted data
-  const sortedData = [...filteredData].sort((a, b) => {
-    if (!sortConfig.key) return 0;
-    const aValue = a[sortConfig.key];
-    const bValue = b[sortConfig.key];
-    
-    if (sortConfig.key === 'date') {
-      return sortConfig.direction === 'asc' 
-        ? new Date(aValue) - new Date(bValue)
-        : new Date(bValue) - new Date(aValue);
-    }
-    
-    if (aValue < bValue) {
-      return sortConfig.direction === 'asc' ? -1 : 1;
-    }
-    if (aValue > bValue) {
-      return sortConfig.direction === 'asc' ? 1 : -1;
-    }
-    return 0;
-  });
+      const partyName =
+        typeof item.party === 'object'
+          ? item.party.name || ''
+          : item.party || '';
 
-  // Paginated data
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-  const paginatedData = sortedData.slice(startIndex, endIndex);
-  const totalPages = Math.ceil(sortedData.length / pageSize);
+      const description = item.description || '';
 
-  // Handle sort
-  const handleSort = key => {
-    setSortConfig(prevConfig => ({
-      key,
-      direction:
-        prevConfig.key === key && prevConfig.direction === 'asc'
-          ? 'desc'
-          : 'asc',
-    }));
-  };
+      const searchString = (
+        partyName +
+        ' ' +
+        description +
+        ' ' +
+        searchableText
+      ).toLowerCase();
 
-  // Handle row selection
-  const toggleRowSelection = id => {
-    setSelectedRows(prev =>
-      prev.includes(id) ? prev.filter(rowId => rowId !== id) : [...prev, id],
-    );
-  };
-
-  // Handle select all
-  const toggleSelectAll = () => {
-    if (selectedRows.length === paginatedData.length) {
-      setSelectedRows([]);
-    } else {
-      setSelectedRows(paginatedData.map(row => row.id || row._id));
-    }
-  };
-
-  // Pagination handlers
-  const goToPage = page => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
-  };
-
-  const nextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
-  const prevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
-
-  // Screen width detection for responsive design
-  useEffect(() => {
-    const subscription = Dimensions.addEventListener('change', ({ window }) => {
-      setScreenWidth(window.width);
+      return searchString.includes(filter.toLowerCase());
     });
-    return () => subscription?.remove();
-  }, []);
+  }, [filter, data]);
 
-  const isDesktop = screenWidth > 768;
+  const sortedData = useMemo(() => {
+    if (!sortKey) return filteredData;
 
-  // Render desktop table header
-  const renderTableHeader = () => (
-    <View style={styles.headerRow}>
-      <TouchableOpacity
-        style={[styles.headerCell, { width: 50 }]}
-        onPress={toggleSelectAll}
-      >
-        <Text style={styles.headerText}>
-          {selectedRows.length === paginatedData.length ? '✓' : '☐'}
-        </Text>
-      </TouchableOpacity>
-      {columns.map((column, colIdx) => (
-        <TouchableOpacity
-          key={column.key || colIdx}
-          style={[styles.headerCell, { width: column.width || 120 }]}
-          onPress={() => handleSort(column.key)}
-        >
-          <Text style={styles.headerText}>
-            {column.header}
-            {sortConfig.key === column.key && (
-              <Text style={styles.sortIndicator}>
-                {sortConfig.direction === 'asc' ? ' ↑' : ' ↓'}
-              </Text>
-            )}
-          </Text>
-        </TouchableOpacity>
-      ))}
+    return [...filteredData].sort((a, b) => {
+      const getValue = (obj, key) => {
+        const val = obj[key];
+
+        if (key === 'party' && typeof val === 'object') {
+          return val.name || '';
+        }
+        if (key === 'date') {
+          return new Date(val).getTime();
+        }
+
+        return val;
+      };
+
+      const valA = getValue(a, sortKey);
+      const valB = getValue(b, sortKey);
+
+      if (valA == null) return sortDirection === 'asc' ? -1 : 1;
+      if (valB == null) return sortDirection === 'asc' ? 1 : -1;
+
+      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [sortKey, sortDirection, filteredData]);
+
+  const getItemKey = (item, index) => {
+    if (item._id) return item._id;
+    if (item.id) return item.id;
+    if (item.invoiceNumber) return item.invoiceNumber;
+    return `item-${index}`;
+  };
+
+  const renderRightValue = content => (
+    <View style={styles.valueContainer}>
+      <View style={styles.rightWrap}>
+        {typeof content === 'string' || typeof content === 'number' ? (
+          <Text style={styles.valueText}>{content}</Text>
+        ) : (
+          content
+        )}
+      </View>
     </View>
   );
 
-  // Render desktop table row
-  const renderTableRow = item => (
-    <View
-      key={item.id || item._id}
-      style={[
-        styles.tableRow,
-        selectedRows.includes(item.id || item._id) && styles.selectedRow,
-      ]}
-    >
-      <View style={[styles.tableCell, { width: 50 }]}>
-        <TouchableOpacity
-          onPress={() => toggleRowSelection(item.id || item._id)}
-        >
-          <Text style={styles.checkbox}>
-            {selectedRows.includes(item.id || item._id) ? '✓' : '☐'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-      {columns.map((column, colIdx) => (
-        <View
-          key={column.key || colIdx}
-          style={[styles.tableCell, { width: column.width || 120 }]}
-        >
-          {column.render ? column.render(item) : (
-            <Text style={styles.cellText}>
-              {item[column.key]}
-            </Text>
-          )}
-        </View>
-      ))}
-    </View>
-  );
-
-  // Mobile card renderer
-  const renderMobileCard = item => (
-    <View
-      key={item.id || item._id}
-      style={[
-        styles.mobileCard,
-        selectedRows.includes(item.id || item._id) && styles.selectedCard,
-      ]}
-    >
-      {/* Checkbox on left */}
-      <TouchableOpacity
-        style={styles.mobileCheckbox}
-        onPress={() => toggleRowSelection(item.id || item._id)}
-      >
-        <Text style={styles.checkbox}>
-          {selectedRows.includes(item.id || item._id) ? '✓' : '○'}
-        </Text>
-      </TouchableOpacity>
-
-      {/* Card content */}
-      <View style={styles.mobileCardContent}>
-        {columns
-          .filter(col => col.key !== 'actions')
-          .map((column, colIdx) => (
-            <View
-              key={`${item.id || item._id}-${column.key}`}
-              style={styles.mobileCardRow}
-            >
-              <Text style={styles.mobileLabel}>
-                {column.header}:
-              </Text>
-              <View style={styles.mobileValueContainer}>
-                {column.render ? column.render(item) : (
-                  <Text style={styles.mobileValue}>
-                    {item[column.key] || '—'}
-                  </Text>
-                )}
-              </View>
-            </View>
-          ))}
-        
-        {/* Action buttons for mobile */}
-        <View style={styles.mobileActions}>
-          <TouchableOpacity
-            style={[styles.mobileActionButton, styles.viewButton]}
-            onPress={() => onViewItems?.(item)}
-          >
-            <Text style={styles.mobileActionButtonText}>View Items</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.mobileActionButton, styles.previewButton]}
-            onPress={() => onPreview?.(item)}
-          >
-            <Text style={styles.mobileActionButtonText}>Preview</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+  const renderItem = ({ item }) => (
+    <View style={styles.card}>
+      {columns
+        .filter(col => col.id !== 'select')
+        .map(column => (
+          <View key={column.id} style={styles.row}>
+            <Text style={styles.label}>{getColumnLabel(column)}</Text>
+            {renderRightValue(getColumnValue(column, item))}
+          </View>
+        ))}
     </View>
   );
 
   return (
     <View style={styles.container}>
-      {/* Search Filter */}
-      <View style={styles.filterContainer}>
-        <TextInput
-          style={styles.filterInput}
-          placeholder="Filter by party, product, or description..."
-          value={searchText}
-          onChangeText={setSearchText}
+      {/* Search Container - यहीं रहेगा original जगह पर */}
+      <View style={styles.searchContainer}>
+        <Feather
+          name="search"
+          size={20}
+          color="#6b7280"
+          style={styles.searchIcon}
         />
+        <TextInput
+          placeholder="Filter by party, product, or description..."
+          value={filter}
+          onChangeText={setFilter}
+          style={styles.search}
+          placeholderTextColor="#9ca3af"
+        />
+        {filter.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setFilter('')}
+            style={styles.clearButton}
+          >
+            <Feather name="x" size={18} color="#6b7280" />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Selection Info */}
-      {selectedRows.length > 0 && (
-        <View style={styles.selectionInfo}>
-          <Text style={styles.selectionText}>
-            {selectedRows.length} of {sortedData.length} items selected
+      {filter.length > 0 && (
+        <View style={styles.resultsCount}>
+          <Text style={styles.resultsText}>
+            {sortedData.length} result{sortedData.length !== 1 ? 's' : ''} found
           </Text>
         </View>
       )}
 
-      {/* Desktop Table View */}
-      {isDesktop ? (
-        <View style={styles.desktopContainer}>
-          {renderTableHeader()}
-          <ScrollView style={styles.tableBody}>
-            {paginatedData.length > 0 ? (
-              paginatedData.map(renderTableRow)
-            ) : (
-              <View style={styles.noResults}>
-                <Text style={styles.noResultsText}>No results found.</Text>
-              </View>
-            )}
-          </ScrollView>
+      {/* Render as plain list (not Virtualized) to avoid nested VirtualizedList warnings when
+              embedded inside a ScrollView. For large datasets, convert back to FlatList and
+              remove the outer ScrollView in the parent. */}
+      {sortedData.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Feather name="inbox" size={64} color="#d1d5db" />
+          <Text style={styles.emptyTitle}>No transactions found</Text>
+          <Text style={styles.emptySubtitle}>
+            {filter.length > 0
+              ? 'Try adjusting your search'
+              : 'Create your first transaction to get started'}
+          </Text>
         </View>
       ) : (
-        /* Mobile Card View */
-        <ScrollView style={styles.mobileView}>
-          {paginatedData.length > 0 ? (
-            paginatedData.map(renderMobileCard)
-          ) : (
-            <View style={styles.noResultsMobile}>
-              <Text style={styles.noResultsIcon}>📊</Text>
-              <Text style={styles.noResultsTitle}>No records found</Text>
-              <Text style={styles.noResultsDescription}>
-                We couldn't find any matching records. Try adjusting your search.
-              </Text>
+        <ScrollView
+          nestedScrollEnabled={true}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={true}
+        >
+          {sortedData.map((item, index) => (
+            <View key={getItemKey(item, index)} style={styles.card}>
+              {columns
+                .filter(col => col.id !== 'select')
+                .map(column => (
+                  <View key={column.id} style={styles.row}>
+                    <Text style={styles.label}>{getColumnLabel(column)}</Text>
+                    {renderRightValue(getColumnValue(column, item))}
+                  </View>
+                ))}
             </View>
-          )}
+          ))}
         </ScrollView>
-      )}
-
-      {/* Pagination */}
-      {sortedData.length > 0 && (
-        <View style={styles.pagination}>
-          <Text style={styles.paginationInfo}>
-            Page {currentPage} of {totalPages} • {sortedData.length} items
-          </Text>
-
-          <View style={styles.paginationControls}>
-            <TouchableOpacity
-              style={[
-                styles.paginationButton,
-                currentPage === 1 && styles.disabledButton,
-              ]}
-              onPress={prevPage}
-              disabled={currentPage === 1}
-            >
-              <Text style={styles.paginationButtonText}>Previous</Text>
-            </TouchableOpacity>
-
-            {/* Page Numbers */}
-            <View style={styles.pageNumbers}>
-              {[...Array(Math.min(5, totalPages))].map((_, index) => {
-                const pageNumber = index + 1;
-                return (
-                  <TouchableOpacity
-                    key={pageNumber}
-                    style={[
-                      styles.pageNumber,
-                      currentPage === pageNumber && styles.activePageNumber,
-                    ]}
-                    onPress={() => goToPage(pageNumber)}
-                  >
-                    <Text
-                      style={[
-                        styles.pageNumberText,
-                        currentPage === pageNumber &&
-                          styles.activePageNumberText,
-                      ]}
-                    >
-                      {pageNumber}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.paginationButton,
-                currentPage === totalPages && styles.disabledButton,
-              ]}
-              onPress={nextPage}
-              disabled={currentPage === totalPages}
-            >
-              <Text style={styles.paginationButtonText}>Next</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
       )}
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: 'white',
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  filterContainer: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  filterInput: {
-    height: 40,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: '#e5e7eb',
     borderRadius: 8,
     paddingHorizontal: 12,
-    backgroundColor: 'white',
-    fontSize: 14,
+    marginBottom: 12,
+    marginHorizontal: 4,
   },
-  selectionInfo: {
-    backgroundColor: '#dbeafe',
-    padding: 12,
-    marginHorizontal: 16,
-    marginVertical: 8,
-    borderRadius: 6,
-  },
-  selectionText: {
-    color: '#1e40af',
-    fontSize: 14,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  desktopContainer: {
+
+  searchIcon: { marginRight: 8 },
+
+  search: {
     flex: 1,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    backgroundColor: '#f8fafc',
-    borderBottomWidth: 2,
-    borderBottomColor: '#e2e8f0',
-  },
-  headerCell: {
-    padding: 12,
-    borderRightWidth: 1,
-    borderRightColor: '#e2e8f0',
-    minHeight: 50,
-    justifyContent: 'center',
-  },
-  headerText: {
-    fontWeight: '600',
+    paddingVertical: 12,
     fontSize: 14,
-    color: '#374151',
+    color: '#111827',
   },
-  sortIndicator: {
-    color: '#2563eb',
-    marginLeft: 4,
-  },
-  tableBody: {
-    flex: 1,
-  },
-  tableRow: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    backgroundColor: 'white',
-  },
-  selectedRow: {
-    backgroundColor: '#f0f9ff',
-  },
-  tableCell: {
-    padding: 12,
-    borderRightWidth: 1,
-    borderRightColor: '#e5e7eb',
-    minHeight: 50,
-    justifyContent: 'center',
-  },
-  cellText: {
-    fontSize: 14,
-    color: '#374151',
-  },
-  typeCell: {
-    fontWeight: '500',
-    textTransform: 'capitalize',
-  },
-  amountCell: {
-    fontWeight: '600',
-    color: '#059669',
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: '#6b7280',
-  },
-  statusPaid: {
-    backgroundColor: '#10b981',
-  },
-  statusPending: {
-    backgroundColor: '#f59e0b',
-  },
-  statusCompleted: {
-    backgroundColor: '#3b82f6',
-  },
-  statusText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  actionButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 6,
-    minWidth: 60,
-  },
-  viewButton: {
-    backgroundColor: '#3b82f6',
-  },
-  previewButton: {
-    backgroundColor: '#8b5cf6',
-  },
-  actionButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  checkbox: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2563eb',
-    textAlign: 'center',
-  },
-  mobileView: {
-    flex: 1,
-    padding: 16,
-  },
-  mobileCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+
+  clearButton: { padding: 4 },
+
+  resultsCount: { paddingHorizontal: 4, paddingBottom: 8 },
+
+  resultsText: { fontSize: 12, color: '#6b7280' },
+
+  listContent: { paddingBottom: 20 },
+
+  card: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
     padding: 16,
     marginBottom: 12,
+    marginHorizontal: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
-    flexDirection: 'row',
+    borderColor: '#f3f4f6',
   },
-  selectedCard: {
-    backgroundColor: '#f0f9ff',
-    borderColor: '#bae6fd',
-  },
-  mobileCheckbox: {
-    marginRight: 12,
-    justifyContent: 'center',
-  },
-  mobileCardContent: {
-    flex: 1,
-  },
-  mobileCardRow: {
+
+  row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f8fafc',
+    borderBottomColor: '#f3f4f6',
   },
-  mobileLabel: {
-    fontSize: 14,
+
+  label: {
+    fontSize: 11,
     fontWeight: '600',
-    color: '#64748b',
-    flex: 1,
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    minWidth: 120,
   },
-  mobileValueContainer: {
-    flex: 2,
+
+  valueContainer: {
+    flex: 1,
     alignItems: 'flex-end',
   },
-  mobileValue: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#334155',
+
+  rightWrap: {
+    width: '100%',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+
+  valueText: {
     textAlign: 'right',
+    fontSize: 14,
+    color: '#111827',
   },
-  mobileActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-  },
-  mobileActionButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    minWidth: 80,
-  },
-  mobileActionButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  noResults: {
-    padding: 40,
+
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'white',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
   },
-  noResultsText: {
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  noResultsMobile: {
-    alignItems: 'center',
-    padding: 40,
-    backgroundColor: 'white',
-    borderRadius: 12,
-  },
-  noResultsIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  noResultsTitle: {
+
+  emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#374151',
+    marginTop: 16,
     marginBottom: 8,
   },
-  noResultsDescription: {
+
+  emptySubtitle: {
     fontSize: 14,
     color: '#6b7280',
     textAlign: 'center',
-    lineHeight: 20,
   },
-  pagination: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#f8fafc',
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    flexWrap: 'wrap',
-  },
-  paginationInfo: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 8,
-  },
-  paginationControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  paginationButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  disabledButton: {
-    opacity: 0.5,
-  },
-  paginationButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  pageNumbers: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  pageNumber: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    minWidth: 40,
-    alignItems: 'center',
-  },
-  activePageNumber: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
-  },
-  pageNumberText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  activePageNumberText: {
-    color: 'white',
+
+  emptyListContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
 });
-
-export default DataTable;

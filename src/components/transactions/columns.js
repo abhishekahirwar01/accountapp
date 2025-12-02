@@ -1,209 +1,66 @@
-import React, { useState, useRef } from 'react';
+// components/transactions/columns.js
+import React, { useState, useEffect, useRef } from 'react';
+import { InteractionManager } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   View,
   Text,
   TouchableOpacity,
-  StyleSheet,
+  Modal,
+  TextInput,
   Alert,
+  Platform,
+  Share,
+  StyleSheet,
   ScrollView,
   Dimensions,
-  Modal,
+  ActivityIndicator,
+  PermissionsAndroid,
+  Linking,
+  Pressable,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import {
-  mockTransactions,
-  mockCompanies,
-  Company,
-  Party,
-} from '../../lib/types.js';
-import {
-  getUnifiedLines,
-  serviceNameById,
-  formatCurrency,
-  formatDate,
-} from '../../lib/utils.js';
-import Avatar from '../../lib/avatar.js';
-import { generatePdfForTemplate1 } from '../../lib/pdfTemplates.js';
+import Clipboard from '@react-native-clipboard/clipboard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import RNFS from 'react-native-fs';
+import Pdf from 'react-native-pdf';
+import Feather from 'react-native-vector-icons/Feather';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import { Checkbox } from 'react-native-paper';
 
-// Icons using react-native-vector-icons
-const Icons = {
-  ArrowUpDown: 'swap-vertical',
-  Download: 'download',
-  MoreHorizontal: 'dots-horizontal',
-  Copy: 'content-copy',
-  Edit: 'pencil',
-  Trash2: 'trash-can-outline',
-  Building: 'office-building',
-  Package: 'package-variant',
-  Eye: 'eye-outline',
-  Server: 'server',
-  Send: 'send',
-  WhatsApp: 'whatsapp',
-};
+// Import all PDF generation functions
+import { generatePdfForTemplate1 } from '../../lib/pdf-template1';
+import { generatePdfForTemplate11 } from '../../lib/pdf-template11';
+import { generatePdfForTemplate12 } from '../../lib/pdf-template12';
+import { generatePdfForTemplate16 } from '../../lib/pdf-template16';
+import { generatePdfForTemplateA5 } from '../../lib/pdf-templateA5';
+import { generatePdfForTemplateA5_3 } from '../../lib/pdf-templateA5-3';
+import { generatePdfForTemplateA5_4 } from '../../lib/pdf-templateA5-4';
+import { generatePdfForTemplatet3 } from '../../lib/pdf-template-t3';
+import { generatePdfForTemplate2 } from '../../lib/pdf-template2';
+import { generatePdfForTemplate17 } from '../../lib/pdf-template17';
+import { generatePdfForTemplate18 } from '../../lib/pdf-template18';
+import { generatePdfForTemplate19 } from '../../lib/pdf-template19';
+import { generatePdfForTemplate3 } from '../../lib/pdf-template3';
+import { generatePdfForTemplate4 } from '../../lib/pdf-template4';
+import { generatePdfForTemplate5 } from '../../lib/pdf-template5';
+import { generatePdfForTemplate6 } from '../../lib/pdf-template6';
+import { generatePdfForTemplate7 } from '../../lib/pdf-template7';
+import { generatePdfForTemplate8 } from '../../lib/pdf-template8';
+import { generatePdfForTemplateA5_2 } from '../../lib/pdf-templateA3-2';
 
-// Enhanced DropdownMenu with better positioning and responsiveness
-const DropdownMenu = ({ trigger, children }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [triggerLayout, setTriggerLayout] = useState(null);
+// Import utilities
+import { getUnifiedLines, capitalizeWords } from '../../lib/utils';
+import { PaymentMethodCell } from './PaymentMethodCell';
+import WhatsAppComposerDialog from './WhatsAppComposerDialog';
+import { whatsappConnectionService } from '../../lib/whatsapp-connection';
+import { BASE_URL } from '../../config';
 
-  const screenHeight = Dimensions.get('window').height;
-  const screenWidth = Dimensions.get('window').width;
-
-  // Get trigger position for dropdown
-  const handleTriggerLayout = event => {
-    setTriggerLayout(event.nativeEvent.layout);
-  };
-
-  const handleTriggerPress = () => {
-    setIsOpen(true);
-  };
-
-  const handleClose = () => {
-    setIsOpen(false);
-  };
-
-  // Calculate dropdown position
-  let dropdownStyle = {};
-  const dropdownWidth = screenWidth < 500 ? 300 : 380;
-const dropdownMaxHeight = screenHeight < 700 ? 320 : 420;
-
-  if (triggerLayout) {
-    // Default below the trigger
-    dropdownStyle.top = triggerLayout.y + triggerLayout.height + 2;
-    dropdownStyle.left = Math.min(
-      triggerLayout.x,
-      screenWidth - dropdownWidth - 8
-    );
-    // If dropdown goes below screen, show above
-    if (dropdownStyle.top + dropdownMaxHeight > screenHeight) {
-      dropdownStyle.top = Math.max(triggerLayout.y - dropdownMaxHeight, 8);
-    }
-  }
-
-  return (
-    <View style={styles.dropdownWrapper}>
-      <View onLayout={handleTriggerLayout}>
-        <TouchableOpacity
-          onPress={handleTriggerPress}
-          style={styles.dropdownTrigger}
-        >
-          {trigger}
-        </TouchableOpacity>
-      </View>
-      <Modal
-        visible={isOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={handleClose}
-      >
-        <TouchableOpacity
-          style={styles.dropdownModalBackdrop}
-          activeOpacity={1}
-          onPress={handleClose}
-        />
-        <View style={[
-          styles.dropdownModalContent,
-          {
-            ...dropdownStyle,
-            minWidth: dropdownWidth,
-            maxHeight: dropdownMaxHeight,
-          }
-        ]}>
-          <ScrollView
-            style={{ maxHeight: dropdownMaxHeight }}
-            contentContainerStyle={{ flexGrow: 1 }}
-            keyboardShouldPersistTaps="handled"
-          >
-            {children}
-          </ScrollView>
-        </View>
-      </Modal>
-    </View>
-  );
-};
-
-const DropdownMenuItem = ({ onPress, children, disabled, style }) => {
-  const handlePress = e => {
-    e.stopPropagation && e.stopPropagation();
-    if (onPress && !disabled) {
-      onPress();
-    }
-  };
-
-  return (
-    <TouchableOpacity
-      style={[styles.menuItem, disabled && styles.menuItemDisabled, style]}
-      onPress={handlePress}
-      disabled={disabled}
-    >
-      {children}
-    </TouchableOpacity>
-  );
-};
-
-const DropdownMenuLabel = ({ children }) => (
-  <View style={styles.menuLabel}>
-    <Text style={styles.menuLabelText}>{children}</Text>
-  </View>
-);
-
-const DropdownMenuSeparator = () => <View style={styles.menuSeparator} />;
-
-const Badge = ({ children, variant = 'secondary', style }) => {
-  const badgeStyles = {
-    default: styles.badgeDefault,
-    secondary: styles.badgeSecondary,
-    success: styles.badgeSuccess,
-    warning: styles.badgeWarning,
-    danger: styles.badgeDanger,
-    info: styles.badgeInfo,
-  };
-
-  return (
-    <View style={[styles.badge, badgeStyles[variant], style]}>
-      <Text style={styles.badgeText}>{children}</Text>
-    </View>
-  );
-};
-
-const Checkbox = ({ checked, onPress, style }) => {
-  return (
-    <TouchableOpacity
-      style={[styles.checkbox, checked && styles.checkboxChecked, style]}
-      onPress={onPress}
-    >
-      {checked && <Icon name="check" size={14} color="white" />}
-    </TouchableOpacity>
-  );
-};
-
-const Tooltip = ({ content, children }) => {
-  const [showTooltip, setShowTooltip] = React.useState(false);
-
-  return (
-    <View style={styles.tooltipWrapper}>
-      <TouchableOpacity
-        onPressIn={() => setShowTooltip(true)}
-        onPressOut={() => setShowTooltip(false)}
-        style={styles.tooltipTrigger}
-      >
-        {children}
-      </TouchableOpacity>
-      {showTooltip && (
-        <View style={styles.tooltip}>
-          {content}
-        </View>
-      )}
-    </View>
-  );
-};
-
-// Custom filter function
-const makeCustomFilterFn = serviceNameById => {
-  return (row, filterValue) => {
+/** Build a filter function that can match party/vendor, description and line names */
+export const makeCustomFilterFn = serviceNameById => {
+  return (transaction, filterValue) => {
     if (!filterValue) return true;
 
-    const tx = row;
+    const tx = transaction;
     const q = String(filterValue).toLowerCase();
 
     // party / vendor
@@ -223,773 +80,2256 @@ const makeCustomFilterFn = serviceNameById => {
   };
 };
 
-export const columns = ({
-  onPreview,
-  onViewItems,
-  onEdit,
-  onDelete,
-  onSendWhatsApp,
-  companyMap = mockCompanies,
+// Print invoice using react-native-share for sharing
+export const printInvoice = async (
+  transaction,
+  company,
+  party,
   serviceNameById,
-  hideActions = false,
-  
+  shippingAddress,
+  bank,
+  client,
+  template = 'template1',
+) => {
+  try {
+    let pdfBlob;
+
+    switch (template) {
+      case 'template1':
+        pdfBlob = await generatePdfForTemplate1(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+          bank,
+          client,
+        );
+        break;
+      case 'template2':
+        pdfBlob = await generatePdfForTemplate2(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+        );
+        break;
+      case 'template3':
+        pdfBlob = await generatePdfForTemplate3(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+        );
+        break;
+      case 'template4':
+        pdfBlob = await generatePdfForTemplate4(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+        );
+        break;
+      case 'template5':
+        pdfBlob = await generatePdfForTemplate5(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+        );
+        break;
+      case 'template6':
+        pdfBlob = await generatePdfForTemplate6(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+        );
+        break;
+      case 'template7':
+        pdfBlob = await generatePdfForTemplate7(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+        );
+        break;
+      case 'template8':
+        pdfBlob = await generatePdfForTemplate8(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+          bank,
+        );
+        break;
+      case 'template11':
+        pdfBlob = await generatePdfForTemplate11(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+          undefined,
+          bank,
+        );
+        break;
+      case 'template12':
+        pdfBlob = await generatePdfForTemplate12(
+          transaction,
+          company || null,
+          party || null,
+          serviceNameById,
+          shippingAddress,
+          bank,
+        );
+        break;
+      case 'template16':
+        pdfBlob = await generatePdfForTemplate16(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+        );
+        break;
+      case 'template17':
+        pdfBlob = await generatePdfForTemplate17(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+          bank,
+        );
+        break;
+      case 'template18':
+        pdfBlob = await generatePdfForTemplate18(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+          bank,
+        );
+        break;
+      case 'template19':
+        pdfBlob = await generatePdfForTemplate19(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+          bank,
+        );
+        break;
+      case 'templateA5':
+        pdfBlob = await generatePdfForTemplateA5(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+          bank,
+          client,
+        );
+        break;
+      case 'templateA5_2':
+        pdfBlob = await generatePdfForTemplateA5_2(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+          bank,
+          client,
+        );
+        break;
+      case 'templateA5_3':
+        pdfBlob = await generatePdfForTemplateA5_3(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+          bank,
+          client,
+        );
+        break;
+      case 'templateA5_4':
+        pdfBlob = await generatePdfForTemplateA5_4(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+          bank,
+          client,
+        );
+        break;
+      case 'template-t3':
+        pdfBlob = await generatePdfForTemplatet3(
+          transaction,
+          company || null,
+          party,
+          shippingAddress,
+          bank,
+        );
+        break;
+      default:
+        pdfBlob = await generatePdfForTemplate1(
+          transaction,
+          company || null,
+          party,
+          serviceNameById,
+          shippingAddress,
+          bank,
+          client,
+        );
+    }
+
+    // Save PDF locally
+    const fileName = `Invoice-${transaction.invoiceNumber || 'INV'}.pdf`;
+    const path = `${RNFS.DocumentDirectoryPath}/${fileName}`;
+
+    // Handle different return types from PDF generators
+    let pdfBase64;
+    if (typeof pdfBlob === 'string') {
+      pdfBase64 = pdfBlob;
+    } else if (pdfBlob instanceof Uint8Array) {
+      pdfBase64 = Buffer.from(pdfBlob).toString('base64');
+    } else if (pdfBlob instanceof Blob) {
+      const arrayBuffer = await new Response(pdfBlob).arrayBuffer();
+      pdfBase64 = Buffer.from(arrayBuffer).toString('base64');
+    } else {
+      pdfBase64 = pdfBlob;
+    }
+
+    await RNFS.writeFile(path, pdfBase64, 'base64');
+
+    // Use react-native-share for sharing the PDF
+    const shareOptions = {
+      title: 'Share Invoice',
+      message: `Invoice: ${transaction.invoiceNumber}`,
+      url: `file://${path}`,
+      type: 'application/pdf',
+      filename: fileName,
+    };
+
+    const result = await Share.share(shareOptions);
+
+    if (result.action === Share.sharedAction) {
+      Alert.alert('Success', 'Invoice shared successfully');
+    }
+
+    // Clean up after some time
+    setTimeout(() => {
+      RNFS.unlink(path).catch(() => {});
+    }, 30000);
+  } catch (error) {
+    console.error('Error sharing invoice:', error);
+    Alert.alert('Error', 'Failed to share invoice');
+    throw error;
+  }
+};
+
+// PDF Viewer Modal Component
+const PdfViewerModal = ({ visible, pdfUri, onClose, onShare }) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  if (!visible) return null;
+
+  const handleShare = async () => {
+    if (onShare && pdfUri) {
+      await onShare(pdfUri);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View style={styles.pdfModalContainer}>
+        {/* Header */}
+        <View style={styles.pdfModalHeader}>
+          <View style={styles.pdfHeaderLeft}>
+            <TouchableOpacity onPress={onClose}>
+              <Feather name="arrow-left" size={24} color="#374151" />
+            </TouchableOpacity>
+            <Text style={styles.pdfModalTitle}>Invoice PDF</Text>
+          </View>
+
+          <View style={styles.pdfHeaderActions}>
+            {pdfUri && (
+              <TouchableOpacity
+                style={styles.pdfShareButton}
+                onPress={handleShare}
+              >
+                <Feather name="share-2" size={20} color="#3b82f6" />
+                <Text style={styles.pdfShareText}>Share</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* PDF Content */}
+        <View style={styles.pdfContent}>
+          {isLoading && (
+            <View style={styles.pdfLoading}>
+              <ActivityIndicator size="large" color="#3b82f6" />
+              <Text style={styles.pdfLoadingText}>Loading PDF...</Text>
+            </View>
+          )}
+
+          {error ? (
+            <View style={styles.pdfError}>
+              <Feather name="file-text" size={48} color="#ef4444" />
+              <Text style={styles.pdfErrorText}>Failed to load PDF</Text>
+              <Text style={styles.pdfErrorSubtext}>{error}</Text>
+            </View>
+          ) : pdfUri ? (
+            <Pdf
+              source={{ uri: pdfUri, cache: true }}
+              style={styles.pdf}
+              onLoadComplete={(numberOfPages, filePath) => {
+                console.log(`PDF loaded: ${numberOfPages} pages`);
+                setIsLoading(false);
+              }}
+              onPageChanged={(page, numberOfPages) => {
+                console.log(`Current page: ${page}/${numberOfPages}`);
+              }}
+              onError={error => {
+                console.error('PDF Error:', error);
+                setError(error.message || 'Unknown error');
+                setIsLoading(false);
+              }}
+              onPressLink={uri => {
+                console.log(`Link pressed: ${uri}`);
+              }}
+              fitPolicy={0}
+              minScale={0.5}
+              maxScale={3.0}
+              enablePaging={true}
+              enableRTL={false}
+              spacing={10}
+            />
+          ) : (
+            <View style={styles.pdfEmpty}>
+              <Feather name="file" size={48} color="#9ca3af" />
+              <Text style={styles.pdfEmptyText}>No PDF available</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// Dialog Component
+const CustomDialog = ({ visible, onClose, title, description, children }) => {
+  if (!visible) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.dialogOverlay} onPress={onClose}>
+        <Pressable style={styles.dialogContainer}>
+          <View style={styles.dialogHeader}>
+            <Text style={styles.dialogTitle}>{title}</Text>
+            {description && (
+              <Text style={styles.dialogDescription}>{description}</Text>
+            )}
+            <TouchableOpacity
+              style={styles.dialogCloseButton}
+              onPress={onClose}
+            >
+              <Feather name="x" size={20} color="#6b7280" />
+            </TouchableOpacity>
+          </View>
+          {children}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+};
+
+// Dropdown Menu Component - anchored to trigger
+const DropdownMenu = ({ trigger, children, align = 'end' }) => {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef(null);
+  const [menuPos, setMenuPos] = useState(null);
+  const windowWidth = Dimensions.get('window').width;
+  const windowHeight = Dimensions.get('window').height;
+  const DEFAULT_MENU_WIDTH = 260;
+  // Increased default menu height so larger dialogs can fit inside when possible
+  const DEFAULT_MENU_HEIGHT = 520;
+  const [contentHeight, setContentHeight] = React.useState(null);
+
+  const runAfterInteractionsAsync = () =>
+    new Promise(resolve => {
+      try {
+        InteractionManager.runAfterInteractions(resolve);
+      } catch (e) {
+        resolve();
+      }
+    });
+
+  const handleTriggerPress = () => {
+    // measure trigger position before opening menu
+    try {
+      if (triggerRef.current && triggerRef.current.measureInWindow) {
+        triggerRef.current.measureInWindow((x, y, w, h) => {
+          setMenuPos({ x, y, w, h });
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    let didOpen = false;
+    runAfterInteractionsAsync().then(() => {
+      if (!didOpen) {
+        didOpen = true;
+        setOpen(true);
+      }
+    });
+
+    setTimeout(() => {
+      if (!didOpen) {
+        didOpen = true;
+        setOpen(true);
+      }
+    }, 200);
+  };
+
+  const closeMenu = () => setOpen(false);
+
+  const handleBackdropPress = () => closeMenu();
+
+  // Clone children so that menu items auto-close the dropdown before running their action.
+  const childrenWithAutoClose = React.Children.map(children, child => {
+    if (!child || !child.props) return child;
+    // If it's a DropdownMenuItem, wrap its onPress to close the menu first
+    if (child.type === DropdownMenuItem) {
+      const originalOnPress = child.props.onPress;
+      const wrapped = () => {
+        // close the dropdown immediately
+        closeMenu();
+        // call original handler after a short delay so the modal backdrop is removed
+        setTimeout(() => {
+          try {
+            originalOnPress && originalOnPress();
+          } catch (e) {
+            console.error('Dropdown item handler error', e);
+          }
+        }, 140);
+      };
+
+      return React.cloneElement(child, { onPress: wrapped });
+    }
+
+    return child;
+  });
+
+  // Compute menu placement and whether inner scrolling is required
+  let menuStyleComputed = [
+    styles.dropdownContent,
+    { alignSelf: align === 'end' ? 'flex-end' : 'flex-start' },
+  ];
+  let innerRequiresScroll = true;
+  if (menuPos) {
+    const spaceBelow = windowHeight - (menuPos.y + menuPos.h);
+    const spaceAbove = menuPos.y;
+    const availableBelow = Math.max(0, spaceBelow - 16);
+    const availableAbove = Math.max(0, spaceAbove - 16);
+    const desiredContent = contentHeight || DEFAULT_MENU_HEIGHT;
+
+    const fitsBelowMeasured = contentHeight
+      ? availableBelow >= desiredContent
+      : availableBelow >= DEFAULT_MENU_HEIGHT;
+    const fitsAboveMeasured = contentHeight
+      ? availableAbove >= desiredContent
+      : availableAbove >= DEFAULT_MENU_HEIGHT;
+
+    let finalH;
+    let top;
+    if (
+      fitsBelowMeasured ||
+      (!fitsAboveMeasured && availableBelow >= availableAbove)
+    ) {
+      finalH = Math.max(80, Math.min(desiredContent, availableBelow));
+      top = menuPos.y + menuPos.h + 6;
+    } else {
+      finalH = Math.max(80, Math.min(desiredContent, availableAbove));
+      top = Math.max(8, menuPos.y - finalH - 6);
+    }
+
+    const left = Math.max(
+      8,
+      Math.min(
+        menuPos.x + menuPos.w - DEFAULT_MENU_WIDTH,
+        windowWidth - DEFAULT_MENU_WIDTH - 8,
+      ),
+    );
+
+    menuStyleComputed = {
+      ...styles.dropdownContent,
+      position: 'absolute',
+      top,
+      left,
+      width: DEFAULT_MENU_WIDTH,
+      height: finalH,
+    };
+
+    innerRequiresScroll = !(contentHeight && contentHeight <= finalH);
+  }
+  return (
+    <>
+      <TouchableOpacity
+        onPress={handleTriggerPress}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <View ref={triggerRef}>{trigger}</View>
+      </TouchableOpacity>
+
+      <Modal
+        transparent
+        visible={open}
+        onRequestClose={closeMenu}
+        animationType="fade"
+        statusBarTranslucent
+      >
+        <Pressable style={styles.dropdownOverlay} onPress={handleBackdropPress}>
+          <SafeAreaView
+            style={styles.dropdownContainer}
+            edges={['top', 'bottom', 'left', 'right']}
+          >
+            <View
+              style={menuStyleComputed}
+              onStartShouldSetResponder={() => true}
+            >
+              {innerRequiresScroll ? (
+                <ScrollView
+                  style={styles.dropdownScroll}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <View
+                    onLayout={e => {
+                      const h = e.nativeEvent.layout.height;
+                      if (h && h !== contentHeight) setContentHeight(h);
+                    }}
+                  >
+                    {childrenWithAutoClose}
+                  </View>
+                </ScrollView>
+              ) : (
+                <View
+                  onLayout={e => {
+                    const h = e.nativeEvent.layout.height;
+                    if (h && h !== contentHeight) setContentHeight(h);
+                  }}
+                >
+                  {childrenWithAutoClose}
+                </View>
+              )}
+            </View>
+          </SafeAreaView>
+        </Pressable>
+      </Modal>
+    </>
+  );
+};
+
+const DropdownMenuItem = ({
+  onPress,
+  children,
+  disabled,
+  destructive,
+  icon,
 }) => {
-  const customFilterFn = makeCustomFilterFn(serviceNameById);
+  const IconComponent = icon?.type || Feather;
+  const handlePress = () => {
+    if (!disabled && onPress) onPress();
+  };
 
-  const baseColumns = [
-    // PARTY / DETAILS
-    {
-      accessorKey: 'party',
-      header: 'Party / Details',
-      filterFn: customFilterFn,
-      cell: row => {
-        const transaction = row.original;
+  return (
+    <TouchableOpacity
+      onPress={handlePress}
+      disabled={disabled}
+      style={[styles.menuItem, disabled && styles.menuItemDisabled]}
+      activeOpacity={0.7}
+    >
+      {icon && (
+        <IconComponent
+          name={icon.name}
+          size={16}
+          color={icon.color || (destructive ? '#dc2626' : '#374151')}
+          style={styles.menuIcon}
+        />
+      )}
+      <Text
+        style={[
+          styles.menuItemText,
+          destructive && styles.menuItemDestructive,
+          disabled && styles.menuItemDisabledText,
+        ]}
+      >
+        {children}
+      </Text>
+    </TouchableOpacity>
+  );
+};
 
-        if (transaction.type === 'journal') {
-          return (
-            <View style={styles.cellContainer}>
-              <Avatar style={styles.journalAvatar}>
-                <Icon name="book-edit-outline" size={16} color="white" />
-              </Avatar>
-              <View style={styles.cellTextContainer}>
-                <Text style={styles.cellPrimary}>Journal Entry</Text>
-                <Text style={styles.cellSecondary}>
-                  {transaction.debitAccount} / {transaction.creditAccount}
-                </Text>
-              </View>
-            </View>
-          );
-        }
+const DropdownMenuLabel = ({ children }) => (
+  <View style={styles.menuLabel}>
+    <Text style={styles.menuLabelText}>{children}</Text>
+  </View>
+);
 
-        const partyOrVendor = transaction.party || transaction.vendor;
-        let partyName = 'N/A';
-        if (partyOrVendor && typeof partyOrVendor === 'object') {
-          partyName = partyOrVendor.name || partyOrVendor.vendorName || 'N/A';
-        }
+const DropdownMenuSeparator = () => <View style={styles.menuSeparator} />;
 
-        return (
-          <View style={styles.cellContainer}>
-            <Avatar style={styles.partyAvatar}>
-              <Text style={styles.avatarText}>
-                {partyName.substring(0, 2).toUpperCase()}
-              </Text>
-            </Avatar>
-            <View style={styles.cellTextContainer}>
-              <Text style={styles.cellPrimary}>{partyName}</Text>
-              <Text style={styles.cellSecondary} numberOfLines={1}>
-                {transaction.description || transaction.narration || ''}
-              </Text>
-            </View>
+// Items Tooltip Component
+const ItemsTooltip = ({ isVisible, onClose, lines }) => {
+  if (!isVisible) return null;
+
+  return (
+    <Modal
+      transparent
+      visible={isVisible}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.tooltipOverlay} onPress={onClose}>
+        <Pressable style={styles.tooltipContent}>
+          <View style={styles.tooltipHeader}>
+            <Text style={styles.tooltipTitle}>Items & Services</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Feather name="x" size={20} color="#374151" />
+            </TouchableOpacity>
           </View>
-        );
-      },
-      flex: 2,
-    },
-
-    // COMPANY
-    {
-      accessorKey: 'company',
-      header: 'Company',
-      cell: row => {
-        const company = row.original.company;
-        const companyId =
-          typeof company === 'object' && company ? company._id : company;
-        const companyName = companyId ? companyMap.get(companyId) : 'N/A';
-
-        return (
-          <View style={styles.companyCell}>
-            <Icon name={Icons.Building} size={18} color="#6b7280" />
-            <Text style={styles.cellPrimary} numberOfLines={1}>
-              {companyName}
-            </Text>
-          </View>
-        );
-      },
-      flex: 1,
-    },
-
-    // LINES (ITEMS/SERVICES)
-    {
-      id: 'lines',
-      header: 'Items / Services',
-      cell: row => {
-        const tx = row.original;
-        const lines = getUnifiedLines(tx, serviceNameById);
-
-        if (!lines.length) {
-          return <Text style={styles.noItemsText}>-</Text>;
-        }
-
-        const MAX_DISPLAY = 2;
-        const displayLines = lines.slice(0, MAX_DISPLAY);
-        const remainingCount = lines.length - MAX_DISPLAY;
-
-        const fullList = (
-          <View style={styles.tooltipContent}>
-            {lines.map((l, idx) => (
-              <View key={idx} style={styles.lineItem}>
-                <Icon
-                  name={l.type === 'product' ? Icons.Package : Icons.Server}
-                  size={16}
-                  color="#6b7280"
-                />
-                <View style={styles.lineDetails}>
-                  <Text style={styles.lineName}>{l.name}</Text>
-                  {l.type === 'product' && (
-                    <Text style={styles.lineMeta}>
-                      {l.quantity}
-                      {l.unitType ? ` ${l.unitType}` : ''}
-                      {l.pricePerUnit ? ` @ ${l.pricePerUnit}` : ''}
+          <ScrollView style={styles.tooltipList}>
+            {lines.map((line, index) => (
+              <View key={index} style={styles.tooltipItem}>
+                <View
+                  style={[
+                    styles.itemIcon,
+                    line.type === 'product'
+                      ? styles.productIcon
+                      : styles.serviceIcon,
+                  ]}
+                >
+                  {line.type === 'product' ? (
+                    <Feather name="package" size={14} color="#0369a1" />
+                  ) : (
+                    <Feather name="tool" size={14} color="#92400e" />
+                  )}
+                </View>
+                <View style={styles.tooltipItemDetails}>
+                  <Text style={styles.tooltipItemName}>{line.name}</Text>
+                  {line.type === 'product' && (
+                    <Text style={styles.tooltipItemMeta}>
+                      {line.quantity}
+                      {line.unitType ? ` ${line.unitType}` : ''}
+                      {line.pricePerUnit
+                        ? ` @ ${new Intl.NumberFormat('en-IN').format(
+                            Number(line.pricePerUnit),
+                          )}`
+                        : ''}
                     </Text>
                   )}
-                  {l.type === 'service' && l.description && (
-                    <Text style={styles.lineMeta} numberOfLines={2}>
-                      {l.description}
+                  {line.type === 'service' && line.description && (
+                    <Text style={styles.tooltipItemDesc}>
+                      {line.description}
                     </Text>
                   )}
                 </View>
               </View>
             ))}
-          </View>
-        );
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+};
 
-        return (
-          <Tooltip content={fullList}>
-            <TouchableOpacity
-              style={styles.linesContainer}
-              onPress={() => onViewItems(row.original)}
+// ✅ SortableHeader Component (alag component)
+const SortableHeader = ({ title, onSort }) => {
+  const [sortDirection, setSortDirection] = useState(null);
+
+  const handlePress = () => {
+    const newDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+    setSortDirection(newDirection);
+    onSort && onSort(newDirection);
+  };
+
+  return (
+    <TouchableOpacity style={styles.sortableHeader} onPress={handlePress}>
+      <Text style={styles.headerText}>{title}</Text>
+      <View style={styles.sortIcons}>
+        <Feather
+          name="chevron-up"
+          size={14}
+          color={sortDirection === 'asc' ? '#3b82f6' : '#9ca3af'}
+          style={styles.sortIcon}
+        />
+        <Feather
+          name="chevron-down"
+          size={14}
+          color={sortDirection === 'desc' ? '#3b82f6' : '#9ca3af'}
+          style={styles.sortIcon}
+        />
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+// ✅ LinesCell Component (alag component)
+const LinesCell = ({ transaction, serviceNameById, onViewItems }) => {
+  const [showCopied, setShowCopied] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  const lines = getUnifiedLines(transaction, serviceNameById);
+
+  if (!lines.length) return <Text style={styles.noItems}>-</Text>;
+
+  const handleCopy = async () => {
+    const transactionType =
+      transaction.type?.charAt(0).toUpperCase() + transaction.type?.slice(1) ||
+      'Transaction';
+
+    let contactName = 'N/A';
+    if (transaction.type === 'purchases') {
+      contactName =
+        typeof transaction.vendor === 'object'
+          ? transaction.vendor.vendorName
+          : transaction.vendor || 'N/A';
+    } else {
+      contactName =
+        typeof transaction.party === 'object'
+          ? transaction.party.name
+          : transaction.party || 'N/A';
+    }
+
+    const date = new Date(transaction.date).toLocaleDateString();
+    const total = new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+    }).format(transaction.totalAmount || transaction.invoiceTotal || 0);
+
+    let text = `${transactionType} Details\n`;
+    text += `Date: ${date}\n`;
+
+    if (transaction.type === 'purchases') {
+      text += `Vendor: ${contactName}\n`;
+    } else if (transaction.type === 'sales') {
+      text += `Customer: ${contactName}\n`;
+    } else {
+      text += `Party: ${contactName}\n`;
+    }
+
+    text += `Total: ${total}\n`;
+
+    if (transaction.type !== 'sales' && transaction.type !== 'purchases') {
+      text += `Reference: ${transaction.referenceNumber || 'N/A'}\n`;
+    }
+
+    text += `\nItems (${lines.length}):\n`;
+
+    lines.forEach((line, index) => {
+      text += `${index + 1}. ${line.type === 'product' ? '📦' : '🛠️'} ${
+        line.name
+      }\n`;
+
+      if (line.type === 'product') {
+        text += `   Qty: ${line.quantity}${
+          line.unitType ? ` ${line.unitType}` : ''
+        }\n`;
+        if (line.pricePerUnit) {
+          text += `   Price: ${new Intl.NumberFormat('en-IN').format(
+            Number(line.pricePerUnit),
+          )}\n`;
+        }
+      } else if (line.type === 'service' && line.description) {
+        text += `   Desc: ${line.description}\n`;
+      }
+
+      if (line.amount) {
+        text += `   Amount: ${new Intl.NumberFormat('en-IN', {
+          style: 'currency',
+          currency: 'INR',
+        }).format(Number(line.amount))}\n`;
+      }
+      text += '\n';
+    });
+
+    await Clipboard.setString(text);
+    setShowCopied(true);
+    setTimeout(() => setShowCopied(false), 2000);
+  };
+
+  const MAX_DISPLAY = 2;
+  const displayLines = lines.slice(0, MAX_DISPLAY);
+  const remainingCount = lines.length - MAX_DISPLAY;
+
+  return (
+    <View style={styles.itemsSection}>
+      <View style={styles.copyButtonWrapper}>
+        <TouchableOpacity style={styles.copyButton} onPress={handleCopy}>
+          <Feather name="copy" size={16} color="#666" />
+        </TouchableOpacity>
+
+        {showCopied && (
+          <View style={styles.copiedMessage}>
+            <Text style={styles.copiedText}>✓ Copied!</Text>
+          </View>
+        )}
+      </View>
+
+      <TouchableOpacity
+        style={styles.itemsContainer}
+        onPress={() => setShowTooltip(true)}
+        onLongPress={() => onViewItems && onViewItems(transaction)}
+        delayLongPress={500}
+      >
+        <View style={styles.itemsAvatars}>
+          {displayLines.map((line, idx) => (
+            <View
+              key={idx}
+              style={[
+                styles.itemIcon,
+                line.type === 'product'
+                  ? styles.productIcon
+                  : styles.serviceIcon,
+                { marginLeft: idx > 0 ? -8 : 0 },
+              ]}
             >
-              <View style={styles.avatarStack}>
-                {displayLines.map((l, idx) => (
-                  <Avatar
-                    key={idx}
-                    size={32}
-                    style={[
-                      styles.stackedAvatar,
-                      idx > 0 && styles.stackedAvatarOverlap,
-                    ]}
-                  >
-                    <Icon
-                      name={l.type === 'product' ? Icons.Package : Icons.Server}
-                      size={14}
-                      color="#6b7280"
-                    />
-                  </Avatar>
-                ))}
-                {remainingCount > 0 && (
-                  <Avatar
-                    size={32}
-                    style={[
-                      styles.stackedAvatar,
-                      styles.moreAvatar,
-                      styles.stackedAvatarOverlap,
-                    ]}
-                  >
-                    <Text style={styles.moreAvatarText}>+{remainingCount}</Text>
-                  </Avatar>
-                )}
-              </View>
-            </TouchableOpacity>
-          </Tooltip>
-        );
-      },
-      flex: 1,
-    },
+              {line.type === 'product' ? (
+                <Feather name="package" size={12} color="#0369a1" />
+              ) : (
+                <Feather name="tool" size={12} color="#92400e" />
+              )}
+            </View>
+          ))}
+          {remainingCount > 0 && (
+            <View style={[styles.itemIcon, styles.remainingItems]}>
+              <Text style={styles.remainingText}>+{remainingCount}</Text>
+            </View>
+          )}
+        </View>
 
-    // AMOUNT
-    {
-      accessorKey: 'totalAmount',
-      header: 'Amount',
-      cell: row => {
-        const amount = parseFloat(
-          String(row.original.totalAmount || row.original.amount || 0),
-        );
-        return (
-          <View style={styles.amountCell}>
-            <Text style={styles.amountText}>{formatCurrency(amount)}</Text>
-          </View>
-        );
-      },
-      flex: 1,
-    },
-
-    // DATE
-    {
-      accessorKey: 'date',
-      header: 'Date',
-      cell: row => (
-        <View style={styles.dateCell}>
-          <Text style={styles.cellPrimary}>
-            {formatDate(row.original.date)}
+        <View style={styles.itemsTextContainer}>
+          <Text style={styles.itemsText} numberOfLines={1}>
+            {lines[0]?.name || '-'}
           </Text>
+          {lines.length > 1 && (
+            <Text style={styles.remainingCountText}>
+              +{lines.length - 1} more
+            </Text>
+          )}
+        </View>
+      </TouchableOpacity>
+
+      <ItemsTooltip
+        isVisible={showTooltip}
+        onClose={() => setShowTooltip(false)}
+        lines={lines}
+      />
+    </View>
+  );
+};
+
+// ✅ TransactionActions Component (alag component) - FIXED
+const TransactionActions = ({
+  transaction,
+  onPreview,
+  onEdit,
+  onDelete,
+  onSendInvoice,
+  onSendWhatsApp,
+  userRole,
+  onConvertToSales,
+  companyMap,
+  serviceNameById,
+}) => {
+  console.log('TRANSACTION ACTIONS RENDERED:', transaction._id);
+  const [isWhatsAppDialogOpen, setIsWhatsAppDialogOpen] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [mailSentDialogOpen, setMailSentDialogOpen] = useState(false);
+  const [mailSentTo, setMailSentTo] = useState('');
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [isCopyingId, setIsCopyingId] = useState(false);
+  const [pdfUri, setPdfUri] = useState(null);
+  const [isPdfViewOpen, setIsPdfViewOpen] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  const isInvoiceable =
+    transaction.type === 'sales' || transaction.type === 'proforma';
+  const isWhatsAppAllowed =
+    transaction.type === 'sales' || transaction.type === 'receipt';
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Transaction',
+      'Are you sure you want to delete this transaction?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => onDelete && onDelete(transaction),
+        },
+      ],
+    );
+  };
+
+  const handleEdit = () => {
+    onEdit && onEdit(transaction);
+  };
+
+  const handlePreview = () => {
+    onPreview && onPreview(transaction);
+  };
+
+  const handleSendInvoice = async () => {
+    if (onSendInvoice) {
+      await onSendInvoice(transaction);
+    }
+  };
+
+  const handleSendWhatsApp = async () => {
+    Alert.alert(
+      'Send WhatsApp',
+      'This feature requires WhatsApp integration setup.',
+      [{ text: 'OK' }],
+    );
+    // Uncomment to enable actual WhatsApp sending
+    // setIsWhatsAppDialogOpen(true);
+  };
+
+  const handleSendEmail = async () => {
+    setIsSendingEmail(true);
+    setTimeout(() => {
+      setMailSentTo('❌ Email integration not configured');
+      setMailSentDialogOpen(true);
+      setIsSendingEmail(false);
+    }, 1000);
+  };
+
+  const handleCopyTransactionId = async () => {
+    try {
+      setIsCopyingId(true);
+      await Clipboard.setString(transaction._id || '');
+      Alert.alert('Copied', 'Transaction ID copied to clipboard');
+    } catch (error) {
+      console.error('Copy error:', error);
+      Alert.alert('Error', 'Failed to copy transaction ID');
+    } finally {
+      setIsCopyingId(false);
+    }
+  };
+
+  const handleViewPDF = async () => {
+    if (!isInvoiceable) {
+      Alert.alert(
+        'Cannot View PDF',
+        'Only sales and proforma transactions can be viewed as PDF.',
+      );
+      return;
+    }
+
+    Alert.alert(
+      'View PDF',
+      'PDF viewing functionality requires integration setup.',
+      [{ text: 'OK' }],
+    );
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!isInvoiceable) {
+      Alert.alert(
+        'Cannot Download',
+        'Only sales and proforma transactions can be downloaded as invoices.',
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Download PDF',
+      'PDF download functionality requires integration setup.',
+      [{ text: 'OK' }],
+    );
+  };
+
+  const handlePrintInvoice = async () => {
+    if (!isInvoiceable) {
+      Alert.alert(
+        'Cannot Print',
+        'Only sales transactions can be printed as invoices.',
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Print Invoice',
+      'Invoice printing functionality requires integration setup.',
+      [{ text: 'OK' }],
+    );
+  };
+
+  const handleConvertToSales = () => {
+    if (onConvertToSales) {
+      onConvertToSales(transaction);
+    }
+  };
+
+  return (
+    <>
+      <DropdownMenu
+        trigger={
+          <View style={styles.moreButton}>
+            <Feather name="more-horizontal" size={20} color="#666" />
+          </View>
+        }
+      >
+        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+
+        {transaction.type === 'proforma' && onConvertToSales && (
+          <DropdownMenuItem
+            onPress={handleConvertToSales}
+            icon={{ type: Feather, name: 'arrow-right' }}
+          >
+            Make it Sales Transaction
+          </DropdownMenuItem>
+        )}
+
+        {isWhatsAppAllowed && (
+          <DropdownMenuItem
+            onPress={handleSendWhatsApp}
+            icon={{
+              type: FontAwesome5,
+              name: 'whatsapp',
+              color: '#25D366',
+            }}
+          >
+            Send on WhatsApp
+          </DropdownMenuItem>
+        )}
+
+        {isInvoiceable && (
+          <DropdownMenuItem
+            onPress={handleSendEmail}
+            disabled={isSendingEmail}
+            icon={{ type: Feather, name: 'send' }}
+          >
+            {isSendingEmail ? 'Sending...' : 'Send Invoice via Email'}
+          </DropdownMenuItem>
+        )}
+
+        {isInvoiceable && (
+          <DropdownMenuItem
+            onPress={handleSendInvoice}
+            icon={{ type: Feather, name: 'send' }}
+          >
+            Send Invoice (API)
+          </DropdownMenuItem>
+        )}
+
+        <DropdownMenuSeparator />
+
+        {isInvoiceable && (
+          <DropdownMenuItem
+            onPress={handlePreview}
+            icon={{ type: Feather, name: 'eye' }}
+          >
+            Preview Invoice
+          </DropdownMenuItem>
+        )}
+
+        {/* View PDF option */}
+        {isInvoiceable && (
+          <DropdownMenuItem
+            onPress={handleViewPDF}
+            disabled={isGeneratingPdf}
+            icon={{ type: Feather, name: 'file-text' }}
+          >
+            {isGeneratingPdf ? 'Generating...' : 'View PDF'}
+          </DropdownMenuItem>
+        )}
+
+        {isInvoiceable && (
+          <DropdownMenuItem
+            onPress={handleDownloadPDF}
+            disabled={isGeneratingPdf}
+            icon={{ type: Feather, name: 'download' }}
+          >
+            {isGeneratingPdf ? 'Generating...' : 'Download Invoice'}
+          </DropdownMenuItem>
+        )}
+
+        {isInvoiceable && (
+          <DropdownMenuItem
+            onPress={handlePrintInvoice}
+            icon={{ type: Feather, name: 'printer' }}
+          >
+            Share Invoice
+          </DropdownMenuItem>
+        )}
+
+        <DropdownMenuItem
+          onPress={handleCopyTransactionId}
+          disabled={isCopyingId}
+          icon={{ type: Feather, name: 'copy' }}
+        >
+          {isCopyingId ? 'Copying...' : 'Copy transaction ID'}
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem
+          onPress={handleEdit}
+          icon={{ type: Feather, name: 'edit' }}
+        >
+          Edit transaction
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          onPress={handleDelete}
+          icon={{ type: Feather, name: 'trash-2' }}
+          destructive
+        >
+          Delete transaction
+        </DropdownMenuItem>
+      </DropdownMenu>
+
+      {/* PDF Viewer Modal */}
+      <PdfViewerModal
+        visible={isPdfViewOpen}
+        pdfUri={pdfUri}
+        onClose={() => {
+          setIsPdfViewOpen(false);
+          setPdfUri(null);
+        }}
+        onShare={() => {
+          if (pdfUri) {
+            const filePath = pdfUri.replace('file://', '');
+            // handleSharePDF(filePath);
+          }
+        }}
+      />
+
+      <WhatsAppComposerDialog
+        isOpen={isWhatsAppDialogOpen}
+        onClose={() => setIsWhatsAppDialogOpen(false)}
+        transaction={transaction}
+        party={{ _id: '', name: 'Customer' }}
+        company={{ businessName: 'Company' }}
+      />
+
+      <CustomDialog
+        visible={mailSentDialogOpen}
+        onClose={() => setMailSentDialogOpen(false)}
+        title="Mail Status"
+        description={mailSentTo}
+      >
+        <TouchableOpacity
+          style={styles.okButton}
+          onPress={() => setMailSentDialogOpen(false)}
+        >
+          <Text style={styles.okButtonText}>OK</Text>
+        </TouchableOpacity>
+      </CustomDialog>
+
+      <CustomDialog
+        visible={emailDialogOpen}
+        onClose={() => setEmailDialogOpen(false)}
+        title={
+          userRole === 'client'
+            ? 'Email invoicing is enabled for your account'
+            : 'Email invoicing requires setup'
+        }
+        description={
+          userRole === 'client'
+            ? 'Your administrator has granted you permission to send invoices via email.'
+            : 'Please contact your administrator to set up email integration.'
+        }
+      >
+        {userRole === 'client' && (
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => setEmailDialogOpen(false)}
+          >
+            <Text style={styles.primaryButtonText}>Go to Permissions</Text>
+          </TouchableOpacity>
+        )}
+      </CustomDialog>
+    </>
+  );
+};
+
+// ✅ Main columns function - WEB जैसा structure
+export const columns = ({
+  onPreview,
+  onViewItems,
+  onEdit,
+  onDelete,
+  companyMap,
+  serviceNameById,
+  onSendInvoice,
+  onSendWhatsApp,
+  hideActions = false,
+  userRole,
+  onConvertToSales,
+  customerBalances,
+  selectedRows = [],
+  onSelectRow,
+  onSelectAllRows,
+  hideCheckbox = false,
+  onSortAmount,
+  onViewInvoicePDF,
+  onDownloadInvoicePDF,
+}) => {
+  const customFilterFn = makeCustomFilterFn(serviceNameById);
+
+  // Badge Component (simple function component, no hooks)
+  const Badge = ({ children, variant, style }) => {
+    const typeStyles = {
+      sales: styles.typeSales,
+      purchases: styles.typePurchases,
+      proforma: styles.typeProforma,
+      receipt: styles.typeReceipt,
+      payment: styles.typePayment,
+      journal: styles.typeJournal,
+    };
+
+    return (
+      <View style={[styles.badge, typeStyles[variant], style]}>
+        <Text style={styles.badgeText}>{children}</Text>
+      </View>
+    );
+  };
+
+  // Avatar Component (simple function component, no hooks)
+  const Avatar = ({ children, size = 32, style }) => (
+    <View style={[styles.avatar, { width: size, height: size }, style]}>
+      <Text style={styles.avatarText}>{children}</Text>
+    </View>
+  );
+
+  // ✅ Web की तरह column definitions
+  const baseColumns = [];
+
+  // SELECT COLUMN (if not hidden)
+  if (!hideCheckbox) {
+    baseColumns.push({
+      id: 'select',
+      header: () => (
+        <View style={styles.checkboxHeader}>
+          <Checkbox.Android
+            status={selectedRows.length > 0 ? 'checked' : 'unchecked'}
+            onPress={onSelectAllRows}
+            color="#3b82f6"
+          />
         </View>
       ),
-      flex: 1,
-    },
+      cell: transaction => (
+        <View style={styles.checkboxCell}>
+          <Checkbox.Android
+            status={
+              selectedRows.includes(transaction._id) ? 'checked' : 'unchecked'
+            }
+            onPress={() => onSelectRow && onSelectRow(transaction._id)}
+            color="#3b82f6"
+          />
+        </View>
+      ),
+      render: transaction => (
+        <View style={styles.checkboxCell}>
+          <Checkbox.Android
+            status={
+              selectedRows.includes(transaction._id) ? 'checked' : 'unchecked'
+            }
+            onPress={() => onSelectRow && onSelectRow(transaction._id)}
+            color="#3b82f6"
+          />
+        </View>
+      ),
+      meta: {
+        label: 'SELECT',
+        mobileLabel: 'SELECT',
+      },
+    });
+  }
 
-    // TYPE
-    {
-      accessorKey: 'type',
-      header: 'Type',
-      cell: row => {
-        const type = row.original.type;
-        const typeStyles = {
-          sales: styles.typeSales,
-          purchases: styles.typePurchases,
-          receipt: styles.typeReceipt,
-          payment: styles.typePayment,
-          journal: styles.typeJournal,
-        };
-
-        const typeIcons = {
-          sales: 'sale',
-          purchases: 'cart',
-          receipt: 'receipt',
-          payment: 'cash',
-          journal: 'book-edit',
-        };
-
+  // PARTY / DETAILS - Web की तरह
+  baseColumns.push({
+    id: 'party',
+    header: 'Details',
+    cell: transaction => {
+      if (transaction.type === 'journal') {
         return (
-          <View style={styles.typeCell}>
-            <Badge style={[styles.typeBadge, typeStyles[type]]}>
-              <View style={styles.badgeContent}>
-                <Icon name={typeIcons[type]} size={12} color="#1f2937" />
-                <Text style={styles.badgeText}>
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                </Text>
-              </View>
-            </Badge>
+          <View style={styles.partyInfo}>
+            <Avatar>JE</Avatar>
+            <View>
+              <Text style={styles.partyName}>Journal Entry</Text>
+              <Text style={styles.description}>
+                {transaction.debitAccount} / {transaction.creditAccount}
+              </Text>
+            </View>
           </View>
         );
-      },
-      flex: 1,
-    },
-  ];
+      }
 
-  // ACTIONS COLUMN
+      const partyOrVendor = transaction.party || transaction.vendor;
+      let partyName = 'N/A';
+      if (partyOrVendor && typeof partyOrVendor === 'object') {
+        if ('name' in partyOrVendor) {
+          partyName = partyOrVendor.name;
+        } else if ('vendorName' in partyOrVendor) {
+          partyName = partyOrVendor.vendorName;
+        }
+      }
+
+      if (
+        transaction.type === 'payment' &&
+        transaction.isExpense &&
+        transaction.expense
+      ) {
+        if (
+          typeof transaction.expense === 'object' &&
+          transaction.expense.name
+        ) {
+          partyName = transaction.expense.name;
+        } else if (typeof transaction.expense === 'string') {
+          partyName = transaction.expense;
+        }
+      }
+
+      return (
+        <View style={styles.partyInfo}>
+          <Avatar>{partyName.substring(0, 2).toUpperCase()}</Avatar>
+          <View style={styles.partyText}>
+            <Text style={styles.partyName}>
+              {capitalizeWords(partyName) || 'N/A'}
+            </Text>
+            <Text style={styles.description} numberOfLines={1}>
+              {transaction.description || transaction.narration || ''}
+            </Text>
+          </View>
+        </View>
+      );
+    },
+    render: transaction => {
+      if (transaction.type === 'journal') {
+        return (
+          <View style={styles.partyInfo}>
+            <Avatar>JE</Avatar>
+            <View>
+              <Text style={styles.partyName}>Journal Entry</Text>
+              <Text style={styles.description}>
+                {transaction.debitAccount} / {transaction.creditAccount}
+              </Text>
+            </View>
+          </View>
+        );
+      }
+
+      const partyOrVendor = transaction.party || transaction.vendor;
+      let partyName = 'N/A';
+      if (partyOrVendor && typeof partyOrVendor === 'object') {
+        if ('name' in partyOrVendor) {
+          partyName = partyOrVendor.name;
+        } else if ('vendorName' in partyOrVendor) {
+          partyName = partyOrVendor.vendorName;
+        }
+      }
+
+      if (
+        transaction.type === 'payment' &&
+        transaction.isExpense &&
+        transaction.expense
+      ) {
+        if (
+          typeof transaction.expense === 'object' &&
+          transaction.expense.name
+        ) {
+          partyName = transaction.expense.name;
+        } else if (typeof transaction.expense === 'string') {
+          partyName = transaction.expense;
+        }
+      }
+
+      return (
+        <View style={styles.partyInfo}>
+          <Avatar>{partyName.substring(0, 2).toUpperCase()}</Avatar>
+          <View style={styles.partyText}>
+            <Text style={styles.partyName}>
+              {capitalizeWords(partyName) || 'N/A'}
+            </Text>
+            <Text style={styles.description} numberOfLines={1}>
+              {transaction.description || transaction.narration || ''}
+            </Text>
+          </View>
+        </View>
+      );
+    },
+    filterFn: customFilterFn,
+    meta: {
+      label: 'DETAILS',
+      mobileLabel: 'DETAILS',
+    },
+  });
+
+  // COMPANY - Web की तरह
+  baseColumns.push({
+    id: 'company',
+    header: 'Company',
+    cell: transaction => {
+      const company = transaction.company;
+      const companyId =
+        typeof company === 'object' && company ? company._id : company;
+
+      if (!companyId) return <Text style={styles.naText}>N/A</Text>;
+
+      const companyName = companyMap?.get(companyId) || 'N/A';
+      return (
+        <View style={styles.companySection}>
+          <Feather name="building" size={16} color="#666" />
+          <Text style={styles.companyText} numberOfLines={1}>
+            {companyName}
+          </Text>
+        </View>
+      );
+    },
+    render: transaction => {
+      const company = transaction.company;
+      const companyId =
+        typeof company === 'object' && company ? company._id : company;
+
+      if (!companyId) return <Text style={styles.naText}>N/A</Text>;
+
+      const companyName = companyMap?.get(companyId) || 'N/A';
+      return (
+        <View style={styles.companySection}>
+          <Feather name="building" size={16} color="#666" />
+          <Text style={styles.companyText} numberOfLines={1}>
+            {companyName}
+          </Text>
+        </View>
+      );
+    },
+    meta: {
+      label: 'COMPANY',
+      mobileLabel: 'COMPANY',
+    },
+  });
+
+  // LINES (ITEMS/SERVICES) - Web की तरह
+  baseColumns.push({
+    id: 'lines',
+    header: 'Items / Services',
+    cell: transaction => (
+      <LinesCell
+        transaction={transaction}
+        serviceNameById={serviceNameById}
+        onViewItems={onViewItems}
+      />
+    ),
+    render: transaction => (
+      <LinesCell
+        transaction={transaction}
+        serviceNameById={serviceNameById}
+        onViewItems={onViewItems}
+      />
+    ),
+    meta: {
+      label: 'ITEMS / SERVICES',
+      mobileLabel: 'ITEMS / SERVICES',
+    },
+  });
+
+  // PAYMENT METHOD - Web की तरह
+  baseColumns.push({
+    id: 'paymentMethod',
+    header: 'Payment Method',
+    cell: transaction => <PaymentMethodCell transaction={transaction} />,
+    render: transaction => <PaymentMethodCell transaction={transaction} />,
+    meta: {
+      label: 'PAYMENT METHOD',
+      mobileLabel: 'PAYMENT METHOD',
+    },
+  });
+
+  // AMOUNT - Web की तरह SortableHeader
+  baseColumns.push({
+    id: 'totalAmount',
+    header: () => <SortableHeader title="Amount" onSort={onSortAmount} />,
+    cell: transaction => {
+      const amount = parseFloat(
+        String(transaction.totalAmount || transaction.amount || 0),
+      );
+      const formatted = new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+      }).format(amount);
+
+      return <Text style={styles.amountText}>{formatted}</Text>;
+    },
+    render: transaction => {
+      const amount = parseFloat(
+        String(transaction.totalAmount || transaction.amount || 0),
+      );
+      const formatted = new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+      }).format(amount);
+
+      return <Text style={styles.amountText}>{formatted}</Text>;
+    },
+    meta: {
+      label: 'AMOUNT',
+      mobileLabel: 'AMOUNT',
+    },
+  });
+
+  // DATE - Web की तरह
+  baseColumns.push({
+    id: 'date',
+    header: 'Date',
+    cell: transaction => {
+      const date = new Date(transaction.date);
+      return (
+        <Text style={styles.dateText}>
+          {date.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          })}
+        </Text>
+      );
+    },
+    render: transaction => {
+      const date = new Date(transaction.date);
+      return (
+        <Text style={styles.dateText}>
+          {date.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          })}
+        </Text>
+      );
+    },
+    meta: {
+      label: 'DATE',
+      mobileLabel: 'DATE',
+    },
+  });
+
+  // TYPE - Web की तरह
+  baseColumns.push({
+    id: 'type',
+    header: 'Type',
+    cell: transaction => {
+      const type = transaction.type;
+      const typeStyles = {
+        sales: styles.typeSales,
+        purchases: styles.typePurchases,
+        proforma: styles.typeProforma,
+        receipt: styles.typeReceipt,
+        payment: styles.typePayment,
+        journal: styles.typeJournal,
+      };
+
+      return (
+        <Badge variant={type} style={typeStyles[type]}>
+          {type.charAt(0).toUpperCase() + type.slice(1)}
+        </Badge>
+      );
+    },
+    render: transaction => {
+      const type = transaction.type;
+      const typeStyles = {
+        sales: styles.typeSales,
+        purchases: styles.typePurchases,
+        proforma: styles.typeProforma,
+        receipt: styles.typeReceipt,
+        payment: styles.typePayment,
+        journal: styles.typeJournal,
+      };
+
+      return (
+        <Badge variant={type} style={typeStyles[type]}>
+          {type.charAt(0).toUpperCase() + type.slice(1)}
+        </Badge>
+      );
+    },
+    meta: {
+      label: 'TYPE',
+      mobileLabel: 'TYPE',
+    },
+  });
+
+  // Add actions column if not hidden - Web की तरह
   if (!hideActions) {
     baseColumns.push({
       id: 'actions',
-      cell: row => {
-        const transaction = row.original;
-        const isInvoiceable = transaction.type === 'sales';
-        const isJournal = transaction.type === 'journal';
-        const canSendWhatsApp = !isJournal; // WhatsApp not supported for journal
-
-        const buildCompany = () => {
-          const c = transaction.company;
-          const companyId = typeof c === 'object' && c ? c._id : c;
-          const companyName = companyId ? companyMap.get(companyId) : undefined;
-          return companyName ? { businessName: companyName } : undefined;
-        };
-
-        const buildParty = () => {
-          const pv = transaction.party || transaction.vendor;
-          return pv && typeof pv === 'object' ? pv : undefined;
-        };
-
-        const handleDownload = () => {
-          generatePdfForTemplate1(
-            transaction,
-            buildCompany(),
-            buildParty(),
-            serviceNameById,
-          );
-        };
-
-        const handleCopyId = () => {
-          Alert.alert('Copied', `Transaction ID: ${transaction._id}`);
-        };
-
-        const handleSendWhatsApp = () => {
-          if (onSendWhatsApp) {
-            onSendWhatsApp(transaction);
-          } else {
-            Alert.alert('WhatsApp', 'Send invoice via WhatsApp functionality');
-          }
-        };
-
-        return (
-          <View style={styles.actionsCell}>
-            <DropdownMenu
-              trigger={
-                <View style={styles.actionButton}>
-                  <Icon name={Icons.MoreHorizontal} size={20} color="#64748b" />
-                </View>
-              }
-            >
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-
-              {/* 1. Send on WhatsApp (journal not support) */}
-              <DropdownMenuItem
-                onPress={handleSendWhatsApp}
-                disabled={!canSendWhatsApp}
-              >
-                <View style={styles.menuItemContent}>
-                  <Icon
-                    name={Icons.WhatsApp}
-                    size={18}
-                    color={!canSendWhatsApp ? '#94a3b8' : '#25D366'}
-                  />
-                  <Text
-                    style={[
-                      styles.menuItemText,
-                      !canSendWhatsApp && styles.menuItemTextDisabled,
-                    ]}
-                  >
-                    Send on WhatsApp
-                    {!canSendWhatsApp && ' (Not for Journal)'}
-                  </Text>
-                </View>
-              </DropdownMenuItem>
-
-              <DropdownMenuSeparator />
-
-              {/* 2. Copy Transaction ID */}
-              <DropdownMenuItem onPress={handleCopyId}>
-                <View style={styles.menuItemContent}>
-                  <Icon name={Icons.Copy} size={18} color="#334155" />
-                  <Text style={styles.menuItemText}>Copy Transaction ID</Text>
-                </View>
-              </DropdownMenuItem>
-
-              <DropdownMenuSeparator />
-
-              {/* 3. Preview Invoice (sales only) */}
-              <DropdownMenuItem
-                onPress={() => onPreview(transaction)}
-                disabled={!isInvoiceable}
-              >
-                <View style={styles.menuItemContent}>
-                  <Icon
-                    name={Icons.Eye}
-                    size={18}
-                    color={!isInvoiceable ? '#94a3b8' : '#334155'}
-                  />
-                  <Text
-                    style={[
-                      styles.menuItemText,
-                      !isInvoiceable && styles.menuItemTextDisabled,
-                    ]}
-                  >
-                    Preview Invoice
-                    {!isInvoiceable && ' (Sales Only)'}
-                  </Text>
-                </View>
-              </DropdownMenuItem>
-
-              {/* 4. Download Invoice (sales only) */}
-              <DropdownMenuItem
-                onPress={handleDownload}
-                disabled={!isInvoiceable}
-              >
-                <View style={styles.menuItemContent}>
-                  <Icon
-                    name={Icons.Download}
-                    size={18}
-                    color={!isInvoiceable ? '#94a3b8' : '#334155'}
-                  />
-                  <Text
-                    style={[
-                      styles.menuItemText,
-                      !isInvoiceable && styles.menuItemTextDisabled,
-                    ]}
-                  >
-                    Download Invoice
-                    {!isInvoiceable && ' (Sales Only)'}
-                  </Text>
-                </View>
-              </DropdownMenuItem>
-
-              <DropdownMenuSeparator />
-
-              {/* 5. Edit Transaction */}
-              <DropdownMenuItem onPress={() => onEdit(transaction)}>
-                <View style={styles.menuItemContent}>
-                  <Icon name={Icons.Edit} size={18} color="#334155" />
-                  <Text style={styles.menuItemText}>Edit Transaction</Text>
-                </View>
-              </DropdownMenuItem>
-
-              {/* 6. Delete Transaction */}
-              <DropdownMenuItem
-                onPress={() => onDelete(transaction)}
-                style={styles.deleteMenuItem}
-              >
-                <View style={styles.menuItemContent}>
-                  <Icon name={Icons.Trash2} size={18} color="#dc2626" />
-                  <Text style={[styles.menuItemText, styles.deleteMenuText]}>
-                    Delete Transaction
-                  </Text>
-                </View>
-              </DropdownMenuItem>
-            </DropdownMenu>
-          </View>
-        );
+      header: 'Actions',
+      cell: transaction => (
+        <TransactionActions
+          transaction={transaction}
+          onPreview={onPreview}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onSendInvoice={onSendInvoice}
+          onSendWhatsApp={onSendWhatsApp}
+          userRole={userRole}
+          onConvertToSales={onConvertToSales}
+          companyMap={companyMap}
+          serviceNameById={serviceNameById}
+        />
+      ),
+      render: transaction => (
+        <TransactionActions
+          transaction={transaction}
+          onPreview={onPreview}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onSendInvoice={onSendInvoice}
+          onSendWhatsApp={onSendWhatsApp}
+          userRole={userRole}
+          onConvertToSales={onConvertToSales}
+          companyMap={companyMap}
+          serviceNameById={serviceNameById}
+        />
+      ),
+      meta: {
+        label: 'ACTIONS',
+        mobileLabel: 'ACTIONS',
       },
-      width: 60,
     });
   }
 
   return baseColumns;
 };
 
+// ✅ Helper function to get column labels for mobile
+export const getColumnLabel = (column, defaultLabel = '') => {
+  if (column.meta?.mobileLabel) return column.meta.mobileLabel;
+  if (column.meta?.label) return column.meta.label;
+  if (typeof column.header === 'string') return column.header;
+  return column.id?.toUpperCase() || defaultLabel;
+};
+
+// ✅ Helper function to get column content
+export const getColumnValue = (column, item) => {
+  if (column.cell && typeof column.cell === 'function') {
+    return column.cell(item);
+  }
+  if (column.render && typeof column.render === 'function') {
+    return column.render(item);
+  }
+  return item[column.id] || '';
+};
+
+// Lightweight hook-compatible helper for React Native screens
+// Returns the columns and several renderer stubs expected by screens.
+export const useColumns = options => {
+  const cols = columns(options || {});
+
+  // The screen expects these render helpers to be callable in JSX.
+  // Provide minimal no-op implementations so consumers can opt-in later.
+  const renderActionSheet = () => null;
+  const renderCopySuccess = () => null;
+  const renderEmailNotConnectedDialog = () => null;
+  const renderMailStatusDialog = () => null;
+  const renderPdfViewer = () => null;
+
+  return {
+    columns: cols,
+    renderActionSheet,
+    renderCopySuccess,
+    renderEmailNotConnectedDialog,
+    renderMailStatusDialog,
+    renderPdfViewer,
+  };
+};
+
+// Styles
 const styles = StyleSheet.create({
-  // Dropdown styles
-  dropdownWrapper: {
-    position: 'relative',
-    zIndex: 1000,
-  },
-  dropdownTrigger: {},
-  dropdownModalBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'transparent',
-    zIndex: 1001,
-  },
-  dropdownModalContent: {
-    position: 'absolute',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    zIndex: 1002,
-    overflow: 'hidden',
-  },
-
-  // Menu styles
-  menuLabel: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-    backgroundColor: '#f8fafc',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-  },
-  menuLabelText: {
-    fontWeight: '600',
-    color: '#1e293b',
-    fontSize: 14,
-  },
-  menuItem: {
-    padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  menuItemDisabled: {
-    opacity: 0.5,
-  },
-  menuItemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  menuItemText: {
-    fontSize: 14,
-    color: '#334155',
-    marginLeft: 12,
-    flex: 1,
-  },
-  menuItemTextDisabled: {
-    color: '#94a3b8',
-  },
-  menuSeparator: {
-    height: 1,
-    backgroundColor: '#e2e8f0',
-    marginVertical: 4,
-  },
-  deleteMenuItem: {
-    backgroundColor: '#fef2f2',
-  },
-  deleteMenuText: {
-    color: '#dc2626',
-  },
-
-  // Cell container styles
-  cellContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    flex: 1,
-  },
-  cellTextContainer: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  cellPrimary: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 2,
-  },
-  cellSecondary: {
-    fontSize: 12,
-    color: '#6b7280',
-  },
-
-  // Company cell
-  companyCell: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    flex: 1,
-  },
-
-  // Badge Styles
+  // Badge
   badge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
     alignSelf: 'flex-start',
   },
   badgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-    color: '#1f2937',
+    fontSize: 10,
+    fontWeight: '500',
+    textTransform: 'uppercase',
   },
-  badgeDefault: {
-    backgroundColor: '#3b82f6',
+  typeSales: {
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
   },
-  badgeSecondary: {
-    backgroundColor: '#6b7280',
+  typePurchases: {
+    backgroundColor: 'rgba(249, 115, 22, 0.1)',
   },
-  badgeSuccess: {
-    backgroundColor: '#10b981',
+  typeProforma: {
+    backgroundColor: 'rgba(6, 182, 212, 0.1)',
   },
-  badgeWarning: {
-    backgroundColor: '#f59e0b',
+  typeReceipt: {
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
   },
-  badgeDanger: {
-    backgroundColor: '#ef4444',
+  typePayment: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
   },
-  badgeInfo: {
-    backgroundColor: '#8b5cf6',
+  typeJournal: {
+    backgroundColor: 'rgba(168, 85, 247, 0.1)',
   },
 
-  // Avatar Styles
-  journalAvatar: {
-    backgroundColor: '#8b5cf6',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
+  // Avatar
+  avatar: {
+    borderRadius: 16,
+    backgroundColor: '#e9ecef',
     alignItems: 'center',
-  },
-  partyAvatar: {
-    backgroundColor: '#3b82f6',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     justifyContent: 'center',
-    alignItems: 'center',
+    marginRight: 8,
   },
   avatarText: {
-    color: 'white',
-    fontWeight: 'bold',
     fontSize: 12,
+    fontWeight: '500',
+    color: '#495057',
   },
 
-  // Lines/Items Styles
-  linesContainer: {
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    flex: 1,
+  // Item Icon
+  itemIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
-  avatarStack: {
+  productIcon: {
+    backgroundColor: '#e0f2fe',
+  },
+  serviceIcon: {
+    backgroundColor: '#fef3c7',
+  },
+
+  // Party Info
+  partyInfo: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  stackedAvatar: {
-    backgroundColor: '#f3f4f6',
-    borderWidth: 2,
-    borderColor: 'white',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  partyText: {
+    flex: 1,
   },
-  stackedAvatarOverlap: {
-    marginLeft: -8,
-  },
-  moreAvatar: {
-    backgroundColor: '#d1d5db',
-  },
-  moreAvatarText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#4b5563',
-  },
-  noItemsText: {
+  partyName: {
     fontSize: 14,
-    color: '#9ca3af',
-    fontStyle: 'italic',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    fontWeight: '500',
+    color: '#212529',
+  },
+  description: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginTop: 2,
   },
 
-  // Amount Cell
-  amountCell: {
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    flex: 1,
-    justifyContent: 'center',
+  // Company
+  companySection: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
+  companyText: {
+    fontSize: 12,
+    color: '#495057',
+    marginLeft: 4,
+    flex: 1,
+  },
+
+  // Items
+  itemsSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  copyButtonWrapper: {
+    position: 'relative',
+  },
+  copyButton: {
+    padding: 4,
+  },
+  itemsContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  itemsAvatars: {
+    flexDirection: 'row',
+    marginRight: 8,
+  },
+  remainingItems: {
+    backgroundColor: '#e5e7eb',
+  },
+  remainingText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#4b5563',
+  },
+  itemsTextContainer: {
+    flex: 1,
+  },
+  itemsText: {
+    fontSize: 12,
+    color: '#495057',
+  },
+  remainingCountText: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  noItems: {
+    fontSize: 12,
+    color: '#6c757d',
+    fontStyle: 'italic',
+  },
+
+  // Tooltip
+  tooltipOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  tooltipContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    width: '90%',
+    maxWidth: 400,
+    maxHeight: '80%',
+  },
+  tooltipHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  tooltipTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  tooltipList: {
+    maxHeight: 400,
+  },
+  tooltipItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  tooltipItemDetails: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  tooltipItemName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 2,
+  },
+  tooltipItemMeta: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  tooltipItemDesc: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontStyle: 'italic',
+  },
+
+  // Amount
   amountText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#059669',
+    fontWeight: '500',
+    color: '#212529',
     textAlign: 'right',
   },
 
-  // Date Cell
-  dateCell: {
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    flex: 1,
-    justifyContent: 'center',
-  },
-
-  // Type Cell
-  typeCell: {
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    flex: 1,
-    justifyContent: 'center',
-  },
-  typeBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  badgeContent: {
+  // Sortable Header
+  sortableHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'flex-end',
+    paddingRight: 8,
+  },
+  headerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    marginRight: 4,
+  },
+  sortIcons: {
+    flexDirection: 'column',
+  },
+  sortIcon: {
+    marginTop: -2,
+    marginBottom: -2,
   },
 
-  // Type Specific Styles
-  typeSales: {
-    backgroundColor: '#d1fae5',
-  },
-  typePurchases: {
-    backgroundColor: '#fed7aa',
-  },
-  typeReceipt: {
-    backgroundColor: '#dbeafe',
-  },
-  typePayment: {
-    backgroundColor: '#fecaca',
-  },
-  typeJournal: {
-    backgroundColor: '#e9d5ff',
+  // Date
+  dateText: {
+    fontSize: 12,
+    color: '#6c757d',
   },
 
-  // Actions Cell
-  actionsCell: {
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionButton: {
+  // Checkbox
+  checkboxHeader: {
     padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
+  },
+  checkboxCell: {
+    padding: 8,
   },
 
-  // Checkbox Styles
-  headerCheckbox: {
-    marginLeft: 16,
+  // Dropdown - FIXED STYLES
+  dropdownOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
-  cellCheckbox: {
-    marginLeft: 16,
+  dropdownContainer: {
+    flex: 1,
+    padding: 16,
+    backgroundColor: 'transparent',
   },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
-    borderColor: '#d1d5db',
-    borderRadius: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'white',
-  },
-  checkboxChecked: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
-  },
-
-  // Tooltip Styles
-  tooltipWrapper: {
-    position: 'relative',
-  },
-  tooltipTrigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  tooltip: {
-    position: 'absolute',
-    bottom: '100%',
-    left: 0,
-    backgroundColor: 'white',
-    padding: 12,
+  dropdownContent: {
+    backgroundColor: '#fff',
     borderRadius: 8,
-    zIndex: 1000,
-    marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 5,
-    maxWidth: 300,
+    maxHeight: 800,
+    minWidth: 200,
     borderWidth: 1,
     borderColor: '#e5e7eb',
   },
-  tooltipContent: {
-    backgroundColor: 'transparent',
+  dropdownScroll: {
+    maxHeight: 800,
   },
-
-  // Line Item in Tooltip
-  lineItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+  moreButton: {
     padding: 8,
-    backgroundColor: '#f8fafc',
-    borderRadius: 6,
+    borderRadius: 4,
   },
-  lineDetails: {
-    marginLeft: 8,
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 44,
+  },
+  menuItemDisabled: {
+    opacity: 0.5,
+  },
+  menuItemDisabledText: {
+    color: '#9ca3af',
+  },
+  menuItemDestructive: {
+    color: '#dc2626',
+  },
+  menuItemText: {
+    fontSize: 14,
+    color: '#374151',
     flex: 1,
   },
-  lineName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 2,
+  menuIcon: {
+    marginRight: 12,
   },
-  lineMeta: {
-    fontSize: 11,
+  menuLabel: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  menuLabelText: {
+    fontSize: 12,
+    fontWeight: '600',
     color: '#6b7280',
-    lineHeight: 14,
+    textTransform: 'uppercase',
+  },
+  menuSeparator: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginVertical: 4,
+  },
+
+  // PDF Modal Styles
+  pdfModalContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  pdfModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  pdfHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  pdfModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  pdfHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pdfShareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    gap: 6,
+  },
+  pdfShareText: {
+    fontSize: 14,
+    color: '#3b82f6',
+    fontWeight: '500',
+  },
+  pdfContent: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  pdf: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  pdfLoading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pdfLoadingText: {
+    fontSize: 16,
+    color: '#6b7280',
+    marginTop: 12,
+  },
+  pdfError: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  pdfErrorText: {
+    fontSize: 18,
+    color: '#ef4444',
+    marginTop: 12,
+    fontWeight: '600',
+  },
+  pdfErrorSubtext: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  pdfEmpty: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pdfEmptyText: {
+    fontSize: 16,
+    color: '#9ca3af',
+    marginTop: 12,
+  },
+
+  // WhatsApp Dialog
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dialogContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    width: '90%',
+    maxWidth: 400,
+  },
+  dialogHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  dialogTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  dialogSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 16,
+  },
+  messageInput: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 6,
+    padding: 12,
+    minHeight: 120,
+    textAlignVertical: 'top',
+    marginBottom: 20,
+    fontSize: 14,
+    color: '#111827',
+  },
+  dialogActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 6,
+    minWidth: 80,
+  },
+  cancelButton: {
+    backgroundColor: '#f3f4f6',
+  },
+  cancelButtonText: {
+    color: '#6b7280',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  sendButton: {
+    backgroundColor: '#25D366',
+    gap: 8,
+  },
+  sendButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+
+  // Dialog
+  dialogOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  dialogContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    width: '80%',
+    maxWidth: 400,
+  },
+  dialogHeader: {
+    marginBottom: 20,
+  },
+  dialogTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  dialogDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  dialogCloseButton: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    padding: 8,
+  },
+  okButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  okButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  primaryButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+
+  // Copied message
+  copiedMessage: {
+    position: 'absolute',
+    top: -30,
+    left: -20,
+    backgroundColor: '#10b981',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    zIndex: 1000,
+  },
+  copiedText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+
+  // N/A text
+  naText: {
+    fontSize: 12,
+    color: '#6c757d',
+    fontStyle: 'italic',
   },
 });
 
-export default columns;
+// ✅ Export functions like web
+export default {
+  makeCustomFilterFn,
+  printInvoice,
+  columns,
+  getColumnLabel,
+  getColumnValue,
+};
