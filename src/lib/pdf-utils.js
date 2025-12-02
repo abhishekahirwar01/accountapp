@@ -361,6 +361,44 @@ export const parseNotesForReactPDF = notes => {
   return parseNotesForReactNative(notes);
 };
 
+// Render notes as HTML string for templates that expect HTML output
+export const renderNotes = input => {
+  const notes =
+    input && typeof input === 'object' ? input.notes || '' : input || '';
+  if (!notes) return '';
+
+  try {
+    let formattedNotes = String(notes)
+      // Convert newlines to breaks
+      .replace(/\r\n|\r|\n/g, '<br>')
+      // Standardize paragraph tags to divs
+      .replace(/<p>/gi, '<div style="margin-bottom:8px;">')
+      .replace(/<\/p>/gi, '</div>')
+      // Handle bold/strong
+      .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
+      // Handle italic
+      .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>')
+      // Handle underline
+      .replace(
+        /<u>(.*?)<\/u>/gi,
+        '<span style="text-decoration:underline;">$1</span>',
+      )
+      // Convert lists to simple divs
+      .replace(/<ul>/gi, '<div style="padding-left:15px;">')
+      .replace(/<\/ul>/gi, '</div>')
+      .replace(/<li>/gi, '<div>• ')
+      .replace(/<\/li>/gi, '</div>')
+      // Remove any script/style tags for safety
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      .trim();
+
+    return formattedNotes;
+  } catch (e) {
+    return String(notes).replace(/\r\n|\r|\n/g, '<br>');
+  }
+};
+
 // ==================== INVOICE DATA UTILITIES ====================
 
 export const getItemsBody = (transaction, serviceNameById) => {
@@ -1534,6 +1572,7 @@ export default {
 
   // Template data
   prepareTemplate8Data,
+  renderNotes,
 
   // PDF generation
   generateInvoiceHTML,

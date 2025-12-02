@@ -1,5 +1,11 @@
 // components/transactions/columns.js
 import React, { useState, useEffect, useRef } from 'react';
+
+// Global helper: when a DropdownMenu opens it will set this to its
+// close function. Menu items call this to ensure the menu is closed
+// immediately before running their handlers (prevents z-index/backdrop
+// races on Android/iOS with nested modals).
+let activeDropdownClose = null;
 import { InteractionManager } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -484,6 +490,22 @@ const DropdownMenu = ({ trigger, children, align = 'end' }) => {
       }
     });
 
+  // expose a close function globally while this menu is open so
+  // individual menu items can reliably close the modal before
+  // invoking actions (prevents the menu overlay from obscuring
+  // subsequent dialogs like the invoice preview).
+  React.useEffect(() => {
+    if (open) {
+      activeDropdownClose = closeMenu;
+    } else if (activeDropdownClose === closeMenu) {
+      activeDropdownClose = null;
+    }
+
+    return () => {
+      if (activeDropdownClose === closeMenu) activeDropdownClose = null;
+    };
+  }, [open]);
+
   const handleTriggerPress = () => {
     // measure trigger position before opening menu
     try {
@@ -659,7 +681,26 @@ const DropdownMenuItem = ({
 }) => {
   const IconComponent = icon?.type || Feather;
   const handlePress = () => {
-    if (!disabled && onPress) onPress();
+    if (disabled) return;
+
+    // Close any active dropdown immediately to ensure subsequent
+    // modals/dialogs appear above the menu. Allow a short delay so
+    // the native Modal backdrop is removed before running handler.
+    try {
+      if (typeof activeDropdownClose === 'function') activeDropdownClose();
+    } catch (e) {
+      // ignore
+    }
+
+    if (onPress) {
+      setTimeout(() => {
+        try {
+          onPress();
+        } catch (e) {
+          console.error('Dropdown item handler threw', e);
+        }
+      }, 140);
+    }
   };
 
   return (
@@ -956,10 +997,13 @@ const TransactionActions = ({
   onDelete,
   onSendInvoice,
   onSendWhatsApp,
+  onViewInvoicePDF,
+  onDownloadInvoicePDF,
   userRole,
   onConvertToSales,
   companyMap,
   serviceNameById,
+  parties = [],
 }) => {
   console.log('TRANSACTION ACTIONS RENDERED:', transaction._id);
   const [isWhatsAppDialogOpen, setIsWhatsAppDialogOpen] = useState(false);
@@ -1007,13 +1051,26 @@ const TransactionActions = ({
   };
 
   const handleSendWhatsApp = async () => {
-    Alert.alert(
-      'Send WhatsApp',
-      'This feature requires WhatsApp integration setup.',
-      [{ text: 'OK' }],
-    );
-    // Uncomment to enable actual WhatsApp sending
-    // setIsWhatsAppDialogOpen(true);
+    try {
+      // If the whatsappConnectionService exposes an isConnected method, prefer to check it.
+      const connected =
+        typeof whatsappConnectionService?.isConnected === 'function'
+          ? await whatsappConnectionService.isConnected()
+          : false;
+
+      // If not connected, still open the composer so user can proceed manually or see instructions.
+      if (!connected) {
+        setIsWhatsAppDialogOpen(true);
+        return;
+      }
+
+      // Open the composer dialog when connected
+      setIsWhatsAppDialogOpen(true);
+    } catch (e) {
+      console.error('WhatsApp send error:', e);
+      // Fallback to opening composer so user can still attempt to send
+      setIsWhatsAppDialogOpen(true);
+    }
   };
 
   const handleSendEmail = async () => {
@@ -1063,11 +1120,111 @@ const TransactionActions = ({
       return;
     }
 
-    Alert.alert(
-      'Download PDF',
-      'PDF download functionality requires integration setup.',
-      [{ text: 'OK' }],
-    );
+    try {
+      // Attempt to generate PDF using available templates (default to template1)
+      let pdfBlob;
+      const template = 'template1';
+      switch (template) {
+        case 'template1':
+          pdfBlob = await generatePdfForTemplate1(
+            transaction,
+            transaction.company || null,
+            transaction.party || null,
+            serviceNameById,
+          );
+          break;
+        case 'template2':
+          pdfBlob = await generatePdfForTemplate2(
+            transaction,
+            transaction.company || null,
+            transaction.party || null,
+            serviceNameById,
+          );
+          break;
+        // add other templates if needed
+        default:
+          pdfBlob = await generatePdfForTemplate1(
+            transaction,
+            transaction.company || null,
+            transaction.party || null,
+            serviceNameById,
+          );
+      }
+
+      // Normalize the generator output to base64
+      let pdfBase64;
+      if (typeof pdfBlob === 'string') {
+        pdfBase64 = pdfBlob;
+      } else if (
+        typeof Uint8Array !== 'undefined' &&
+        pdfBlob instanceof Uint8Array
+      ) {
+        pdfBase64 = Buffer.from(pdfBlob).toString('base64');
+      } else if (typeof Blob !== 'undefined' && pdfBlob instanceof Blob) {
+        const arrayBuffer = await new Response(pdfBlob).arrayBuffer();
+        pdfBase64 = Buffer.from(arrayBuffer).toString('base64');
+      } else if (pdfBlob && typeof pdfBlob === 'object' && pdfBlob.base64) {
+        pdfBase64 = pdfBlob.base64;
+      } else if (
+        pdfBlob &&
+        typeof pdfBlob === 'object' &&
+        typeof pdfBlob.output === 'function'
+      ) {
+        try {
+          pdfBase64 = await pdfBlob.output('base64');
+        } catch (e) {
+          // ignore and fallthrough
+        }
+      } else {
+        pdfBase64 = pdfBlob;
+      }
+
+      if (!pdfBase64 || typeof pdfBase64 !== 'string') {
+        throw new Error('Invalid PDF data generated');
+      }
+
+      const invoiceNumber =
+        transaction.invoiceNumber ||
+        transaction.referenceNumber ||
+        transaction._id;
+      const fname = `Invoice-${invoiceNumber || Date.now()}.pdf`;
+
+      // Save to app's document directory
+      const appFilePath = `${RNFS.DocumentDirectoryPath}/${fname}`;
+      await RNFS.writeFile(appFilePath, pdfBase64, 'base64');
+
+      let downloadsFilePath = '';
+      let copiedToDownloads = false;
+
+      // Try to copy to Downloads folder for easier access (best-effort)
+      if (Platform.OS === 'android') {
+        try {
+          downloadsFilePath = `${RNFS.DownloadDirectoryPath}/${fname}`;
+          await RNFS.copyFile(appFilePath, downloadsFilePath);
+          copiedToDownloads = await RNFS.exists(downloadsFilePath);
+        } catch (copyErr) {
+          console.log(
+            'Could not copy to downloads, using app storage only:',
+            copyErr,
+          );
+          copiedToDownloads = false;
+        }
+      }
+
+      const finalPath = copiedToDownloads ? downloadsFilePath : appFilePath;
+      Alert.alert(
+        'Invoice Saved',
+        copiedToDownloads
+          ? `Saved to Downloads folder\nPath: ${finalPath}`
+          : `Saved to app storage\nPath: ${finalPath}`,
+      );
+    } catch (error) {
+      console.error('🔴 Download failed:', error);
+      Alert.alert(
+        'Download failed',
+        error.message || 'Failed to download invoice',
+      );
+    }
   };
 
   const handlePrintInvoice = async () => {
@@ -1103,107 +1260,83 @@ const TransactionActions = ({
       >
         <DropdownMenuLabel>Actions</DropdownMenuLabel>
 
-        {transaction.type === 'proforma' && onConvertToSales && (
-          <DropdownMenuItem
-            onPress={handleConvertToSales}
-            icon={{ type: Feather, name: 'arrow-right' }}
-          >
-            Make it Sales Transaction
-          </DropdownMenuItem>
-        )}
-
-        {isWhatsAppAllowed && (
-          <DropdownMenuItem
-            onPress={handleSendWhatsApp}
-            icon={{
-              type: FontAwesome5,
-              name: 'whatsapp',
-              color: '#25D366',
-            }}
-          >
-            Send on WhatsApp
-          </DropdownMenuItem>
-        )}
-
-        {isInvoiceable && (
-          <DropdownMenuItem
-            onPress={handleSendEmail}
-            disabled={isSendingEmail}
-            icon={{ type: Feather, name: 'send' }}
-          >
-            {isSendingEmail ? 'Sending...' : 'Send Invoice via Email'}
-          </DropdownMenuItem>
-        )}
-
-        {isInvoiceable && (
-          <DropdownMenuItem
-            onPress={handleSendInvoice}
-            icon={{ type: Feather, name: 'send' }}
-          >
-            Send Invoice (API)
-          </DropdownMenuItem>
-        )}
-
-        <DropdownMenuSeparator />
-
-        {isInvoiceable && (
-          <DropdownMenuItem
-            onPress={handlePreview}
-            icon={{ type: Feather, name: 'eye' }}
-          >
-            Preview Invoice
-          </DropdownMenuItem>
-        )}
-
-        {/* View PDF option */}
-        {isInvoiceable && (
-          <DropdownMenuItem
-            onPress={handleViewPDF}
-            disabled={isGeneratingPdf}
-            icon={{ type: Feather, name: 'file-text' }}
-          >
-            {isGeneratingPdf ? 'Generating...' : 'View PDF'}
-          </DropdownMenuItem>
-        )}
-
-        {isInvoiceable && (
-          <DropdownMenuItem
-            onPress={handleDownloadPDF}
-            disabled={isGeneratingPdf}
-            icon={{ type: Feather, name: 'download' }}
-          >
-            {isGeneratingPdf ? 'Generating...' : 'Download Invoice'}
-          </DropdownMenuItem>
-        )}
-
-        {isInvoiceable && (
-          <DropdownMenuItem
-            onPress={handlePrintInvoice}
-            icon={{ type: Feather, name: 'printer' }}
-          >
-            Share Invoice
-          </DropdownMenuItem>
-        )}
-
+        {/* 1) Send on WhatsApp */}
         <DropdownMenuItem
-          onPress={handleCopyTransactionId}
-          disabled={isCopyingId}
-          icon={{ type: Feather, name: 'copy' }}
+          onPress={() => {
+            if (onSendWhatsApp) onSendWhatsApp(transaction);
+            else handleSendWhatsApp();
+          }}
+          icon={{ type: FontAwesome5, name: 'whatsapp', color: '#25D366' }}
+          disabled={!isWhatsAppAllowed}
         >
-          {isCopyingId ? 'Copying...' : 'Copy transaction ID'}
+          Send on WhatsApp
+        </DropdownMenuItem>
+
+        {/* 2) Send via Email */}
+        <DropdownMenuItem
+          onPress={() => {
+            if (onSendInvoice) onSendInvoice(transaction);
+            else handleSendEmail();
+          }}
+          icon={{ type: Feather, name: 'send' }}
+          disabled={!isInvoiceable || isSendingEmail}
+        >
+          {isSendingEmail ? 'Sending...' : 'Send Invoice via Email'}
+        </DropdownMenuItem>
+
+        {/* 3) Preview Invoice */}
+        <DropdownMenuItem
+          onPress={() => {
+            if (onViewInvoicePDF) onViewInvoicePDF(transaction);
+            else onPreview && onPreview(transaction);
+          }}
+          icon={{ type: Feather, name: 'eye' }}
+          disabled={!isInvoiceable}
+        >
+          Preview Invoice
+        </DropdownMenuItem>
+
+        {/* 4) Download Invoice */}
+        <DropdownMenuItem
+          onPress={() => {
+            if (onDownloadInvoicePDF) onDownloadInvoicePDF(transaction);
+            else handleDownloadPDF();
+          }}
+          icon={{ type: Feather, name: 'download' }}
+          disabled={!isInvoiceable}
+        >
+          Download Invoice
+        </DropdownMenuItem>
+
+        {/* 5) Print Invoice (fallback to internal print helper) */}
+        <DropdownMenuItem
+          onPress={() => {
+            try {
+              if (onViewInvoicePDF) onViewInvoicePDF(transaction);
+              else handlePrintInvoice();
+            } catch (e) {
+              console.error('Print action failed', e);
+            }
+          }}
+          icon={{ type: Feather, name: 'printer' }}
+          disabled={!isInvoiceable}
+        >
+          Print Invoice
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
 
+        {/* 6) Edit Transaction */}
         <DropdownMenuItem
-          onPress={handleEdit}
+          onPress={() => onEdit && onEdit(transaction)}
           icon={{ type: Feather, name: 'edit' }}
         >
           Edit transaction
         </DropdownMenuItem>
 
+        {/* 7) Delete Transaction */}
         <DropdownMenuItem
-          onPress={handleDelete}
+          onPress={() => onDelete && onDelete(transaction)}
           icon={{ type: Feather, name: 'trash-2' }}
           destructive
         >
@@ -1231,8 +1364,24 @@ const TransactionActions = ({
         isOpen={isWhatsAppDialogOpen}
         onClose={() => setIsWhatsAppDialogOpen(false)}
         transaction={transaction}
-        party={{ _id: '', name: 'Customer' }}
-        company={{ businessName: 'Company' }}
+        // prefer real party/vendor and company objects when available
+        party={
+          // if the surrounding screen provided a parties list, prefer the full record
+          (Array.isArray(parties) &&
+            parties.find(p => {
+              const partyId = transaction?.party?._id || transaction?.party;
+              return (
+                p && (String(p._id) === String(partyId) || p._id === partyId)
+              );
+            })) ||
+          transaction.party ||
+          transaction.vendor ||
+          {}
+        }
+        company={transaction.company || {}}
+        // expose the whatsapp connection service and base URL to the dialog
+        whatsappService={whatsappConnectionService}
+        baseUrl={BASE_URL}
       />
 
       <CustomDialog
@@ -1297,6 +1446,7 @@ export const columns = ({
   onSortAmount,
   onViewInvoicePDF,
   onDownloadInvoicePDF,
+  parties = [],
 }) => {
   const customFilterFn = makeCustomFilterFn(serviceNameById);
 
@@ -1692,10 +1842,13 @@ export const columns = ({
           onDelete={onDelete}
           onSendInvoice={onSendInvoice}
           onSendWhatsApp={onSendWhatsApp}
+          onViewInvoicePDF={onViewInvoicePDF}
+          onDownloadInvoicePDF={onDownloadInvoicePDF}
           userRole={userRole}
           onConvertToSales={onConvertToSales}
           companyMap={companyMap}
           serviceNameById={serviceNameById}
+          parties={parties}
         />
       ),
       render: transaction => (
@@ -1706,10 +1859,13 @@ export const columns = ({
           onDelete={onDelete}
           onSendInvoice={onSendInvoice}
           onSendWhatsApp={onSendWhatsApp}
+          onViewInvoicePDF={onViewInvoicePDF}
+          onDownloadInvoicePDF={onDownloadInvoicePDF}
           userRole={userRole}
           onConvertToSales={onConvertToSales}
           companyMap={companyMap}
           serviceNameById={serviceNameById}
+          parties={parties}
         />
       ),
       meta: {

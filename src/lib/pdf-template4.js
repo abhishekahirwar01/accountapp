@@ -413,6 +413,6 @@ export const generatePdfForTemplate4 = async (
     return file.filePath;
   } catch (error) {
     console.error('PDF generation failed:', error);
-    throw new Error('Failed to generate PDF.');
+    throw error;
   }
 };

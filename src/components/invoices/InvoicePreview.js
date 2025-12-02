@@ -1,144 +1,662 @@
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
   View,
-  ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  TouchableWithoutFeedback,
+  Share,
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React from 'react';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Pdf from 'react-native-pdf';
+import RNFS from 'react-native-fs';
 
-// ✅ Props directly receive karo, route/params nahi
-export default function InvoicePreview({ 
-  transaction, 
-  company, 
-  party, 
-  serviceNameById,
-  onClose 
+// PDF generators used across the project
+import { generatePdfForTemplate1 } from '../../lib/pdf-template1';
+import { generatePdfForTemplate2 } from '../../lib/pdf-template2';
+import { generatePdfForTemplate3 } from '../../lib/pdf-template3';
+import { generatePdfForTemplate4 } from '../../lib/pdf-template4';
+import { generatePdfForTemplate5 } from '../../lib/pdf-template5';
+import { generatePdfForTemplate6 } from '../../lib/pdf-template6';
+import { generatePdfForTemplate7 } from '../../lib/pdf-template7';
+import { generatePdfForTemplate8 } from '../../lib/pdf-template8';
+import { generatePdfForTemplate11 } from '../../lib/pdf-template11';
+import { generatePdfForTemplate12 } from '../../lib/pdf-template12';
+import { generatePdfForTemplate16 } from '../../lib/pdf-template16';
+import { generatePdfForTemplate17 } from '../../lib/pdf-template17';
+import { generatePdfForTemplate18 } from '../../lib/pdf-template18';
+import { generatePdfForTemplate19 } from '../../lib/pdf-template19';
+import { generatePdfForTemplate20 } from '../../lib/pdf-template20';
+import { generatePdfForTemplate21 } from '../../lib/pdf-template21';
+import { generatePdfForTemplateA5 } from '../../lib/pdf-templateA5';
+import { generatePdfForTemplateA5_2 } from '../../lib/pdf-templateA3-2';
+import { generatePdfForTemplateA5_3 } from '../../lib/pdf-templateA5-3';
+import { generatePdfForTemplateA5_4 } from '../../lib/pdf-templateA5-4';
+import { generatePdfForTemplateA5_5 } from '../../lib/pdf-templateA5-5';
+import { generatePdfForTemplatet3 } from '../../lib/pdf-template-t3';
+
+const TEMPLATES = [
+  'template1',
+  'template2',
+  'template3',
+  'template4',
+  'template5',
+  'template6',
+  'template7',
+  'template8',
+  'template9',
+  'template11',
+  'template12',
+  'template16',
+  'template17',
+  'template18',
+  'template19',
+  'template20',
+  'template21',
+  'templateA5',
+  'templateA5_2',
+  'templateA5_3',
+  'templateA5_4',
+  'templateA5_5',
+  'template-t3',
+];
+
+export default function InvoicePreview({
+  navigation,
+  route,
+  transaction: propTransaction,
+  company: propCompany,
+  party: propParty,
+  serviceNameById: propServiceNameById,
+  onClose,
 }) {
-  // ✅ Ab directly props use kar sakte hain
+  const [selectedTemplate, setSelectedTemplate] = useState('template1');
+  const [isTemplateMenuOpen, setIsTemplateMenuOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [pdfPath, setPdfPath] = useState(null);
+  const [error, setError] = useState(null);
+  // Queue to serialize PDF generation calls to avoid "Another PDF conversion is currently in progress"
+  const genQueueRef = React.useRef(Promise.resolve());
+  const generationTokenRef = React.useRef(0);
+
+  // Resolve props from navigation route if available (supports both usages)
+  const transaction = route?.params?.transaction ?? propTransaction;
+  const company = route?.params?.company ?? propCompany;
+  const party = route?.params?.party ?? propParty;
+  const serviceNameById = route?.params?.serviceNameById ?? propServiceNameById;
+
+  // `serviceNameById` may be passed as a plain object via navigation params
+  // (because React Navigation requires serializable params). Convert it
+  // back to a Map which template generators expect.
+  const serviceNameMap =
+    serviceNameById instanceof Map
+      ? serviceNameById
+      : new Map(Object.entries(serviceNameById || {}));
+
+  useEffect(() => {
+    let active = true;
+    let writtenPath = null;
+
+    const writePdfFile = async pdfBlobOrBase64 => {
+      try {
+        let base64Data = null;
+
+        if (!pdfBlobOrBase64) throw new Error('No PDF data');
+
+        // Handle multiple generator return types gracefully
+        // 1. If generator returned a string (possibly base64 or data URL)
+        if (typeof pdfBlobOrBase64 === 'string') {
+          if (pdfBlobOrBase64.startsWith('data:application/pdf;base64,')) {
+            base64Data = pdfBlobOrBase64.split(',')[1];
+          } else {
+            base64Data = pdfBlobOrBase64;
+          }
+
+          // If this is already a filepath (starts with / or file://), skip writing
+          if (base64Data.startsWith('/') || base64Data.startsWith('file://')) {
+            const path = base64Data.replace(/^file:\/\//, '');
+            if (active) setPdfPath(`file://${path}`);
+            return;
+          }
+        }
+
+        // 2. If generator returned an object with known properties
+        if (typeof pdfBlobOrBase64 === 'object' && pdfBlobOrBase64 !== null) {
+          // If the generator already wrote a file and returned filePath, prefer it but verify
+          if (pdfBlobOrBase64.filePath) {
+            const rawPath = pdfBlobOrBase64.filePath;
+            const filePathCandidate = rawPath.startsWith('file://')
+              ? rawPath.replace(/^file:\/\//, '')
+              : rawPath;
+
+            try {
+              const exists = await RNFS.exists(filePathCandidate);
+              console.log(
+                'InvoicePreview: generator.filePath exists=',
+                exists,
+                'path=',
+                filePathCandidate,
+              );
+              if (exists) {
+                const finalUri = rawPath.startsWith('file://')
+                  ? rawPath
+                  : `file://${filePathCandidate}`;
+                if (active) setPdfPath(finalUri);
+                return;
+              }
+              // If file doesn't exist but base64 is present, fallthrough to base64 handling below
+              console.warn(
+                'InvoicePreview: generator.filePath reported but file does not exist on device',
+              );
+            } catch (e) {
+              console.warn(
+                'InvoicePreview: error checking generator.filePath existence',
+                e,
+              );
+            }
+          }
+
+          // If base64 property is present (react-native-html-to-pdf when base64: true)
+          if (pdfBlobOrBase64.base64) {
+            base64Data = pdfBlobOrBase64.base64;
+          }
+
+          // If the object exposes an output(format) helper (some templates), call it
+          if (!base64Data && typeof pdfBlobOrBase64.output === 'function') {
+            try {
+              const out = await pdfBlobOrBase64.output('base64');
+              if (out) base64Data = out;
+            } catch (e) {
+              // ignore and try other fallbacks
+            }
+          }
+        }
+
+        // 3. Uint8Array -> base64
+        if (
+          !base64Data &&
+          typeof Uint8Array !== 'undefined' &&
+          pdfBlobOrBase64 instanceof Uint8Array
+        ) {
+          base64Data = Buffer.from(pdfBlobOrBase64).toString('base64');
+        }
+
+        // 4. Blob or Response-compatible -> arrayBuffer -> base64
+        if (
+          !base64Data &&
+          typeof Blob !== 'undefined' &&
+          pdfBlobOrBase64 instanceof Blob
+        ) {
+          const arrayBuffer = await new Response(pdfBlobOrBase64).arrayBuffer();
+          base64Data = Buffer.from(arrayBuffer).toString('base64');
+        }
+
+        // 5. Try Response fallback for other types (e.g., fetch Response-like)
+        if (!base64Data) {
+          try {
+            const arrayBuffer = await new Response(
+              pdfBlobOrBase64,
+            ).arrayBuffer();
+            base64Data = Buffer.from(arrayBuffer).toString('base64');
+          } catch (e) {
+            throw new Error('Unsupported PDF data format');
+          }
+        }
+
+        const fileName = `Invoice-${transaction?._id || Date.now()}.pdf`;
+        const path = `${RNFS.DocumentDirectoryPath}/${fileName}`;
+
+        await RNFS.writeFile(path, base64Data, 'base64');
+        writtenPath = path;
+        if (active) setPdfPath(`file://${path}`);
+      } catch (err) {
+        console.error('Failed to write PDF file:', err);
+        throw err;
+      }
+    };
+
+    const generate = async genToken => {
+      if (!transaction) return;
+      // Only the latest generation token should update state when finished
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        let pdfBlob;
+        // Choose generator
+        switch (selectedTemplate) {
+          case 'template1':
+            pdfBlob = await generatePdfForTemplate1(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'template2':
+            pdfBlob = await generatePdfForTemplate2(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'template3':
+            pdfBlob = await generatePdfForTemplate3(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'template4':
+            pdfBlob = await generatePdfForTemplate4(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'template5':
+            pdfBlob = await generatePdfForTemplate5(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'template6':
+            pdfBlob = await generatePdfForTemplate6(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'template7':
+            pdfBlob = await generatePdfForTemplate7(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'template8':
+            pdfBlob = await generatePdfForTemplate8(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'template11':
+            pdfBlob = await generatePdfForTemplate11(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'template12':
+            pdfBlob = await generatePdfForTemplate12(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'template16':
+            pdfBlob = await generatePdfForTemplate16(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'template17':
+            pdfBlob = await generatePdfForTemplate17(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'template18':
+            pdfBlob = await generatePdfForTemplate18(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'template19':
+            pdfBlob = await generatePdfForTemplate19(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'template20':
+            pdfBlob = await generatePdfForTemplate20(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'template21':
+            pdfBlob = await generatePdfForTemplate21(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'templateA5':
+            pdfBlob = await generatePdfForTemplateA5(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'templateA5_2':
+            pdfBlob = await generatePdfForTemplateA5_2(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'templateA5_3':
+            pdfBlob = await generatePdfForTemplateA5_3(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'templateA5_4':
+            pdfBlob = await generatePdfForTemplateA5_4(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'templateA5_5':
+            pdfBlob = await generatePdfForTemplateA5_5(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          case 'template-t3':
+            pdfBlob = await generatePdfForTemplatet3(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+            break;
+          default:
+            pdfBlob = await generatePdfForTemplate1(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+            );
+        }
+
+        // Debug: log generator output shape for easier diagnostics
+        try {
+          if (typeof pdfBlob === 'string') {
+            console.log(
+              'InvoicePreview: generator returned string, length=',
+              pdfBlob.length,
+            );
+          } else if (pdfBlob && typeof pdfBlob === 'object') {
+            console.log(
+              'InvoicePreview: generator returned object with keys=',
+              Object.keys(pdfBlob),
+            );
+          } else {
+            console.log(
+              'InvoicePreview: generator returned type=',
+              typeof pdfBlob,
+            );
+          }
+        } catch (dbgErr) {
+          console.warn('InvoicePreview debug log failed', dbgErr);
+        }
+
+        await writePdfFile(pdfBlob);
+
+        // If a newer generation started while we were running, ignore result
+        if (generationTokenRef.current !== genToken) {
+          console.log(
+            'InvoicePreview: generation result ignored (stale)',
+            genToken,
+          );
+          return;
+        }
+      } catch (err) {
+        console.error('PDF generation failed:', err);
+        setError(err.message || 'Failed to generate PDF');
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
+
+    // Enqueue the generation to ensure conversions don't overlap
+    generationTokenRef.current += 1;
+    const myToken = generationTokenRef.current;
+    genQueueRef.current = genQueueRef.current.then(() => generate(myToken));
+
+    return () => {
+      active = false;
+      if (writtenPath) {
+        RNFS.unlink(writtenPath).catch(() => {});
+      }
+    };
+  }, [selectedTemplate, transaction, company, party, serviceNameById]);
+
+  const cycleTemplate = () => {
+    const idx = TEMPLATES.indexOf(selectedTemplate);
+    const next = TEMPLATES[(idx + 1) % TEMPLATES.length];
+    setSelectedTemplate(next);
+  };
+
+  // Write/Copy the generated PDF to a user-accessible location and share it
+  const handleDownload = async () => {
+    if (!pdfPath) return Alert.alert('Not ready', 'PDF is not ready yet');
+
+    try {
+      const src = pdfPath.replace(/^file:\/\//, '');
+      const fileName = `invoice_${
+        transaction?.invoiceNumber || transaction?._id || Date.now()
+      }.pdf`;
+
+      // Save to app's document directory first (no special permission required)
+      const appFilePath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
+      if (src !== appFilePath.replace(/^file:\/\//, '')) {
+        await RNFS.copyFile(src, appFilePath);
+      }
+
+      let downloadsFilePath = '';
+      let copiedToDownloads = false;
+
+      // Try to copy to Downloads folder for easier access (best-effort, no permission prompt)
+      if (Platform.OS === 'android') {
+        try {
+          downloadsFilePath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
+          await RNFS.copyFile(appFilePath, downloadsFilePath);
+          const downloadsFileExists = await RNFS.exists(downloadsFilePath);
+          copiedToDownloads = downloadsFileExists;
+        } catch (copyErr) {
+          console.log(
+            'Could not copy to downloads, using app storage only:',
+            copyErr,
+          );
+          copiedToDownloads = false;
+        }
+      }
+
+      const finalPath = copiedToDownloads ? downloadsFilePath : appFilePath;
+
+      Alert.alert(
+        'Downloaded',
+        copiedToDownloads
+          ? `Saved to Downloads and app storage\nPath: ${finalPath}`
+          : `Saved to app storage\nPath: ${finalPath}`,
+      );
+    } catch (e) {
+      console.error('Download failed', e);
+      Alert.alert('Download failed', e.message || 'Failed to save file');
+    }
+  };
+
+  const handleShare = async () => {
+    if (!pdfPath) return Alert.alert('Not ready', 'PDF is not ready yet');
+
+    try {
+      const url = pdfPath; // file:// path
+      await Share.share({
+        url,
+        title: 'Invoice',
+        message: 'Please find the invoice attached.',
+      });
+    } catch (e) {
+      console.error('Share failed', e);
+      Alert.alert('Share failed', e.message || 'Failed to share file');
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={onClose}  // ✅ onClose use karo
+          onPress={() => {
+            if (navigation && typeof navigation.goBack === 'function') {
+              navigation.goBack();
+            } else if (typeof onClose === 'function') {
+              onClose();
+            }
+          }}
         >
           <Icon name="arrow-left" size={24} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Invoice Preview</Text>
-        <View style={styles.headerRight} />
+        <TouchableOpacity
+          style={styles.templateSelector}
+          onPress={() => setIsTemplateMenuOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`Select template, current ${selectedTemplate}`}
+        >
+          <Text style={styles.templateSelectorText}>{selectedTemplate}</Text>
+          <Icon name="chevron-down" size={20} color="#3b82f6" />
+        </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Invoice Header */}
-        <View style={styles.invoiceHeader}>
-          <View style={styles.companyInfo}>
-            <Text style={styles.companyName}>
-              {company?.businessName || 'Company Name'}
-            </Text>
-            <Text style={styles.companyAddress}>123 Business Street</Text>
-            <Text style={styles.companyAddress}>City, State 12345</Text>
-            <Text style={styles.companyContact}>contact@company.com</Text>
+      <View style={styles.content}>
+        {/* Template selector modal */}
+        <Modal
+          visible={isTemplateMenuOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsTemplateMenuOpen(false)}
+        >
+          <View style={styles.templateModalOverlay}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => setIsTemplateMenuOpen(false)}
+            />
+            <TouchableWithoutFeedback>
+              <View style={styles.templateModalContent}>
+                <View style={styles.templateModalHeader}>
+                  <Text style={styles.templateModalTitle}>Select Template</Text>
+                  <TouchableOpacity
+                    onPress={() => setIsTemplateMenuOpen(false)}
+                  >
+                    <Icon name="close" size={20} color="#374151" />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView>
+                  {TEMPLATES.map(t => (
+                    <TouchableOpacity
+                      key={t}
+                      style={styles.templateItem}
+                      onPress={() => {
+                        setSelectedTemplate(t);
+                        setIsTemplateMenuOpen(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.templateItemText,
+                          t === selectedTemplate && {
+                            color: '#0b69ff',
+                            fontWeight: '700',
+                          },
+                        ]}
+                      >
+                        {t}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
           </View>
-
-          <View style={styles.invoiceDetails}>
-            <Text style={styles.invoiceTitle}>INVOICE</Text>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Invoice #:</Text>
-              <Text style={styles.detailValue}>
-                {transaction?._id?.substring(0, 8) || 'INV-001'}
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Date:</Text>
-              <Text style={styles.detailValue}>
-                {transaction?.date || new Date().toLocaleDateString()}
-              </Text>
-            </View>
+        </Modal>
+        {isLoading ? (
+          <View style={styles.loadingCenter}>
+            <ActivityIndicator size="large" color="#3b82f6" />
+            <Text style={{ marginTop: 8 }}>Generating PDF preview...</Text>
           </View>
-        </View>
-
-        {/* Bill To Section */}
-        <View style={styles.billToSection}>
-          <Text style={styles.sectionTitle}>Bill To:</Text>
-          <Text style={styles.customerName}>
-            {party?.name || 'Customer Name'}
-          </Text>
-          <Text style={styles.customerAddress}>
-            {party?.address || 'Customer Address'}
-          </Text>
-          <Text style={styles.customerContact}>
-            {party?.email || 'customer@email.com'}
-          </Text>
-        </View>
-
-        {/* Items Table - Temporary placeholder */}
-        <View style={styles.itemsSection}>
-          <Text style={styles.sectionTitle}>Items</Text>
-          <View style={styles.tableHeader}>
-            <Text style={[styles.tableCell, styles.headerCell, { flex: 2 }]}>
-              Description
-            </Text>
-            <Text style={[styles.tableCell, styles.headerCell, { flex: 1 }]}>
-              Qty
-            </Text>
-            <Text style={[styles.tableCell, styles.headerCell, { flex: 1 }]}>
-              Price
-            </Text>
-            <Text style={[styles.tableCell, styles.headerCell, { flex: 1 }]}>
-              Amount
-            </Text>
+        ) : error ? (
+          <View style={styles.loadingCenter}>
+            <Text style={{ color: 'red' }}>{error}</Text>
           </View>
-
-          {/* Temporary sample data */}
-          <View style={styles.tableRow}>
-            <Text style={[styles.tableCell, { flex: 2 }]}>
-              Product/Service
-            </Text>
-            <Text style={[styles.tableCell, { flex: 1 }]}>1</Text>
-            <Text style={[styles.tableCell, { flex: 1 }]}>₹100.00</Text>
-            <Text style={[styles.tableCell, { flex: 1 }]}>₹100.00</Text>
+        ) : pdfPath ? (
+          <Pdf
+            source={{ uri: pdfPath }}
+            style={styles.pdf}
+            onError={e => {
+              console.error('PDF render error', e);
+              Alert.alert('PDF Error', 'Failed to render PDF');
+            }}
+          />
+        ) : (
+          <View style={styles.loadingCenter}>
+            <Text>No PDF available</Text>
           </View>
-        </View>
-
-        {/* Total Section */}
-        <View style={styles.totalSection}>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Subtotal:</Text>
-            <Text style={styles.totalValue}>
-              ₹{transaction?.totalAmount || transaction?.amount || '0.00'}
-            </Text>
-          </View>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Tax (0%):</Text>
-            <Text style={styles.totalValue}>₹0.00</Text>
-          </View>
-          <View style={[styles.totalRow, styles.grandTotal]}>
-            <Text style={styles.grandTotalLabel}>Total:</Text>
-            <Text style={styles.grandTotalValue}>
-              ₹{transaction?.totalAmount || transaction?.amount || '0.00'}
-            </Text>
-          </View>
-        </View>
-
-        {/* Notes */}
-        <View style={styles.notesSection}>
-          <Text style={styles.sectionTitle}>Notes</Text>
-          <Text style={styles.notesText}>
-            Thank you for your business. Please make payment within 30 days.
-          </Text>
-        </View>
-      </ScrollView>
+        )}
+      </View>
 
       <View style={styles.actionButtons}>
-        <TouchableOpacity style={[styles.button, styles.downloadButton]}>
+        <TouchableOpacity
+          style={[styles.button, styles.downloadButton]}
+          onPress={handleDownload}
+        >
           <Icon name="download" size={20} color="#fff" />
           <Text style={styles.buttonText}>Download PDF</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.button, styles.shareButton]}>
+        <TouchableOpacity
+          style={[styles.button, styles.shareButton]}
+          onPress={handleShare}
+        >
           <Icon name="share" size={20} color="#fff" />
           <Text style={styles.buttonText}>Share</Text>
         </TouchableOpacity>
@@ -155,7 +673,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
@@ -173,6 +691,12 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+  },
+  pdf: {
+    width: '100%',
+    // Give a reasonable default height when rendered inside ScrollView/modals
+    height: 800,
+    backgroundColor: '#fff',
   },
   invoiceHeader: {
     flexDirection: 'row',
@@ -340,6 +864,55 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  templateModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  templateModalContent: {
+    width: '90%',
+    maxHeight: '70%',
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    elevation: 6,
+  },
+  templateModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  templateModalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  templateItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  templateItemText: {
+    fontSize: 15,
+    color: '#374151',
+  },
+  templateSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  templateSelectorText: {
+    color: '#3b82f6',
     fontWeight: '600',
   },
 });

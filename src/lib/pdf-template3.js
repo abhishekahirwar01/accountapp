@@ -114,7 +114,7 @@ const generateInvoiceHtml = (
             color: ${TEXT_COLOR};
             font-size: 10pt;
           }
-          .strip {
+            throw error;
             background-color: ${NAVY};
             color: ${GOLD};
             padding: 10px 20px;
