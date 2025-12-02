@@ -26,6 +26,8 @@ export default function WhatsAppComposerDialog({
   serviceNameById,
   products = [],
   services = [],
+  whatsappService = null,
+  baseUrl = null,
 }) {
   const [messageContent, setMessageContent] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
@@ -95,6 +97,105 @@ export default function WhatsAppComposerDialog({
     }
   };
 
+  // Function to extract mobile number from party object
+  const extractMobileNumber = (partyObj) => {
+    if (!partyObj) return '';
+    
+    console.log('Party object for mobile extraction:', partyObj);
+    
+    // Check all possible mobile number fields
+    const possibleFields = [
+      'mobile',
+      'phone',
+      'mobileNumber',
+      'phoneNumber',
+      'contactNumber',
+      'contactNo',
+      'phone_no',
+      'mobile_no',
+      'whatsappNumber',
+      'whatsapp',
+      'primaryPhone',
+      'secondaryPhone'
+    ];
+    
+    let foundNumber = '';
+    
+    // First try to find in standard fields
+    for (const field of possibleFields) {
+      if (partyObj[field]) {
+        const num = String(partyObj[field]).trim();
+        if (num) {
+          foundNumber = num;
+          console.log(`Found mobile in field "${field}": ${num}`);
+          break;
+        }
+      }
+    }
+    
+    // If still not found, check nested objects
+    if (!foundNumber) {
+      if (partyObj.contactDetails && typeof partyObj.contactDetails === 'object') {
+        for (const field of possibleFields) {
+          if (partyObj.contactDetails[field]) {
+            const num = String(partyObj.contactDetails[field]).trim();
+            if (num) {
+              foundNumber = num;
+              console.log(`Found mobile in contactDetails.${field}: ${num}`);
+              break;
+            }
+          }
+        }
+      }
+      
+      // Also check in profile or primaryContact
+      if (!foundNumber && partyObj.profile) {
+        for (const field of possibleFields) {
+          if (partyObj.profile[field]) {
+            const num = String(partyObj.profile[field]).trim();
+            if (num) {
+              foundNumber = num;
+              console.log(`Found mobile in profile.${field}: ${num}`);
+              break;
+            }
+          }
+        }
+      }
+      
+      if (!foundNumber && partyObj.primaryContact) {
+        for (const field of possibleFields) {
+          if (partyObj.primaryContact[field]) {
+            const num = String(partyObj.primaryContact[field]).trim();
+            if (num) {
+              foundNumber = num;
+              console.log(`Found mobile in primaryContact.${field}: ${num}`);
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    // Clean up the number
+    if (foundNumber) {
+      // Remove all non-digit characters
+      const digits = foundNumber.replace(/\D/g, '');
+      
+      // Handle Indian numbers
+      if (digits.length === 12 && digits.startsWith('91')) {
+        return digits.slice(2); // Remove country code for display
+      }
+      
+      if (digits.length > 10) {
+        return digits.slice(-10); // Take last 10 digits
+      }
+      
+      return digits;
+    }
+    
+    return '';
+  };
+
   // Function to generate the structured message content
   const generateDefaultMessageContent = () => {
     const invoiceNumber =
@@ -104,6 +205,8 @@ export default function WhatsAppComposerDialog({
 
     // Debug: Check both products and services
     console.log('=== TRANSACTION DEBUG ===');
+    console.log('Party object:', party);
+    console.log('Party mobile extracted:', extractMobileNumber(party));
     console.log('Products array:', transaction.products);
     console.log('Services array:', transaction.services);
     console.log('Available products prop:', products);
@@ -230,7 +333,8 @@ export default function WhatsAppComposerDialog({
   // Initialize when dialog opens
   useEffect(() => {
     if (isOpen) {
-      const partyMobile = party?.contactNumber || party?.phone || '';
+      const partyMobile = extractMobileNumber(party);
+      console.log('Setting mobile number to:', partyMobile);
       setMobileNumber(partyMobile);
       setMessageContent(generateDefaultMessageContent());
       setPdfGenerated(false);
@@ -239,7 +343,7 @@ export default function WhatsAppComposerDialog({
     }
   }, [isOpen, transaction, party, company]);
 
-  // Complete flow handler (similar to handleCompleteFlow in web)
+  // Complete flow handler
   const handleCompleteFlow = async () => {
     if (!mobileNumber.trim()) {
       Alert.alert(
@@ -249,20 +353,76 @@ export default function WhatsAppComposerDialog({
       return;
     }
 
+    let pdfUrl = null;
+
     try {
       setIsLoading(true);
       setIsGeneratingPdf(true);
 
-      // Simply open WhatsApp without any PDF download (matching web behavior)
+      // If parent supplied a PDF generator, try to generate and get a URL
+      if (typeof onGeneratePdf === 'function') {
+        try {
+          const genResult = await onGeneratePdf(transaction);
+          if (typeof genResult === 'string') {
+            pdfUrl = genResult;
+          } else if (genResult && typeof genResult === 'object') {
+            pdfUrl =
+              genResult.url || genResult.pdfUrl || genResult.path || null;
+          }
+        } catch (e) {
+          console.warn('PDF generation failed:', e);
+          pdfUrl = null;
+        }
+      }
+
+      // If no PDF URL but baseUrl+transaction._id is available, try a conventional path
+      if (!pdfUrl && baseUrl && transaction && transaction._id) {
+        pdfUrl = `${baseUrl.replace(/\/$/, '')}/invoices/${
+          transaction._id
+        }/download`;
+      }
+
       const formattedNumber = mobileNumber.replace(/\D/g, '');
       let finalNumber = formattedNumber;
       if (!formattedNumber.startsWith('91') && formattedNumber.length === 10) {
         finalNumber = `91${formattedNumber}`;
       }
 
-      const encodedMessage = encodeURIComponent(messageContent);
+      // Append pdf link to message if available
+      let finalMessage = messageContent || '';
+      if (pdfUrl) {
+        finalMessage = `${finalMessage}\n\nDownload invoice: ${pdfUrl}`;
+      }
 
-      // Try WhatsApp app first, then fallback to web
+      // Prefer server-side send if whatsappService exposes sendMessage
+      if (
+        whatsappService &&
+        typeof whatsappService.sendMessage === 'function'
+      ) {
+        try {
+          const payload = {
+            phoneNumber: finalNumber,
+            message: finalMessage,
+            pdfUrl: pdfUrl || undefined,
+            transactionId: transaction?._id,
+          };
+
+          const resp = await whatsappService.sendMessage(payload);
+          if (resp && resp.success) {
+            Alert.alert('Sent', 'Message queued for WhatsApp delivery');
+            onClose && onClose();
+            return;
+          } else {
+            console.warn('Server-side WhatsApp send failed', resp);
+            // fallback to client open
+          }
+        } catch (e) {
+          console.warn('whatsappService.sendMessage error', e);
+          // fallback to client open
+        }
+      }
+
+      const encodedMessage = encodeURIComponent(finalMessage);
       const whatsappUrl = `whatsapp://send?phone=${finalNumber}&text=${encodedMessage}`;
       const whatsappWebUrl = `https://web.whatsapp.com/send?phone=${finalNumber}&text=${encodedMessage}`;
 
@@ -270,40 +430,18 @@ export default function WhatsAppComposerDialog({
 
       if (canOpen) {
         await Linking.openURL(whatsappUrl);
-        Alert.alert(
-          'WhatsApp Opening',
-          'Please download the PDF first and attach it manually in WhatsApp.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                setTimeout(() => {
-                  onClose();
-                }, 2000);
-              },
-            },
-          ],
-        );
+        Alert.alert('WhatsApp Opening', 'Please attach the PDF if required.');
+        setTimeout(() => onClose && onClose(), 1500);
       } else {
-        // Fallback to WhatsApp Web
         await Linking.openURL(whatsappWebUrl);
         Alert.alert(
           'WhatsApp Web Opening',
-          'Please download the PDF first and attach it manually in WhatsApp Web.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                setTimeout(() => {
-                  onClose();
-                }, 2000);
-              },
-            },
-          ],
+          'Please attach the PDF if required.',
         );
+        setTimeout(() => onClose && onClose(), 1500);
       }
     } catch (error) {
-      console.error('Error opening WhatsApp:', error);
+      console.error('Error opening/sending WhatsApp:', error);
       Alert.alert(
         'Operation Failed',
         'Could not open WhatsApp. Please try again.',
@@ -314,7 +452,7 @@ export default function WhatsAppComposerDialog({
     }
   };
 
-  // WhatsApp only handler (similar to handleOpenWhatsAppOnly in web)
+  // WhatsApp only handler
   const handleOpenWhatsAppOnly = () => {
     if (!mobileNumber.trim()) {
       Alert.alert(
@@ -330,17 +468,19 @@ export default function WhatsAppComposerDialog({
       finalNumber = `91${formattedNumber}`;
     }
 
-    const encodedMessage = encodeURIComponent(messageContent);
+    const finalMessage = messageContent || '';
+    
+    const encodedMessage = encodeURIComponent(finalMessage);
     const whatsappUrl = `whatsapp://send?phone=${finalNumber}&text=${encodedMessage}`;
 
     Linking.openURL(whatsappUrl).catch(() => {
       // Fallback to web
       const webUrl = `https://web.whatsapp.com/send?phone=${finalNumber}&text=${encodedMessage}`;
-      Linking.openURL(webUrl);
+      Linking.openURL(webUrl).catch(() => {});
     });
 
-    Alert.alert('WhatsApp Opening', 'Opening WhatsApp Web.');
-    onClose();
+    Alert.alert('WhatsApp Opening', 'Opening WhatsApp.');
+    onClose && onClose();
   };
 
   if (!isOpen) return null;
@@ -356,6 +496,9 @@ export default function WhatsAppComposerDialog({
     style: 'currency',
     currency: 'INR',
   }).format(amount);
+
+  // Extract mobile for display in summary
+  const displayMobile = extractMobileNumber(party) || party?.contactNumber || party?.phone || 'N/A';
 
   return (
     <Portal>
@@ -392,9 +535,7 @@ export default function WhatsAppComposerDialog({
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Mobile:</Text>
-                  <Text style={styles.detailValue}>
-                    {party?.contactNumber || party?.phone || 'N/A'}
-                  </Text>
+                  <Text style={styles.detailValue}>{displayMobile}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Invoice No:</Text>
@@ -489,36 +630,6 @@ export default function WhatsAppComposerDialog({
                   )}
                   <Text style={styles.whatsappButtonText}>
                     {isLoading ? ' Preparing...' : ' Open WhatsApp'}
-                  </Text>
-                </Button>
-              )}
-
-              {currentStep === 2 && (
-                <Button
-                  mode="contained"
-                  onPress={handleOpenWhatsAppOnly}
-                  style={[styles.button, styles.whatsappButton]}
-                  labelStyle={styles.whatsappButtonText}
-                >
-                  <Icon name="open-in-new" size={20} color="white" />
-                  <Text style={styles.whatsappButtonText}>
-                    {' '}
-                    Open WhatsApp Web
-                  </Text>
-                </Button>
-              )}
-
-              {currentStep === 3 && (
-                <Button
-                  mode="contained"
-                  onPress={onClose}
-                  style={[styles.button, styles.doneButton]}
-                  labelStyle={styles.doneButtonText}
-                >
-                  <Icon name="check-circle" size={20} color="white" />
-                  <Text style={styles.doneButtonText}>
-                    {' '}
-                    Done - Return to App
                   </Text>
                 </Button>
               )}
@@ -705,13 +816,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#25D366',
   },
   whatsappButtonText: {
-    color: 'white',
-    fontWeight: '500',
-  },
-  doneButton: {
-    backgroundColor: '#2563eb',
-  },
-  doneButtonText: {
     color: 'white',
     fontWeight: '500',
   },

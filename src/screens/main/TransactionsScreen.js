@@ -81,12 +81,11 @@ const LoadingSkeleton = ({ isMobile = false }) => {
   return <TableSkeleton />;
 };
 
-const TransactionsScreen = () => {
+const TransactionsScreen = ({ navigation }) => {
   // State
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isProformaFormOpen, setIsProformaFormOpen] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isItemsDialogOpen, setIsItemsDialogOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -97,7 +96,7 @@ const TransactionsScreen = () => {
 
   const [transactionToDelete, setTransactionToDelete] = useState(null);
   const [transactionToEdit, setTransactionToEdit] = useState(null);
-  const [transactionToPreview, setTransactionToPreview] = useState(null);
+
   const [itemsToView, setItemsToView] = useState([]);
 
   const [activeTab, setActiveTab] = useState(TABS.ALL);
@@ -807,8 +806,20 @@ const TransactionsScreen = () => {
   };
 
   const handleOpenPreviewDialog = transaction => {
-    setTransactionToPreview(transaction);
-    setIsPreviewOpen(true);
+    // Navigate to the InvoicePreview screen so parent UI is removed
+    const companyObj = companies.find(c => c._id === transaction.company?._id);
+    const partyObj = parties.find(
+      p => p._id === transaction?.party?._id || transaction?.party === p._id,
+    );
+    navigation.navigate('InvoicePreview', {
+      transaction,
+      company: companyObj || null,
+      party: partyObj || null,
+      // navigation params must be serializable — convert Map to plain object
+      serviceNameById: serviceNameById
+        ? Object.fromEntries(serviceNameById)
+        : {},
+    });
   };
 
   const handleViewItems = tx => {
@@ -986,6 +997,7 @@ const TransactionsScreen = () => {
         setIsFormOpen(true);
         setPrefillFromTransaction(transaction);
       },
+      parties: parties,
     });
 
     // Remove company column if only one company
@@ -1021,6 +1033,7 @@ const TransactionsScreen = () => {
       setIsFormOpen(true);
       setPrefillFromTransaction(transaction);
     },
+    parties: parties,
   });
 
   // Tab icons
@@ -1612,46 +1625,7 @@ const TransactionsScreen = () => {
         </View>
       </Modal>
 
-      {/* Invoice Preview Modal */}
-      <Modal
-        visible={isPreviewOpen}
-        animationType="slide"
-        onRequestClose={() => {
-          setIsPreviewOpen(false);
-          setIsEditMode(false);
-        }}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Invoice Preview</Text>
-            <TouchableOpacity
-              onPress={() => {
-                setIsPreviewOpen(false);
-                setIsEditMode(false);
-              }}
-            >
-              <Icon name="close" size={24} color="#374151" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.modalScroll}>
-            {transactionToPreview && (
-              <InvoicePreview
-                transaction={transactionToPreview}
-                company={companies.find(
-                  c => c._id === transactionToPreview.company?._id,
-                )}
-                party={parties.find(
-                  p =>
-                    p._id === transactionToPreview?.party?._id ||
-                    transactionToPreview?.party === p._id,
-                )}
-                serviceNameById={serviceNameById}
-              />
-            )}
-          </ScrollView>
-        </View>
-      </Modal>
+      {/* Invoice preview now uses navigation; removed modal rendering here */}
 
       {/* PDF Viewer Modal */}
       <Modal
