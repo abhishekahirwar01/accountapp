@@ -48,7 +48,7 @@ const mapExistingRoleToForm = (r, roles) => {
   return 'user';
 };
 
-const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
+export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
   const [roles, setRoles] = useState([]);
   const [rolesLoading, setRolesLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -178,118 +178,115 @@ const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
     }
   }, [roles, user]);
 
-  const handleSubmit = async () => {
-    // Validation
-    if (!formData.userName.trim()) {
-      Alert.alert('Error', 'Please enter user name');
-      return;
+ const handleSubmit = async () => {
+  // Validation
+  if (!formData.userName.trim()) {
+    Alert.alert('Error', 'Please enter user name');
+    return;
+  }
+
+  if (!user && !formData.userId.trim()) {
+    Alert.alert('Error', 'Please enter user ID');
+    return;
+  }
+
+  if (!user && !formData.password.trim()) {
+    Alert.alert('Error', 'Please enter password');
+    return;
+  }
+
+  if (!formData.roleId) {
+    Alert.alert('Error', 'Please select a role');
+    return;
+  }
+
+  const selectedRole = roles.find(r => r._id === formData.roleId);
+  if (!selectedRole) {
+    Alert.alert('Error', 'Please select a valid role');
+    return;
+  }
+
+  setIsSubmitting(true);
+
+  try {
+    // Build payload
+    const payload = {
+      userName: formData.userName.trim(),
+      contactNumber: formData.contactNumber.trim(),
+      email: formData.email?.trim() || ' ',
+      address: formData.address.trim(),
+      companies: selectedCompanyIds,
+    };
+
+    // Creation vs update
+    if (!user) {
+      payload.userId = formData.userId.trim();
     }
 
-    if (!user && !formData.userId.trim()) {
-      Alert.alert('Error', 'Please enter user ID');
-      return;
+    // Only send password if user typed one (for new users or password change)
+    if (formData.password?.trim()) {
+      payload.password = formData.password.trim();
     }
 
-    if (!user && !formData.password.trim()) {
-      Alert.alert('Error', 'Please enter password');
-      return;
+    // Send role using whichever your backend accepts
+    const looksLikeObjectId = /^[a-f0-9]{24}$/i.test(selectedRole._id);
+    if (looksLikeObjectId) {
+      payload.roleId = selectedRole._id;
+    } else {
+      payload.roleName = selectedRole.name;
     }
 
-    if (!formData.roleId) {
-      Alert.alert('Error', 'Please select a role');
-      return;
+    // Get auth token
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      throw new Error('Authentication token not found');
     }
 
-    const selectedRole = roles.find(r => r._id === formData.roleId);
-    if (!selectedRole) {
-      Alert.alert('Error', 'Please select a valid role');
-      return;
+    let response;
+    if (user) {
+      // Update existing user
+      response = await fetch(`${BASE_URL}/api/users/${user._id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      // Create new user
+      response = await fetch(`${BASE_URL}/api/users`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
     }
 
-    setIsSubmitting(true);
-
-    try {
-      // Build payload
-      const payload = {
-        userName: formData.userName.trim(),
-        contactNumber: formData.contactNumber.trim(),
-        email: formData.email?.trim() || ' ',
-        address: formData.address.trim(),
-        companies: selectedCompanyIds,
-      };
-
-      // Creation vs update
-      if (!user) {
-        payload.userId = formData.userId.trim();
-      }
-
-      // Only send password if user typed one (for new users or password change)
-      if (formData.password?.trim()) {
-        payload.password = formData.password.trim();
-      }
-
-      // Send role using whichever your backend accepts
-      const looksLikeObjectId = /^[a-f0-9]{24}$/i.test(selectedRole._id);
-      if (looksLikeObjectId) {
-        payload.roleId = selectedRole._id;
-      } else {
-        payload.roleName = selectedRole.name;
-      }
-
-      // Get auth token
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication token not found');
-      }
-
-      let response;
-      if (user) {
-        // Update existing user
-        response = await fetch(`${BASE_URL}/api/users/${user._id}`, {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        });
-      } else {
-        // Create new user
-        response = await fetch(`${BASE_URL}/api/users`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        });
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message || `Failed to ${user ? 'update' : 'create'} user`,
-        );
-      }
-
-      const result = await response.json();
-
-      Alert.alert(
-        'Success',
-        `User ${user ? 'updated' : 'created'} successfully`,
-        [{ text: 'OK', onPress: onSave }],
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        errorData.message || `Failed to ${user ? 'update' : 'create'} user`,
       );
-    } catch (error) {
-      console.error('Error saving user:', error);
-      Alert.alert(
-        'Error',
-        error.message || `Failed to ${user ? 'update' : 'create'} user`,
-        [{ text: 'OK' }],
-      );
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+
+    // Success! Call onSave and onCancel
+    onSave(payload);
+    onCancel();
+    
+  } catch (error) {
+    console.error('Error saving user:', error);
+    Alert.alert(
+      'Error',
+      error.message || `Failed to ${user ? 'update' : 'create'} user`,
+      [{ text: 'OK' }],
+    );
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const handleCompanySelect = companyId => {
     setSelectedCompanyIds(prev => {

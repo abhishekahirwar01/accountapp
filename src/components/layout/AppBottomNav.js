@@ -283,13 +283,13 @@ export function AppSidebar() {
             <CollapsibleContent isOpen={reportsOpen}>
               <SubMenuButton
                 title="Profit & Loss"
-                isActive={isActive('ProfitLossReport')}
-                onPress={() => navigation.navigate('ProfitLossReport')}
+                isActive={isActive('Reports')} 
+                onPress={() => navigation.navigate('Reports')} 
               />
               <SubMenuButton
                 title="Balance Sheet"
-                isActive={isActive('BalanceSheetReport')}
-                onPress={() => navigation.navigate('BalanceSheetReport')}
+                isActive={isActive('Reports')}
+                onPress={() => navigation.navigate('Reports')} 
               />
             </CollapsibleContent>
           </Collapsible>
@@ -298,7 +298,7 @@ export function AppSidebar() {
             icon="document-text-outline"
             title="Reports"
             isActive={isReportsActive}
-            onPress={() => navigation.navigate('ProfitLossReport')}
+            onPress={() => navigation.navigate('Reports')} 
             isBottomNav={isMobile}
           />
         )}
@@ -323,13 +323,13 @@ export function AppSidebar() {
             <CollapsibleContent isOpen={ledgerOpen}>
               <SubMenuButton
                 title="Receivables"
-                isActive={isActive('LedgerReceivables')}
-                onPress={() => navigation.navigate('LedgerReceivables')}
+                isActive={isActive('Ledger')}
+                onPress={() => navigation.navigate('Ledger')}
               />
               <SubMenuButton
                 title="Payables"
-                isActive={isActive('LedgerPayables')}
-                onPress={() => navigation.navigate('LedgerPayables')}
+                isActive={isActive('Ledger')} 
+                onPress={() => navigation.navigate('Ledger')} 
               />
             </CollapsibleContent>
           </Collapsible>
@@ -338,7 +338,7 @@ export function AppSidebar() {
             icon="document-outline"
             title="Ledger"
             isActive={isLedgerActive}
-            onPress={() => navigation.navigate('LedgerReceivables')}
+            onPress={() => navigation.navigate('Ledger')} 
             isBottomNav={isMobile}
           />
         )}

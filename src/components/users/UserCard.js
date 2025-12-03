@@ -142,7 +142,7 @@ export function UserCard({
         </View>
       )}
       
-      {!compact && user.address && (
+      {user.address && (
         <View style={styles.contactItem}>
           <View style={[styles.contactIcon, styles.mapIcon]}>
             <MapPinIcon />
@@ -157,7 +157,7 @@ export function UserCard({
 
   const CompaniesList = ({ user, compact = false }) => (
     <View style={styles.companiesSection}>
-      {!compact && <Text style={styles.companiesTitle}>Companies</Text>}
+      <Text style={styles.companiesTitle}>Companies</Text>
       <View style={[styles.companiesContainer, compact && styles.companiesContainerCompact]}>
         {user.companies && user.companies.length > 0 ? (
           user.companies.slice(0, compact ? 2 : undefined).map((c) => {
@@ -173,7 +173,7 @@ export function UserCard({
             ) : null;
           })
         ) : (
-          <Text style={styles.noCompaniesText}>No companies</Text>
+          <Text style={styles.noCompaniesText}>No companies assigned</Text>
         )}
         {compact && user.companies && user.companies.length > 2 && (
           <View style={[styles.companyBadge, styles.companyBadgeCompact]}>
