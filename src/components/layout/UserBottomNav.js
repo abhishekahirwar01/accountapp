@@ -85,8 +85,13 @@ export default function UserSidebar() {
   const roleLower = currentRole.toLowerCase();
 
   // Dashboard screen based on role - Next.js के जैसा
-  const dashboardScreen =
-    roleLower === 'admin' ? 'AdminDashboard' : 'UserDashboard';
+  const getDashboardScreen = () => {
+    if (roleLower === 'customer') return 'CustomerDashboard';
+    if (roleLower === 'master') return 'AdminDashboard';
+    return 'UserDashboard';
+  };
+
+  const dashboardScreen = getDashboardScreen();
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -186,7 +191,11 @@ export default function UserSidebar() {
           <MenuButton
             icon="grid-outline"
             title="Dashboard"
-            isActive={isActive(dashboardScreen)}
+            isActive={
+              isActive('AdminDashboard') ||
+              isActive('CustomerDashboard') ||
+              isActive('UserDashboard')
+            }
             onPress={() => navigation.navigate(dashboardScreen)}
             isBottomNav={true}
             showAlways={true}
@@ -267,7 +276,11 @@ export default function UserSidebar() {
         <MenuButton
           icon="grid-outline"
           title="Dashboard"
-          isActive={isActive(dashboardScreen)}
+          isActive={
+            isActive('AdminDashboard') ||
+            isActive('CustomerDashboard') ||
+            isActive('UserDashboard')
+          }
           onPress={() => navigation.navigate(dashboardScreen)}
           showAlways={true}
         />
