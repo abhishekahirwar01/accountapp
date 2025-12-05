@@ -54,7 +54,10 @@ export const loginMasterAdmin = async (username, password) => {
   if (!username || !password) throw new Error('Username and password required');
 
   try {
-    const res = await api.post('/api/master-admin/login', { username, password });
+    const res = await api.post('/api/master-admin/login', {
+      username,
+      password,
+    });
     const data = res.data;
 
     const user = {
@@ -70,7 +73,6 @@ export const loginMasterAdmin = async (username, password) => {
     await saveSession(user.token, user);
     return user;
   } catch (err) {
-    console.error('❌ Master Admin login failed:', err);
     throw err;
   }
 };
@@ -83,7 +85,10 @@ export const loginClient = async (clientUsername, password) => {
     throw new Error('Username and password required');
 
   try {
-    const res = await api.post('/api/clients/login', { clientUsername, password });
+    const res = await api.post('/api/clients/login', {
+      clientUsername,
+      password,
+    });
     const data = res.data;
 
     if (!data?.client || !data?.token)
@@ -103,7 +108,6 @@ export const loginClient = async (clientUsername, password) => {
     await saveSession(user.token, user);
     return user;
   } catch (err) {
-    console.error('❌ Client login failed:', err);
     throw err;
   }
 };
@@ -116,7 +120,10 @@ export const loginClientBySlug = async (clientUsername, password) => {
     throw new Error('Username and password required');
 
   try {
-    const res = await api.post('/api/clients/login', { clientUsername, password });
+    const res = await api.post('/api/clients/login', {
+      clientUsername,
+      password,
+    });
     const data = res.data;
 
     const user = {
@@ -133,19 +140,17 @@ export const loginClientBySlug = async (clientUsername, password) => {
     await saveSession(user.token, user);
     return user;
   } catch (err) {
-    console.error('❌ loginClientBySlug failed:', err);
     throw err;
   }
 };
 
 // 🔹 Request OTP for client
-export const requestClientOtp = async (clientUsername) => {
+export const requestClientOtp = async clientUsername => {
   if (!clientUsername) throw new Error('Username required');
   try {
     const res = await api.post('/api/clients/request-otp', { clientUsername });
     return res.data;
   } catch (err) {
-    console.error('❌ Request OTP failed:', err);
     throw err;
   }
 };
@@ -155,7 +160,10 @@ export const loginClientWithOtp = async (clientUsername, otp) => {
   if (!clientUsername || !otp) throw new Error('Username and OTP required');
 
   try {
-    const res = await api.post('/api/clients/login-otp', { clientUsername, otp });
+    const res = await api.post('/api/clients/login-otp', {
+      clientUsername,
+      otp,
+    });
     const data = res.data;
 
     const user = {
@@ -172,7 +180,6 @@ export const loginClientWithOtp = async (clientUsername, otp) => {
     await saveSession(user.token, user);
     return user;
   } catch (err) {
-    console.error('❌ Client OTP login failed:', err);
     throw err;
   }
 };
@@ -188,10 +195,7 @@ export const loginUser = async (userId, password) => {
 
     const role = normalizeRole(data.user.role || data.roleName || '');
     const username =
-      data.user.username ||
-      data.user.userName ||
-      data.user.userId ||
-      '';
+      data.user.username || data.user.userName || data.user.userId || '';
 
     const user = {
       ...data.user,
@@ -205,7 +209,6 @@ export const loginUser = async (userId, password) => {
     await saveSession(data.token, user);
     return user;
   } catch (err) {
-    console.error('❌ User login failed:', err);
     throw err;
   }
 };

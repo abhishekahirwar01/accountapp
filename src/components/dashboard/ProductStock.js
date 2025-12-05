@@ -8,33 +8,20 @@ import {
   RefreshControl,
   Dimensions,
   FlatList,
-} from 'react-native';
-import {
-  Card,
-  Button,
-  Searchbar,
-  ActivityIndicator,
-  Chip,
-  Dialog,
-  Portal,
-  TextInput as PaperTextInput,
-  List,
-  FAB,
-  Divider,
-  Surface,
-  Badge,
-  Menu,
-  IconButton,
   Text,
-} from 'react-native-paper';
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  Platform,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 // Import your actual components and contexts
-import { ProductForm } from '../products/ProductForm';
+import ProductForm from '../products/ProductForm';
 import { usePermissions } from '../../contexts/permission-context';
 import { useCompany } from '../../contexts/company-context';
-import { ServiceForm } from '../services/ServiceForm';
+import ServiceForm from '../services/ServiceForm';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
 import { capitalizeWords } from '../../lib/utils';
 import ProductTableRow from './ProductTableRow';
@@ -79,29 +66,32 @@ const StockEditForm = ({ product, onSuccess, onCancel }) => {
   };
 
   return (
-    <View style={{ padding: 16 }}>
-      <PaperTextInput
-        label={`Stock for ${product.name}`}
+    <View style={styles.stockEditContainer}>
+      <Text style={styles.stockEditLabel}>Stock for {product.name}</Text>
+      <TextInput
+        style={styles.stockEditInput}
         value={newStock}
         onChangeText={setNewStock}
         keyboardType="numeric"
-        mode="outlined"
-        style={{ marginBottom: 16 }}
       />
-      <View
-        style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}
-      >
-        <Button mode="outlined" onPress={onCancel}>
-          Cancel
-        </Button>
-        <Button
-          mode="contained"
+      <View style={styles.stockEditButtons}>
+        <TouchableOpacity
+          style={[styles.button, styles.outlineButton]}
+          onPress={onCancel}
+        >
+          <Text style={styles.outlineButtonText}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.button, styles.primaryButton]}
           onPress={handleSubmit}
-          loading={isSubmitting}
           disabled={isSubmitting}
         >
-          Save Changes
-        </Button>
+          {isSubmitting ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.primaryButtonText}>Save Changes</Text>
+          )}
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -123,6 +113,119 @@ const getStockColor = stock => {
   if (stockValue > 10) return '#10b981';
   if (stockValue > 0) return '#f59e0b';
   return '#ef4444';
+};
+
+const CustomDialog = ({ visible, onDismiss, title, children, style }) => {
+  if (!visible) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onDismiss}
+    >
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={onDismiss}
+      >
+        <TouchableOpacity activeOpacity={1} style={[styles.dialog, style]}>
+          <View style={styles.dialogHeader}>
+            <Text style={styles.dialogTitle}>{title}</Text>
+            <TouchableOpacity onPress={onDismiss} style={styles.closeButton}>
+              <Icon name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.dialogContent}>{children}</ScrollView>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+
+const CustomButton = ({
+  mode = 'contained',
+  onPress,
+  children,
+  icon,
+  style,
+  textStyle,
+  disabled = false,
+  compact = false,
+}) => {
+  const isOutlined = mode === 'outlined';
+  const isContained = mode === 'contained';
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.customButton,
+        isContained && styles.customButtonContained,
+        isOutlined && styles.customButtonOutlined,
+        disabled && styles.buttonDisabled,
+        compact && styles.buttonCompact,
+        style,
+      ]}
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.7}
+    >
+      {icon && (
+        <Icon
+          name={icon}
+          size={compact ? 16 : 20}
+          color={
+            isContained
+              ? '#fff'
+              : isOutlined
+              ? '#3b82f6'
+              : disabled
+              ? '#9ca3af'
+              : '#3b82f6'
+          }
+          style={styles.buttonIcon}
+        />
+      )}
+      <Text
+        style={[
+          styles.customButtonText,
+          isContained && styles.customButtonTextContained,
+          isOutlined && styles.customButtonTextOutlined,
+          disabled && styles.buttonTextDisabled,
+          compact && styles.buttonTextCompact,
+          textStyle,
+        ]}
+      >
+        {children}
+      </Text>
+    </TouchableOpacity>
+  );
+};
+
+const SearchBar = ({ placeholder, value, onChangeText, style }) => {
+  return (
+    <View style={[styles.searchContainer, style]}>
+      <Icon
+        name="magnify"
+        size={20}
+        color="#9ca3af"
+        style={styles.searchIcon}
+      />
+      <TextInput
+        style={styles.searchInput}
+        placeholder={placeholder}
+        value={value}
+        onChangeText={onChangeText}
+        placeholderTextColor="#9ca3af"
+      />
+      {value.length > 0 && (
+        <TouchableOpacity onPress={() => onChangeText('')}>
+          <Icon name="close-circle" size={20} color="#9ca3af" />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
 };
 
 const ProductStock = ({ navigation }) => {
@@ -257,120 +360,81 @@ const ProductStock = ({ navigation }) => {
   }
 
   return (
-    <View style={{ flex: 1, padding: 16 }}>
-      <Card style={{ marginBottom: 16 }}>
-        <Card.Content>
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 16,
-            }}
-          >
+    <View style={styles.container}>
+      <View style={styles.card}>
+        <View style={styles.cardContent}>
+          <View style={styles.header}>
             <View>
-              <Text variant="titleLarge" style={{ fontWeight: 'bold' }}>
-                Product & Service Stock
-              </Text>
-              <Text variant="bodyMedium" style={{ color: '#666' }}>
+              <Text style={styles.title}>Product & Service Stock</Text>
+              <Text style={styles.subtitle}>
                 Current inventory levels and management
               </Text>
             </View>
 
             {(permissions?.canCreateProducts || userCaps?.canCreateInventory) &&
               isTablet && (
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <Button
+                <View style={styles.tabletButtons}>
+                  <CustomButton
                     mode="contained"
                     onPress={() => setIsAddProductOpen(true)}
                     icon="package-variant"
                     compact
                   >
                     Product
-                  </Button>
-                  <Button
+                  </CustomButton>
+                  <CustomButton
                     mode="outlined"
                     onPress={() => setIsAddServiceOpen(true)}
                     icon="server"
                     compact
                   >
                     Service
-                  </Button>
+                  </CustomButton>
                 </View>
               )}
           </View>
 
-          <Searchbar
+          <SearchBar
             placeholder="Search products or services..."
             value={searchTerm}
             onChangeText={setSearchTerm}
-            style={{ marginBottom: 16 }}
+            style={styles.searchBar}
           />
 
           <ScrollView
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
-            style={{ maxHeight: 400 }}
+            style={styles.scrollView}
           >
             {isLoading ? (
-              <View style={{ alignItems: 'center', padding: 32 }}>
+              <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#3b82f6" />
-                <Text
-                  variant="bodyMedium"
-                  style={{ marginTop: 8, color: '#6b7280' }}
-                >
-                  Loading inventory...
-                </Text>
+                <Text style={styles.loadingText}>Loading inventory...</Text>
               </View>
             ) : filteredProducts.length > 0 ? (
               <View>
                 {/* Tablet/Desktop Table View */}
                 {isTablet ? (
-                  <Surface
-                    style={{ elevation: 1, borderRadius: 8, marginBottom: 16 }}
-                  >
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        padding: 16,
-                        borderBottomWidth: 1,
-                        borderBottomColor: '#e5e5e5',
-                        backgroundColor: '#f8fafc',
-                      }}
-                    >
-                      <View style={{ flex: 3 }}>
-                        <Text
-                          variant="bodyMedium"
-                          style={{ fontWeight: 'bold', color: '#374151' }}
-                        >
-                          Item
-                        </Text>
+                  <View style={styles.tableContainer}>
+                    <View style={styles.tableHeader}>
+                      <View style={[styles.tableCell, { flex: 3 }]}>
+                        <Text style={styles.tableHeaderText}>Item</Text>
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text
-                          variant="bodyMedium"
-                          style={{ fontWeight: 'bold', color: '#374151' }}
-                        >
-                          Stock
-                        </Text>
+                      <View style={[styles.tableCell, { flex: 1 }]}>
+                        <Text style={styles.tableHeaderText}>Stock</Text>
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text
-                          variant="bodyMedium"
-                          style={{ fontWeight: 'bold', color: '#374151' }}
-                        >
-                          Unit
-                        </Text>
+                      <View style={[styles.tableCell, { flex: 1 }]}>
+                        <Text style={styles.tableHeaderText}>Unit</Text>
                       </View>
                       {role !== 'user' && (
-                        <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                          <Text
-                            variant="bodyMedium"
-                            style={{ fontWeight: 'bold', color: '#374151' }}
-                          >
-                            Actions
-                          </Text>
+                        <View
+                          style={[
+                            styles.tableCell,
+                            { flex: 1, alignItems: 'flex-end' },
+                          ]}
+                        >
+                          <Text style={styles.tableHeaderText}>Actions</Text>
                         </View>
                       )}
                     </View>
@@ -380,7 +444,7 @@ const ProductStock = ({ navigation }) => {
                       keyExtractor={item => item._id}
                       scrollEnabled={false}
                     />
-                  </Surface>
+                  </View>
                 ) : (
                   /* Mobile Card View */
                   <FlatList
@@ -388,36 +452,17 @@ const ProductStock = ({ navigation }) => {
                     renderItem={renderProductItem}
                     keyExtractor={item => item._id}
                     scrollEnabled={false}
-                    contentContainerStyle={{ gap: 12 }}
+                    contentContainerStyle={styles.mobileList}
                   />
                 )}
               </View>
             ) : (
-              <View style={{ alignItems: 'center', padding: 32 }}>
-                <View
-                  style={{
-                    backgroundColor: '#f3f4f6',
-                    padding: 16,
-                    borderRadius: 50,
-                    marginBottom: 16,
-                  }}
-                >
+              <View style={styles.emptyContainer}>
+                <View style={styles.emptyIcon}>
                   <Icon name="package-variant" size={32} color="#8b5cf6" />
                 </View>
-                <Text
-                  variant="titleLarge"
-                  style={{ marginTop: 8, fontWeight: 'bold', color: '#1f2937' }}
-                >
-                  No Items Found
-                </Text>
-                <Text
-                  variant="bodyMedium"
-                  style={{
-                    textAlign: 'center',
-                    marginTop: 8,
-                    color: '#6b7280',
-                  }}
-                >
+                <Text style={styles.emptyTitle}>No Items Found</Text>
+                <Text style={styles.emptyText}>
                   {searchTerm
                     ? `No items match "${searchTerm}". Try a different search term.`
                     : 'Get started by adding your first product or service.'}
@@ -427,140 +472,477 @@ const ProductStock = ({ navigation }) => {
           </ScrollView>
 
           {filteredProducts.length > 3 && (
-            <Button
+            <CustomButton
               mode="outlined"
               onPress={() => navigation.navigate('Inventory')}
-              style={{ marginTop: 16, borderColor: '#d1d5db' }}
-              textColor="#374151"
+              style={styles.viewMoreButton}
+              textStyle={styles.viewMoreButtonText}
               icon="chevron-right"
             >
               View More
-            </Button>
+            </CustomButton>
           )}
-        </Card.Content>
-      </Card>
+        </View>
+      </View>
 
       {/* Name Dialog */}
-      <Portal>
-        <Dialog
-          visible={!!openNameDialog}
-          onDismiss={() => setOpenNameDialog(null)}
-        >
-          <Dialog.Title>Product Name</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium">{capitalizeWords(openNameDialog)}</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setOpenNameDialog(null)}>Close</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <CustomDialog
+        visible={!!openNameDialog}
+        onDismiss={() => setOpenNameDialog(null)}
+        title="Product Name"
+      >
+        <View style={styles.nameDialogContent}>
+          <Text style={styles.nameDialogText}>
+            {capitalizeWords(openNameDialog)}
+          </Text>
+          <TouchableOpacity
+            style={styles.dialogCloseButton}
+            onPress={() => setOpenNameDialog(null)}
+          >
+            <Text style={styles.dialogCloseButtonText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </CustomDialog>
 
       {/* Edit Stock Dialog */}
-      <Portal>
-        <Dialog
-          visible={isEditDialogOpen}
-          onDismiss={() => setIsEditDialogOpen(false)}
-        >
-          <Dialog.Title>Edit Stock</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium" style={{ marginBottom: 16 }}>
-              Update the stock quantity for the selected product.
-            </Text>
-            {selectedProduct && (
-              <StockEditForm
-                product={selectedProduct}
-                onSuccess={handleUpdateSuccess}
-                onCancel={() => setIsEditDialogOpen(false)}
-              />
-            )}
-          </Dialog.Content>
-        </Dialog>
-      </Portal>
+      <CustomDialog
+        visible={isEditDialogOpen}
+        onDismiss={() => setIsEditDialogOpen(false)}
+        title="Edit Stock"
+      >
+        <View style={styles.editDialogContent}>
+          <Text style={styles.dialogDescription}>
+            Update the stock quantity for the selected product.
+          </Text>
+          {selectedProduct && (
+            <StockEditForm
+              product={selectedProduct}
+              onSuccess={handleUpdateSuccess}
+              onCancel={() => setIsEditDialogOpen(false)}
+            />
+          )}
+        </View>
+      </CustomDialog>
 
       {/* Add Product Dialog */}
-      <Portal>
-        <Dialog
-          visible={isAddProductOpen}
-          onDismiss={() => setIsAddProductOpen(false)}
-          style={{ maxHeight: '80%' }}
-        >
-          <Dialog.Title>Create New Product</Dialog.Title>
-          <Dialog.ScrollArea>
-            <ScrollView>
-              <Dialog.Content>
-                <Text variant="bodyMedium" style={{ marginBottom: 16 }}>
-                  Fill in the form to add a new product to your inventory.
-                </Text>
-                <ProductForm onSuccess={handleAddProductSuccess} />
-              </Dialog.Content>
-            </ScrollView>
-          </Dialog.ScrollArea>
-        </Dialog>
-      </Portal>
+      <CustomDialog
+        visible={isAddProductOpen}
+        onDismiss={() => setIsAddProductOpen(false)}
+        title="Create New Product"
+        style={styles.productDialog}
+      >
+        <View style={styles.formDialogContent}>
+          <Text style={styles.dialogDescription}>
+            Fill in the form to add a new product to your inventory.
+          </Text>
+          <ProductForm onSuccess={handleAddProductSuccess} />
+        </View>
+      </CustomDialog>
 
       {/* Add Service Dialog */}
-      <Portal>
-        <Dialog
-          visible={isAddServiceOpen}
-          onDismiss={() => setIsAddServiceOpen(false)}
-          style={{ maxHeight: '80%' }}
-        >
-          <Dialog.Title>Create New Service</Dialog.Title>
-          <Dialog.ScrollArea>
-            <ScrollView>
-              <Dialog.Content>
-                <Text variant="bodyMedium" style={{ marginBottom: 16 }}>
-                  Fill in the form to add a new service to your offerings.
-                </Text>
-                <ServiceForm onSuccess={handleAddServiceSuccess} />
-              </Dialog.Content>
-            </ScrollView>
-          </Dialog.ScrollArea>
-        </Dialog>
-      </Portal>
+      <CustomDialog
+        visible={isAddServiceOpen}
+        onDismiss={() => setIsAddServiceOpen(false)}
+        title="Create New Service"
+        style={styles.productDialog}
+      >
+        <View style={styles.formDialogContent}>
+          <Text style={styles.dialogDescription}>
+            Fill in the form to add a new service to your offerings.
+          </Text>
+          <ServiceForm onSuccess={handleAddServiceSuccess} />
+        </View>
+      </CustomDialog>
 
       {/* FAB for mobile */}
       {(permissions?.canCreateProducts || userCaps?.canCreateInventory) &&
         !isTablet && (
-          <Menu
-            visible={fabOpen}
-            onDismiss={() => setFabOpen(false)}
-            anchor={
-              <FAB
-                icon="plus"
-                style={{
-                  position: 'absolute',
-                  margin: 16,
-                  right: 0,
-                  bottom: 0,
-                  backgroundColor: '#3b82f6',
-                }}
-                onPress={() => setFabOpen(true)}
-                color="white"
-              />
-            }
-          >
-            <Menu.Item
-              onPress={() => {
-                setFabOpen(false);
-                setIsAddProductOpen(true);
-              }}
-              title="Add Product"
-              leadingIcon="package-variant"
-            />
-            <Menu.Item
-              onPress={() => {
-                setFabOpen(false);
-                setIsAddServiceOpen(true);
-              }}
-              title="Add Service"
-              leadingIcon="server"
-            />
-          </Menu>
+          <>
+            {fabOpen && (
+              <View style={styles.fabMenu}>
+                <TouchableOpacity
+                  style={styles.fabMenuItem}
+                  onPress={() => {
+                    setFabOpen(false);
+                    setIsAddProductOpen(true);
+                  }}
+                >
+                  <Icon name="package-variant" size={20} color="#fff" />
+                  <Text style={styles.fabMenuText}>Add Product</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.fabMenuItem}
+                  onPress={() => {
+                    setFabOpen(false);
+                    setIsAddServiceOpen(true);
+                  }}
+                >
+                  <Icon name="server" size={20} color="#fff" />
+                  <Text style={styles.fabMenuText}>Add Service</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.fab}
+              onPress={() => setFabOpen(!fabOpen)}
+              activeOpacity={0.7}
+            >
+              <Icon name={fabOpen ? 'close' : 'plus'} size={24} color="white" />
+            </TouchableOpacity>
+          </>
         )}
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 16,
+    backgroundColor: '#f8fafc',
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  cardContent: {
+    padding: 20,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  tabletButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+    height: 48,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1f2937',
+    paddingVertical: 8,
+  },
+  searchBar: {
+    marginBottom: 16,
+  },
+  scrollView: {
+    maxHeight: 400,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    padding: 32,
+  },
+  loadingText: {
+    marginTop: 8,
+    color: '#6b7280',
+    fontSize: 14,
+  },
+  tableContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e5e5',
+    backgroundColor: '#f8fafc',
+  },
+  tableCell: {
+    paddingHorizontal: 8,
+  },
+  tableHeaderText: {
+    fontWeight: 'bold',
+    color: '#374151',
+    fontSize: 14,
+  },
+  mobileList: {
+    gap: 12,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    padding: 32,
+  },
+  emptyIcon: {
+    backgroundColor: '#f3f4f6',
+    padding: 16,
+    borderRadius: 50,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginTop: 8,
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 8,
+    color: '#6b7280',
+    fontSize: 14,
+  },
+  viewMoreButton: {
+    marginTop: 16,
+    borderColor: '#d1d5db',
+  },
+  viewMoreButtonText: {
+    color: '#374151',
+  },
+  // Button styles
+  customButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  customButtonContained: {
+    backgroundColor: '#3b82f6',
+  },
+  customButtonOutlined: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  buttonCompact: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  buttonIcon: {
+    marginRight: 4,
+  },
+  customButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  customButtonTextContained: {
+    color: '#fff',
+  },
+  customButtonTextOutlined: {
+    color: '#3b82f6',
+  },
+  buttonTextDisabled: {
+    color: '#9ca3af',
+  },
+  buttonTextCompact: {
+    fontSize: 14,
+  },
+  // Dialog styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  dialog: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    width: '100%',
+    maxHeight: '80%',
+    minHeight: 200,
+  },
+  dialogHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e5e5',
+  },
+  dialogTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  dialogContent: {
+    padding: 20,
+  },
+  productDialog: {
+    maxHeight: '80%',
+  },
+  // Stock Edit Form
+  stockEditContainer: {
+    padding: 16,
+  },
+  stockEditLabel: {
+    fontSize: 16,
+    color: '#374151',
+    marginBottom: 8,
+  },
+  stockEditInput: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    marginBottom: 16,
+    backgroundColor: '#fff',
+  },
+  stockEditButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  button: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButton: {
+    backgroundColor: '#3b82f6',
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  outlineButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  outlineButtonText: {
+    color: '#374151',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  // Dialog content styles
+  nameDialogContent: {
+    paddingVertical: 20,
+  },
+  nameDialogText: {
+    fontSize: 16,
+    color: '#374151',
+    marginBottom: 20,
+  },
+  editDialogContent: {
+    paddingVertical: 20,
+  },
+  formDialogContent: {
+    paddingVertical: 20,
+  },
+  dialogDescription: {
+    fontSize: 16,
+    color: '#6b7280',
+    marginBottom: 16,
+    lineHeight: 24,
+  },
+  dialogCloseButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+  },
+  dialogCloseButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  // FAB styles
+  fab: {
+    position: 'absolute',
+    margin: 16,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#3b82f6',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  fabMenu: {
+    position: 'absolute',
+    right: 16,
+    bottom: 80,
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  fabMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+    minWidth: 160,
+  },
+  fabMenuText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+});
 
 export default ProductStock;

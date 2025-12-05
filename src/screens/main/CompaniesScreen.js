@@ -1,5 +1,5 @@
 // CompaniesScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,126 +13,103 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CompanyForm } from '../../components/companies/CompanyForm';
+import CompanyForm from '../../components/companies/CompanyForm';
 import {
   PlusCircle,
   Building,
   Edit,
   Trash2,
-  List,
-  LayoutGrid,
   User,
   Phone,
   Hash,
   FileText,
   MoreHorizontal,
 } from 'lucide-react-native';
-
-// Hardcoded permissions - replace with your actual permission logic
-const usePermissions = () => {
-  // Always return the same structure - don't conditionally call hooks
-  const [permissions] = useState({
-    canCreateUsers: true,
-    canCreateProducts: true,
-    canCreateCustomers: true,
-    canCreateVendors: true,
-    canCreateCompanies: true,
-    canCreateInventory: true,
-    canUpdateCompanies: true,
-    canSendInvoiceEmail: true,
-    canSendInvoiceWhatsapp: true,
-    maxCompanies: 10,
-    maxUsers: 5,
-    maxInventories: 20,
-  });
-
-  const [isLoading] = useState(false);
-
-  const refetch = React.useCallback(() => {
-    console.log('Refetch permissions');
-  }, []);
-
-  return {
-    permissions,
-    isLoading,
-    refetch,
-  };
-};
-
-// Hardcoded clients data
-const hardcodedClients = [
-  { _id: '1', contactName: 'John Doe', email: 'john@example.com' },
-  { _id: '2', contactName: 'Jane Smith', email: 'jane@example.com' },
-  { _id: '3', contactName: 'Mike Johnson', email: 'mike@example.com' },
-];
+import { usePermissions } from '../../contexts/permission-context';
+import { BASE_URL } from '../../config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import AppLayout from '../../components/layout/AppLayout';
 
 const CompaniesScreen = () => {
-  // All hooks must be called in the same order every time
   const [companies, setCompanies] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [companyToDelete, setCompanyToDelete] = useState(null);
-  const [viewMode, setViewMode] = useState('card');
   const [refreshing, setRefreshing] = useState(false);
-  const [showMenu, setShowMenu] = useState(null); // Track which company's menu is open
+  const [showMenu, setShowMenu] = useState(null);
+  const [clients, setClients] = useState([]);
 
-  // Custom hook must be called unconditionally at the top level
   const { permissions } = usePermissions();
 
-  // Mock data since we're not connecting to backend
-  const mockCompanies = [
-    {
-      _id: '1',
-      businessName: 'Tech Solutions Inc',
-      businessType: 'Technology',
-      emailId: 'contact@techsolutions.com',
-      mobileNumber: '+1-555-0123',
-      registrationNumber: 'REG001',
-      gstin: 'GSTIN001',
-    },
-    {
-      _id: '2',
-      businessName: 'Global Trading Co',
-      businessType: 'Trading',
-      emailId: 'info@globaltrading.com',
-      mobileNumber: '+1-555-0124',
-      registrationNumber: 'REG002',
-      gstin: 'GSTIN002',
-    },
-    {
-      _id: '3',
-      businessName: 'Retail Ventures Ltd',
-      businessType: 'Retail',
-      emailId: 'support@retailventures.com',
-      mobileNumber: '+1-555-0125',
-      registrationNumber: 'REG003',
-      gstin: null,
-    },
-  ];
-
-  const fetchCompanies = async () => {
+  // Fetch companies from API
+  const fetchCompanies = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setCompanies(mockCompanies);
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const response = await fetch(`${BASE_URL}/api/companies/my`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch companies.');
+      }
+
+      const data = await response.json();
+      setCompanies(data);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load companies');
+      console.error('Error fetching companies:', error);
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to load companies. Please try again.',
+      );
     } finally {
       setIsLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
+
+  // Fetch clients for the form (if needed)
+  const fetchClients = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch(`${BASE_URL}/api/clients`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setClients(data);
+      }
+    } catch (error) {
+      console.error('Error fetching clients:', error);
+    }
+  }, []);
 
   useEffect(() => {
     fetchCompanies();
-  }, []);
+    fetchClients();
+  }, [fetchCompanies, fetchClients]);
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchCompanies();
-  };
+  }, [fetchCompanies]);
 
   const handleAddNew = () => {
     setSelectedCompany(null);
@@ -149,7 +126,7 @@ const CompaniesScreen = () => {
     }
     setSelectedCompany(company);
     setIsDialogOpen(true);
-    setShowMenu(null); // Close menu
+    setShowMenu(null);
   };
 
   const handleDelete = company => {
@@ -161,7 +138,7 @@ const CompaniesScreen = () => {
       return;
     }
     setCompanyToDelete(company);
-    setShowMenu(null); // Close menu
+    setShowMenu(null);
     Alert.alert(
       'Delete Company',
       `Are you sure you want to delete ${company.businessName}? This action cannot be undone.`,
@@ -174,18 +151,42 @@ const CompaniesScreen = () => {
 
   const confirmDelete = async () => {
     if (!companyToDelete) return;
+
     try {
-      // Simulate delete operation
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setCompanies(prev =>
-        prev.filter(company => company._id !== companyToDelete._id),
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const response = await fetch(
+        `${BASE_URL}/api/companies/${companyToDelete._id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
       );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete company.');
+      }
+
       Alert.alert(
         'Success',
         `${companyToDelete.businessName} has been deleted successfully.`,
       );
+
+      // Refresh the companies list
+      fetchCompanies();
     } catch (error) {
-      Alert.alert('Error', 'Failed to delete company');
+      console.error('Error deleting company:', error);
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to delete company. Please try again.',
+      );
     } finally {
       setCompanyToDelete(null);
     }
@@ -208,9 +209,13 @@ const CompaniesScreen = () => {
           <View style={styles.iconContainer}>
             <Building size={20} color="#007AFF" />
           </View>
-          <View>
-            <Text style={styles.businessName}>{item.businessName}</Text>
-            <Text style={styles.businessType}>{item.businessType}</Text>
+          <View style={styles.companyTextContainer}>
+            <Text style={styles.businessName} numberOfLines={1}>
+              {item.businessName}
+            </Text>
+            <Text style={styles.businessType} numberOfLines={1}>
+              {item.businessType || 'N/A'}
+            </Text>
           </View>
         </View>
         {permissions?.canUpdateCompanies && (
@@ -259,7 +264,9 @@ const CompaniesScreen = () => {
           >
             <User size={12} color="#007AFF" />
           </View>
-          <Text style={styles.contactText}>{item.emailId}</Text>
+          <Text style={styles.contactText} numberOfLines={1}>
+            {item.emailId || 'N/A'}
+          </Text>
         </View>
         <View style={styles.contactItem}>
           <View
@@ -270,7 +277,9 @@ const CompaniesScreen = () => {
           >
             <Phone size={12} color="#34C759" />
           </View>
-          <Text style={styles.contactText}>{item.mobileNumber}</Text>
+          <Text style={styles.contactText} numberOfLines={1}>
+            {item.mobileNumber || 'N/A'}
+          </Text>
         </View>
       </View>
 
@@ -280,7 +289,9 @@ const CompaniesScreen = () => {
           <Text style={styles.detailLabel}>Registration No.</Text>
           <View style={styles.badge}>
             <Hash size={12} color="#666" />
-            <Text style={styles.badgeText}>{item.registrationNumber}</Text>
+            <Text style={styles.badgeText} numberOfLines={1}>
+              {item.registrationNumber || 'N/A'}
+            </Text>
           </View>
         </View>
         <View style={styles.detailItem}>
@@ -288,7 +299,10 @@ const CompaniesScreen = () => {
           {item.gstin ? (
             <View style={[styles.badge, styles.gstBadge]}>
               <FileText size={12} color="#FF9500" />
-              <Text style={[styles.badgeText, styles.gstText]}>
+              <Text
+                style={[styles.badgeText, styles.gstText]}
+                numberOfLines={1}
+              >
                 {item.gstin}
               </Text>
             </View>
@@ -316,131 +330,6 @@ const CompaniesScreen = () => {
     </View>
   );
 
-  const renderCompanyRow = ({ item }) => (
-    <View style={styles.tableRow}>
-      <View style={styles.tableCell}>
-        <View style={styles.companyInfo}>
-          <View style={styles.iconContainer}>
-            <Building size={20} color="#007AFF" />
-          </View>
-          <View>
-            <Text style={styles.businessName}>{item.businessName}</Text>
-            <Text style={styles.businessType}>{item.businessType}</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.tableCell}>
-        <View style={styles.contactItem}>
-          <View
-            style={[
-              styles.contactIcon,
-              { backgroundColor: 'rgba(0, 122, 255, 0.1)' },
-            ]}
-          >
-            <User size={12} color="#007AFF" />
-          </View>
-          <Text style={styles.contactText}>{item.emailId}</Text>
-        </View>
-        <View style={styles.contactItem}>
-          <View
-            style={[
-              styles.contactIcon,
-              { backgroundColor: 'rgba(52, 199, 89, 0.1)' },
-            ]}
-          >
-            <Phone size={12} color="#34C759" />
-          </View>
-          <Text style={styles.contactText}>{item.mobileNumber}</Text>
-        </View>
-      </View>
-
-      <View style={styles.tableCell}>
-        <View style={styles.badge}>
-          <Hash size={12} color="#666" />
-          <Text style={styles.badgeText}>{item.registrationNumber}</Text>
-        </View>
-      </View>
-
-      <View style={styles.tableCell}>
-        {item.gstin ? (
-          <View style={[styles.badge, styles.gstBadge]}>
-            <FileText size={12} color="#FF9500" />
-            <Text style={[styles.badgeText, styles.gstText]}>{item.gstin}</Text>
-          </View>
-        ) : (
-          <Text style={styles.naText}>N/A</Text>
-        )}
-      </View>
-
-      {permissions?.canUpdateCompanies && (
-        <View style={[styles.tableCell, styles.actionsCell]}>
-          <View style={styles.menuContainer}>
-            <TouchableOpacity
-              style={styles.menuButton}
-              onPress={() => toggleMenu(item._id)}
-            >
-              <MoreHorizontal size={16} color="#666" />
-            </TouchableOpacity>
-
-            {/* Dropdown Menu for Table View */}
-            {showMenu === item._id && (
-              <View style={[styles.dropdownMenu, styles.tableDropdownMenu]}>
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => handleEdit(item)}
-                >
-                  <Edit size={16} color="#007AFF" />
-                  <Text style={styles.menuItemText}>Edit</Text>
-                </TouchableOpacity>
-                <View style={styles.menuDivider} />
-                <TouchableOpacity
-                  style={[styles.menuItem, styles.deleteMenuItem]}
-                  onPress={() => handleDelete(item)}
-                >
-                  <Trash2 size={16} color="#FF3B30" />
-                  <Text style={[styles.menuItemText, styles.deleteMenuText]}>
-                    Delete
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        </View>
-      )}
-
-      {/* Overlay to close menu when clicking outside (for table view) */}
-      {showMenu === item._id && (
-        <TouchableOpacity
-          style={styles.menuOverlay}
-          onPress={() => setShowMenu(null)}
-        />
-      )}
-    </View>
-  );
-
-  const renderTableHeader = () => (
-    <View style={styles.tableHeader}>
-      <View style={styles.tableHeaderCell}>
-        <Text style={styles.tableHeaderText}>Company</Text>
-      </View>
-      <View style={styles.tableHeaderCell}>
-        <Text style={styles.tableHeaderText}>Contact</Text>
-      </View>
-      <View style={styles.tableHeaderCell}>
-        <Text style={styles.tableHeaderText}>Reg No.</Text>
-      </View>
-      <View style={styles.tableHeaderCell}>
-        <Text style={styles.tableHeaderText}>GSTIN</Text>
-      </View>
-      {permissions?.canUpdateCompanies && (
-        <View style={styles.tableHeaderCell}>
-          <Text style={styles.tableHeaderText}>Actions</Text>
-        </View>
-      )}
-    </View>
-  );
-
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <Building size={48} color="#999" />
@@ -457,119 +346,103 @@ const CompaniesScreen = () => {
     </View>
   );
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTitle}>
-            <Text style={styles.title}>Companies</Text>
-            <Text style={styles.subtitle}>
-              Manage all your business entities in one place.
-            </Text>
-          </View>
-          <View style={styles.headerActions}>
-            <View style={styles.viewToggle}>
-              <TouchableOpacity
-                style={[
-                  styles.toggleButton,
-                  viewMode === 'card' && styles.toggleButtonActive,
-                ]}
-                onPress={() => setViewMode('card')}
-              >
-                <LayoutGrid
-                  size={16}
-                  color={viewMode === 'card' ? 'white' : '#666'}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.toggleButton,
-                  viewMode === 'list' && styles.toggleButtonActive,
-                ]}
-                onPress={() => setViewMode('list')}
-              >
-                <List
-                  size={16}
-                  color={viewMode === 'list' ? 'white' : '#666'}
-                />
-              </TouchableOpacity>
-            </View>
-            {permissions?.canCreateCompanies && (
-              <TouchableOpacity
-                style={styles.addCompanyButton}
-                onPress={handleAddNew}
-              >
-                <PlusCircle size={16} color="white" />
-                <Text style={styles.addCompanyButtonText}>Add Company</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* Content */}
-        {isLoading ? (
+  // Loading State
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <SafeAreaView style={styles.safeArea}>
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#007AFF" />
             <Text style={styles.loadingText}>Loading companies...</Text>
           </View>
-        ) : companies.length > 0 ? (
-          <View style={styles.content}>
-            {viewMode === 'list' && renderTableHeader()}
-            <FlatList
-              data={companies}
-              key={viewMode}
-              keyExtractor={item => item._id}
-              renderItem={
-                viewMode === 'card' ? renderCompanyCard : renderCompanyRow
-              }
-              numColumns={viewMode === 'card' ? 1 : undefined}
-              refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-              }
-              contentContainerStyle={[
-                styles.listContent,
-                viewMode === 'card' && styles.cardListContent,
-              ]}
-              showsVerticalScrollIndicator={false}
-            />
-          </View>
-        ) : (
-          renderEmptyState()
-        )}
+        </SafeAreaView>
+      </AppLayout>
+    );
+  }
 
-        {/* Company Form Modal */}
-        <Modal
-          visible={isDialogOpen}
-          animationType="slide"
-          presentationStyle="pageSheet"
-          onRequestClose={() => setIsDialogOpen(false)}
-        >
-          <SafeAreaView style={styles.modalSafeArea}>
-            <View style={styles.modalContainer}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  {selectedCompany ? 'Edit Company' : 'Add New Company'}
-                </Text>
-                <Text style={styles.modalDescription}>
-                  {selectedCompany
-                    ? `Update the details for ${selectedCompany.businessName}.`
-                    : 'Fill in the form below to add a new company.'}
-                </Text>
-              </View>
-              <ScrollView style={styles.modalContent}>
-                <CompanyForm
-                  company={selectedCompany || undefined}
-                  clients={hardcodedClients}
-                  onFormSubmit={onFormSubmit}
-                  onCancel={() => setIsDialogOpen(false)}
-                />
-              </ScrollView>
+  return (
+    <AppLayout>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.container}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerTitle}>
+              <Text style={styles.title}>Companies</Text>
+              <Text style={styles.subtitle}>
+                Manage all your business entities
+              </Text>
             </View>
-          </SafeAreaView>
-        </Modal>
-      </View>
-    </SafeAreaView>
+            <View style={styles.headerActions}>
+              {permissions?.canCreateCompanies && (
+                <TouchableOpacity
+                  style={styles.addCompanyButton}
+                  onPress={handleAddNew}
+                >
+                  <PlusCircle size={16} color="white" />
+                  <Text style={styles.addCompanyButtonText}>Add Company</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* Content */}
+          {companies.length > 0 ? (
+            <View style={styles.content}>
+              <FlatList
+                data={companies}
+                keyExtractor={item => item._id}
+                renderItem={renderCompanyCard}
+                numColumns={1}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                  />
+                }
+                contentContainerStyle={[
+                  styles.listContent,
+                  styles.cardListContent,
+                ]}
+                showsVerticalScrollIndicator={false}
+              />
+            </View>
+          ) : (
+            renderEmptyState()
+          )}
+
+          {/* Company Form Modal */}
+          <Modal
+            visible={isDialogOpen}
+            animationType="slide"
+            presentationStyle="pageSheet"
+            onRequestClose={() => setIsDialogOpen(false)}
+          >
+            <SafeAreaView style={styles.modalSafeArea}>
+              <View style={styles.modalContainer}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>
+                    {selectedCompany ? 'Edit Company' : 'Add New Company'}
+                  </Text>
+                  <Text style={styles.modalDescription}>
+                    {selectedCompany
+                      ? `Update the details for ${selectedCompany.businessName}.`
+                      : 'Fill in the form below to add a new company.'}
+                  </Text>
+                </View>
+                <ScrollView style={styles.modalContent}>
+                  <CompanyForm
+                    company={selectedCompany || undefined}
+                    clients={clients}
+                    onFormSubmit={onFormSubmit}
+                    onCancel={() => setIsDialogOpen(false)}
+                  />
+                </ScrollView>
+              </View>
+            </SafeAreaView>
+          </Modal>
+        </View>
+      </SafeAreaView>
+    </AppLayout>
   );
 };
 
@@ -591,21 +464,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     padding: 16,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
   },
   headerTitle: {
     flex: 1,
   },
   title: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: 2,
     color: '#1a1a1a',
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#666',
   },
   headerActions: {
@@ -613,32 +483,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  viewToggle: {
-    flexDirection: 'row',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
-    padding: 2,
-  },
-  toggleButton: {
-    padding: 8,
-    borderRadius: 6,
-  },
-  toggleButtonActive: {
-    backgroundColor: '#007AFF',
-  },
   addCompanyButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#007AFF',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 12, // वर्टिकल पैडिंग बढ़ाई (हाइट बढ़ी)
+    borderRadius: 10, // बॉर्डर रेडियस थोड़ा बढ़ाया
     gap: 8,
+
+    elevation: 4,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
   },
   addCompanyButtonText: {
     color: 'white',
-    fontWeight: '600',
-    fontSize: 14,
+    fontWeight: '700',
+    fontSize: 15,
   },
   content: {
     flex: 1,
@@ -682,6 +545,9 @@ const styles = StyleSheet.create({
     gap: 12,
     flex: 1,
   },
+  companyTextContainer: {
+    flex: 1,
+  },
   iconContainer: {
     padding: 8,
     backgroundColor: 'rgba(0, 122, 255, 0.1)',
@@ -719,10 +585,6 @@ const styles = StyleSheet.create({
     minWidth: 120,
     zIndex: 1000,
   },
-  tableDropdownMenu: {
-    top: 35,
-    right: 0,
-  },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -734,9 +596,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
   },
-  deleteMenuItem: {
-    // Additional styles for delete item if needed
-  },
+  deleteMenuItem: {},
   deleteMenuText: {
     color: '#FF3B30',
   },
@@ -774,6 +634,7 @@ const styles = StyleSheet.create({
   contactText: {
     fontSize: 14,
     color: '#333',
+    flex: 1,
   },
   detailsSection: {
     flexDirection: 'row',
@@ -797,11 +658,13 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     gap: 4,
     alignSelf: 'flex-start',
+    maxWidth: '100%',
   },
   badgeText: {
     fontSize: 12,
     color: '#333',
     fontWeight: '500',
+    flex: 1,
   },
   gstBadge: {
     backgroundColor: 'rgba(255, 149, 0, 0.1)',
@@ -834,43 +697,6 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     color: '#666',
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    backgroundColor: '#f8f9fa',
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  tableHeaderCell: {
-    flex: 1,
-  },
-  tableHeaderText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#666',
-    textTransform: 'uppercase',
-  },
-  tableRow: {
-    flexDirection: 'row',
-    backgroundColor: 'white',
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  tableCell: {
-    flex: 1,
-    paddingHorizontal: 4,
-  },
-  actionsCell: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    position: 'relative',
-  },
-  actionButton: {
-    padding: 8,
   },
   emptyState: {
     flex: 1,
@@ -926,6 +752,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     flex: 1,
+    padding: 16,
   },
 });
 
