@@ -1,5 +1,5 @@
 // src/screens/dashboard/UserDashboardScreen.jsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,61 +19,216 @@ import {
   Settings,
 } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import AppLayout from '../../components/layout/AppLayout';
 import RecentTransactions from '../../components/dashboard/RecentTransactions';
 import ProductStock from '../../components/dashboard/ProductStock';
-import TransactionForm from '../../components/transactions/TransactionForm';
+import { TransactionForm } from '../../components/transactions/TransactionForm';
+import { useCompany } from '../../contexts/company-context';
+import UpdateWalkthrough from '../../components/notifications/UpdateWalkthrough';
+import { useUserPermissions } from '../../contexts/user-permissions-context';
+import { BASE_URL } from '../../config';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 const formatCurrency = amount =>
-  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount || 0);
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(
+    amount || 0,
+  );
+
+const toArray = data => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.entries)) return data.entries;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+};
+
+const num = v => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const getAmount = (type, row) => {
+  switch (type) {
+    case 'sales':
+      return num(row?.amount ?? row?.totalAmount);
+    case 'purchases':
+      return num(row?.totalAmount ?? row?.amount);
+    case 'receipt':
+    case 'payment':
+      return num(row?.amount ?? row?.totalAmount);
+    case 'journal':
+      return 0;
+    default:
+      return 0;
+  }
+};
 
 export default function UserDashboardScreen({ navigation, route }) {
-  const { username = 'User', role = 'user' } = route?.params || {};
-
   // --- State & Hooks
-  const [isLoading, setIsLoading] = useState(false);
+  const { selectedCompanyId } = useCompany();
+  const { permissions: userCaps, isAllowed } = useUserPermissions();
+
+  const [isLoading, setIsLoading] = useState(true);
   const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
+  const [companyData, setCompanyData] = useState(null);
+  const [companies, setCompanies] = useState([]);
+  const [recentTransactions, setRecentTransactions] = useState([]);
+  const [serviceNameById, setServiceNameById] = useState(new Map());
 
-  // --- Mock Data (replace with API later)
-  const companies = [
-    { _id: 'c1', businessName: 'Sharda Associates' },
-    { _id: 'c2', businessName: 'Finaxis Consultancy' },
-  ];
+  // Read role from AsyncStorage
+  const [role, setRole] = useState('user');
 
-  const serviceNameById = useMemo(() => {
-    const m = new Map();
-    m.set('s1', 'GST Filing');
-    m.set('s2', 'ITR Filing');
-    m.set('s3', 'Project Report');
-    return m;
+  useEffect(() => {
+    const fetchRole = async () => {
+      const storedRole = await AsyncStorage.getItem('role');
+      setRole(storedRole || 'user');
+    };
+    fetchRole();
   }, []);
 
-  const allTransactions = [
-    { id: 't1', type: 'sales', date: '2025-09-25', amount: 25000, serviceId: 's3', partyName: 'Aparajita Logistics Pvt Ltd', narration: 'DPR fees received' },
-    { id: 't2', type: 'purchases', date: '2025-09-23', totalAmount: 8000, serviceId: 's2', partyName: 'AWS (infra)', narration: 'Server cost' },
-    { id: 't3', type: 'receipt', date: '2025-09-22', amount: 12000, serviceId: 's1', partyName: 'Kailash Real Estate', narration: 'Advance for GST' },
-    { id: 't4', type: 'payment', date: '2025-09-20', amount: 4500, serviceId: 's1', partyName: 'Tally Prime License', narration: 'Monthly fee' },
-    { id: 't5', type: 'journal', date: '2025-09-18', narration: 'Year-end adjustments' },
-  ].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const isAdmin = role === 'admin' || role === 'master';
+  const selectedCompany = useMemo(
+    () =>
+      selectedCompanyId
+        ? companies.find(c => c._id === selectedCompanyId) || null
+        : null,
+    [companies, selectedCompanyId],
+  );
 
-  const [recentTransactions, setRecentTransactions] = useState(allTransactions.slice(0, 5));
+  // Safe fetch helper
+  const safeGet = useCallback(async url => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return {};
 
-  const totalSales = allTransactions
-    .filter(t => t.type === 'sales')
-    .reduce((a, t) => a + (t.amount || t.totalAmount || 0), 0);
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return {};
+      return await response.json();
+    } catch {
+      return {};
+    }
+  }, []);
 
-  const totalPurchases = allTransactions
-    .filter(t => t.type === 'purchases')
-    .reduce((a, t) => a + (t.amount || t.totalAmount || 0), 0);
+  // Fetch dashboard data
+  const fetchCompanyDashboard = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const queryParam = selectedCompanyId
+        ? `?companyId=${selectedCompanyId}`
+        : '';
 
-  const isAdmin = role === 'admin';
-  const companyData = {
-    totalSales,
-    totalPurchases,
-    users: isAdmin ? 12 : 0,
-    companies: companies.length,
+      const [
+        rawSales,
+        rawPurchases,
+        rawReceipts,
+        rawPayments,
+        rawJournals,
+        companiesData,
+        servicesJson,
+      ] = await Promise.all([
+        safeGet(`${BASE_URL}/api/sales${queryParam}`),
+        safeGet(`${BASE_URL}/api/purchase${queryParam}`),
+        safeGet(`${BASE_URL}/api/receipts${queryParam}`),
+        safeGet(`${BASE_URL}/api/payments${queryParam}`),
+        safeGet(`${BASE_URL}/api/journals${queryParam}`),
+        safeGet(`${BASE_URL}/api/companies/my`),
+        safeGet(`${BASE_URL}/api/services`),
+      ]);
+
+      // Only admins can see users count
+      let usersCount = 0;
+      if (isAdmin) {
+        const usersJson = await safeGet(`${BASE_URL}/api/users`);
+        usersCount = Array.isArray(usersJson)
+          ? usersJson.length
+          : usersJson?.length || 0;
+      }
+
+      // Services map
+      const servicesArr = Array.isArray(servicesJson)
+        ? servicesJson
+        : servicesJson?.services || [];
+      const sMap = new Map();
+      servicesArr.forEach(s => {
+        if (s?._id) {
+          sMap.set(String(s._id), s.serviceName || s.name || 'Service');
+        }
+      });
+      setServiceNameById(sMap);
+
+      // Companies
+      const comps = Array.isArray(companiesData)
+        ? companiesData
+        : companiesData?.data || [];
+      setCompanies(comps);
+
+      // Normalize arrays
+      const salesArr = toArray(rawSales);
+      const purchasesArr = toArray(rawPurchases);
+      const receiptsArr = toArray(rawReceipts);
+      const paymentsArr = toArray(rawPayments);
+      const journalsArr = toArray(rawJournals);
+
+      // Combine all transactions
+      const allTransactions = [
+        ...salesArr.map(s => ({ ...s, type: 'sales' })),
+        ...purchasesArr.map(p => ({ ...p, type: 'purchases' })),
+        ...receiptsArr.map(r => ({ ...r, type: 'receipt' })),
+        ...paymentsArr.map(p => ({ ...p, type: 'payment' })),
+        ...journalsArr.map(j => ({
+          ...j,
+          description: j?.narration ?? j?.description ?? '',
+          type: 'journal',
+        })),
+      ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      setRecentTransactions(allTransactions.slice(0, 5));
+
+      // Calculate KPIs
+      const totalSales = salesArr.reduce(
+        (acc, row) => acc + getAmount('sales', row),
+        0,
+      );
+      const totalPurchases = purchasesArr.reduce(
+        (acc, row) => acc + getAmount('purchases', row),
+        0,
+      );
+      const companiesCount = selectedCompanyId
+        ? 1
+        : Array.isArray(comps)
+        ? comps.length
+        : 0;
+
+      setCompanyData({
+        totalSales,
+        totalPurchases,
+        users: usersCount,
+        companies: companiesCount,
+      });
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Failed to load dashboard',
+        text2: error instanceof Error ? error.message : 'Something went wrong.',
+        position: 'bottom',
+      });
+      setCompanyData(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedCompanyId, isAdmin, safeGet]);
+
+  useEffect(() => {
+    fetchCompanyDashboard();
+  }, [selectedCompanyId, fetchCompanyDashboard]);
+
+  const handleTransactionFormSubmit = () => {
+    setIsTransactionFormOpen(false);
+    fetchCompanyDashboard();
   };
 
   // --- KPI Cards
@@ -81,47 +236,39 @@ export default function UserDashboardScreen({ navigation, route }) {
     {
       key: 'sales',
       title: 'Total Sales',
-      value: formatCurrency(companyData.totalSales),
+      value: formatCurrency(companyData?.totalSales || 0),
       icon: IndianRupee,
-      description: 'Across all companies',
+      description: selectedCompanyId
+        ? 'For selected company'
+        : 'Across all companies',
+      show: isAdmin || isAllowed('canCreateSaleEntries'),
     },
     {
       key: 'purchases',
       title: 'Total Purchases',
-      value: formatCurrency(companyData.totalPurchases),
+      value: formatCurrency(companyData?.totalPurchases || 0),
       icon: CreditCard,
+      show: isAdmin || isAllowed('canCreatePurchaseEntries'),
     },
     {
       key: 'users',
       title: 'Active Users',
-      value: companyData.users.toString(),
+      value: (companyData?.users || 0).toString(),
       icon: Users,
       show: isAdmin,
     },
     {
       key: 'companies',
       title: 'Companies',
-      value: companyData.companies.toString(),
+      value: (companyData?.companies || 0).toString(),
       icon: Building,
+      show: true,
     },
-  ].filter(k => k.show !== false);
+  ].filter(k => k.show);
 
   // --- Handlers
-  const handleTransactionFormSubmit = newTransaction => {
-    if (newTransaction) {
-      const updated = [newTransaction, ...recentTransactions.slice(0, 4)];
-      setRecentTransactions(updated);
-    }
-    Toast.show({
-      type: 'success',
-      text1: 'Transaction Saved',
-      text2: 'Your transaction has been successfully recorded!',
-      position: 'bottom',
-    });
-    setIsTransactionFormOpen(false);
-  };
-
   const handleSettingsPress = () => navigation.navigate('ProfileScreen');
+  const handleTransactionPress = () => setIsTransactionFormOpen(true);
 
   // --- KPI Card Component
   const KPICard = ({ title, value, Icon, description }) => (
@@ -132,7 +279,9 @@ export default function UserDashboardScreen({ navigation, route }) {
       </View>
       <View style={styles.cardContent}>
         <Text style={styles.cardValue}>{value}</Text>
-        {description && <Text style={styles.cardDescription}>{description}</Text>}
+        {description && (
+          <Text style={styles.cardDescription}>{description}</Text>
+        )}
       </View>
     </View>
   );
@@ -149,36 +298,61 @@ export default function UserDashboardScreen({ navigation, route }) {
     );
   }
 
+  if (companies.length === 0) {
+    return (
+      <AppLayout>
+        <View style={styles.emptyContainer}>
+          <Building size={48} color="#ccc" />
+          <Text style={styles.emptyTitle}>No Company Available</Text>
+          <Text style={styles.emptyDescription}>
+            You don't have access to any company yet. Please contact your admin.
+          </Text>
+        </View>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.subtitle}>
-            Welcome back, {username}! Here's your business overview.
-          </Text>
+          <View style={styles.headerText}>
+            <Text style={styles.title}>User Dashboard</Text>
+            <Text style={styles.subtitle}>
+              {selectedCompany
+                ? `An overview of ${selectedCompany.businessName}.`
+                : 'An overview across your accessible companies.'}
+            </Text>
+          </View>
 
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              onPress={handleSettingsPress}
-              style={[styles.btn, styles.btnOutline]}
-              activeOpacity={0.85}
-            >
-              <Settings size={16} style={{ marginRight: 8 }} />
-              <Text>Settings</Text>
-            </TouchableOpacity>
-
-            {isAdmin && (
+          {companies.length > 0 && (
+            <View style={styles.headerActions}>
               <TouchableOpacity
-                onPress={() => setIsTransactionFormOpen(true)}
-                style={[styles.btn, styles.btnSolid]}
+                onPress={handleSettingsPress}
+                style={[styles.btn, styles.btnOutline]}
                 activeOpacity={0.85}
               >
-                <PlusCircle size={16} style={{ marginRight: 8 }} color="#fff" />
-                <Text style={{ color: 'white' }}>New Transaction</Text>
+                <Settings size={16} style={{ marginRight: 8 }} />
+                <Text>Settings</Text>
               </TouchableOpacity>
-            )}
-          </View>
+
+              {isAdmin && (
+                <TouchableOpacity
+                  onPress={handleTransactionPress}
+                  style={[styles.btn, styles.btnSolid]}
+                  activeOpacity={0.85}
+                >
+                  <PlusCircle
+                    size={16}
+                    style={{ marginRight: 8 }}
+                    color="#fff"
+                  />
+                  <Text style={{ color: 'white' }}>New Transaction</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </View>
 
         {/* KPI Cards */}
@@ -200,13 +374,7 @@ export default function UserDashboardScreen({ navigation, route }) {
 
         {/* Product Stock & Recent Transactions */}
         <View style={styles.contentGrid}>
-          <ProductStock
-            items={[
-              { id: 'p1', name: 'Thermal Paper', qty: 120, unit: 'rolls' },
-              { id: 'p2', name: 'A4 Sheets', qty: 45, unit: 'reams' },
-              { id: 'p3', name: 'Printer Ink', qty: 12, unit: 'bottles' },
-            ]}
-          />
+          <ProductStock />
           <RecentTransactions
             transactions={recentTransactions}
             serviceNameById={serviceNameById}
@@ -223,6 +391,12 @@ export default function UserDashboardScreen({ navigation, route }) {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { width: SCREEN_WIDTH * 0.95 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Create a New Transaction</Text>
+              <Text style={styles.modalDescription}>
+                Fill in the details below to record a new financial event.
+              </Text>
+            </View>
             <ScrollView style={styles.modalBody}>
               <TransactionForm
                 onFormSubmit={handleTransactionFormSubmit}
@@ -246,6 +420,20 @@ export default function UserDashboardScreen({ navigation, route }) {
   );
 }
 
+// --- KPI Card Component
+const KPICard = ({ title, value, Icon, description }) => (
+  <View style={[styles.kpiCard, { width: SCREEN_WIDTH * 0.6 }]}>
+    <View style={styles.cardHeader}>
+      <Text style={styles.cardTitle}>{title}</Text>
+      <Icon size={18} color="#666" />
+    </View>
+    <View style={styles.cardContent}>
+      <Text style={styles.cardValue}>{value}</Text>
+      {description && <Text style={styles.cardDescription}>{description}</Text>}
+    </View>
+  </View>
+);
+
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
@@ -253,30 +441,66 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
   },
-  loadingText: { marginTop: 12, fontSize: 16, color: '#666' },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  emptyTitle: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  emptyDescription: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    flexWrap: 'wrap',
+    marginBottom: 24,
+  },
+  headerText: {
     marginBottom: 16,
   },
-  subtitle: { fontSize: 14, color: '#666', flexShrink: 1 },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#666',
+  },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    marginTop: 8,
+    gap: 8,
   },
   btn: {
+    flexDirection: 'row',
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 8,
-    marginLeft: 8,
-    marginTop: 4,
+    alignItems: 'center',
   },
-  btnSolid: { backgroundColor: '#0f62fe' },
-  btnOutline: { borderWidth: 1, borderColor: '#ccc', backgroundColor: 'white' },
+  btnSolid: {
+    backgroundColor: '#0f62fe',
+  },
+  btnOutline: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    backgroundColor: 'white',
+  },
   kpiCard: {
     padding: 16,
     borderRadius: 8,
@@ -294,11 +518,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  cardTitle: { fontSize: 14, fontWeight: '500', color: '#666' },
-  cardContent: { flex: 1 },
-  cardValue: { fontSize: 20, fontWeight: 'bold', marginBottom: 4 },
-  cardDescription: { fontSize: 12, color: '#666' },
-  contentGrid: { marginBottom: 24 },
+  cardTitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#666',
+  },
+  cardContent: {
+    flex: 1,
+  },
+  cardValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  cardDescription: {
+    fontSize: 11,
+    color: '#666',
+  },
+  contentGrid: {
+    marginBottom: 24,
+  },
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',
@@ -309,14 +548,33 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: 'white',
     borderRadius: 12,
-    maxHeight: '80%',
+    maxHeight: '85%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
   },
-  modalBody: { maxHeight: 400, paddingHorizontal: 8, paddingVertical: 8 },
+  modalHeader: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#666',
+  },
+  modalBody: {
+    maxHeight: 400,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
   modalFooter: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

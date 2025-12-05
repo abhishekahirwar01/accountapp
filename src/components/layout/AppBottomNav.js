@@ -209,7 +209,7 @@ export function AppSidebar() {
           icon="grid-outline"
           title="Dashboard"
           isActive={isActive('UserDashboard') || isActive('CustomerDashboard')}
-          onPress={() => navigation.navigate('UserDashboard')}
+          onPress={() => navigation.navigate('CustomerDashboard')}
           isBottomNav={isMobile}
         />
 
