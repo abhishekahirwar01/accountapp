@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,6 @@ import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 import { navigateByRole } from '../../utils/roleNavigation';
 import { loginUser, getCurrentUser } from '../../lib/auth';
 
-// ✅ Contexts uncommented
 import { useUserPermissions } from '../../contexts/user-permissions-context';
 import { usePermissions } from '../../contexts/permission-context';
 
@@ -28,7 +27,6 @@ export default function UserLoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
-  // ✅ Contexts uncommented
   const { refetch: refetchUserPermissions } = useUserPermissions();
   const { refetch: refetchAppPermissions } = usePermissions();
 
@@ -45,7 +43,6 @@ export default function UserLoginScreen({ navigation }) {
     };
   }, []);
 
-  // ✅ Check if user is already logged in
   useEffect(() => {
     checkExistingAuth();
   }, []);
@@ -54,34 +51,19 @@ export default function UserLoginScreen({ navigation }) {
     try {
       const currentUser = await getCurrentUser();
       if (currentUser) {
-        // User already logged in, redirect based on role
-        console.log('🔄 User already authenticated:', currentUser.role);
-
-        // ✅ Refetch permissions for existing user
         await refetchPermissions();
-
         setTimeout(() => {
           navigateByRole(navigation, currentUser.role);
         }, 500);
       }
-    } catch (error) {
-      console.log('🔐 No existing session found');
-    }
+    } catch (error) {}
   };
 
-  // ✅ Refetch permissions function
   const refetchPermissions = async () => {
     try {
-      console.log('🔄 Refetching user permissions...');
       await refetchUserPermissions?.();
-      console.log('✅ User permissions refreshed');
-
-      console.log('🔄 Refetching global app permissions...');
       await refetchAppPermissions?.();
-      console.log('✅ Global permissions refreshed');
-    } catch (error) {
-      console.error('❌ Failed to refetch permissions:', error);
-    }
+    } catch (error) {}
   };
 
   const handleSubmit = async () => {
@@ -98,7 +80,6 @@ export default function UserLoginScreen({ navigation }) {
     setLoading(true);
 
     try {
-      // 🔐 Actual API login call
       const user = await loginUser(userId, password);
 
       Toast.show({
@@ -108,19 +89,12 @@ export default function UserLoginScreen({ navigation }) {
         visibilityTime: 1500,
       });
 
-      // ✅ Refetch permissions after login
       await refetchPermissions();
 
-      // ✅ Verify the user session was saved properly
-      const savedUser = await getCurrentUser();
-      console.log('💾 Session saved successfully:', savedUser ? 'Yes' : 'No');
-
-      // 🧭 Navigate based on role
       setTimeout(() => {
         navigateByRole(navigation, user.role);
       }, 500);
     } catch (error) {
-      console.error('❌ Login error:', error);
       Toast.show({
         type: 'custom_error',
         text1: 'Login Failed',
@@ -132,7 +106,6 @@ export default function UserLoginScreen({ navigation }) {
     }
   };
 
-  // ✅ Toast styling (success + error)
   const toastConfig = {
     custom_success: props => (
       <BaseToast
@@ -176,7 +149,6 @@ export default function UserLoginScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-      {/* 🔙 Back Button */}
       <TouchableOpacity
         style={styles.backButtonAbsolute}
         onPress={() => navigation.goBack()}
@@ -190,7 +162,6 @@ export default function UserLoginScreen({ navigation }) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.contentContainer}>
-          {/* 🧩 Header */}
           <View
             style={[
               styles.headerContainer,
@@ -210,7 +181,6 @@ export default function UserLoginScreen({ navigation }) {
             </Text>
           </View>
 
-          {/* 🪪 User ID */}
           <Text style={styles.label}>User ID</Text>
           <TextInput
             style={styles.input}
@@ -220,16 +190,13 @@ export default function UserLoginScreen({ navigation }) {
             editable={!loading}
             autoCapitalize="none"
             autoCorrect={false}
-            keyboardType="default"
             placeholderTextColor="#94a3b8"
             returnKeyType="next"
             onSubmitEditing={() => {
-              // Focus next field or submit
               this.passwordInput?.focus();
             }}
           />
 
-          {/* 🔑 Password */}
           <Text style={styles.label}>Password</Text>
           <View style={styles.passwordContainer}>
             <TextInput
@@ -243,7 +210,6 @@ export default function UserLoginScreen({ navigation }) {
               autoCapitalize="none"
               autoCorrect={false}
               placeholderTextColor="#94a3b8"
-              textContentType="password"
               returnKeyType="done"
               onSubmitEditing={handleSubmit}
             />
@@ -260,12 +226,10 @@ export default function UserLoginScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          {/* 🔁 Forgot Password */}
           <TouchableOpacity style={styles.forgotPassword}>
             <Text style={styles.forgotPasswordText}>Forgot password?</Text>
           </TouchableOpacity>
 
-          {/* 🚀 Sign In Button */}
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleSubmit}
