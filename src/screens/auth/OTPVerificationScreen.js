@@ -11,19 +11,117 @@ import {
   StatusBar,
   Keyboard,
   TouchableWithoutFeedback,
-  NativeSyntheticEvent,
-  TextInputKeyPressEventData,
+  Animated, // Animated API for Custom Toast
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+
+// --- 1. Custom Toast Component (Kudsi Custom Toast) ---
+const DURATION = 3000; // Toast visibility time
+
+const ToastComponent = ({ isVisible, type, text1, text2, onHide }) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (isVisible) {
+      // Show animation
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => {
+        // Auto hide after DURATION
+        setTimeout(() => {
+          Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }).start(() => {
+            onHide();
+          });
+        }, DURATION - 300); // Wait for DURATION, then start hide animation
+      });
+    }
+  }, [isVisible, fadeAnim, onHide]);
+
+  if (!isVisible) return null;
+
+  // Define styles based on toast type
+  let color, bgColor, borderColor, iconName;
+  if (type === 'success') {
+    color = '#15803D'; // Green
+    bgColor = '#F0FDF4';
+    borderColor = '#22C55E';
+    iconName = 'checkmark-circle';
+  } else if (type === 'error') {
+    color = '#B91C1C'; // Red
+    bgColor = '#FEF2F2';
+    borderColor = '#EF4444';
+    iconName = 'close-circle';
+  } else if (type === 'info') {
+    color = '#1D4ED8'; // Blue
+    bgColor = '#EFF6FF';
+    borderColor = '#3B82F6';
+    iconName = 'information-circle';
+  } else {
+    color = '#1F2937';
+    bgColor = '#FFFFFF';
+    borderColor = '#E5E7EB';
+    iconName = 'alert-circle';
+  }
+
+  return (
+    <Animated.View
+      style={[
+        styles.customToast,
+        {
+          opacity: fadeAnim, // Bind opacity to animated value
+          backgroundColor: bgColor,
+          borderLeftColor: borderColor,
+        },
+        // Position at the top, adjusted for StatusBar/SafeArea
+        { top: Platform.OS === 'ios' ? 60 : 40 },
+      ]}>
+      <Ionicons
+        name={iconName}
+        size={26}
+        color={borderColor}
+        style={{ marginLeft: 15, marginRight: 12, alignSelf: 'center' }}
+      />
+      <View style={styles.customToastContent}>
+        <Text style={[styles.customToastText1, { color }]}>{text1}</Text>
+        <Text style={[styles.customToastText2, { color }]}>{text2}</Text>
+      </View>
+    </Animated.View>
+  );
+};
+// --- End of Custom Toast Component ---
 
 export default function OTPVerificationScreen({ navigation, route }) {
   const { method, email, mobile, otp, role } = route.params;
   const [enteredOtp, setEnteredOtp] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(30);
 
+  // Custom Toast State
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastData, setToastData] = useState({
+    type: 'info',
+    text1: '',
+    text2: '',
+  });
+
   const otpInputsRef = useRef([]);
+
+  // Function to show custom toast
+  const showToast = (type, text1, text2) => {
+    setToastData({ type, text1, text2 });
+    setToastVisible(true);
+  };
+
+  // Function to hide custom toast
+  const hideToast = () => {
+    setToastVisible(false);
+  };
 
   // Timer countdown
   useEffect(() => {
@@ -72,15 +170,25 @@ export default function OTPVerificationScreen({ navigation, route }) {
     }
   };
 
+  // --- Verification and Error Handling (Updated to use custom Toast) ---
   const handleVerify = () => {
+    // Basic validation
+    if (otpValue.length !== 6) {
+      showToast(
+        'error',
+        'Incomplete OTP',
+        'Please enter the complete 6-digit code.',
+      );
+      return;
+    }
+
+    // OTP verification logic (client-side simple comparison for demo)
     if (otpValue === otp) {
-      Toast.show({
-        type: 'custom_success',
-        text1: 'OTP Verified Successfully!',
-        text2: 'Redirecting to your account...',
-        position: 'top',
-        visibilityTime: 2000,
-      });
+      showToast(
+        'success',
+        'OTP Verified Successfully!',
+        'Redirecting to your account...',
+      );
 
       setTimeout(() => {
         if (role === 'master') navigation.navigate('AdminLoginScreen');
@@ -88,151 +196,35 @@ export default function OTPVerificationScreen({ navigation, route }) {
         else navigation.navigate('UserLoginScreen');
       }, 800);
     } else {
-      Toast.show({
-        type: 'custom_error',
-        text1: 'Invalid OTP',
-        text2: 'Please check the code and try again.',
-        position: 'top',
-        visibilityTime: 3000,
-      });
+      // Error Handling: Invalid OTP
+      showToast(
+        'error',
+        'Invalid OTP',
+        'Please check the code and try again.',
+      );
     }
   };
 
   const handleResendOtp = () => {
     if (timer === 0) {
+      // In a real application, you would make an API call here to resend the OTP
+      // For this demo, we just reset the timer and show a success message.
+
       setTimer(30);
-      setEnteredOtp(['', '', '', '', '', '']);
-      Toast.show({
-        type: 'info',
-        text1: 'OTP Sent Successfully!',
-        text2: `New verification code sent to your ${
+      setEnteredOtp(['', '', '', '', '', '']); // Clear the previous OTP
+      showToast(
+        'info',
+        'OTP Sent Successfully!',
+        `New verification code sent to your ${
           method === 'email' ? 'email' : 'mobile'
         }.`,
-        position: 'top',
-        visibilityTime: 2500,
-      });
+      );
       setTimeout(() => {
         otpInputsRef.current[0]?.focus();
       }, 100);
     }
   };
-
-  // Custom Toast Configuration
-  const toastConfig = {
-    custom_success: props => (
-      <BaseToast
-        {...props}
-        style={{
-          borderLeftColor: '#22C55E',
-          borderRadius: 12,
-          backgroundColor: '#F0FDF4',
-          height: 70,
-          borderWidth: 1,
-          borderColor: '#22C55E20',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 8,
-          elevation: 4,
-        }}
-        contentContainerStyle={{ paddingHorizontal: 15 }}
-        text1Style={{
-          fontSize: 15,
-          fontWeight: '700',
-          color: '#15803D',
-        }}
-        text2Style={{
-          fontSize: 13,
-          color: '#15803D',
-          lineHeight: 18,
-        }}
-        renderLeadingIcon={() => (
-          <Ionicons
-            name="checkmark-circle"
-            size={26}
-            color="#22C55E"
-            style={{ marginLeft: 15, marginRight: 12, alignSelf: 'center' }}
-          />
-        )}
-      />
-    ),
-
-    custom_error: props => (
-      <ErrorToast
-        {...props}
-        style={{
-          borderLeftColor: '#EF4444',
-          borderRadius: 12,
-          backgroundColor: '#FEF2F2',
-          height: 70,
-          borderWidth: 1,
-          borderColor: '#EF444420',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 8,
-          elevation: 4,
-        }}
-        contentContainerStyle={{ paddingHorizontal: 15 }}
-        text1Style={{
-          fontSize: 15,
-          fontWeight: '700',
-          color: '#B91C1C',
-        }}
-        text2Style={{
-          fontSize: 13,
-          color: '#B91C1C',
-          lineHeight: 18,
-        }}
-        renderLeadingIcon={() => (
-          <Ionicons
-            name="close-circle"
-            size={26}
-            color="#EF4444"
-            style={{ marginLeft: 15, marginRight: 12, alignSelf: 'center' }}
-          />
-        )}
-      />
-    ),
-
-    info: props => (
-      <BaseToast
-        {...props}
-        style={{
-          borderLeftColor: '#3B82F6',
-          borderRadius: 12,
-          backgroundColor: '#EFF6FF',
-          height: 70,
-          borderWidth: 1,
-          borderColor: '#3B82F620',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 8,
-          elevation: 4,
-        }}
-        contentContainerStyle={{ paddingHorizontal: 15 }}
-        text1Style={{
-          fontSize: 15,
-          fontWeight: '700',
-          color: '#1D4ED8',
-        }}
-        text2Style={{
-          fontSize: 13,
-          color: '#1D4ED8',
-          lineHeight: 18,
-        }}
-        renderLeadingIcon={() => (
-          <Ionicons
-            name="information-circle"
-            size={26}
-            color="#3B82F6"
-            style={{ marginLeft: 15, marginRight: 12, alignSelf: 'center' }}
-          />
-        )}
-      />
-    ),
-  };
+  // --- End of Verification and Error Handling ---
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -242,20 +234,17 @@ export default function OTPVerificationScreen({ navigation, route }) {
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
-        >
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}>
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <ScrollView
               contentContainerStyle={styles.container}
               keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
+              showsVerticalScrollIndicator={false}>
               {/* Header: Back Button and Title in one line */}
               <View style={styles.headerContainer}>
                 <TouchableOpacity
                   style={styles.backButton}
-                  onPress={() => navigation.goBack()}
-                >
+                  onPress={() => navigation.goBack()}>
                   <Ionicons name="arrow-back" size={20} color="#1F2937" />
                 </TouchableOpacity>
                 <Text style={styles.header}>Verify your OTP</Text>
@@ -297,14 +286,12 @@ export default function OTPVerificationScreen({ navigation, route }) {
                   </Text>
                   <TouchableOpacity
                     onPress={handleResendOtp}
-                    disabled={timer > 0}
-                  >
+                    disabled={timer > 0}>
                     <Text
                       style={[
                         styles.resendButtonText,
                         timer > 0 && styles.resendButtonDisabled,
-                      ]}
-                    >
+                      ]}>
                       Resend
                     </Text>
                   </TouchableOpacity>
@@ -316,21 +303,21 @@ export default function OTPVerificationScreen({ navigation, route }) {
                     otpValue.length !== 6 && styles.buttonDisabled,
                   ]}
                   onPress={handleVerify}
-                  disabled={otpValue.length !== 6}
-                >
-                  <Text style={styles.primaryButtonText}>
-                    Verify & Continue
-                  </Text>
+                  disabled={otpValue.length !== 6}>
+                  <Text style={styles.primaryButtonText}>Verify & Continue</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
 
-        {/* Toast Config */}
-        <Toast
-          config={toastConfig}
-          topOffset={Platform.OS === 'ios' ? 60 : 40}
+        {/* Custom Toast Integration */}
+        <ToastComponent
+          isVisible={toastVisible}
+          type={toastData.type}
+          text1={toastData.text1}
+          text2={toastData.text2}
+          onHide={hideToast}
         />
       </View>
     </SafeAreaView>
@@ -432,5 +419,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#a5b4fc',
     elevation: 0,
     opacity: 0.8,
+  },
+
+  // --- Custom Toast Styles ---
+  customToast: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    zIndex: 9999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 70,
+    borderRadius: 12,
+    borderLeftWidth: 5, // For color indication
+    borderWidth: 1,
+    borderColor: '#22C55E20', // General border (optional)
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  customToastContent: {
+    flex: 1,
+    paddingHorizontal: 15,
+  },
+  customToastText1: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  customToastText2: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

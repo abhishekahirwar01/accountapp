@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { TrendingUp, PieChart } from 'lucide-react-native'
 import ProfitAndLossTab from '../../main/reports/ProfitLossScreen'
 import BalanceSheetTab from '../../main/reports/BalanceSheetScreen'
-
+import AppLayout from '../../../components/layout/AppLayout'
 export default function Reports() {
   const [activeTab, setActiveTab] = useState('profit-loss') // Default to Profit & Loss
 
@@ -24,6 +24,7 @@ export default function Reports() {
   ]
 
   return (
+    <AppLayout>
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container}>
         {/* Header */}
@@ -70,6 +71,7 @@ export default function Reports() {
         </View> */}
       </ScrollView>
     </SafeAreaView>
+    </AppLayout>
   )
 }
 

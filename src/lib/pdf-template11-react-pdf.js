@@ -14,7 +14,7 @@ import {
   formatQuantity,
   formatPhoneNumber,
   formatCurrency,
-} from '@/lib/pdf-utils';
+} from './pdf-utils.js';
 import { BASE_URL } from '../config';
 
 export const generatePdfForTemplate8 = async (

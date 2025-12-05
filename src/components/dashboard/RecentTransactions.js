@@ -4,21 +4,13 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Modal,
   StyleSheet,
-  Dimensions,
   useWindowDimensions,
+  Modal,
+  RefreshControl,
 } from 'react-native';
-import {
-  Card,
-  Badge,
-  Button,
-  DataTable,
-  Portal,
-  Dialog,
-  Chip,
-} from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
+import { Receipt, Package, Server, ArrowRight, Calendar } from 'lucide-react-native';
 
 /* ---------- helpers ---------- */
 const inr = n => {
@@ -29,7 +21,11 @@ const inr = n => {
 const safeDate = d => {
   const t = d ? new Date(d) : null;
   return t && !isNaN(t.getTime())
-    ? new Intl.DateTimeFormat('en-IN').format(t)
+    ? new Intl.DateTimeFormat('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      }).format(t)
     : '-';
 };
 
@@ -133,7 +129,12 @@ const getPartyName = tx => {
   return capitalizeWords(partyName);
 };
 
-const RecentTransactions = ({ transactions, serviceNameById }) => {
+const RecentTransactions = ({ 
+  transactions, 
+  serviceNameById, 
+  onRefresh,
+  refreshing = false 
+}) => {
   const [isItemsOpen, setIsItemsOpen] = useState(false);
   const [dialogItems, setDialogItems] = useState([]);
   const [dialogTitle, setDialogTitle] = useState('Item Details');
@@ -162,7 +163,27 @@ const RecentTransactions = ({ transactions, serviceNameById }) => {
     setIsItemsOpen(true);
   };
 
-  const renderTransactionItem = tx => {
+  const TableHeader = () => (
+    <View style={styles.tableHeader}>
+      <View style={[styles.tableHeaderCell, { flex: 2.5 }]}>
+        <Text style={styles.tableHeaderText}>Party</Text>
+      </View>
+      <View style={[styles.tableHeaderCell, { flex: 2 }]}>
+        <Text style={styles.tableHeaderText}>Item</Text>
+      </View>
+      <View style={[styles.tableHeaderCell, { flex: 1 }]}>
+        <Text style={styles.tableHeaderText}>Type</Text>
+      </View>
+      <View style={[styles.tableHeaderCell, { flex: 1 }]}>
+        <Text style={styles.tableHeaderText}>Date</Text>
+      </View>
+      <View style={[styles.tableHeaderCell, styles.numericCell, { flex: 1 }]}>
+        <Text style={styles.tableHeaderText}>Amount</Text>
+      </View>
+    </View>
+  );
+
+  const TableRow = ({ tx }) => {
     const item = getItems(tx, serviceNameById);
     const amt = getAmount(tx);
     const clickable = item.items.length > 0;
@@ -170,94 +191,37 @@ const RecentTransactions = ({ transactions, serviceNameById }) => {
     const description = tx.description || tx.narration;
     const typeStyle = getTypeStyle(tx.type);
 
-    if (isMobile) {
-      return (
-        <Card key={tx._id} style={styles.mobileCard}>
-          <Card.Content>
-            <View style={styles.mobileHeader}>
-              <View style={styles.mobilePartyInfo}>
-                <Text style={styles.partyName}>{partyName}</Text>
-                {description ? (
-                  <Text style={styles.description}>{description}</Text>
-                ) : null}
-              </View>
-              <View style={styles.mobileAmount}>
-                <Text style={styles.amountText}>{inr(amt)}</Text>
-                <Text style={styles.dateText}>{safeDate(tx.date)}</Text>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              disabled={!clickable}
-              onPress={() => openItemsDialog(tx, item.items)}
-              style={styles.itemSection}
-            >
-              <View style={styles.itemRow}>
-                {item.icon !== 'none' && (
-                  <Text style={styles.itemIcon}>
-                    {item.icon === 'product' ? '📦' : '🖥️'}
-                  </Text>
-                )}
-                <View style={styles.itemText}>
-                  <Text
-                    style={[
-                      styles.itemLabel,
-                      clickable && styles.clickableItem,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {item.label}
-                  </Text>
-                  {clickable && (
-                    <Text style={styles.tapHint}>Tap to view details →</Text>
-                  )}
-                </View>
-              </View>
-            </TouchableOpacity>
-
-            <View style={styles.badgeContainer}>
-              <Chip
-                style={[
-                  styles.typeChip,
-                  { backgroundColor: typeStyle.backgroundColor },
-                ]}
-                textStyle={[styles.chipText, { color: typeStyle.color }]}
-              >
-                {tx.type}
-              </Chip>
-            </View>
-          </Card.Content>
-        </Card>
-      );
-    }
-
-    // Desktop table row
     return (
-      <DataTable.Row key={tx._id}>
-        <DataTable.Cell>
+      <View style={styles.tableRow}>
+        <View style={[styles.tableCell, { flex: 2.5 }]}>
           <View style={styles.partyCell}>
-            <Text style={styles.partyName}>{partyName}</Text>
+            <Text style={styles.partyName} numberOfLines={1}>
+              {partyName}
+            </Text>
             {description ? (
               <Text style={styles.description} numberOfLines={1}>
                 {description}
               </Text>
             ) : null}
           </View>
-        </DataTable.Cell>
+        </View>
 
-        <DataTable.Cell>
+        <View style={[styles.tableCell, { flex: 2 }]}>
           {item.icon !== 'none' ? (
             <TouchableOpacity
               disabled={!clickable}
               onPress={() => openItemsDialog(tx, item.items)}
-              style={styles.itemCell}
+              style={[styles.itemCell, clickable && styles.clickableCell]}
+              activeOpacity={clickable ? 0.7 : 1}
             >
               <View style={styles.itemRow}>
-                <Text style={styles.itemIcon}>
-                  {item.icon === 'product' ? '📦' : '🖥️'}
-                </Text>
+                {item.icon === 'product' ? (
+                  <Package size={16} color="#6b7280" />
+                ) : (
+                  <Server size={16} color="#6b7280" />
+                )}
                 <Text
-                  style={[styles.itemLabel, clickable && styles.clickableItem]}
+                  style={[styles.itemLabel, clickable && styles.clickableText]}
                   numberOfLines={1}
                 >
                   {item.label}
@@ -265,261 +229,289 @@ const RecentTransactions = ({ transactions, serviceNameById }) => {
               </View>
             </TouchableOpacity>
           ) : (
-            <Text>—</Text>
+            <Text style={styles.noItemsText}>—</Text>
           )}
-        </DataTable.Cell>
+        </View>
 
-        <DataTable.Cell>
-          <Chip
-            style={[
-              styles.typeChip,
-              { backgroundColor: typeStyle.backgroundColor },
-            ]}
-            textStyle={[styles.chipText, { color: typeStyle.color }]}
-          >
-            {tx.type}
-          </Chip>
-        </DataTable.Cell>
+        <View style={[styles.tableCell, { flex: 1 }]}>
+          <View style={[styles.typeBadge, { backgroundColor: typeStyle.backgroundColor }]}>
+            <Text style={[styles.typeBadgeText, { color: typeStyle.color }]}>
+              {tx.type?.toUpperCase()}
+            </Text>
+          </View>
+        </View>
 
-        <DataTable.Cell>
-          <Text style={styles.dateText}>{safeDate(tx.date)}</Text>
-        </DataTable.Cell>
+        <View style={[styles.tableCell, { flex: 1 }]}>
+          <View style={styles.dateCell}>
+            <Calendar size={14} color="#6b7280" />
+            <Text style={styles.dateText}>{safeDate(tx.date)}</Text>
+          </View>
+        </View>
 
-        <DataTable.Cell numeric>
-          <Text style={styles.amountText}>{inr(amt)}</Text>
-        </DataTable.Cell>
-      </DataTable.Row>
+        <View style={[styles.tableCell, styles.numericCell, { flex: 1 }]}>
+          <Text style={[styles.amountText, amt >= 0 ? styles.positiveAmount : styles.negativeAmount]}>
+            {inr(Math.abs(amt))}
+          </Text>
+        </View>
+      </View>
     );
   };
 
-  const renderItemsDialog = () => (
-    <Portal>
-      <Dialog
-        visible={isItemsOpen}
-        onDismiss={() => setIsItemsOpen(false)}
-        style={styles.dialog}
+  const MobileTransactionCard = ({ tx }) => {
+    const item = getItems(tx, serviceNameById);
+    const amt = getAmount(tx);
+    const clickable = item.items.length > 0;
+    const partyName = getPartyName(tx);
+    const description = tx.description || tx.narration;
+    const typeStyle = getTypeStyle(tx.type);
+
+    return (
+      <TouchableOpacity
+        key={tx._id}
+        style={styles.mobileCard}
+        activeOpacity={0.7}
+        onPress={() => clickable && openItemsDialog(tx, item.items)}
       >
-        <Dialog.Title style={styles.dialogTitle}>{dialogTitle}</Dialog.Title>
-        <Dialog.Content style={styles.dialogContent}>
-          <ScrollView
-            style={styles.dialogScrollView}
-            showsVerticalScrollIndicator={true}
-          >
-            {isMobile ? (
-              // Mobile items view
-              <View style={styles.mobileItems}>
-                {dialogItems.map((li, idx) => {
-                  const isService = li.itemType === 'service';
-                  const qty = !isService && li.quantity ? li.quantity : '—';
-                  const rate = !isService ? inr(li.pricePerUnit) : '—';
-                  const total = inr(li.amount);
-
-                  return (
-                    <Card key={idx} style={styles.mobileItemCard}>
-                      <Card.Content>
-                        <View style={styles.mobileItemHeader}>
-                          <Text style={styles.itemIcon}>
-                            {isService ? '🖥️' : '📦'}
-                          </Text>
-                          <View style={styles.mobileItemInfo}>
-                            <Text style={styles.itemName} numberOfLines={1}>
-                              {li.name}
-                            </Text>
-                            <Chip
-                              style={styles.itemTypeChip}
-                              textStyle={styles.itemTypeChipText}
-                            >
-                              {li.itemType}
-                            </Chip>
-                          </View>
-                        </View>
-
-                        {isService && li.description ? (
-                          <Text style={styles.serviceDescription}>
-                            {li.description}
-                          </Text>
-                        ) : null}
-
-                        <View style={styles.mobileItemDetails}>
-                          <View style={styles.detailRow}>
-                            <Text style={styles.detailLabel}>Quantity</Text>
-                            <Text style={styles.detailValue}>{qty}</Text>
-                          </View>
-                          <View style={styles.detailRow}>
-                            <Text style={styles.detailLabel}>Price/Unit</Text>
-                            <Text style={styles.detailValue}>{rate}</Text>
-                          </View>
-                          <View style={styles.totalRow}>
-                            <Text style={styles.totalLabel}>Total Amount</Text>
-                            <Text style={styles.totalValue}>{total}</Text>
-                          </View>
-                        </View>
-                      </Card.Content>
-                    </Card>
-                  );
-                })}
+        <View style={styles.mobileCardContent}>
+          <View style={styles.mobileHeader}>
+            <View style={styles.mobilePartyInfo}>
+              <Text style={styles.partyName} numberOfLines={1}>
+                {partyName}
+              </Text>
+              {description ? (
+                <Text style={styles.description} numberOfLines={2}>
+                  {description}
+                </Text>
+              ) : null}
+            </View>
+            <View style={styles.mobileAmount}>
+              <Text style={[styles.amountText, amt >= 0 ? styles.positiveAmount : styles.negativeAmount]}>
+                {inr(Math.abs(amt))}
+              </Text>
+              <View style={styles.dateContainer}>
+                <Calendar size={12} color="#6b7280" />
+                <Text style={styles.dateText}>{safeDate(tx.date)}</Text>
               </View>
-            ) : (
-              // Desktop table view
-              <DataTable>
-                <DataTable.Header>
-                  <DataTable.Title style={styles.tableHeader}>
-                    Item
-                  </DataTable.Title>
-                  <DataTable.Title style={styles.tableHeader}>
-                    Type
-                  </DataTable.Title>
-                  <DataTable.Title numeric style={styles.tableHeader}>
-                    Qty
-                  </DataTable.Title>
-                  <DataTable.Title numeric style={styles.tableHeader}>
-                    Price/Unit
-                  </DataTable.Title>
-                  <DataTable.Title numeric style={styles.tableHeader}>
-                    Total
-                  </DataTable.Title>
-                </DataTable.Header>
+            </View>
+          </View>
 
-                {dialogItems.map((li, idx) => {
-                  const isService = li.itemType === 'service';
-                  const qty = !isService && li.quantity ? li.quantity : '—';
-                  const rate = !isService ? inr(li.pricePerUnit) : '—';
-                  const total = inr(li.amount);
+          <View style={styles.itemSection}>
+            <View style={styles.itemRow}>
+              {item.icon !== 'none' ? (
+                <>
+                  {item.icon === 'product' ? (
+                    <Package size={16} color="#6b7280" />
+                  ) : (
+                    <Server size={16} color="#6b7280" />
+                  )}
+                  <View style={styles.itemText}>
+                    <Text
+                      style={[styles.itemLabel, clickable && styles.clickableText]}
+                      numberOfLines={1}
+                    >
+                      {item.label}
+                    </Text>
+                    {clickable && (
+                      <Text style={styles.tapHint}>Tap to view details →</Text>
+                    )}
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.noItemsText}>No items</Text>
+              )}
+            </View>
+          </View>
 
-                  return (
-                    <DataTable.Row key={idx}>
-                      <DataTable.Cell>
-                        <View style={styles.itemCell}>
-                          <Text style={styles.itemIcon}>
-                            {isService ? '🖥️' : '📦'}
-                          </Text>
-                          <View style={styles.itemInfo}>
-                            <Text style={styles.itemName} numberOfLines={1}>
-                              {li.name}
-                            </Text>
-                            {isService && li.description ? (
-                              <Text
-                                style={styles.serviceDescription}
-                                numberOfLines={1}
-                              >
-                                {li.description}
-                              </Text>
-                            ) : null}
-                          </View>
-                        </View>
-                      </DataTable.Cell>
+          <View style={styles.badgeContainer}>
+            <View style={[styles.typeBadge, { backgroundColor: typeStyle.backgroundColor }]}>
+              <Text style={[styles.typeBadgeText, { color: typeStyle.color }]}>
+                {tx.type?.toUpperCase()}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
-                      <DataTable.Cell>
-                        <Text style={styles.capitalize}>{li.itemType}</Text>
-                      </DataTable.Cell>
+  const ItemsDialog = () => {
+    const renderItem = (li, index) => {
+      const isService = li.itemType === 'service';
+      const qty = !isService && li.quantity ? li.quantity : '—';
+      const rate = !isService ? inr(li.pricePerUnit) : '—';
+      const total = inr(li.amount);
 
-                      <DataTable.Cell numeric>{qty}</DataTable.Cell>
+      return (
+        <View style={styles.dialogItemCard} key={`${li.itemType}-${li.name}-${index}`}>
+          <View style={styles.dialogItemContent}>
+            <View style={styles.dialogItemHeader}>
+              {isService ? (
+                <Server size={20} color="#6b7280" />
+              ) : (
+                <Package size={20} color="#6b7280" />
+              )}
+              <View style={styles.dialogItemInfo}>
+                <Text style={styles.dialogItemName} numberOfLines={2}>
+                  {li.name}
+                </Text>
+                <View style={styles.itemTypeBadge}>
+                  <Text style={styles.itemTypeBadgeText}>
+                    {li.itemType?.toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+            </View>
 
-                      <DataTable.Cell numeric>{rate}</DataTable.Cell>
+            {isService && li.description ? (
+              <Text style={styles.serviceDescription} numberOfLines={3}>
+                {li.description}
+              </Text>
+            ) : null}
 
-                      <DataTable.Cell numeric>
-                        <Text style={styles.totalAmount}>{total}</Text>
-                      </DataTable.Cell>
-                    </DataTable.Row>
-                  );
-                })}
-              </DataTable>
-            )}
-          </ScrollView>
-        </Dialog.Content>
-        <Dialog.Actions>
-          <Button onPress={() => setIsItemsOpen(false)}>Close</Button>
-        </Dialog.Actions>
-      </Dialog>
-    </Portal>
-  );
+            <View style={styles.dialogItemDetails}>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Quantity</Text>
+                <Text style={styles.detailValue}>{qty}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Price/Unit</Text>
+                <Text style={styles.detailValue}>{rate}</Text>
+              </View>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Total Amount</Text>
+                <Text style={styles.totalValue}>{total}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      );
+    };
+
+    return (
+      <Modal
+        visible={isItemsOpen}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsItemsOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle} numberOfLines={2}>
+                {dialogTitle}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setIsItemsOpen(false)}
+                style={styles.closeButton}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.closeButtonText}>×</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalSubtitle}>
+              <Text style={styles.modalSubtitleText}>
+                A detailed list of all items in this transaction
+              </Text>
+            </View>
+
+            <ScrollView 
+              style={styles.modalBody}
+              showsVerticalScrollIndicator={true}
+            >
+              <View style={styles.dialogItemsList}>
+                {dialogItems.map((li, idx) => renderItem(li, idx))}
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                onPress={() => setIsItemsOpen(false)}
+                style={styles.closeModalButton}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.closeModalButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
 
   const renderEmptyState = () => (
-    <Card style={styles.emptyCard}>
-      <Card.Content style={styles.emptyContent}>
-        <Text style={styles.emptyIcon}>📋</Text>
+    <View style={styles.emptyCard}>
+      <View style={styles.emptyContent}>
+        <Receipt size={48} color="#9ca3af" />
         <Text style={styles.emptyTitle}>No transactions</Text>
         <Text style={styles.emptyText}>
           Your recent transactions will appear here
         </Text>
-      </Card.Content>
-    </Card>
+      </View>
+    </View>
   );
 
   return (
     <View style={styles.container}>
-      <Card style={styles.mainCard}>
-        <Card.Content style={styles.cardHeader}>
+      <View style={styles.mainCard}>
+        <View style={styles.cardHeader}>
           <Text style={styles.title}>Recent Transactions</Text>
           <Text style={styles.subtitle}>
             A summary of your most recent financial activities.
           </Text>
-        </Card.Content>
+        </View>
 
         <ScrollView
           style={styles.scrollArea}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={['#2196F3']}
+                tintColor="#2196F3"
+              />
+            ) : undefined
+          }
         >
           {/* Desktop Table View */}
           {!isMobile && (
-            <DataTable style={styles.desktopTable}>
-              <DataTable.Header>
-                <DataTable.Title style={styles.tableHeader}>
-                  Party
-                </DataTable.Title>
-                <DataTable.Title style={styles.tableHeader}>
-                  Item
-                </DataTable.Title>
-                <DataTable.Title style={styles.tableHeader}>
-                  Type
-                </DataTable.Title>
-                <DataTable.Title style={styles.tableHeader}>
-                  Date
-                </DataTable.Title>
-                <DataTable.Title numeric style={styles.tableHeader}>
-                  Amount
-                </DataTable.Title>
-              </DataTable.Header>
-
+            <View style={styles.desktopTable}>
+              <TableHeader />
               {transactions?.length > 0 ? (
-                transactions.map(tx => renderTransactionItem(tx))
+                transactions.map(tx => <TableRow key={tx._id} tx={tx} />)
               ) : (
-                <DataTable.Row>
-                  <DataTable.Cell>
-                    <View style={styles.noDataCell}>
-                      <Text style={styles.noDataText}>
-                        No recent transactions.
-                      </Text>
-                    </View>
-                  </DataTable.Cell>
-                </DataTable.Row>
+                renderEmptyState()
               )}
-            </DataTable>
+            </View>
           )}
 
           {/* Mobile Card View */}
           {isMobile && (
             <View style={styles.mobileContainer}>
               {transactions?.length > 0
-                ? transactions.map(tx => renderTransactionItem(tx))
+                ? transactions.map(tx => (
+                    <MobileTransactionCard key={tx._id} tx={tx} />
+                  ))
                 : renderEmptyState()}
             </View>
           )}
         </ScrollView>
 
-        <Card.Actions style={styles.cardActions}>
-          <Button
-            mode="text"
+        <View style={styles.cardActions}>
+          <TouchableOpacity
             onPress={() => navigation.navigate('Transactions')}
             style={styles.viewAllButton}
-            labelStyle={styles.viewAllButtonText}
+            activeOpacity={0.7}
           >
-            View All Transactions →
-          </Button>
-        </Card.Actions>
-      </Card>
+            <Text style={styles.viewAllButtonText}>View All Transactions</Text>
+            <ArrowRight size={16} color="#2196F3" style={styles.arrowIcon} />
+          </TouchableOpacity>
+        </View>
+      </View>
 
-      {renderItemsDialog()}
+      <ItemsDialog />
     </View>
   );
 };
@@ -527,20 +519,30 @@ const RecentTransactions = ({ transactions, serviceNameById }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f9fafb',
   },
   mainCard: {
     flex: 1,
-    margin: 8,
-    elevation: 2,
-    borderRadius: 12,
+    margin: 16,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 4,
+    overflow: 'hidden',
   },
   cardHeader: {
-    paddingBottom: 8,
+    padding: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
   },
   title: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: '#111827',
   },
   subtitle: {
     fontSize: 14,
@@ -554,25 +556,37 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tableHeader: {
-    fontWeight: 'bold',
-  },
-  mobileContainer: {
-    padding: 8,
-  },
-  mobileCard: {
-    marginBottom: 12,
-    elevation: 2,
-    borderRadius: 8,
-  },
-  mobileHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    backgroundColor: '#f8fafc',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
   },
-  mobilePartyInfo: {
-    flex: 1,
-    marginRight: 8,
+  tableHeaderCell: {
+    paddingHorizontal: 12,
+  },
+  tableHeaderText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  numericCell: {
+    alignItems: 'flex-end',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    minHeight: 72,
+  },
+  tableCell: {
+    paddingHorizontal: 12,
   },
   partyCell: {
     flex: 1,
@@ -583,216 +597,345 @@ const styles = StyleSheet.create({
     color: '#1f2937',
   },
   description: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#6b7280',
     marginTop: 4,
-  },
-  mobileAmount: {
-    alignItems: 'flex-end',
-    minWidth: 80,
   },
   amountText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#2196F3',
   },
-  dateText: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2,
+  positiveAmount: {
+    color: '#059669',
   },
-  itemSection: {
-    marginBottom: 12,
+  negativeAmount: {
+    color: '#dc2626',
   },
-  itemRow: {
+  dateCell: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+  },
+  dateText: {
+    fontSize: 13,
+    color: '#6b7280',
   },
   itemCell: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    gap: 8,
+    paddingVertical: 4,
   },
-  itemInfo: {
-    flex: 1,
+  clickableCell: {
+    paddingHorizontal: 8,
+    borderRadius: 6,
   },
-  itemIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  itemText: {
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     flex: 1,
   },
   itemLabel: {
     fontSize: 14,
     fontWeight: '500',
     color: '#374151',
+    flex: 1,
   },
-  clickableItem: {
-    color: '#2196F3',
+  clickableText: {
+    color: '#2563eb',
+  },
+  noItemsText: {
+    fontSize: 14,
+    color: '#9ca3af',
+    fontStyle: 'italic',
+  },
+  typeBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+  },
+  typeBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  mobileContainer: {
+    padding: 16,
+  },
+  mobileCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
+  },
+  mobileCardContent: {
+    padding: 16,
+  },
+  mobileHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  mobilePartyInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  mobileAmount: {
+    alignItems: 'flex-end',
+    minWidth: 100,
+  },
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  itemSection: {
+    marginBottom: 12,
+  },
+  itemText: {
+    flex: 1,
   },
   tapHint: {
     fontSize: 12,
-    color: '#2196F3',
-    marginTop: 2,
+    color: '#2563eb',
+    marginTop: 4,
+    fontWeight: '500',
   },
   badgeContainer: {
     flexDirection: 'row',
   },
-  typeChip: {
-    marginRight: 8,
-    height: 24,
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
   cardActions: {
-    justifyContent: 'flex-end',
+    padding: 20,
     paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: '#f3f4f6',
+    backgroundColor: '#fafafa',
   },
   viewAllButton: {
-    marginRight: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#eff6ff',
   },
   viewAllButtonText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
+    color: '#2563eb',
   },
-  dialog: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    maxHeight: Dimensions.get('window').height * 0.8,
-    margin: 20,
-  },
-  dialogTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  dialogContent: {
-    paddingHorizontal: 0,
-  },
-  dialogScrollView: {
-    maxHeight: 400,
-  },
-  itemName: {
-    fontWeight: '500',
-    fontSize: 14,
-    color: '#1f2937',
-  },
-  capitalize: {
-    textTransform: 'capitalize',
-    color: '#374151',
-  },
-  serviceDescription: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontStyle: 'italic',
-    marginTop: 2,
-  },
-  totalAmount: {
-    fontWeight: 'bold',
-    color: '#059669',
-  },
-  mobileItems: {
-    paddingHorizontal: 8,
-  },
-  mobileItemCard: {
-    marginBottom: 8,
-    borderRadius: 8,
-  },
-  mobileItemHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  mobileItemInfo: {
-    flex: 1,
+  arrowIcon: {
     marginLeft: 8,
   },
-  itemTypeChip: {
-    alignSelf: 'flex-start',
-    marginTop: 4,
-    height: 20,
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
-  itemTypeChipText: {
-    fontSize: 10,
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 8,
   },
-  mobileItemDetails: {
-    marginTop: 8,
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    flex: 1,
+    marginRight: 16,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    fontSize: 20,
+    color: '#374151',
+    lineHeight: 24,
+  },
+  modalSubtitle: {
+    paddingHorizontal: 20,
     paddingTop: 8,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalSubtitleText: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  modalBody: {
+    maxHeight: 400,
+  },
+  modalFooter: {
+    padding: 20,
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
+    alignItems: 'flex-end',
+  },
+  closeModalButton: {
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 100,
+  },
+  closeModalButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  // Dialog item styles
+  dialogItemsList: {
+    padding: 20,
+  },
+  dialogItemCard: {
+    backgroundColor: '#fafafa',
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    overflow: 'hidden',
+  },
+  dialogItemContent: {
+    padding: 16,
+  },
+  dialogItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  dialogItemInfo: {
+    flex: 1,
+  },
+  dialogItemName: {
+    fontWeight: '600',
+    fontSize: 15,
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  itemTypeBadge: {
+    backgroundColor: '#e5e7eb',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+  },
+  itemTypeBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#374151',
+    letterSpacing: 0.5,
+  },
+  serviceDescription: {
+    fontSize: 13,
+    color: '#6b7280',
+    fontStyle: 'italic',
+    marginBottom: 12,
+    lineHeight: 18,
+    backgroundColor: '#f8fafc',
+    padding: 8,
+    borderRadius: 6,
+  },
+  dialogItemDetails: {
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    paddingTop: 12,
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   detailLabel: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#6b7280',
   },
   detailValue: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '500',
     color: '#374151',
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
   },
   totalLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: '#1f2937',
   },
   totalValue: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#059669',
   },
+  // Empty state
   emptyCard: {
-    margin: 16,
-    alignItems: 'center',
-    borderStyle: 'dashed',
-    borderWidth: 2,
-    borderColor: '#d1d5db',
+    margin: 20,
     backgroundColor: '#f9fafb',
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    borderStyle: 'dashed',
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   emptyContent: {
     alignItems: 'center',
-    padding: 32,
-  },
-  emptyIcon: {
-    fontSize: 32,
-    marginBottom: 16,
+    padding: 40,
   },
   emptyTitle: {
     fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
     marginBottom: 8,
     color: '#374151',
-    fontWeight: 'bold',
   },
   emptyText: {
     textAlign: 'center',
     color: '#6b7280',
     fontSize: 14,
-  },
-  noDataCell: {
-    flex: 1,
-    alignItems: 'center',
-    padding: 24,
-  },
-  noDataText: {
-    textAlign: 'center',
-    color: '#6b7280',
-    fontSize: 14,
+    lineHeight: 20,
   },
 });
 

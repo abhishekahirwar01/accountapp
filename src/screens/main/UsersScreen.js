@@ -12,16 +12,16 @@ import {
   Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import { BASE_URL } from '../../config';
 // Import all components similar to Next.js
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
-import { 
+import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription 
+  DialogDescription,
 } from '../../components/ui/Dialog';
 import {
   AlertDialog,
@@ -41,13 +41,11 @@ import { UserCard } from '../../components/users/UserCard';
 
 // Import custom hooks
 import { useToast } from '../../components/hooks/useToast';
+import AppLayout from '../../components/layout/AppLayout';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Import icons
 import Icon from 'react-native-vector-icons/Feather';
-
-const baseURL = 'https://accountapp-backend-shardaassociates.onrender.com';
-
-
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
@@ -59,7 +57,7 @@ export default function UsersPage() {
   const [userToDelete, setUserToDelete] = useState(null);
   const [viewMode, setViewMode] = useState('card');
   const [copied, setCopied] = useState(false);
-  
+
   const { toast } = useToast();
 
   // For React Native, you might want to use a different URL or get it from config
@@ -95,10 +93,10 @@ export default function UsersPage() {
       if (!token) throw new Error('Authentication token not found.');
 
       const [usersRes, companiesRes] = await Promise.all([
-        fetch(`${baseURL}/api/users`, {
+        fetch(`${BASE_URL}/api/users`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`${baseURL}/api/companies/my`, {
+        fetch(`${BASE_URL}/api/companies/my`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
@@ -117,7 +115,7 @@ export default function UsersPage() {
       // Filter out current admin user
       let filteredUsers = usersData;
       if (payload.role === 'admin') {
-        filteredUsers = usersData.filter((u) => u._id !== currentUserId);
+        filteredUsers = usersData.filter(u => u._id !== currentUserId);
       }
 
       setUsers(filteredUsers);
@@ -147,55 +145,54 @@ export default function UsersPage() {
     setSelectedUser(null);
   };
 
- // In UsersScreen.js, update the handleSave function:
+  // In UsersScreen.js, update the handleSave function:
 
-const handleSave = async (formData) => {
-  try {
-    const token = await AsyncStorage.getItem('token');
-    if (!token) throw new Error('Authentication token not found.');
+  const handleSave = async formData => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
 
-    const method = selectedUser ? 'PUT' : 'POST';
-    const url = selectedUser
-      ? `${baseURL}/api/users/${selectedUser._id}`
-      : `${baseURL}/api/users`;
+      const method = selectedUser ? 'PUT' : 'POST';
+      const url = selectedUser
+        ? `${BASE_URL}/api/users/${selectedUser._id}`
+        : `${BASE_URL}/api/users`;
 
-    const res = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(formData),
-    });
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(formData),
+      });
 
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(
-        data.message ||
-        `Failed to ${selectedUser ? 'update' : 'create'} user.`
-      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(
+          data.message ||
+            `Failed to ${selectedUser ? 'update' : 'create'} user.`,
+        );
+      }
+
+      toast({
+        title: `User ${selectedUser ? 'updated' : 'created'} successfully`,
+      });
+
+      // Refresh data
+      fetchUsersAndCompanies();
+
+      // Automatically close the form
+      handleCloseForm();
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Operation Failed',
+        description: error.message || 'Something went wrong.',
+      });
     }
+  };
 
-    toast({
-      title: `User ${selectedUser ? 'updated' : 'created'} successfully`,
-    });
-    
-    // Refresh data
-    fetchUsersAndCompanies();
-    
-    // Automatically close the form
-    handleCloseForm();
-    
-  } catch (error) {
-    toast({
-      variant: 'destructive',
-      title: 'Operation Failed',
-      description: error.message || 'Something went wrong.',
-    });
-  }
-};
-
-  const openDeleteDialog = (user) => {
+  const openDeleteDialog = user => {
     setUserToDelete(user);
     setIsAlertOpen(true);
   };
@@ -206,7 +203,7 @@ const handleSave = async (formData) => {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
 
-      const res = await fetch(`${baseURL}/api/users/${userToDelete._id}`, {
+      const res = await fetch(`${BASE_URL}/api/users/${userToDelete._id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -231,7 +228,7 @@ const handleSave = async (formData) => {
 
   const companyMap = useMemo(() => {
     const map = new Map();
-    companies.forEach((company) => {
+    companies.forEach(company => {
       map.set(company._id, company.businessName);
     });
     return map;
@@ -239,81 +236,70 @@ const handleSave = async (formData) => {
 
   if (isLoading) {
     return (
-      <View style={styles.loaderContainer}>
-        <Card style={styles.loaderCard}>
-          <CardContent style={styles.loaderContent}>
+      <AppLayout>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.fullscreenLoader}>
             <ActivityIndicator size="large" color="#666" />
-          </CardContent>
-        </Card>
-      </View>
+            <Text style={styles.loadingText}>Loading Users...</Text>
+          </View>
+        </SafeAreaView>
+      </AppLayout>
     );
   }
 
   if (companies.length === 0) {
     return (
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.noCompanyContainer}>
-          <Card style={styles.noCompanyCard}>
-            <CardContent style={styles.noCompanyContent}>
-              <View style={styles.iconContainer}>
-                <Icon name="briefcase" size={32} color="#2563eb" />
-              </View>
-              
-              <Text style={styles.noCompanyTitle}>Company Setup Required</Text>
-              <Text style={styles.noCompanyDescription}>
-                Contact us to enable your company account and access all features.
-              </Text>
+      <AppLayout>
+        <SafeAreaView style={styles.safeArea}>
+          <ScrollView contentContainerStyle={styles.scrollContainer}>
+            <View style={styles.noCompanyContainer}>
+              <Card style={styles.noCompanyCard}>
+                <CardContent style={styles.noCompanyContent}>
+                  <View style={styles.iconContainer}>
+                    <Icon name="briefcase" size={32} color="#2563eb" />
+                  </View>
 
-              <View style={styles.contactButtons}>
-                <TouchableOpacity style={styles.phoneButton}>
-                  <Icon name="phone" size={20} color="#fff" />
-                  <Text style={styles.phoneButtonText}>+91-8989773689</Text>
-                </TouchableOpacity>
+                  <Text style={styles.noCompanyTitle}>
+                    Company Setup Required
+                  </Text>
+                  <Text style={styles.noCompanyDescription}>
+                    Contact us to enable your company account and access all
+                    features.
+                  </Text>
 
-                <TouchableOpacity style={styles.emailButton}>
-                  <Icon name="mail" size={20} color="#2563eb" />
-                  <Text style={styles.emailButtonText}>Email Us</Text>
-                </TouchableOpacity>
-              </View>
-            </CardContent>
-          </Card>
-        </View>
-      </ScrollView>
+                  <View style={styles.contactButtons}>
+                    <TouchableOpacity style={styles.phoneButton}>
+                      <Icon name="phone" size={20} color="#fff" />
+                      <Text style={styles.phoneButtonText}>+91-8989773689</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.emailButton}>
+                      <Icon name="mail" size={20} color="#2563eb" />
+                      <Text style={styles.emailButtonText}>Email Us</Text>
+                    </TouchableOpacity>
+                  </View>
+                </CardContent>
+              </Card>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </AppLayout>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        {/* User Login URL Card */}
-        <Card style={styles.urlCard}>
-          <CardContent style={styles.urlCardContent}>
-            <View style={styles.urlTextContainer}>
-              <Text style={styles.urlLabel}>User Login URL</Text>
-              <Text style={styles.urlValue}>
-                {userLoginUrl}
-              </Text>
-            </View>
-            <Button
-              size="sm"
-              variant="outline"
-              onPress={copyToClipboard}
-              style={styles.copyButton}
-              icon={copied ? 'check' : 'copy'}
-            >
-              {copied ? 'Copied!' : 'Copy URL'}
-            </Button>
-          </CardContent>
-        </Card>
-
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Users</Text>
-            <Text style={styles.subtitle}>Manage your users</Text>
-          </View>
-          <View style={styles.headerActions}>
-            <View style={styles.viewToggle}>
-              {/* <Button
+    <AppLayout>
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView style={styles.container}>
+          <View style={styles.content}>
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.title}>Users</Text>
+                <Text style={styles.subtitle}>Manage your users</Text>
+              </View>
+              <View style={styles.headerActions}>
+                <View style={styles.viewToggle}>
+                  {/* <Button
                 variant={viewMode === 'card' ? 'primary' : 'ghost'}
                 size="sm"
                 onPress={() => setViewMode('card')}
@@ -325,91 +311,125 @@ const handleSave = async (formData) => {
                 onPress={() => setViewMode('list')}
                 icon="list"
               /> */}
-            </View>
-            <Button style={styles.addUser} onPress={() => handleOpenForm()} icon="plus-circle">
-              Add User
-            </Button>
-          </View>
-        </View>
-
-        <Card>
-          <CardContent style={viewMode === 'card' ? styles.cardContent : styles.listContent}>
-            {isLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#666" />
-              </View>
-            ) : users.length > 0 ? (
-              viewMode === 'list' ? (
-                <UserTable
-                  users={users}
-                  onEdit={handleOpenForm}
-                  onDelete={openDeleteDialog}
-                  companyMap={companyMap}
-                />
-              ) : (
-                <UserCard
-                  users={users}
-                  onEdit={handleOpenForm}
-                  onDelete={openDeleteDialog}
-                  companyMap={companyMap}
-                />
-              )
-            ) : (
-              <View style={styles.emptyState}>
-                <Icon name="users" size={48} color="#999" />
-                <Text style={styles.emptyStateTitle}>No Users Found</Text>
-                <Text style={styles.emptyStateDescription}>
-                  Get started by adding your first user.
-                </Text>
-                <Button onPress={() => handleOpenForm()} icon="plus-circle">
+                </View>
+                <Button
+                  style={styles.addUser}
+                  onPress={() => handleOpenForm()}
+                  icon="plus-circle"
+                >
                   Add User
                 </Button>
               </View>
-            )}
-          </CardContent>
-        </Card>
+            </View>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent style={styles.dialogContent}>
-            <DialogHeader>
-              <DialogTitle>
-                {selectedUser ? 'Edit User' : 'Add New User'}
-              </DialogTitle>
-              <DialogDescription>Fill in the form below.</DialogDescription>
-            </DialogHeader>
-            <UserForm
-              user={selectedUser}
-              allCompanies={companies}
-              onSave={handleSave}
-              onCancel={handleCloseForm}
-            />
-          </DialogContent>
-        </Dialog>
+            {/* User Login URL Card (moved below header) */}
+            <Card style={styles.urlCard}>
+              <CardContent style={styles.urlCardContent}>
+                <View style={styles.urlTextContainer}>
+                  <Text style={styles.urlLabel}>User Login URL</Text>
+                  <Text style={styles.urlValue}>{userLoginUrl}</Text>
+                </View>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onPress={copyToClipboard}
+                  style={styles.copyButton}
+                  icon={copied ? 'check' : 'copy'}
+                >
+                  {copied ? 'Copied!' : 'Copy URL'}
+                </Button>
+              </CardContent>
+            </Card>
 
-        <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the user account.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onPress={() => setIsAlertOpen(false)}>
-                Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction onPress={handleDelete}>
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </View>
-    </ScrollView>
+            <Card>
+              <CardContent
+                style={
+                  viewMode === 'card' ? styles.cardContent : styles.listContent
+                }
+              >
+                {isLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#666" />
+                  </View>
+                ) : users.length > 0 ? (
+                  viewMode === 'list' ? (
+                    <UserTable
+                      users={users}
+                      onEdit={handleOpenForm}
+                      onDelete={openDeleteDialog}
+                      companyMap={companyMap}
+                    />
+                  ) : (
+                    <UserCard
+                      users={users}
+                      onEdit={handleOpenForm}
+                      onDelete={openDeleteDialog}
+                      companyMap={companyMap}
+                    />
+                  )
+                ) : (
+                  <View style={styles.emptyState}>
+                    <Icon name="users" size={48} color="#999" />
+                    <Text style={styles.emptyStateTitle}>No Users Found</Text>
+                    <Text style={styles.emptyStateDescription}>
+                      Get started by adding your first user.
+                    </Text>
+                    <Button onPress={() => handleOpenForm()} icon="plus-circle">
+                      Add User
+                    </Button>
+                  </View>
+                )}
+              </CardContent>
+            </Card>
+
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogContent style={styles.dialogContent}>
+                <DialogHeader>
+                  <DialogTitle>
+                    {selectedUser ? 'Edit User' : 'Add New User'}
+                  </DialogTitle>
+                  <DialogDescription>Fill in the form below.</DialogDescription>
+                </DialogHeader>
+                <UserForm
+                  user={selectedUser}
+                  allCompanies={companies}
+                  onSave={handleSave}
+                  onCancel={handleCloseForm}
+                />
+              </DialogContent>
+            </Dialog>
+
+            <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete
+                    the user account.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel onPress={() => setIsAlertOpen(false)}>
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction onPress={handleDelete}>
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </AppLayout>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
@@ -422,22 +442,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 16,
   },
-  
-  // Loader styles
-  loaderContainer: {
+
+  fullscreenLoader: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
+    backgroundColor: '#f5f5f5',
   },
-  loaderCard: {
-    width: '100%',
-    maxWidth: 400,
-  },
-  loaderContent: {
-    padding: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
   },
 
   // No company styles
@@ -517,18 +532,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#dbeafe',
     borderColor: '#93c5fd',
     marginBottom: 8,
-    marginTop: 40,
-    height: 70,
+    marginTop: 8,
+    paddingVertical: 10,
   },
   urlCardContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: 16,
   },
   urlTextContainer: {
     flex: 1,
-    paddingTop: 8,
+    paddingTop: 4,
   },
   urlLabel: {
     fontSize: 14,
@@ -541,15 +556,14 @@ const styles = StyleSheet.create({
     color: '#1d4ed8',
     backgroundColor: '#eff6ff',
     padding: 4,
-    marginTop: 6,
+    marginTop: 2,
     borderRadius: 8,
   },
   copyButton: {
-    marginTop: 15,
+    marginTop: 0,
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: '#a2b5ddff',
-    
   },
 
   // Header styles
@@ -557,7 +571,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
+    marginTop: 6,
+    paddingLeft: 10,
+    paddingRight: 10,
+  },
+
+  // Header styles
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    marginTop: 6,
     paddingLeft: 10,
     paddingRight: 10,
   },

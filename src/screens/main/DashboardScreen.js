@@ -18,6 +18,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Settings, FileText, PlusCircle, Package } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 
 // Assuming context and custom components are adapted for React Native
 import { useCompany } from '../../contexts/company-context';
@@ -148,6 +149,7 @@ const Button = ({
 // --- Main Component ---
 
 export default function DashboardPage() {
+  const navigation = useNavigation();
   const { toggleSupport } = useSupport();
   const { selectedCompanyId } = useCompany();
   const [dashboardData, setDashboardData] = useState(null);
@@ -451,11 +453,12 @@ export default function DashboardPage() {
             {/* Product Stock and Recent Transactions */}
             <View style={styles.dataContainer}>
               <Suspense fallback={<ProductStockSkeleton />}>
-                <ProductStock />
+                <ProductStock navigation={navigation} />
               </Suspense>
 
               <Suspense fallback={<RecentTransactionsSkeleton />}>
                 <RecentTransactions
+                  navigation={navigation}
                   transactions={dashboardData?.recentTransactions || []}
                   serviceNameById={dashboardData?.serviceNameById || new Map()}
                 />
@@ -531,16 +534,6 @@ export default function DashboardPage() {
           </ScrollView>
         </View>
       </Modal>
-
-      {/* Floating action button for quick access */}
-      {companies.length > 0 && (
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => setIsTransactionFormOpen(true)}
-        >
-          <PlusCircle size={22} color="white" />
-        </TouchableOpacity>
-      )}
     </AppLayout>
   );
 }
@@ -745,21 +738,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     marginBottom: 16,
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 28,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#0A66C2',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
 });

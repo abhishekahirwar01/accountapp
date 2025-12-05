@@ -1,19 +1,15 @@
-// Remove TypeScript imports and types for pure JS environment
-
+// pdf-template2.js
+import { generatePDF } from 'react-native-html-to-pdf';
 import {
   deriveTotals,
   formatCurrency,
-  renderNotes,
-  invNo,
-  getCompanyGSTIN,
-  getUnifiedLines,
   getBillingAddress,
   getShippingAddress,
+  getUnifiedLines,
+  getCompanyGSTIN,
 } from './pdf-utils';
 
-import RNHTMLtoPDF from 'react-native-html-to-pdf';
-import { BASE_URL } from '../config';
-// --- Utility Functions (Identical to Web helpers for data prep) ---
+// --- Utility Functions ---
 
 const getItemsBodyTemplate2 = (transaction, serviceNameById) => {
   const lines = getUnifiedLines(transaction, serviceNameById);
@@ -52,210 +48,35 @@ const getItemsBodyTemplate2 = (transaction, serviceNameById) => {
   }));
 };
 
-// --- HTML Generation Logic ---
-
-const generateInvoiceHtml = (
-  transaction,
-  invoiceData,
-  itemsForTable,
-  totals,
-  companyGSTIN,
-) => {
-  // Convert data to table rows
-  const itemRows = itemsForTable
-    .map(
-      item => `
-        <tr style="border-bottom: 1px solid #ccc;">
-            <td style="width: 5%;">${item.sno}</td>
-            <td style="width: 35%;">${item.description}</td>
-            <td style="width: 10%;">${item.code}</td>
-            <td style="width: 10%; text-align: right;">${item.quantity}</td>
-            <td style="width: 10%; text-align: right;">${
-              item.gstPercentage
-            }%</td>
-            <td style="width: 10%; text-align: right;">${formatCurrency(
-              item.pricePerUnit,
-            )}</td>
-            <td style="width: 10%; text-align: right;">${formatCurrency(
-              item.lineTax,
-            )}</td>
-            <td style="width: 10%; text-align: right;">${formatCurrency(
-              item.lineTotal,
-            )}</td>
-        </tr>
-    `,
-    )
-    .join('');
-
-  // Totals Section
-  const gstTotalRow = totals.gstEnabled
-    ? `
-        <tr>
-            <td style="text-align: right; padding-right: 10px;">GST Total</td>
-            <td style="text-align: right; width: 100px;">${formatCurrency(
-              totals.tax,
-            )}</td>
-        </tr>
-    `
-    : '';
-
-  const totalsSection = `
-        <table style="width: 250px; margin-left: auto; margin-top: 15px; font-size: 10pt;">
-            <tr>
-                <td style="text-align: right; padding-right: 10px;">Sub Total</td>
-                <td style="text-align: right; width: 100px;">${formatCurrency(
-                  totals.subtotal,
-                )}</td>
-            </tr>
-            ${gstTotalRow}
-            <tr style="font-weight: bold; border-top: 1px solid #000; padding-top: 5px;">
-                <td style="text-align: right; padding-right: 10px;">GRAND TOTAL</td>
-                <td style="text-align: right; width: 100px;">${formatCurrency(
-                  totals.invoiceTotal,
-                )}</td>
-            </tr>
-        </table>
-    `;
-
-  // Notes/Footer is placed near the bottom
-  const notesAndFooter = `
-        <div style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 10px;">
-            <p style="font-size: 10pt; font-weight: bold;">Notes/Terms:</p>
-            <div style="white-space: pre-wrap; font-size: 9pt; color: #555;">
-                ${renderNotes(transaction)} 
-            </div>
-        </div>
-    `;
-
-  // Final HTML Structure
-  return `
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <style>
-                body {
-                    font-family: 'Helvetica', sans-serif;
-                    padding: 0;
-                    margin: 0;
-                    font-size: 10pt;
-                }
-                .header-line { border-bottom: 1px solid #000; margin: 15px 0; }
-                .client-info p { margin: 0; line-height: 1.5; }
-                
-                .item-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-top: 30px;
-                    border: 1px solid #ccc; /* Match jspdf grid theme */
-                }
-                .item-table th, .item-table td {
-                    padding: 8px;
-                    border: 1px solid #ccc;
-                    text-align: left;
-                }
-                .item-table th {
-                    background-color: #eee; /* Match jspdf headStyles */
-                    font-weight: bold;
-                    color: #000;
-                    font-size: 10pt;
-                }
-            </style>
-        </head>
-        <body>
-            <div style="padding: 10px 20px;">
-                <table style="width: 100%;">
-                    <tr>
-                        <td style="width: 60%; vertical-align: top;">
-                            <h1 style="font-size: 22pt; margin: 0;">${
-                              invoiceData.company.name
-                            }</h1>
-                            <p style="font-size: 10pt; margin-top: 5px;">${
-                              invoiceData.company.email
-                            }</p>
-                            <p style="font-size: 10pt;">${
-                              invoiceData.company.phone
-                            }</p>
-                            ${
-                              companyGSTIN
-                                ? `<p style="font-size: 10pt;">GSTIN: ${companyGSTIN}</p>`
-                                : ''
-                            }
-                        </td>
-                        <td style="width: 40%; text-align: right; vertical-align: top;">
-                            <h2 style="font-size: 18pt; margin: 0;">Invoice ${
-                              invoiceData.invoice.number
-                            }</h2>
-                            <p style="font-size: 10pt; margin-top: 5px;">Issued: ${
-                              invoiceData.invoice.date
-                            }</p>
-                            <p style="font-size: 10pt;">Payment Due: ${
-                              invoiceData.invoice.dueDate
-                            }</p>
-                        </td>
-                    </tr>
-                </table>
-
-                <div class="header-line"></div>
-
-                <div class="client-info">
-                    <p style="font-size: 14pt; font-weight: bold;">${
-                      invoiceData.party.name
-                    }</p>
-                    ${
-                      invoiceData.party.email
-                        ? `<p>${invoiceData.party.email}</p>`
-                        : ''
-                    }
-                    <p style="font-weight: bold; margin-top: 10px;">Bill To:</p>
-                    <div style="white-space: pre-wrap;">${invoiceData.party.billingAddress.replace(
-                      /\n/g,
-                      '<br/>',
-                    )}</div>
-                    <p style="font-weight: bold; margin-top: 5px;">Ship To:</p>
-                    <div style="white-space: pre-wrap;">${invoiceData.party.shippingAddress.replace(
-                      /\n/g,
-                      '<br/>',
-                    )}</div>
-                </div>
-
-                <table class="item-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 5%;">S.No.</th>
-                            <th style="width: 35%;">Item Description</th>
-                            <th style="width: 10%;">HSN/SAC</th>
-                            <th style="width: 10%; text-align: right;">Qty</th>
-                            <th style="width: 10%; text-align: right;">GST%</th>
-                            <th style="width: 10%; text-align: right;">Rate</th>
-                            <th style="width: 10%; text-align: right;">Tax</th>
-                            <th style="width: 10%; text-align: right;">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${itemRows}
-                    </tbody>
-                </table>
-
-                ${totalsSection}
-                ${notesAndFooter}
-            </div>
-            
-            <div style="position: fixed; bottom: 20px; right: 20px; font-size: 9pt; color: #777;">
-                </div>
-        </body>
-        </html>
-    `;
+// Safe Phone Number Formatting
+const safeFormatPhoneNumber = phoneNumber => {
+  try {
+    if (!phoneNumber) return '-';
+    return String(phoneNumber).trim();
+  } catch (error) {
+    console.error('Error formatting phone number:', error);
+    return phoneNumber || '-';
+  }
 };
 
-// --- Main Exported React Native Function ---
+// Safe Date Formatting
+const formatDateSafe = (dateString, formatType = 'en-IN') => {
+  try {
+    if (!dateString) return '-';
+    return new Intl.DateTimeFormat(formatType).format(new Date(dateString));
+  } catch (error) {
+    return dateString || '-';
+  }
+};
 
-export const generatePdfForTemplate2 = async (
+// --- Main PDF Component ---
+const Template2 = ({
   transaction,
   company,
   party,
-  serviceNameById,
   shippingAddress,
-) => {
+  serviceNameById,
+}) => {
   // Data Processing
   const totals = deriveTotals(transaction, company, serviceNameById);
   const companyGSTIN = getCompanyGSTIN(company);
@@ -266,60 +87,462 @@ export const generatePdfForTemplate2 = async (
     billingAddress,
   );
 
-  const dueDate = new Intl.DateTimeFormat('en-US').format(
-    new Date(
-      new Date(transaction.date).setDate(
-        new Date(transaction.date).getDate() + 30,
-      ),
-    ),
-  );
+  // Calculate due date (30 days from transaction date)
+  const dueDate = new Date(transaction.date);
+  dueDate.setDate(dueDate.getDate() + 30);
 
   const invoiceData = {
     company: {
-      name: company?.businessName || 'Your Company',
+      name: company?.businessName || company?.companyName || 'Your Company',
       email: company?.emailId || 'yourbusinessaccount@mail.com',
-      phone: company?.mobileNumber || '123 456 789',
+      phone: company?.mobileNumber || company?.Telephone || '123 456 789',
+      address: [
+        company?.address,
+        company?.City,
+        company?.addressState,
+        company?.Country,
+        company?.Pincode,
+      ]
+        .filter(Boolean)
+        .join(', '),
     },
     invoice: {
-      number: invNo(transaction),
-      date: new Intl.DateTimeFormat('en-US').format(new Date(transaction.date)),
-      dueDate: dueDate,
+      number: transaction.invoiceNumber || 'N/A',
+      date: formatDateSafe(transaction.date),
+      dueDate: formatDateSafe(dueDate),
     },
     party: {
       name: party?.name || 'Client Name',
       billingAddress,
       shippingAddress: shippingAddressStr,
       email: party?.email || '',
+      phone: party?.contactNumber || '',
+      gstin: party?.gstin || '',
     },
   };
 
   const itemsForTable = getItemsBodyTemplate2(transaction, serviceNameById);
 
-  // Generate HTML Content
-  const htmlContent = generateInvoiceHtml(
-    transaction,
-    invoiceData,
-    itemsForTable,
-    totals,
-    companyGSTIN,
-  );
+  // Generate HTML content for PDF
+  const generateHTML = () => {
+    // Convert data to table rows
+    const itemRows = itemsForTable
+      .map(
+        item => `
+          <tr style="border-bottom: 1px solid #ccc;">
+              <td style="width: 5%; text-align: center; padding: 4px;">${
+                item.sno
+              }</td>
+              <td style="width: 35%; padding: 4px 8px;">${item.description}</td>
+              <td style="width: 10%; text-align: center; padding: 4px;">${
+                item.code
+              }</td>
+              <td style="width: 10%; text-align: right; padding: 4px;">${
+                item.quantity
+              }</td>
+              <td style="width: 10%; text-align: right; padding: 4px;">${
+                item.gstPercentage
+              }%</td>
+              <td style="width: 10%; text-align: right; padding: 4px;">${formatCurrency(
+                item.pricePerUnit,
+              )}</td>
+              <td style="width: 10%; text-align: right; padding: 4px;">${formatCurrency(
+                item.lineTax,
+              )}</td>
+              <td style="width: 10%; text-align: right; padding: 4px;">${formatCurrency(
+                item.lineTotal,
+              )}</td>
+          </tr>
+      `,
+      )
+      .join('');
 
-  // Configure and Convert to PDF
-  const options = {
-    html: htmlContent,
-    fileName: `Invoice_${invoiceData.invoice.number}`,
-    directory: 'Documents',
-    base64: false,
-    padding: 20,
+    // Totals Section
+    const gstTotalRow = totals.gstEnabled
+      ? `
+          <tr>
+              <td style="text-align: right; padding-right: 10px; font-weight: bold; padding-top: 8px;">GST Total</td>
+              <td style="text-align: right; width: 100px; font-weight: bold; padding-top: 8px;">${formatCurrency(
+                totals.tax,
+              )}</td>
+          </tr>
+      `
+      : '';
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+          }
+          
+          body {
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: #000;
+            font-size: 12px;
+            line-height: 1.2;
+          }
+          
+          .page {
+            position: relative;
+            min-height: 100vh;
+          }
+          
+          /* Header Styles */
+          .header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+          }
+          
+          .company-info {
+            flex: 1;
+          }
+          
+          .company-name {
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 5px;
+          }
+          
+          .company-details {
+            font-size: 10px;
+            line-height: 1.3;
+          }
+          
+          .company-details div {
+            margin-bottom: 2px;
+          }
+          
+          .invoice-info {
+            text-align: right;
+          }
+          
+          .invoice-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+          }
+          
+          .invoice-details {
+            font-size: 10px;
+            line-height: 1.3;
+          }
+          
+          .invoice-details div {
+            margin-bottom: 2px;
+          }
+          
+          /* Client Info Styles */
+          .client-section {
+            margin-bottom: 20px;
+          }
+          
+          .client-info {
+            margin-bottom: 15px;
+          }
+          
+          .client-name {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px;
+          }
+          
+          .address-section {
+            font-size: 10px;
+            line-height: 1.3;
+            margin-bottom: 10px;
+          }
+          
+          .address-label {
+            font-weight: bold;
+            margin-bottom: 2px;
+          }
+          
+          /* Table Styles */
+          .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            border: 1px solid #ccc;
+          }
+          
+          .items-table th {
+            background-color: #f0f0f0;
+            padding: 8px;
+            text-align: left;
+            border: 1px solid #ccc;
+            font-size: 10px;
+            font-weight: bold;
+          }
+          
+          .items-table td {
+            padding: 8px;
+            border: 1px solid #ccc;
+            font-size: 10px;
+            vertical-align: top;
+          }
+          
+          /* Totals Section */
+          .totals-section {
+            margin-top: 20px;
+            width: 250px;
+            margin-left: auto;
+          }
+          
+          .totals-table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+          
+          .totals-table tr {
+            border-bottom: 1px solid #ccc;
+          }
+          
+          .totals-table td {
+            padding: 5px 0;
+            font-size: 11px;
+          }
+          
+          .grand-total {
+            font-weight: bold;
+            border-top: 2px solid #000;
+            padding-top: 8px;
+          }
+          
+          /* Notes Section */
+          .notes-section {
+            margin-top: 30px;
+            border-top: 1px solid #ccc;
+            padding-top: 10px;
+            font-size: 10px;
+          }
+          
+          .notes-label {
+            font-weight: bold;
+            margin-bottom: 5px;
+          }
+          
+          /* Footer */
+          .footer {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 9px;
+            color: #777;
+          }
+          
+          .text-right {
+            text-align: right;
+          }
+          .text-center {
+            text-align: center;
+          }
+          .font-bold {
+            font-weight: bold;
+          }
+          
+          /* Page Number */
+          .page-number {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 9px;
+            color: #777;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="page">
+          <!-- Header -->
+          <div class="header">
+            <div class="company-info">
+              <div class="company-name">${invoiceData.company.name}</div>
+              <div class="company-details">
+                <div>${invoiceData.company.address || 'Address'}</div>
+                <div>Phone: ${safeFormatPhoneNumber(
+                  invoiceData.company.phone,
+                )}</div>
+                <div>Email: ${invoiceData.company.email}</div>
+                ${companyGSTIN ? `<div>GSTIN: ${companyGSTIN}</div>` : ''}
+              </div>
+            </div>
+            
+            <div class="invoice-info">
+              <div class="invoice-title">INVOICE</div>
+              <div class="invoice-details">
+                <div><strong>Invoice No:</strong> ${
+                  invoiceData.invoice.number
+                }</div>
+                <div><strong>Date:</strong> ${invoiceData.invoice.date}</div>
+                <div><strong>Due Date:</strong> ${
+                  invoiceData.invoice.dueDate
+                }</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Client Information -->
+          <div class="client-section">
+            <div class="client-info">
+              <div class="client-name">${invoiceData.party.name}</div>
+              ${
+                invoiceData.party.email
+                  ? `<div>Email: ${invoiceData.party.email}</div>`
+                  : ''
+              }
+              ${
+                invoiceData.party.phone
+                  ? `<div>Phone: ${safeFormatPhoneNumber(
+                      invoiceData.party.phone,
+                    )}</div>`
+                  : ''
+              }
+              ${
+                invoiceData.party.gstin
+                  ? `<div>GSTIN: ${invoiceData.party.gstin}</div>`
+                  : ''
+              }
+            </div>
+            
+            <div class="address-section">
+              <div class="address-label">Bill To:</div>
+              <div>${
+                invoiceData.party.billingAddress
+                  ? invoiceData.party.billingAddress.replace(/\n/g, '<br>')
+                  : 'No billing address provided'
+              }</div>
+            </div>
+            
+            <div class="address-section">
+              <div class="address-label">Ship To:</div>
+              <div>${
+                invoiceData.party.shippingAddress
+                  ? invoiceData.party.shippingAddress.replace(/\n/g, '<br>')
+                  : invoiceData.party.billingAddress
+                  ? invoiceData.party.billingAddress.replace(/\n/g, '<br>')
+                  : 'Same as billing address'
+              }</div>
+            </div>
+          </div>
+
+          <!-- Items Table -->
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width: 5%;">S.No.</th>
+                <th style="width: 35%;">Item Description</th>
+                <th style="width: 10%;">HSN/SAC</th>
+                <th style="width: 10%;" class="text-right">Qty</th>
+                <th style="width: 10%;" class="text-right">GST%</th>
+                <th style="width: 10%;" class="text-right">Rate</th>
+                <th style="width: 10%;" class="text-right">Tax</th>
+                <th style="width: 10%;" class="text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemRows}
+            </tbody>
+          </table>
+
+          <!-- Totals Section -->
+          <div class="totals-section">
+            <table class="totals-table">
+              <tr>
+                <td class="text-right">Sub Total</td>
+                <td class="text-right">${formatCurrency(totals.subtotal)}</td>
+              </tr>
+              ${gstTotalRow}
+              <tr class="grand-total">
+                <td class="text-right">GRAND TOTAL</td>
+                <td class="text-right">${formatCurrency(
+                  totals.invoiceTotal,
+                )}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Notes Section -->
+          ${
+            transaction?.notes
+              ? `
+          <div class="notes-section">
+            <div class="notes-label">Notes/Terms:</div>
+            <div style="white-space: pre-wrap; line-height: 1.4;">
+              ${transaction.notes.replace(/\n/g, '<br>')}
+            </div>
+          </div>
+          `
+              : ''
+          }
+
+          <!-- Page Number -->
+          <div class="page-number">1 / 1 page</div>
+        </div>
+      </body>
+      </html>
+    `;
   };
 
-  try {
-    const file = await RNHTMLtoPDF.convert(options);
+  return generateHTML();
+};
 
-    // Return the file path (string)
-    return file.filePath;
+// --- PDF Generation Function ---
+export const generatePdfForTemplate2 = async (
+  transaction,
+  company,
+  party,
+  serviceNameById,
+  shippingAddress,
+) => {
+  try {
+    console.log('🟡 PDF Generation Started - Template2');
+
+    const htmlContent = Template2({
+      transaction,
+      company,
+      party,
+      shippingAddress,
+      serviceNameById,
+    });
+
+    console.log('🟢 HTML Content Generated Successfully');
+    console.log('HTML Length:', htmlContent.length);
+
+    const options = {
+      html: htmlContent,
+      fileName: `invoice_${transaction.invoiceNumber || 'document'}_template2`,
+      directory: 'Documents',
+      width: 595, // A4 width in points
+      height: 842, // A4 height in points
+      base64: true,
+    };
+
+    // Use generatePDF
+    const file = await generatePDF(options);
+    console.log('🟢 PDF Generated Successfully!');
+
+    // Return an object with output method for compatibility
+    return {
+      ...file,
+      output: (format = 'base64') => {
+        if (format === 'base64') return file.base64;
+        if (format === 'filePath') return file.filePath;
+        return file.base64;
+      },
+    };
   } catch (error) {
-    console.error('PDF generation failed:', error);
+    console.error('Error generating PDF:', error);
     throw error;
   }
 };
