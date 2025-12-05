@@ -14,19 +14,19 @@ const badgeStyles = {
   variants: {
     default: {
       borderColor: 'transparent',
-      backgroundColor: '#007AFF', // primary color
+      backgroundColor: '#3992f1ff', // primary color
     },
     secondary: {
       borderColor: 'transparent',
-      backgroundColor: '#6B7280', // secondary color
+      backgroundColor: '#8797a7ff', // secondary color
     },
     destructive: {
       borderColor: 'transparent',
       backgroundColor: '#DC2626', // destructive color
     },
     outline: {
-      borderColor: '#D1D5DB', // outline color
-      backgroundColor: 'transparent',
+      borderColor: '#d1d5dbff', // outline color
+      backgroundColor: '#4871adff',
     }
   },
   text: {
