@@ -43,6 +43,7 @@ import { TransactionForm } from '../../components/transactions/TransactionForm';
 import ProformaForm from '../../components/transactions/ProformaForm';
 import InvoicePreview from '../../components/invoices/InvoicePreview';
 import { columns, useColumns } from '../../components/transactions/columns';
+import { generatePdfForTemplate1 } from '../../lib/pdf-template1';
 import {
   TableSkeleton,
   MobileTableSkeleton,
@@ -118,6 +119,13 @@ const TransactionsScreen = ({ navigation }) => {
   const [defaultTransactionType, setDefaultTransactionType] = useState(null);
   const [prefillFromTransaction, setPrefillFromTransaction] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Email states
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailDialogMessage, setEmailDialogMessage] = useState('');
+  const [emailDialogTitle, setEmailDialogTitle] = useState('');
+  const [isGmailNotConnected, setIsGmailNotConnected] = useState(false);
 
   // Hooks
   const { selectedCompanyId } = useCompany();
@@ -942,20 +950,266 @@ const TransactionsScreen = ({ navigation }) => {
   };
 
   const handleSendInvoice = async tx => {
+    console.log('🟢 handleSendInvoice called with tx:', tx?._id);
     try {
-      const token = (await AsyncStorage.getItem('token')) || '';
-      const res = await fetch(`${BASE_URL}/api/sales/${tx._id}/send-invoice`, {
-        method: 'POST',
+      if (tx.type !== 'sales' && tx.type !== 'proforma') {
+        console.log('❌ Invalid transaction type:', tx.type);
+        setEmailDialogTitle('❌ Cannot Send Email');
+        setEmailDialogMessage(
+          'Only sales and proforma transactions can be emailed as invoices.',
+        );
+        setIsEmailDialogOpen(true);
+        return;
+      }
+
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      console.log('📤 Checking Gmail status...');
+      setIsSendingEmail(true);
+
+      // Check Gmail connection status
+      const statusRes = await fetch(
+        `${BASE_URL}/api/integrations/gmail/status`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      console.log('✅ Gmail status response:', statusRes.status);
+
+      if (!statusRes.ok) {
+        throw new Error('Could not check email status');
+      }
+
+      const emailStatus = await statusRes.json();
+      console.log('📧 Gmail connected:', emailStatus.connected);
+
+      if (!emailStatus.connected) {
+        console.log('⚠️ Gmail not connected - showing settings dialog');
+        setIsGmailNotConnected(true);
+        setIsSendingEmail(false);
+        return;
+      }
+
+      // Get party/customer info
+      const pv = tx.party || tx.vendor;
+      const partyId = pv?._id || null;
+
+      console.log('👤 Party/Vendor info:', { partyId, pv });
+
+      if (!partyId) {
+        throw new Error('Customer details not found');
+      }
+
+      // Fetch complete party details
+      console.log('🔍 Fetching party details for ID:', partyId);
+      const partyRes = await fetch(`${BASE_URL}/api/parties/${partyId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'Failed to send invoice');
+      console.log('✅ Party response:', partyRes.status);
 
-      toast('Invoice sent', 'success', "Sent to customer's email.");
+      if (!partyRes.ok) {
+        throw new Error('Failed to fetch customer details');
+      }
+
+      const partyToUse = await partyRes.json();
+
+      console.log('👤 Party data:', {
+        email: partyToUse?.email,
+        name: partyToUse?.name,
+      });
+
+      if (!partyToUse?.email) {
+        console.log('❌ Customer has no email');
+        setEmailDialogTitle('❌ No Email Found');
+        setEmailDialogMessage(
+          "Customer doesn't have an email address on file.",
+        );
+        setIsEmailDialogOpen(true);
+        setIsSendingEmail(false);
+        return;
+      }
+
+      // Get company ID
+      const companyId =
+        typeof tx.company === 'object' ? tx.company._id : tx.company || '';
+
+      console.log('🏢 Company ID:', companyId);
+
+      if (!companyId) {
+        throw new Error('Company not found');
+      }
+
+      // Fetch company details
+      console.log('🔍 Fetching company details...');
+      const companyRes = await fetch(`${BASE_URL}/api/companies/${companyId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      console.log('✅ Company response:', companyRes.status);
+
+      if (!companyRes.ok) {
+        throw new Error('Failed to fetch company details');
+      }
+
+      const companyToUse = await companyRes.json();
+
+      console.log('🏢 Company data:', {
+        businessName: companyToUse?.businessName,
+      });
+
+      // Generate PDF using template1
+      console.log('📄 Generating PDF...');
+      const pdfResult = await generatePdfForTemplate1(
+        tx,
+        companyToUse || null,
+        partyToUse,
+        serviceNameById,
+      );
+
+      console.log('✅ PDF generated, extracting base64...');
+
+      // Extract base64 from PDF result
+      let base64Data = '';
+
+      if (pdfResult.base64) {
+        // Direct base64 from PDF generation
+        base64Data = pdfResult.base64;
+      } else if (pdfResult.filePath) {
+        // If only file path is available, read it
+        base64Data = await RNFS.readFile(pdfResult.filePath, 'base64');
+      } else if (typeof pdfResult === 'string') {
+        // If it's already a string path
+        base64Data = await RNFS.readFile(pdfResult, 'base64');
+      } else {
+        throw new Error('Invalid PDF generation result');
+      }
+
+      if (!base64Data) {
+        throw new Error('Failed to generate PDF base64 data');
+      }
+
+      console.log('✅ Base64 extracted, building email...');
+
+      // Build email content
+      const subject = `Invoice from ${
+        companyToUse?.businessName || 'Your Company'
+      }`;
+      const bodyHtml = buildInvoiceEmailHTML({
+        companyName: companyToUse?.businessName || 'Your Company',
+        partyName: partyToUse?.name || 'Customer',
+        supportEmail: companyToUse?.emailId || '',
+        supportPhone: companyToUse?.mobileNumber || '',
+        logoUrl: companyToUse?.logoUrl || '',
+      });
+      const fileName = `${
+        tx.invoiceNumber || tx.referenceNumber || 'invoice'
+      }.pdf`;
+
+      console.log('📧 Sending email to:', partyToUse.email);
+
+      // Send email API call
+      const sendRes = await fetch(
+        `${BASE_URL}/api/integrations/gmail/send-invoice`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            to: partyToUse.email,
+            subject,
+            html: bodyHtml,
+            fileName,
+            pdfBase64: base64Data,
+            companyId,
+            sendAs: 'companyOwner',
+          }),
+        },
+      );
+
+      console.log('✅ Email API response:', sendRes.status);
+
+      if (sendRes.ok) {
+        console.log('🎉 Email sent successfully');
+        setEmailDialogTitle('✅ Invoice Sent');
+        setEmailDialogMessage(`Email sent successfully to ${partyToUse.email}`);
+        setIsEmailDialogOpen(true);
+      } else {
+        const errorData = await sendRes.json().catch(() => ({}));
+        console.log('❌ Email send failed:', errorData);
+        throw new Error(errorData.message || 'Failed to send email');
+      }
     } catch (e) {
-      toast('Send failed', 'error', e.message || 'Something went wrong.');
+      console.error('❌ FINAL Send invoice error:', e);
+      console.error('Stack:', e?.stack);
+      setEmailDialogTitle('❌ Send Failed');
+      setEmailDialogMessage(e.message || 'Could not send invoice email.');
+      setIsEmailDialogOpen(true);
+    } finally {
+      setIsSendingEmail(false);
     }
+  };
+
+  // Helper function to build invoice email HTML
+  const buildInvoiceEmailHTML = ({
+    companyName,
+    partyName = 'Customer',
+    supportEmail = '',
+    supportPhone = '',
+    logoUrl = '',
+  }) => {
+    const contactLine = supportEmail
+      ? `for any queries, feel free to contact us at ${supportEmail}${
+          supportPhone ? ` or ${supportPhone}` : ''
+        }.`
+      : `for any queries, feel free to contact us${
+          supportPhone ? ` at ${supportPhone}` : ''
+        }.`;
+
+    return `<view style="background-color:#f5f7fb;padding:24px 12px;">
+  <view style="background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:600px;margin:0 auto;">
+    <view style="background-color:#111827;color:#ffffff;padding:16px 24px;">
+      <view style="display:flex;align-items:center;gap:12px;">
+        ${
+          logoUrl
+            ? `<image source={{uri: "${logoUrl}"}} style="width:32;height:32;border-radius:6px;display:inline-block;" />`
+            : ''
+        }
+        <text style="font-size:18px;font-weight:700;letter-spacing:0.3px;">${companyName}</text>
+      </view>
+    </view>
+
+    <view style="padding:24px 24px 8px;">
+      <text style="margin:0 0 12px 0;font-size:16px;color:#111827;">Dear ${partyName},</text>
+      <text style="margin:0 0 14px 0;font-size:14px;line-height:1.6;color:#374151;">
+        Thank you for choosing ${companyName}. Please find attached the invoice for your recent purchase.
+        We appreciate your business and look forward to serving you again.
+      </text>
+
+      <view style="margin:18px 0;padding:14px 16px;border:1px solid #e5e7eb;background-color:#f9fafb;border-radius:10px;font-size:14px;color:#111827;">
+        <text>Your invoice is attached as a PDF.</text>
+      </view>
+
+      <text style="margin:0 0 14px 0;font-size:14px;line-height:1.6;color:#374151;">
+        ${contactLine}
+      </text>
+
+      <text style="margin:24px 0 0 0;font-size:14px;color:#111827;">
+        Warm regards,
+        ${companyName}
+        ${supportEmail ? `${supportEmail}` : ''}
+      </text>
+    </view>
+
+    <view style="background-color:#f9fafb;color:#6b7280;font-size:12px;text-align:center;padding:12px 24px;border-top:1px solid #e5e7eb;">
+      <text>This is an automated message regarding your invoice. Please reply to the address above if you need help.</text>
+    </view>
+  </view>
+</view>`;
   };
 
   const handleTabChange = tab => {
@@ -1872,6 +2126,82 @@ const TransactionsScreen = ({ navigation }) => {
           transactionManager.renderEmailNotConnectedDialog()}
         {transactionManager?.renderCopySuccess &&
           transactionManager.renderCopySuccess()}
+
+        {/* Email Status Dialog */}
+        <Modal
+          visible={isEmailDialogOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsEmailDialogOpen(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.emailDialogContainer}>
+              <View style={styles.emailDialogContent}>
+                <Text style={styles.emailDialogTitle}>{emailDialogTitle}</Text>
+                <Text style={styles.emailDialogMessage}>
+                  {emailDialogMessage}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.emailDialogButton}
+                onPress={() => setIsEmailDialogOpen(false)}
+              >
+                <Text style={styles.emailDialogButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Gmail Not Connected Dialog */}
+        <Modal
+          visible={isGmailNotConnected}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsGmailNotConnected(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.gmailDialogContainer}>
+              <View style={styles.gmailDialogHeader}>
+                <Icon name="email" size={32} color="#ef4444" />
+                <Text style={styles.gmailDialogTitle}>
+                  Email Not Configured
+                </Text>
+              </View>
+
+              <Text style={styles.gmailDialogMessage}>
+                You need to connect your Gmail account to send invoices via
+                email. Please go to Settings to configure it.
+              </Text>
+
+              <View style={styles.gmailDialogButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.gmailDialogButton,
+                    styles.gmailDialogButtonCancel,
+                  ]}
+                  onPress={() => setIsGmailNotConnected(false)}
+                >
+                  <Text style={styles.gmailDialogButtonCancelText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.gmailDialogButton,
+                    styles.gmailDialogButtonPrimary,
+                  ]}
+                  onPress={() => {
+                    setIsGmailNotConnected(false);
+                    navigation.navigate('Settings', { tab: 'email' });
+                  }}
+                >
+                  <Text style={styles.gmailDialogButtonPrimaryText}>
+                    Go to Settings
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     </AppLayout>
   );
@@ -2446,6 +2776,113 @@ const styles = StyleSheet.create({
     color: '#3b82f6',
     fontWeight: '600',
     fontSize: 16,
+  },
+  // Email Dialog Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emailDialogContainer: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 24,
+    marginHorizontal: 20,
+    maxWidth: 400,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  emailDialogContent: {
+    marginBottom: 16,
+  },
+  emailDialogTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emailDialogMessage: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  emailDialogButton: {
+    backgroundColor: '#3b82f6',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  emailDialogButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  // Gmail Not Connected Dialog
+  gmailDialogContainer: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 24,
+    marginHorizontal: 20,
+    maxWidth: 400,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  gmailDialogHeader: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  gmailDialogTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  gmailDialogMessage: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  gmailDialogButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  gmailDialogButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  gmailDialogButtonCancel: {
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  gmailDialogButtonCancelText: {
+    color: '#374151',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  gmailDialogButtonPrimary: {
+    backgroundColor: '#3b82f6',
+  },
+  gmailDialogButtonPrimaryText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });
 

@@ -1274,9 +1274,24 @@ const TransactionActions = ({
 
         {/* 2) Send via Email */}
         <DropdownMenuItem
-          onPress={() => {
-            if (onSendInvoice) onSendInvoice(transaction);
-            else handleSendEmail();
+          onPress={async () => {
+            console.log(
+              '📧 Send Email clicked - onSendInvoice:',
+              !!onSendInvoice,
+            );
+            if (onSendInvoice) {
+              try {
+                await onSendInvoice(transaction);
+                console.log('✅ Send invoice completed');
+              } catch (err) {
+                console.error('❌ Send invoice error:', err);
+              }
+            } else {
+              console.log(
+                '⚠️ onSendInvoice not provided, calling handleSendEmail',
+              );
+              handleSendEmail();
+            }
           }}
           icon={{ type: Feather, name: 'send' }}
           disabled={!isInvoiceable || isSendingEmail}
