@@ -1,6 +1,6 @@
 // components/ui/Button.js
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, View, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 
 export const Button = ({
@@ -8,9 +8,12 @@ export const Button = ({
   onPress,
   variant = 'default',
   size = 'default',
+  disabled = false,
+  loading = false,
   className,
   style,
   icon,
+  iconPosition = 'left',
   ...props
 }) => {
   const getVariantStyle = () => {
@@ -50,21 +53,67 @@ export const Button = ({
         return styles.textOutline;
       case 'ghost':
         return styles.textGhost;
+      case 'secondary':
+        return styles.textSecondary;
       default:
         return styles.textDefault;
     }
   };
 
+  const renderContent = () => {
+    if (loading) {
+      return <ActivityIndicator size="small" color={getTextStyle().color} />;
+    }
+
+    return (
+      <View style={[
+        styles.buttonContent,
+        iconPosition === 'right' && styles.buttonContentReverse
+      ]}>
+        {icon && iconPosition === 'left' && (
+          <Icon 
+            name={icon} 
+            size={16} 
+            color={getTextStyle().color} 
+            style={[styles.icon, iconPosition === 'left' && styles.iconLeft]}
+          />
+        )}
+        
+        {typeof children === 'string' ? (
+          <Text style={[styles.text, getTextStyle()]} numberOfLines={1}>
+            {children}
+          </Text>
+        ) : (
+          children
+        )}
+        
+        {icon && iconPosition === 'right' && (
+          <Icon 
+            name={icon} 
+            size={16} 
+            color={getTextStyle().color} 
+            style={[styles.icon, iconPosition === 'right' && styles.iconRight]}
+          />
+        )}
+      </View>
+    );
+  };
+
   return (
     <TouchableOpacity
-      style={[styles.button, getVariantStyle(), getSizeStyle(), style]}
+      style={[
+        styles.button,
+        getVariantStyle(),
+        getSizeStyle(),
+        disabled && styles.disabled,
+        style
+      ]}
       onPress={onPress}
+      disabled={disabled || loading}
+      activeOpacity={0.7}
       {...props}
     >
-      <View style={styles.buttonContent}>
-        {icon && <Icon name={icon} size={16} color={getTextStyle().color} style={styles.icon} />}
-        <Text style={[styles.text, getTextStyle()]}>{children}</Text>
-      </View>
+      {renderContent()}
     </TouchableOpacity>
   );
 };
@@ -80,6 +129,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  buttonContentReverse: {
+    flexDirection: 'row-reverse',
   },
   default: {
     backgroundColor: '#f3f4f6',
@@ -101,9 +153,12 @@ const styles = StyleSheet.create({
   destructive: {
     backgroundColor: '#dc2626',
   },
+  disabled: {
+    opacity: 0.5,
+  },
   defaultSize: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     minHeight: 40,
   },
   sm: {
@@ -119,12 +174,16 @@ const styles = StyleSheet.create({
   text: {
     fontWeight: '500',
     fontSize: 14,
+    textAlign: 'center',
   },
   textDefault: {
     color: '#1f2937',
   },
   textPrimary: {
-    color: '#fff',
+    color: '#ffffff',
+  },
+  textSecondary: {
+    color: '#ffffff',
   },
   textOutline: {
     color: '#374151',
@@ -133,8 +192,15 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   icon: {
+    marginHorizontal: 4,
+  },
+  iconLeft: {
     marginRight: 8,
+  },
+  iconRight: {
+    marginLeft: 8,
   },
 });
 
+// Export both named and default
 export default Button;
