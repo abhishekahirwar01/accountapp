@@ -164,7 +164,7 @@ export function CompactTableSkeleton() {
 
 const styles = StyleSheet.create({
   // General Styles
-  card: {
+ card: {
     backgroundColor: '#fff',
     borderRadius: 8,
     shadowColor: '#000',
@@ -172,8 +172,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
-    margin: 10,
-    width: width - 20,
+    margin: 0,
+    width: '100%',
   },
   basePlaceholder: {
     borderRadius: 4,

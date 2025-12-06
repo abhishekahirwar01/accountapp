@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
   },
   mainCard: {
     flex: 1,
-    margin: 16,
+    margin: 0,
     backgroundColor: 'white',
     borderRadius: 16,
     shadowColor: '#000',
