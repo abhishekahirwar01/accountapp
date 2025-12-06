@@ -9,9 +9,10 @@ import {
   numberToWords,
   formatPhoneNumber,
   formatQuantity,
-  capitalizeWords,
+  // capitalizeWords,
 } from './pdf-utils';
 import { BASE_URL } from '../config';
+import { capitalizeWords } from './utils';
 
 // --- Main Template Component ---
 const Template8 = ({
@@ -23,6 +24,7 @@ const Template8 = ({
   client,
   clientName,
 }) => {
+  const actualShippingAddress = shippingAddress || transaction?.shippingAddress;
   // Prepare data
   const {
     totals,
@@ -41,10 +43,20 @@ const Template8 = ({
     showIGST,
     showCGSTSGST,
     showNoTax,
-  } = prepareTemplate8Data(transaction, company, party, shippingAddress);
+  } = prepareTemplate8Data(transaction, company, party, actualShippingAddress);
 
   const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
   const shouldHideBankDetails = transaction.type === 'proforma';
+
+  const bankData = bank || transaction?.bank || {};
+
+   const isBankDetailAvailable =
+    bankData?.bankName ||
+    bankData?.ifscCode ||
+    bankData?.qrCode ||
+    bankData?.branchAddress ||
+    bankData?.accountNo ||
+    bankData?.upiDetails?.upiId;
 
   // Column widths
   const getColWidths = () => {
@@ -567,9 +579,9 @@ const Template8 = ({
                   party?.pan || '-'
                 }</div>
                 <div class="address-text"><span class="bold">Place of Supply:</span> ${
-                  shippingAddress?.state
-                    ? `${shippingAddress.state} (${
-                        getStateCode(shippingAddress.state) || '-'
+                  actualShippingAddress?.state
+                    ? `${actualShippingAddress.state} (${
+                        getStateCode(actualShippingAddress.state) || '-'
                       })`
                     : party?.state
                     ? `${party.state} (${getStateCode(party.state) || '-'})`
@@ -581,10 +593,10 @@ const Template8 = ({
               <div>
                 <div class="section-header">Details of Consigned | Shipped to :</div>
                 <div class="client-name">${capitalizeWords(
-                  shippingAddress?.label || party?.name || 'N/A',
+                  actualShippingAddress?.label || party?.name || 'N/A',
                 )}</div>
                 <div class="address-text">${capitalizeWords(
-                  getShippingAddress(shippingAddress, getBillingAddress(party)),
+                  getShippingAddress(actualShippingAddress, getBillingAddress(party)),
                 )}</div>
                 ${
                   company?.Country
@@ -602,9 +614,9 @@ const Template8 = ({
                   party?.gstin || '-'
                 }</div>
                 <div class="address-text"><span class="bold">State:</span> ${
-                  shippingAddress?.state
-                    ? `${shippingAddress.state} (${
-                        getStateCode(shippingAddress.state) || '-'
+                  actualShippingAddress?.state
+                    ? `${actualShippingAddress.state} (${
+                        getStateCode(actualShippingAddress.state) || '-'
                       })`
                     : party?.state
                     ? `${party.state} (${getStateCode(party.state) || '-'})`
@@ -716,7 +728,7 @@ const Template8 = ({
           
           <!-- Bank Details and Signature -->
           ${
-            !shouldHideBankDetails && bank
+            !shouldHideBankDetails &&  isBankDetailAvailable
               ? `
           <div class="bank-section">
             <div style="display: flex; justify-content: space-between;">
@@ -724,75 +736,75 @@ const Template8 = ({
               <div style="width: 40%;">
                 <div class="bold mb-2">Bank Details:</div>
                 ${
-                  bank.bankName
+                  bankData.bankName
                     ? `
                   <div class="bank-row">
                     <span class="bank-label">Name:</span>
                     <span class="bank-value">${capitalizeWords(
-                      bank.bankName,
+                      bankData.bankName,
                     )}</span>
                   </div>
                 `
                     : ''
                 }
                 ${
-                  bank.branchAddress
+                  bankData.branchAddress
                     ? `
                   <div class="bank-row">
                     <span class="bank-label">Branch:</span>
                     <span class="bank-value">${capitalizeWords(
-                      bank.branchAddress,
+                      bankData.branchAddress,
                     )}</span>
                   </div>
                 `
                     : ''
                 }
                 ${
-                  bank.ifscCode
+                  bankData.ifscCode
                     ? `
                   <div class="bank-row">
                     <span class="bank-label">IFSC:</span>
-                    <span class="bank-value">${bank.ifscCode}</span>
+                    <span class="bank-value">${bankData.ifscCode}</span>
                   </div>
                 `
                     : ''
                 }
                 ${
-                  bank.accountNo
+                  bankData.accountNo
                     ? `
                   <div class="bank-row">
                     <span class="bank-label">Acc. No:</span>
-                    <span class="bank-value">${bank.accountNo}</span>
+                    <span class="bank-value">${bankData.accountNo}</span>
                   </div>
                 `
                     : ''
                 }
                 ${
-                  bank.upiDetails?.upiId
+                  bankData.upiDetails?.upiId
                     ? `
                   <div class="bank-row">
                     <span class="bank-label">UPI ID:</span>
-                    <span class="bank-value">${bank.upiDetails.upiId}</span>
+                    <span class="bank-value">${bankData.upiDetails.upiId}</span>
                   </div>
                 `
                     : ''
                 }
                 ${
-                  bank.upiDetails?.upiName
+                  bankData.upiDetails?.upiName
                     ? `
                   <div class="bank-row">
                     <span class="bank-label">UPI Name:</span>
-                    <span class="bank-value">${bank.upiDetails.upiName}</span>
+                    <span class="bank-value">${bankData.upiDetails.upiName}</span>
                   </div>
                 `
                     : ''
                 }
                 ${
-                  bank.upiDetails?.upiMobile
+                  bankData.upiDetails?.upiMobile
                     ? `
                   <div class="bank-row">
                     <span class="bank-label">UPI Mobile:</span>
-                    <span class="bank-value">${bank.upiDetails.upiMobile}</span>
+                    <span class="bank-value">${bankData.upiDetails.upiMobile}</span>
                   </div>
                 `
                     : ''
@@ -801,11 +813,11 @@ const Template8 = ({
               
               <!-- QR Code -->
               ${
-                bank.qrCode
+                bankData.qrCode
                   ? `
                 <div style="width: 20%; text-align: center;">
                   <div class="bold mb-2">QR Code</div>
-                  <img src="${BASE_URL}${bank.qrCode}" class="qr-code" />
+                  <img src="${BASE_URL}${bankData.qrCode}" class="qr-code" />
                 </div>
               `
                   : ''
