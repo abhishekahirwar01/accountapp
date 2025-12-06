@@ -1,67 +1,26 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Card, Badge, Button } from 'react-native-paper';
-import { Edit, Package, Server } from 'lucide-react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Card, Badge } from 'react-native-paper';
+import { Package, Server } from 'lucide-react-native';
 
 const ProductMobileCard = React.memo(({ product, onEditClick }) => {
-  const [role, setRole] = React.useState(null);
-
-  // Get user role from storage
-  React.useEffect(() => {
-    const getRole = async () => {
-      try {
-        const userRole = await AsyncStorage.getItem('role');
-        setRole(userRole);
-      } catch (error) {
-        console.error('Error fetching role:', error);
-      }
-    };
-    getRole();
-  }, []);
+  // currency formatter
+  const formatINR = v => {
+    const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v;
+    if (n === null || n === undefined || n === '' || Number.isNaN(Number(n)))
+      return '-';
+    return `₹${Number(n).toLocaleString('en-IN')}`;
+  };
 
   const capitalizeWords = str => {
     if (!str) return '';
     return str.replace(/\b\w/g, char => char.toUpperCase());
   };
 
-  const getStockStatus = stocks => {
-    if ((stocks ?? 0) === 0) {
-      return {
-        bgColor: '#fef2f2',
-        darkBgColor: '#991b1b33',
-        dotColor: '#dc2626',
-        textColor: '#991b1b',
-        darkTextColor: '#fecaca',
-        status: 'Out of Stock',
-      };
-    } else if ((stocks ?? 0) > 0 && (stocks ?? 0) <= 10) {
-      return {
-        bgColor: '#fffbeb',
-        darkBgColor: '#92400e33',
-        dotColor: '#d97706',
-        textColor: '#92400e',
-        darkTextColor: '#fcd34d',
-        status: 'Low Stock',
-      };
-    } else {
-      return {
-        bgColor: '#f0fdf4',
-        darkBgColor: '#16653433',
-        dotColor: '#16a34a',
-        textColor: '#166534',
-        darkTextColor: '#bbf7d0',
-        status: 'In Stock',
-      };
-    }
-  };
-
-  const stockStatus = getStockStatus(product.stocks);
-
   return (
     <Card style={styles.card}>
       <Card.Content style={styles.cardContent}>
-        {/* Header */}
+        {/* Header (Icon, Name, Stock Count) */}
         <View style={styles.header}>
           <View
             style={[
@@ -72,15 +31,9 @@ const ProductMobileCard = React.memo(({ product, onEditClick }) => {
             ]}
           >
             {product.type === 'service' ? (
-              <Server
-                size={16}
-                color={product.type === 'service' ? '#9333ea' : '#2563eb'}
-              />
+              <Server size={16} color={'#9333ea'} />
             ) : (
-              <Package
-                size={16}
-                color={product.type === 'service' ? '#9333ea' : '#2563eb'}
-              />
+              <Package size={16} color={'#2563eb'} />
             )}
           </View>
 
@@ -88,76 +41,82 @@ const ProductMobileCard = React.memo(({ product, onEditClick }) => {
             <Text style={styles.productName} numberOfLines={2}>
               {capitalizeWords(product.name)}
             </Text>
+            
+            {/* Service Badge */}
             {product.type === 'service' && (
-              <Badge style={styles.serviceBadge} size={16}>
+              <Badge style={styles.serviceBadgeStyle} size={18}>
                 Service
               </Badge>
             )}
           </View>
 
+          {/* Stock Number and Unit Badge */}
           {product.type !== 'service' && (
             <View style={styles.stockBadge}>
-              <Text
-                style={[
-                  styles.stockNumber,
-                  {
-                    color:
-                      (product.stocks ?? 0) > 10
-                        ? '#16a34a'
-                        : (product.stocks ?? 0) > 0
-                        ? '#d97706'
-                        : '#dc2626',
-                  },
-                ]}
-              >
-                {product.stocks ?? 0}
-              </Text>
-              <Text style={styles.unitText}>{product.unit ?? 'units'}</Text>
+              <View style={styles.stockNumberContainer}>
+                <Text
+                  style={[
+                    styles.stockNumber,
+                    {
+                      color: (product.stocks ?? 0) > 10 
+                        ? '#16a34a' 
+                        : (product.stocks ?? 0) > 0 
+                          ? '#d97706' 
+                          : '#dc2626'
+                    },
+                  ]}
+                >
+                  {product.stocks ?? 0}
+                </Text>
+                <Text style={styles.unitText}>{product.unit ?? 'units'}</Text>
+              </View>
+              
+              {/* Stock Status Indicators */}
+              <View style={styles.statusIndicator}>
+                {(product.stocks ?? 0) === 0 && (
+                  <View style={styles.statusRow}>
+                    <View style={[styles.statusDot, styles.outOfStockDot]} />
+                    <Text style={[styles.statusText, styles.outOfStockText]}>
+                      Out of Stock
+                    </Text>
+                  </View>
+                )}
+                {(product.stocks ?? 0) > 0 && (product.stocks ?? 0) <= 10 && (
+                  <View style={styles.statusRow}>
+                    <View style={[styles.statusDot, styles.lowStockDot]} />
+                    <Text style={[styles.statusText, styles.lowStockText]}>
+                      Low Stock
+                    </Text>
+                  </View>
+                )}
+                {(product.stocks ?? 0) > 10 && (
+                  <View style={styles.statusRow}>
+                    <View style={[styles.statusDot, styles.inStockDot]} />
+                    <Text style={[styles.statusText, styles.inStockText]}>
+                      In Stock
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
           )}
         </View>
 
-        {/* Stock Status Badge */}
-        {product.type !== 'service' && (
-          <View
-            style={[
-              styles.stockStatus,
-              { backgroundColor: stockStatus.bgColor },
-            ]}
-          >
-            <View
-              style={[
-                styles.statusDot,
-                { backgroundColor: stockStatus.dotColor },
-              ]}
-            />
-            <Text style={[styles.statusText, { color: stockStatus.textColor }]}>
-              {stockStatus.status}
+        {/* Price Section */}
+        <View style={styles.priceContainer}>
+          <View style={styles.priceBlock}>
+            <Text style={styles.priceLabel}>Cost Price</Text>
+            <Text style={styles.priceValue}>
+              {formatINR(product.costPrice)}
             </Text>
           </View>
-        )}
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          {role !== 'user' && product.type !== 'service' && (
-            <Button
-              mode="outlined"
-              compact
-              style={styles.editButton}
-              labelStyle={styles.editButtonText}
-              onPress={() => onEditClick(product)}
-              icon={({ size, color }) => <Edit size={12} color={color} />}
-            >
-              Edit Stock
-            </Button>
-          )}
-
-          {product?.price && (
-            <View style={styles.priceContainer}>
-              <Text style={styles.priceText}>${product.price}</Text>
-              <Text style={styles.priceLabel}>per unit</Text>
-            </View>
-          )}
+          
+          <View style={styles.priceBlock}>
+            <Text style={styles.priceLabel}>Selling Price</Text>
+            <Text style={styles.priceValue}>
+              {formatINR(product.sellingPrice)}
+            </Text>
+          </View>
         </View>
       </Card.Content>
     </Card>
@@ -167,17 +126,22 @@ const ProductMobileCard = React.memo(({ product, onEditClick }) => {
 const styles = StyleSheet.create({
   card: {
     margin: 8,
+    marginBottom: 12,
     borderRadius: 12,
-    elevation: 2,
+    elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
     backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
   cardContent: {
     padding: 16,
   },
+
+  // --- Header Styles ---
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -187,7 +151,7 @@ const styles = StyleSheet.create({
   iconContainer: {
     padding: 8,
     borderRadius: 8,
-    marginTop: 2,
+    flexShrink: 0,
   },
   serviceIcon: {
     backgroundColor: '#f3e8ff',
@@ -203,16 +167,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#1f2937',
+    lineHeight: 20,
     marginBottom: 4,
-    lineHeight: 18,
   },
-  serviceBadge: {
+  serviceBadgeStyle: {
     backgroundColor: '#f3e8ff',
+    color: '#9333ea',
+    fontWeight: '500',
     alignSelf: 'flex-start',
+    fontSize: 10,
+    height: 20,
+    paddingHorizontal: 6,
   },
+  
+  // Stock Badge Styles
   stockBadge: {
     alignItems: 'flex-end',
     flexShrink: 0,
+  },
+  stockNumberContainer: {
+    alignItems: 'flex-end',
+    marginBottom: 4,
   },
   stockNumber: {
     fontSize: 18,
@@ -224,54 +199,68 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginTop: 2,
   },
-  stockStatus: {
+  
+  // Status Indicator Styles
+  statusIndicator: {
+    marginTop: 4,
+  },
+  statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 12,
+    gap: 4,
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
+    flexShrink: 0,
+  },
+  outOfStockDot: {
+    backgroundColor: '#dc2626',
+  },
+  lowStockDot: {
+    backgroundColor: '#d97706',
+  },
+  inStockDot: {
+    backgroundColor: '#16a34a',
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-  },
-  editButton: {
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    height: 32,
-  },
-  editButtonText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
   },
-  priceContainer: {
-    alignItems: 'flex-end',
-    marginLeft: 'auto',
+  outOfStockText: {
+    color: '#dc2626',
   },
-  priceText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
+  lowStockText: {
+    color: '#d97706',
+  },
+  inStockText: {
+    color: '#16a34a',
+  },
+  
+  // Price Section Styles
+  priceContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+  },
+  priceBlock: {
+    alignItems: 'center',
   },
   priceLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: '#6b7280',
-    marginTop: 2,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  priceValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#16a34a',
   },
 });
 

@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Animated,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -126,11 +127,14 @@ const CustomDialog = ({ visible, onDismiss, title, children, style }) => {
       onRequestClose={onDismiss}
     >
       <TouchableOpacity
-        style={styles.modalOverlay}
+        style={isTablet ? styles.modalOverlay : styles.modalOverlayMobile}
         activeOpacity={1}
         onPress={onDismiss}
       >
-        <TouchableOpacity activeOpacity={1} style={[styles.dialog, style]}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[styles.dialog, !isTablet && styles.dialogMobile, style]}
+        >
           <View style={styles.dialogHeader}>
             <Text style={styles.dialogTitle}>{title}</Text>
             <TouchableOpacity onPress={onDismiss} style={styles.closeButton}>
@@ -225,6 +229,167 @@ const SearchBar = ({ placeholder, value, onChangeText, style }) => {
         </TouchableOpacity>
       )}
     </View>
+  );
+};
+
+// ========== UPDATED TABLET BUTTONS ==========
+const TabletActionButtons = ({ onAddProduct, onAddService }) => {
+  return (
+    <View style={styles.tabletButtonsContainer}>
+      <TouchableOpacity
+        style={styles.tabletButton}
+        onPress={onAddProduct}
+        activeOpacity={0.7}
+      >
+        <View
+          style={[styles.tabletButtonContent, { backgroundColor: '#667eea' }]}
+        >
+          <View style={styles.tabletButtonIconContainer}>
+            <Icon name="package-variant-plus" size={22} color="#fff" />
+          </View>
+          <View style={styles.tabletButtonTextContainer}>
+            <Text style={styles.tabletButtonTitle}>Add Product</Text>
+            <Text style={styles.tabletButtonSubtitle}>Inventory item</Text>
+          </View>
+          <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.8)" />
+        </View>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.tabletButton}
+        onPress={onAddService}
+        activeOpacity={0.7}
+      >
+        <View
+          style={[styles.tabletButtonContent, { backgroundColor: '#10b981' }]}
+        >
+          <View style={styles.tabletButtonIconContainer}>
+            <Icon name="server-plus" size={22} color="#fff" />
+          </View>
+          <View style={styles.tabletButtonTextContainer}>
+            <Text style={styles.tabletButtonTitle}>Add Service</Text>
+            <Text style={styles.tabletButtonSubtitle}>Service offering</Text>
+          </View>
+          <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.8)" />
+        </View>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+// ========== UPDATED FAB COMPONENT ==========
+const FloatingActionButton = ({
+  fabOpen,
+  setFabOpen,
+  onAddProduct,
+  onAddService,
+}) => {
+  const rotation = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    Animated.timing(rotation, {
+      toValue: fabOpen ? 1 : 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [fabOpen]);
+
+  const rotateInterpolate = rotation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '45deg'],
+  });
+
+  return (
+    <>
+      <Animated.View
+        style={[
+          styles.fabMenu,
+          {
+            opacity: fabOpen ? 1 : 0,
+            transform: [
+              { scale: fabOpen ? 1 : 0.8 },
+              { translateY: fabOpen ? 0 : 20 },
+            ],
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.fabMenuItem}
+          onPress={onAddProduct}
+          activeOpacity={0.7}
+        >
+          <View style={styles.fabMenuItemContent}>
+            <View
+              style={[
+                styles.fabMenuIconContainer,
+                { backgroundColor: '#667eea' },
+              ]}
+            >
+              <Icon name="package-variant-plus" size={22} color="#fff" />
+            </View>
+            <View style={styles.fabMenuTextContainer}>
+              <Text style={styles.fabMenuTitle}>Add Product</Text>
+              <Text style={styles.fabMenuSubtitle}>Add new inventory item</Text>
+            </View>
+          </View>
+          <Icon name="chevron-right" size={20} color="#9ca3af" />
+        </TouchableOpacity>
+
+        <View style={styles.fabMenuDivider} />
+
+        <TouchableOpacity
+          style={styles.fabMenuItem}
+          onPress={onAddService}
+          activeOpacity={0.7}
+        >
+          <View style={styles.fabMenuItemContent}>
+            <View
+              style={[
+                styles.fabMenuIconContainer,
+                { backgroundColor: '#10b981' },
+              ]}
+            >
+              <Icon name="server-plus" size={22} color="#fff" />
+            </View>
+            <View style={styles.fabMenuTextContainer}>
+              <Text style={styles.fabMenuTitle}>Add Service</Text>
+              <Text style={styles.fabMenuSubtitle}>
+                Add new service offering
+              </Text>
+            </View>
+          </View>
+          <Icon name="chevron-right" size={20} color="#9ca3af" />
+        </TouchableOpacity>
+      </Animated.View>
+
+      <TouchableOpacity
+        style={styles.fabContainer}
+        onPress={() => setFabOpen(!fabOpen)}
+        activeOpacity={0.8}
+      >
+        <View style={styles.fabBackground}>
+          <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
+            <Icon name="plus" size={28} color="white" />
+          </Animated.View>
+        </View>
+      </TouchableOpacity>
+    </>
+  );
+};
+
+// ========== EMPTY STATE BUTTON ==========
+const EmptyStateActionButton = ({ onAddProduct }) => {
+  return (
+    <TouchableOpacity
+      style={styles.emptyStateButton}
+      onPress={onAddProduct}
+      activeOpacity={0.7}
+    >
+      <View style={styles.emptyStateButtonContent}>
+        <Icon name="plus-circle" size={24} color="#fff" />
+        <Text style={styles.emptyStateButtonText}>Add Your First Item</Text>
+      </View>
+    </TouchableOpacity>
   );
 };
 
@@ -373,24 +538,10 @@ const ProductStock = ({ navigation }) => {
 
             {(permissions?.canCreateProducts || userCaps?.canCreateInventory) &&
               isTablet && (
-                <View style={styles.tabletButtons}>
-                  <CustomButton
-                    mode="contained"
-                    onPress={() => setIsAddProductOpen(true)}
-                    icon="package-variant"
-                    compact
-                  >
-                    Product
-                  </CustomButton>
-                  <CustomButton
-                    mode="outlined"
-                    onPress={() => setIsAddServiceOpen(true)}
-                    icon="server"
-                    compact
-                  >
-                    Service
-                  </CustomButton>
-                </View>
+                <TabletActionButtons
+                  onAddProduct={() => setIsAddProductOpen(true)}
+                  onAddService={() => setIsAddServiceOpen(true)}
+                />
               )}
           </View>
 
@@ -406,6 +557,7 @@ const ProductStock = ({ navigation }) => {
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
             style={styles.scrollView}
+            contentContainerStyle={styles.productScrollContent}
           >
             {isLoading ? (
               <View style={styles.loadingContainer}>
@@ -443,6 +595,7 @@ const ProductStock = ({ navigation }) => {
                       renderItem={renderTableRow}
                       keyExtractor={item => item._id}
                       scrollEnabled={false}
+                      contentContainerStyle={{ paddingBottom: 160 }}
                     />
                   </View>
                 ) : (
@@ -467,6 +620,12 @@ const ProductStock = ({ navigation }) => {
                     ? `No items match "${searchTerm}". Try a different search term.`
                     : 'Get started by adding your first product or service.'}
                 </Text>
+                {(permissions?.canCreateProducts ||
+                  userCaps?.canCreateInventory) && (
+                  <EmptyStateActionButton
+                    onAddProduct={() => setIsAddProductOpen(true)}
+                  />
+                )}
               </View>
             )}
           </ScrollView>
@@ -508,12 +667,13 @@ const ProductStock = ({ navigation }) => {
       <CustomDialog
         visible={isEditDialogOpen}
         onDismiss={() => setIsEditDialogOpen(false)}
-        title="Edit Stock"
+        title={
+          selectedProduct
+            ? `Update stock for ${capitalizeWords(selectedProduct.name)}`
+            : 'Update stock'
+        }
       >
         <View style={styles.editDialogContent}>
-          <Text style={styles.dialogDescription}>
-            Update the stock quantity for the selected product.
-          </Text>
           {selectedProduct && (
             <StockEditForm
               product={selectedProduct}
@@ -557,39 +717,18 @@ const ProductStock = ({ navigation }) => {
       {/* FAB for mobile */}
       {(permissions?.canCreateProducts || userCaps?.canCreateInventory) &&
         !isTablet && (
-          <>
-            {fabOpen && (
-              <View style={styles.fabMenu}>
-                <TouchableOpacity
-                  style={styles.fabMenuItem}
-                  onPress={() => {
-                    setFabOpen(false);
-                    setIsAddProductOpen(true);
-                  }}
-                >
-                  <Icon name="package-variant" size={20} color="#fff" />
-                  <Text style={styles.fabMenuText}>Add Product</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.fabMenuItem}
-                  onPress={() => {
-                    setFabOpen(false);
-                    setIsAddServiceOpen(true);
-                  }}
-                >
-                  <Icon name="server" size={20} color="#fff" />
-                  <Text style={styles.fabMenuText}>Add Service</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            <TouchableOpacity
-              style={styles.fab}
-              onPress={() => setFabOpen(!fabOpen)}
-              activeOpacity={0.7}
-            >
-              <Icon name={fabOpen ? 'close' : 'plus'} size={24} color="white" />
-            </TouchableOpacity>
-          </>
+          <FloatingActionButton
+            fabOpen={fabOpen}
+            setFabOpen={setFabOpen}
+            onAddProduct={() => {
+              setFabOpen(false);
+              setIsAddProductOpen(true);
+            }}
+            onAddService={() => {
+              setFabOpen(false);
+              setIsAddServiceOpen(true);
+            }}
+          />
         )}
     </View>
   );
@@ -598,7 +737,7 @@ const ProductStock = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+    padding: 0,
     backgroundColor: '#f8fafc',
   },
   card: {
@@ -624,18 +763,175 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   title: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#1f2937',
+    paddingHorizontal: 5,
+    marginTop: 10,
   },
   subtitle: {
     fontSize: 14,
     color: '#6b7280',
-    marginTop: 4,
+    marginTop: 0,
+    paddingHorizontal: 5,
   },
-  tabletButtons: {
+  // UPDATED Tablet Buttons Styles
+  tabletButtonsContainer: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 16,
+  },
+  tabletButton: {
+    width: 200,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  tabletButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  tabletButtonIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  tabletButtonTextContainer: {
+    flex: 1,
+  },
+  tabletButtonTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 2,
+  },
+  tabletButtonSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '400',
+  },
+  // UPDATED FAB Styles
+  fabContainer: {
+    position: 'absolute',
+    margin: 20,
+    right: 0,
+    bottom: 0,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  fabBackground: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 32,
+    backgroundColor: '#667eea',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fabMenu: {
+    position: 'absolute',
+    right: 20,
+    bottom: 94,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    paddingVertical: 12,
+    width: 280,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 12,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 16,
+  },
+  fabMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  fabMenuItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  fabMenuIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  fabMenuTextContainer: {
+    flex: 1,
+  },
+  fabMenuTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 2,
+  },
+  fabMenuSubtitle: {
+    fontSize: 13,
+    color: '#6b7280',
+    fontWeight: '400',
+  },
+  fabMenuDivider: {
+    height: 1,
+    backgroundColor: '#f3f4f6',
+    marginHorizontal: 16,
+  },
+  // UPDATED Empty State Button
+  emptyStateButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#667eea',
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    width: 250,
+    marginTop: 16,
+  },
+  emptyStateButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    gap: 12,
+    backgroundColor: '#667eea',
+  },
+  emptyStateButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -659,7 +955,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   scrollView: {
-    maxHeight: 400,
+    maxHeight: 600,
   },
   loadingContainer: {
     alignItems: 'center',
@@ -697,6 +993,11 @@ const styles = StyleSheet.create({
   },
   mobileList: {
     gap: 12,
+    paddingBottom: 220,
+  },
+
+  productScrollContent: {
+    paddingBottom: 220,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -721,7 +1022,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   viewMoreButton: {
-    marginTop: 16,
+    marginTop: 24,
     borderColor: '#d1d5db',
   },
   viewMoreButtonText: {
@@ -786,12 +1087,28 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
     minHeight: 200,
   },
+  dialogMobile: {
+    width: '100%',
+    maxWidth: '100%',
+    borderRadius: 10,
+    marginHorizontal: 0,
+    maxHeight: '100%',
+    alignSelf: 'stretch',
+  },
+  modalOverlayMobile: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingTop: 20,
+    paddingHorizontal: 0,
+  },
   dialogHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 5,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e5e5',
   },
@@ -804,10 +1121,10 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   dialogContent: {
-    padding: 20,
+    padding: 0,
   },
   productDialog: {
-    maxHeight: '80%',
+    maxHeight: '100%',
   },
   // Stock Edit Form
   stockEditContainer: {
@@ -879,6 +1196,7 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginBottom: 16,
     lineHeight: 24,
+    paddingLeft: 10,
   },
   dialogCloseButton: {
     backgroundColor: '#3b82f6',
@@ -889,56 +1207,6 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   dialogCloseButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  // FAB styles
-  fab: {
-    position: 'absolute',
-    margin: 16,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#3b82f6',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  fabMenu: {
-    position: 'absolute',
-    right: 16,
-    bottom: 80,
-    backgroundColor: '#374151',
-    borderRadius: 8,
-    paddingVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  fabMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-    minWidth: 160,
-  },
-  fabMenuText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '500',
