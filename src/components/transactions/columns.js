@@ -1213,10 +1213,8 @@ const TransactionActions = ({
 
       const finalPath = copiedToDownloads ? downloadsFilePath : appFilePath;
       Alert.alert(
-        'Invoice Saved',
-        copiedToDownloads
-          ? `Saved to Downloads folder\nPath: ${finalPath}`
-          : `Saved to app storage\nPath: ${finalPath}`,
+        'File Downloaded',
+        'Your file has been downloaded successfully.',
       );
     } catch (error) {
       console.error('🔴 Download failed:', error);
