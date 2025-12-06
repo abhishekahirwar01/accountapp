@@ -9,9 +9,10 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  TouchableWithoutFeedback, // Import for better modal handling
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useCompany } from "../../contexts/company-context";
+import { useCompany } from '../../contexts/company-context';
 import { BASE_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -20,14 +21,15 @@ export function CompanySwitcher() {
   const [isLoading, setIsLoading] = useState(true);
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const { selectedCompanyId, setSelectedCompanyId, currentCompany } = useCompany();
+  const { selectedCompanyId, setSelectedCompanyId, currentCompany } =
+    useCompany();
 
   useEffect(() => {
     const fetchCompanies = async () => {
       setIsLoading(true);
       try {
-        const token = await AsyncStorage.getItem("token");
-        if (!token) throw new Error("Authentication token not found.");
+        const token = await AsyncStorage.getItem('token');
+        if (!token) throw new Error('Authentication token not found.');
 
         const res = await fetch(`${BASE_URL}/api/companies/my`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -35,21 +37,23 @@ export function CompanySwitcher() {
 
         if (!res.ok) {
           const errorData = await res.json();
-          throw new Error(errorData.message || "Failed to fetch companies.");
+          throw new Error(errorData.message || 'Failed to fetch companies.');
         }
         const data = await res.json();
         setCompanies(data);
-        const savedCompanyId = await AsyncStorage.getItem("selectedCompanyId");
-        
+        const savedCompanyId = await AsyncStorage.getItem('selectedCompanyId');
+
         if (data.length > 0) {
           if (savedCompanyId) {
-            setSelectedCompanyId(savedCompanyId === "all" ? null : savedCompanyId);
+            setSelectedCompanyId(
+              savedCompanyId === 'all' ? null : savedCompanyId,
+            );
           } else {
-            setSelectedCompanyId(data[0]._id); 
+            setSelectedCompanyId(data[0]._id);
           }
         }
       } catch (error) {
-        console.error("Company fetch error:", error);
+        console.error('Company fetch error:', error);
         // Don't show alert for now to avoid blocking UI
       } finally {
         setIsLoading(false);
@@ -59,16 +63,16 @@ export function CompanySwitcher() {
     fetchCompanies();
   }, []);
 
-  const handleCompanyChange = async (companyId) => {
-    setSelectedCompanyId(companyId === "all" ? null : companyId);
-    await AsyncStorage.setItem("selectedCompanyId", companyId);
+  const handleCompanyChange = async companyId => {
+    setSelectedCompanyId(companyId === 'all' ? null : companyId);
+    await AsyncStorage.setItem('selectedCompanyId', companyId);
     setShowDropdown(false);
   };
 
   // Add "All" option to the beginning of the list
   const companyOptions = [
-    { value: "all", label: "All Companies" },
-    ...companies.map((c) => ({
+    { value: 'all', label: 'All Companies' },
+    ...companies.map(c => ({
       value: c._id,
       label: c.businessName,
     })),
@@ -76,15 +80,15 @@ export function CompanySwitcher() {
 
   // Filter companies based on search query
   const filteredCompanies = companyOptions.filter(company =>
-    company.label.toLowerCase().includes(searchQuery.toLowerCase())
+    company.label.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const getSelectedCompanyName = () => {
     if (!selectedCompanyId) {
-      return "All Companies";
+      return 'All Companies';
     }
     const company = companies.find(c => c._id === selectedCompanyId);
-    return company ? company.businessName : "Select Company";
+    return company ? company.businessName : 'Select Company';
   };
 
   if (isLoading) {
@@ -99,7 +103,7 @@ export function CompanySwitcher() {
   if (companies.length === 0) {
     return (
       <View style={styles.singleCompanyContainer}>
-        <Ionicons name="business-outline" size={16} color="#64748b" />
+        <Ionicons name="search-outline" size={16} color="#64748b" />
         <Text style={styles.singleCompanyText}>No Companies</Text>
       </View>
     );
@@ -108,7 +112,7 @@ export function CompanySwitcher() {
   if (companies.length === 1) {
     return (
       <View style={styles.singleCompanyContainer}>
-        <Ionicons name="business-outline" size={16} color="#64748b" />
+        <Ionicons name="search-outline" size={16} color="#64748b" />
         <Text style={styles.singleCompanyText} numberOfLines={1}>
           {companies[0].businessName}
         </Text>
@@ -120,20 +124,25 @@ export function CompanySwitcher() {
     <TouchableOpacity
       style={[
         styles.companyItem,
-        (selectedCompanyId === item.value || (!selectedCompanyId && item.value === "all")) && 
-        styles.companyItemSelected
+        (selectedCompanyId === item.value ||
+          (!selectedCompanyId && item.value === 'all')) &&
+          styles.companyItemSelected,
       ]}
       onPress={() => handleCompanyChange(item.value)}
     >
-      <Text style={[
-        styles.companyItemText,
-        (selectedCompanyId === item.value || (!selectedCompanyId && item.value === "all")) && 
-        styles.companyItemTextSelected
-      ]}>
+      <Text
+        style={[
+          styles.companyItemText,
+          (selectedCompanyId === item.value ||
+            (!selectedCompanyId && item.value === 'all')) &&
+            styles.companyItemTextSelected,
+        ]}
+      >
         {item.label}
       </Text>
-      {(selectedCompanyId === item.value || (!selectedCompanyId && item.value === "all")) && (
-        <Ionicons name="checkmark" size={16} color="#10b981" />
+      {(selectedCompanyId === item.value ||
+        (!selectedCompanyId && item.value === 'all')) && (
+        <Ionicons name="checkmark" size={18} color="#10b981" />
       )}
     </TouchableOpacity>
   );
@@ -144,48 +153,87 @@ export function CompanySwitcher() {
         style={styles.triggerButton}
         onPress={() => setShowDropdown(true)}
       >
-        <Ionicons name="business-outline" size={16} color="#64748b" />
+        {/* Search icon instead of business icon */}
+        <Ionicons name="search-outline" size={18} color="#94a3b8" />
         <Text style={styles.triggerText} numberOfLines={1}>
           {getSelectedCompanyName()}
         </Text>
-        <Ionicons name="chevron-down" size={14} color="#64748b" />
+        <Ionicons name="chevron-down" size={16} color="#94a3b8" />
       </TouchableOpacity>
 
+      {/* UPDATED MODAL UI */}
       <Modal
         visible={showDropdown}
         transparent
-        animationType="fade"
+        animationType="slide" // Use slide for a bottom-sheet effect
         onRequestClose={() => setShowDropdown(false)}
       >
-        <TouchableOpacity
+        <TouchableOpacity // Background overlay to close modal
           style={styles.modalOverlay}
           activeOpacity={1}
           onPress={() => setShowDropdown(false)}
         >
-          <View style={styles.dropdownContainer}>
-            <View style={styles.searchContainer}>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search companies..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoFocus
+          {/* Prevent closing modal when touching inside the container */}
+          <TouchableWithoutFeedback>
+            <View style={styles.dropdownContainer}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Company</Text>
+                <TouchableOpacity
+                  onPress={() => setShowDropdown(false)}
+                  style={styles.closeButton}
+                >
+                  <Ionicons name="close" size={24} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.searchContainer}>
+                <View style={styles.searchInputContainer}>
+                  <Ionicons
+                    name="search-outline"
+                    size={18}
+                    color="#94a3b8"
+                    style={styles.searchInputIcon}
+                  />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search companies..."
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    autoFocus
+                  />
+                  {searchQuery.length > 0 && (
+                    <TouchableOpacity
+                      onPress={() => setSearchQuery('')}
+                      style={styles.clearSearchButton}
+                    >
+                      <Ionicons name="close-circle" size={18} color="#94a3b8" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
+              <FlatList
+                data={filteredCompanies}
+                renderItem={renderCompanyItem}
+                keyExtractor={item => item.value}
+                style={styles.dropdownList}
+                contentContainerStyle={styles.dropdownListContent}
+                showsVerticalScrollIndicator={true}
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Ionicons
+                      name="business-outline"
+                      size={32}
+                      color="#cbd5e1"
+                    />
+                    <Text style={styles.emptyText}>
+                      No companies match your search
+                    </Text>
+                  </View>
+                }
               />
             </View>
-            
-            <FlatList
-              data={filteredCompanies}
-              renderItem={renderCompanyItem}
-              keyExtractor={(item) => item.value}
-              style={styles.dropdownList}
-              showsVerticalScrollIndicator={false}
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>No companies found</Text>
-                </View>
-              }
-            />
-          </View>
+          </TouchableWithoutFeedback>
         </TouchableOpacity>
       </Modal>
     </View>
@@ -195,7 +243,8 @@ export function CompanySwitcher() {
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    maxWidth: 200,
+    flex: 1,
+    maxWidth: 280,
   },
   loadingContainer: {
     flexDirection: 'row',
@@ -207,111 +256,152 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748b',
   },
+  // Single company view - FULLY ROUNDED
   singleCompanyContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    borderRadius: 6,
+    borderRadius: 25,
     backgroundColor: 'white',
+    width: '100%',
   },
   singleCompanyText: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#374151',
     fontWeight: '500',
     flex: 1,
   },
+  // Trigger button - Google search bar style
   triggerButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
+    gap: 10,
+    paddingHorizontal: 16,
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    borderRadius: 6,
+    borderRadius: 24,
     backgroundColor: 'white',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
+    width: '100%',
+    minWidth: 180,
   },
   triggerText: {
     flex: 1,
-    fontSize: 13,
-    color: '#374151',
+    fontSize: 15,
+    color: '#1e293b',
     fontWeight: '500',
   },
+  // UPDATED MODAL STYLES
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)', // Slightly darker overlay
+    justifyContent: 'flex-end', // Align to bottom for sheet style
+    padding: 0, // Remove padding from overlay
   },
   dropdownContainer: {
     backgroundColor: 'white',
-    borderRadius: 8,
+    borderTopLeftRadius: 16, // Rounded top corners
+    borderTopRightRadius: 16,
     width: '100%',
-    maxWidth: 280,
-    maxHeight: 400,
+    // maxWidth removed to allow full screen width at the bottom
+    maxHeight: '80%', // Limit height to 80% of screen
+    minHeight: 250,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: -4 }, // Shadow pointing up
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 10,
     overflow: 'hidden',
   },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  closeButton: {
+    padding: 4,
+  },
   searchContainer: {
-    padding: 12,
+    padding: 16, // Increased padding
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
   },
-  searchInput: {
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 6,
-    paddingHorizontal: 12,
+    borderColor: '#e2e8f0', // Lighter border
+    borderRadius: 10, // Slightly more rounded
+    backgroundColor: '#f8fafc', // Light background for the input
+    paddingVertical: 4,
+  },
+  searchInputIcon: {
+    marginLeft: 12,
+  },
+  searchInput: {
+    flex: 1,
+    paddingHorizontal: 10,
     paddingVertical: 8,
-    fontSize: 14,
-    backgroundColor: 'white',
+    fontSize: 16, // Larger font size
+    color: '#1e293b',
+  },
+  clearSearchButton: {
+    padding: 8,
+    marginRight: 4,
   },
   dropdownList: {
-    maxHeight: 300,
+    // max height is now controlled by dropdownContainer
+  },
+  dropdownListContent: {
+    paddingBottom: 20, // Add space at the bottom of the list
   },
   companyItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16, // Increased vertical padding
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
   companyItemSelected: {
-    backgroundColor: '#f0f9ff',
+    backgroundColor: '#e0f2fe', // Lighter blue background for selected item
   },
   companyItemText: {
-    fontSize: 14,
+    fontSize: 16, // Larger font
     color: '#374151',
     flex: 1,
   },
   companyItemTextSelected: {
     color: '#0369a1',
-    fontWeight: '600',
+    fontWeight: '700', // Bolder selection text
   },
   emptyContainer: {
-    padding: 20,
+    padding: 40, // Increased padding
     alignItems: 'center',
+    gap: 12,
   },
   emptyText: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: 16,
+    color: '#94a3b8',
     fontStyle: 'italic',
   },
 });
-

@@ -318,14 +318,6 @@ export default function Header() {
 
           {/* Right side icons */}
           <View style={styles.rightContainer}>
-            {/* Search Button */}
-            <TouchableOpacity
-              onPress={() => setShowSearch(true)}
-              style={styles.iconButton}
-            >
-              <Ionicons name="search" size={22} color="#334155" />
-            </TouchableOpacity>
-
             {/* Notification Component */}
             {showNotification && (
               <View style={styles.notificationContainer}>
