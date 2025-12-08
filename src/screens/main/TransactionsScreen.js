@@ -6,6 +6,7 @@ import React, {
   useCallback,
   useRef,
 } from 'react';
+// SafeAreaView removed: global Header provides the safe area
 import {
   View,
   Text,
@@ -22,6 +23,7 @@ import {
   Platform,
   PermissionsAndroid,
   Share,
+  useWindowDimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNFS from 'react-native-fs';
@@ -83,6 +85,11 @@ const LoadingSkeleton = ({ isMobile = false }) => {
 };
 
 const TransactionsScreen = ({ navigation }) => {
+  const { width: windowWidth } = useWindowDimensions();
+  // Reduce title sizes so it fits on one line with buttons
+  const largeTitleFontSize =
+    windowWidth < 360 ? 18 : windowWidth < 400 ? 20 : 22;
+  const subtitleFontSize = windowWidth < 360 ? 12 : 13;
   // State
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isProformaFormOpen, setIsProformaFormOpen] = useState(false);
@@ -90,6 +97,19 @@ const TransactionsScreen = ({ navigation }) => {
   const [isItemsDialogOpen, setIsItemsDialogOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const mobileTabScrollRef = useRef(null);
+  const [mobileScrollX, setMobileScrollX] = useState(0);
+  const [mobileContentWidth, setMobileContentWidth] = useState(0);
+  const [mobileContainerWidth, setMobileContainerWidth] = useState(0);
+
+  // Since chevrons are absolute overlays at the edges, treat the visible
+  // area as the full container width. Show left arrow when scrolled > 5px.
+  // Show right arrow only when there is remaining content to the right.
+  const innerContainerWidth = mobileContainerWidth || 0;
+  const EDGE_THRESHOLD = 8;
+  const showLeftArrow = mobileScrollX > EDGE_THRESHOLD;
+  const showRightArrow =
+    mobileScrollX + innerContainerWidth < mobileContentWidth - EDGE_THRESHOLD;
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isPdfViewOpen, setIsPdfViewOpen] = useState(false);
   const [pdfUri, setPdfUri] = useState(null);
@@ -1436,11 +1456,24 @@ const TransactionsScreen = ({ navigation }) => {
 
     return (
       <>
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Transactions</Text>
-            <Text style={styles.subtitle}>
+        {/* Header (top safe area provided by global Header) */}
+        <View style={[styles.header, styles.headerRow, styles.headerFixed]}>
+          <View style={styles.titleContainer}>
+            <Text
+              style={[
+                styles.title,
+                { fontSize: largeTitleFontSize, flexShrink: 1 },
+              ]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              Transactions
+            </Text>
+            <Text
+              style={[styles.subtitle, { fontSize: subtitleFontSize }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
               A list of all financial activities for the selected company
             </Text>
           </View>
@@ -1448,21 +1481,29 @@ const TransactionsScreen = ({ navigation }) => {
           {canCreateAny && (
             <View style={styles.headerButtons}>
               <TouchableOpacity
-                style={styles.newTransactionButton}
+                style={[
+                  styles.actionButton,
+                  styles.roleBadgeButton,
+                  styles.actionButtonPrimary,
+                ]}
                 onPress={() => handleOpenForm(null)}
               >
-                <Icon name="add-circle" size={20} color="white" />
-                <Text style={styles.newTransactionButtonText}>
+                <Text
+                  style={[styles.roleBadgeButtonText, styles.actionButtonText]}
+                >
                   New Transaction
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.proformaButton}
+                style={[styles.actionButton, styles.roleBadgeButton]}
                 onPress={() => setIsProformaFormOpen(true)}
               >
-                <Icon name="description" size={20} color="#3b82f6" />
-                <Text style={styles.proformaButtonText}>Proforma Invoice</Text>
+                <Text
+                  style={[styles.roleBadgeButtonText, styles.actionButtonText]}
+                >
+                  Proforma Invoice
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1483,242 +1524,65 @@ const TransactionsScreen = ({ navigation }) => {
           </ScrollView>
         )}
 
-        {/* Dropdown for mobile */}
+        {/* Mobile horizontal tabs with arrows */}
         {width <= 768 && (
-          <View style={styles.dropdownContainer}>
-            <TouchableOpacity
-              style={styles.dropdownButton}
-              onPress={() => setIsDropdownOpen(!isDropdownOpen)}
+          <View
+            style={styles.mobileTabsWrapper}
+            onLayout={e => setMobileContainerWidth(e.nativeEvent.layout.width)}
+          >
+            <ScrollView
+              ref={mobileTabScrollRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              onScroll={e => setMobileScrollX(e.nativeEvent.contentOffset.x)}
+              onContentSizeChange={(w, h) => setMobileContentWidth(w)}
+              scrollEventThrottle={16}
+              contentContainerStyle={[
+                styles.mobileTabContainer,
+                { paddingRight: showRightArrow ? 56 : 12 },
+              ]}
             >
-              <View style={styles.dropdownButtonContent}>
-                <Feather
-                  name={getTabIcon(activeTab)}
-                  size={20}
-                  color="#374151"
-                />
-                <Text style={styles.dropdownButtonText}>
-                  {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
-                </Text>
-              </View>
-              <Feather
-                name={isDropdownOpen ? 'chevron-up' : 'chevron-down'}
-                size={20}
-                color="#374151"
-              />
-            </TouchableOpacity>
+              {renderTabButton(TABS.ALL, 'All')}
+              {canSales && renderTabButton(TABS.SALES, 'Sales')}
+              {canPurchases && renderTabButton(TABS.PURCHASES, 'Purchases')}
+              {canSales && renderTabButton(TABS.PROFORMA, 'Proforma')}
+              {canReceipt && renderTabButton(TABS.RECEIPTS, 'Receipts')}
+              {canPayment && renderTabButton(TABS.PAYMENTS, 'Payments')}
+              {canJournal && renderTabButton(TABS.JOURNALS, 'Journals')}
+            </ScrollView>
 
-            {isDropdownOpen && (
-              <View style={styles.dropdownMenu}>
-                <ScrollView style={styles.dropdownScroll}>
-                  <TouchableOpacity
-                    style={[
-                      styles.dropdownItem,
-                      activeTab === TABS.ALL && styles.activeDropdownItem,
-                    ]}
-                    onPress={() => handleTabChange(TABS.ALL)}
-                  >
-                    <Feather
-                      name={getTabIcon(TABS.ALL)}
-                      size={18}
-                      color={activeTab === TABS.ALL ? '#3b82f6' : '#6b7280'}
-                    />
-                    <Text
-                      style={[
-                        styles.dropdownItemText,
-                        activeTab === TABS.ALL && styles.activeDropdownItemText,
-                      ]}
-                    >
-                      All Transactions
-                    </Text>
-                    {activeTab === TABS.ALL && (
-                      <Feather name="check" size={18} color="#3b82f6" />
-                    )}
-                  </TouchableOpacity>
+            {showLeftArrow && (
+              <TouchableOpacity
+                style={[styles.arrowButton, styles.arrowLeft]}
+                onPress={() => {
+                  if (mobileTabScrollRef.current) {
+                    const target = Math.max(0, mobileScrollX - 160);
+                    mobileTabScrollRef.current.scrollTo({
+                      x: target,
+                      animated: true,
+                    });
+                  }
+                }}
+              >
+                <Feather name="chevron-left" size={20} color="#111827" />
+              </TouchableOpacity>
+            )}
 
-                  {canSales && (
-                    <TouchableOpacity
-                      style={[
-                        styles.dropdownItem,
-                        activeTab === TABS.SALES && styles.activeDropdownItem,
-                      ]}
-                      onPress={() => handleTabChange(TABS.SALES)}
-                    >
-                      <Feather
-                        name={getTabIcon(TABS.SALES)}
-                        size={18}
-                        color={activeTab === TABS.SALES ? '#3b82f6' : '#6b7280'}
-                      />
-                      <Text
-                        style={[
-                          styles.dropdownItemText,
-                          activeTab === TABS.SALES &&
-                            styles.activeDropdownItemText,
-                        ]}
-                      >
-                        Sales
-                      </Text>
-                      {activeTab === TABS.SALES && (
-                        <Feather name="check" size={18} color="#3b82f6" />
-                      )}
-                    </TouchableOpacity>
-                  )}
-
-                  {canPurchases && (
-                    <TouchableOpacity
-                      style={[
-                        styles.dropdownItem,
-                        activeTab === TABS.PURCHASES &&
-                          styles.activeDropdownItem,
-                      ]}
-                      onPress={() => handleTabChange(TABS.PURCHASES)}
-                    >
-                      <Feather
-                        name={getTabIcon(TABS.PURCHASES)}
-                        size={18}
-                        color={
-                          activeTab === TABS.PURCHASES ? '#3b82f6' : '#6b7280'
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.dropdownItemText,
-                          activeTab === TABS.PURCHASES &&
-                            styles.activeDropdownItemText,
-                        ]}
-                      >
-                        Purchases
-                      </Text>
-                      {activeTab === TABS.PURCHASES && (
-                        <Feather name="check" size={18} color="#3b82f6" />
-                      )}
-                    </TouchableOpacity>
-                  )}
-
-                  {canSales && (
-                    <TouchableOpacity
-                      style={[
-                        styles.dropdownItem,
-                        activeTab === TABS.PROFORMA &&
-                          styles.activeDropdownItem,
-                      ]}
-                      onPress={() => handleTabChange(TABS.PROFORMA)}
-                    >
-                      <Feather
-                        name={getTabIcon(TABS.PROFORMA)}
-                        size={18}
-                        color={
-                          activeTab === TABS.PROFORMA ? '#3b82f6' : '#6b7280'
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.dropdownItemText,
-                          activeTab === TABS.PROFORMA &&
-                            styles.activeDropdownItemText,
-                        ]}
-                      >
-                        Proforma
-                      </Text>
-                      {activeTab === TABS.PROFORMA && (
-                        <Feather name="check" size={18} color="#3b82f6" />
-                      )}
-                    </TouchableOpacity>
-                  )}
-
-                  {canReceipt && (
-                    <TouchableOpacity
-                      style={[
-                        styles.dropdownItem,
-                        activeTab === TABS.RECEIPTS &&
-                          styles.activeDropdownItem,
-                      ]}
-                      onPress={() => handleTabChange(TABS.RECEIPTS)}
-                    >
-                      <Feather
-                        name={getTabIcon(TABS.RECEIPTS)}
-                        size={18}
-                        color={
-                          activeTab === TABS.RECEIPTS ? '#3b82f6' : '#6b7280'
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.dropdownItemText,
-                          activeTab === TABS.RECEIPTS &&
-                            styles.activeDropdownItemText,
-                        ]}
-                      >
-                        Receipts
-                      </Text>
-                      {activeTab === TABS.RECEIPTS && (
-                        <Feather name="check" size={18} color="#3b82f6" />
-                      )}
-                    </TouchableOpacity>
-                  )}
-
-                  {canPayment && (
-                    <TouchableOpacity
-                      style={[
-                        styles.dropdownItem,
-                        activeTab === TABS.PAYMENTS &&
-                          styles.activeDropdownItem,
-                      ]}
-                      onPress={() => handleTabChange(TABS.PAYMENTS)}
-                    >
-                      <Feather
-                        name={getTabIcon(TABS.PAYMENTS)}
-                        size={18}
-                        color={
-                          activeTab === TABS.PAYMENTS ? '#3b82f6' : '#6b7280'
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.dropdownItemText,
-                          activeTab === TABS.PAYMENTS &&
-                            styles.activeDropdownItemText,
-                        ]}
-                      >
-                        Payments
-                      </Text>
-                      {activeTab === TABS.PAYMENTS && (
-                        <Feather name="check" size={18} color="#3b82f6" />
-                      )}
-                    </TouchableOpacity>
-                  )}
-
-                  {canJournal && (
-                    <TouchableOpacity
-                      style={[
-                        styles.dropdownItem,
-                        activeTab === TABS.JOURNALS &&
-                          styles.activeDropdownItem,
-                      ]}
-                      onPress={() => handleTabChange(TABS.JOURNALS)}
-                    >
-                      <Feather
-                        name={getTabIcon(TABS.JOURNALS)}
-                        size={18}
-                        color={
-                          activeTab === TABS.JOURNALS ? '#3b82f6' : '#6b7280'
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.dropdownItemText,
-                          activeTab === TABS.JOURNALS &&
-                            styles.activeDropdownItemText,
-                        ]}
-                      >
-                        Journals
-                      </Text>
-                      {activeTab === TABS.JOURNALS && (
-                        <Feather name="check" size={18} color="#3b82f6" />
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </ScrollView>
-              </View>
+            {showRightArrow && (
+              <TouchableOpacity
+                style={[styles.arrowButton, styles.arrowRight]}
+                onPress={() => {
+                  if (mobileTabScrollRef.current) {
+                    const target = mobileScrollX + 160;
+                    mobileTabScrollRef.current.scrollTo({
+                      x: target,
+                      animated: true,
+                    });
+                  }
+                }}
+              >
+                <Feather name="chevron-right" size={20} color="#111827" />
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -2268,10 +2132,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   header: {
-    padding: 16,
+    padding: 12,
+    paddingBottom: 8,
     backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: '#e6e6e6',
+  },
+  headerFixed: {
+    backgroundColor: 'white',
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e6e6e6',
+    zIndex: 20,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  titleContainer: {
+    flex: 1,
+    marginRight: 12,
+    minWidth: 0,
   },
   title: {
     fontSize: 24,
@@ -2281,42 +2166,49 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: '#6b7280',
-    marginTop: 4,
+    marginTop: 6,
   },
   headerButtons: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
+    gap: 6,
+    alignItems: 'center',
   },
-  newTransactionButton: {
+  actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#3b82f6',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    borderRadius: 18,
+    gap: 4,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    minWidth: 56,
+    justifyContent: 'center',
+    height: 34,
+    marginTop: 4,
   },
-  newTransactionButtonText: {
-    color: 'white',
+  actionButtonPrimary: {
+    // even smaller primary width so title has more space
+    minWidth: 68,
+    height: 34,
+    marginTop: 4,
+  },
+  actionButtonText: {
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 11,
+    lineHeight: 14,
   },
-  proformaButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#3b82f6',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 8,
+  /* Role-badge style for buttons (match UserCard/Dashboard) */
+  roleBadgeButton: {
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderColor: 'transparent',
+    borderWidth: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 18,
   },
-  proformaButtonText: {
+  roleBadgeButtonText: {
     color: '#3b82f6',
-    fontWeight: '600',
-    fontSize: 14,
   },
   tabContainer: {
     flexDirection: 'row',
@@ -2325,6 +2217,47 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+  },
+  mobileTabsWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 0,
+    paddingVertical: 10,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  arrowButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(17,24,39,0.06)',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+  },
+  arrowPlaceholder: {
+    width: 40,
+  },
+  arrowLeft: {
+    position: 'absolute',
+    left: 8,
+    top: '50%',
+    transform: [{ translateY: -12 }],
+    zIndex: 20,
+  },
+  arrowRight: {
+    position: 'absolute',
+    right: 8,
+    top: '50%',
+    transform: [{ translateY: -12 }],
+    zIndex: 20,
+  },
+  mobileTabContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 0,
   },
   tabButton: {
     flexDirection: 'row',

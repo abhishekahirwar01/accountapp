@@ -14,6 +14,7 @@ import {
   Text,
   TouchableOpacity,
   Modal,
+  useWindowDimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Settings, FileText, PlusCircle, Package } from 'lucide-react-native';
@@ -31,7 +32,9 @@ import ProductStock from '../../components/dashboard/ProductStock';
 import ProformaForm from '../../components/transactions/ProformaForm';
 import { TransactionForm } from '../../components/transactions/TransactionForm';
 import { AccountValidityNotice } from '../../components/dashboard/AccountValidityNotice';
-import UpdateWalkthrough from '../../components/notifications/UpdateWalkthrough';
+const UpdateWalkthrough = React.lazy(() =>
+  import('../../components/notifications/UpdateWalkthrough'),
+);
 import { BASE_URL } from '../../config';
 import AppLayout from '../../components/layout/AppLayout';
 
@@ -112,6 +115,8 @@ const Button = ({
   style,
   icon: Icon,
   labelStyle,
+  iconColor,
+  disabled = false,
 }) => {
   const isOutlined = mode === 'outlined';
 
@@ -120,12 +125,19 @@ const Button = ({
       style={[
         styles.button,
         isOutlined ? styles.buttonOutlined : styles.buttonContained,
+        disabled && styles.buttonDisabled,
         style,
       ]}
       onPress={onPress}
-      disabled={loading}
+      disabled={loading || disabled}
     >
-      {Icon && <Icon size={18} style={styles.buttonIcon} />}
+      {Icon && (
+        <Icon
+          size={18}
+          color={iconColor ?? (isOutlined ? '#0A66C2' : 'white')}
+          style={styles.buttonIcon}
+        />
+      )}
       {loading ? (
         <ActivityIndicator
           size="small"
@@ -152,6 +164,7 @@ export default function DashboardPage() {
   const navigation = useNavigation();
   const { toggleSupport } = useSupport();
   const { selectedCompanyId } = useCompany();
+  const { width } = useWindowDimensions();
   const [dashboardData, setDashboardData] = useState(null);
   const [companies, setCompanies] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -361,59 +374,68 @@ export default function DashboardPage() {
     Alert.alert('Navigation', 'Navigate to Settings screen.');
   };
 
+  const titleFontSize = width < 360 ? 20 : width < 400 ? 22 : 24;
+  const subtitleFontSize = width < 360 ? 13 : 14;
+  // Make the title larger so it stands out as the main header
+  const largeTitleFontSize = width < 360 ? 24 : width < 400 ? 26 : 30;
+
   return (
     <AppLayout>
       {/* Fixed header placed above scroll to keep controls accessible */}
       <View style={[styles.header, styles.headerFixed]}>
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>Dashboard</Text>
-          <Text style={styles.subtitle}>
-            {selectedCompany
-              ? `An overview of ${selectedCompany.businessName}.`
-              : 'An overview across all companies.'}
+        <View style={styles.headerRow}>
+          <Text
+            style={[styles.title, { fontSize: largeTitleFontSize }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            includeFontPadding={false}
+          >
+            Dashboard
           </Text>
-        </View>
 
-        {companies.length > 0 && (
           <View style={styles.buttonGroup}>
-            <View>
-              <Suspense
-                fallback={
-                  <Button mode="outlined" loading style={styles.actionButton} />
-                }
-              >
-                <UpdateWalkthrough />
-              </Suspense>
-            </View>
+            <Suspense fallback={null}>
+              <UpdateWalkthrough />
+            </Suspense>
 
             <Button
-              mode="outlined"
-              onPress={goToSettings}
-              icon={Settings}
-              style={styles.actionButton}
-            >
-              Settings
-            </Button>
-
-            <Button
-              mode="outlined"
               onPress={() => setIsProformaFormOpen(true)}
               icon={FileText}
-              style={styles.actionButton}
+              iconColor="#3b82f6"
+              style={[styles.actionButton, styles.roleBadgeButton]}
+              labelStyle={[styles.smallButtonLabel, styles.roleBadgeButtonText]}
+              disabled={companies.length === 0}
             >
               Proforma
             </Button>
 
             <Button
-              mode="contained"
               onPress={() => setIsTransactionFormOpen(true)}
               icon={PlusCircle}
-              style={styles.actionButton}
+              iconColor="#3b82f6"
+              style={[
+                styles.actionButton,
+                styles.primaryActionButton,
+                styles.roleBadgeButton,
+              ]}
+              labelStyle={[styles.smallButtonLabel, styles.roleBadgeButtonText]}
+              disabled={companies.length === 0}
             >
-              New Transaction
+              Transaction
             </Button>
           </View>
-        )}
+        </View>
+
+        <Text
+          style={[styles.subtitle, { fontSize: subtitleFontSize }]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          includeFontPadding={false}
+        >
+          {selectedCompany
+            ? `An overview of ${selectedCompany.businessName}.`
+            : 'An overview across all companies.'}
+        </Text>
       </View>
 
       <ScrollView
@@ -543,7 +565,7 @@ export default function DashboardPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 8,
+    padding: 0,
     backgroundColor: '#f5f5f5',
   },
   contentContainer: {
@@ -551,73 +573,107 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'column',
-    marginBottom: 16,
+    marginBottom: 0,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
   },
   titleContainer: {
-    marginBottom: 10,
+    flex: 1,
+    marginRight: 8,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '700',
+    color: '#111827',
+    lineHeight: 40,
   },
   headerFixed: {
     backgroundColor: 'white',
-    padding: 8,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#e6e6e6',
     zIndex: 20,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
-    opacity: 0.7,
+    fontSize: 13,
+    color: '#6b7280',
+    opacity: 0.9,
+    marginTop: 8,
   },
   buttonGroup: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
-    justifyContent: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 0,
   },
   actionButton: {
-    flexGrow: 1,
-    minWidth: 100,
-    marginRight: 4,
-    marginBottom: 4,
+    marginLeft: 6,
+    minWidth: 68,
+    paddingHorizontal: 8,
+    minHeight: 32,
+    paddingVertical: 4,
+  },
+  primaryActionButton: {
+    minWidth: 110,
+  },
+  smallButtonLabel: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   // Button Styles
   button: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderRadius: 8,
     borderWidth: 1,
-    minHeight: 44,
+    minHeight: 32,
   },
   buttonContained: {
-    backgroundColor: '#0A66C2',
-    borderColor: '#0A66C2',
+    backgroundColor: 'rgba(5,150,105,0.08)',
+    borderColor: 'rgba(5,150,105,0.2)',
   },
   buttonOutlined: {
     backgroundColor: 'transparent',
-    borderColor: '#0A66C2',
+    borderColor: 'rgba(5,150,105,0.2)',
   },
   buttonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
   },
   buttonContainedText: {
-    color: 'white',
+    color: '#059669',
   },
   buttonOutlinedText: {
-    color: '#0A66C2',
+    color: '#059669',
   },
   buttonIcon: {
-    marginRight: 8,
+    marginRight: 6,
+    tintColor: '#059669',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  /* Role-badge style for buttons (match UserCard role badges) */
+  roleBadgeButton: {
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderColor: 'transparent',
+    borderWidth: 0,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  roleBadgeButtonText: {
+    color: '#3b82f6',
   },
   // Card Styles
   card: {
@@ -642,7 +698,7 @@ const styles = StyleSheet.create({
   kpiContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 8,
     gap: 8,
   },
   kpiCardSkeleton: {
@@ -676,8 +732,8 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   dataContainer: {
-    gap: 16,
-    marginTop: 16,
+    gap: 12,
+    marginTop: 8,
   },
   productStockSkeleton: {
     height: 200,
