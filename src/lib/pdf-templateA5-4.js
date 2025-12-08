@@ -1,14 +1,16 @@
 // pdf-templateA5.js
 import React from 'react';
-import {
-  Document,
-  Page,
-  Text,
-  View,
-  StyleSheet,
-  Image,
-  pdf,
-} from '@react-pdf/renderer';
+// Note: @react-pdf/renderer is not compatible with React Native
+// This file uses react-native-html-to-pdf instead
+// import {
+//   Document,
+//   Page,
+//   Text,
+//   View,
+//   StyleSheet,
+//   Image,
+//   pdf,
+// } from '@react-pdf/renderer';
 import {
   deriveTotals,
   formatCurrency,
@@ -64,9 +66,7 @@ const TemplateA5_4PDF = ({
     showNoTax,
   } = prepareTemplate8Data(transaction, company, party, shippingAddress);
 
-  const logoSrc = company?.logo
-    ? `${BASE_URL}${company.logo}`
-    : null;
+  const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
 
   const shouldHideBankDetails = transaction.type === 'proforma';
 
