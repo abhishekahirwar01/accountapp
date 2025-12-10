@@ -232,6 +232,15 @@ export default function InvoicePreview({
       try {
         let pdfBlob;
         // Choose generator
+        // derive shippingAddress and bank from transaction if present
+        const shippingAddress =
+          transaction?.shippingAddress &&
+          typeof transaction.shippingAddress === 'object'
+            ? transaction.shippingAddress
+            : null;
+
+        const bankForTemplate = transaction?.bank || null;
+
         switch (selectedTemplate) {
           case 'template1':
             pdfBlob = await generatePdfForTemplate1(
@@ -239,6 +248,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'template2':
@@ -247,6 +258,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'template3':
@@ -255,6 +268,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'template4':
@@ -263,6 +278,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'template5':
@@ -271,6 +288,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'template6':
@@ -279,6 +298,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'template7':
@@ -287,6 +308,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'template8':
@@ -295,6 +318,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'template11':
@@ -303,6 +328,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'template12':
@@ -311,6 +338,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'template16':
@@ -319,6 +348,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'template17':
@@ -327,6 +358,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'template18':
@@ -335,6 +368,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'template19':
@@ -343,6 +378,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'template20':
@@ -351,6 +388,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'template21':
@@ -359,6 +398,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'templateA5':
@@ -367,6 +408,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'templateA5_2':
@@ -375,6 +418,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'templateA5_3':
@@ -383,6 +428,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'templateA5_4':
@@ -391,6 +438,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'templateA5_5':
@@ -399,6 +448,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
             break;
           case 'template-t3':
@@ -415,6 +466,8 @@ export default function InvoicePreview({
               company || null,
               party || null,
               serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
             );
         }
 

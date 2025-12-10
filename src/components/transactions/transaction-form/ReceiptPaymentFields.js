@@ -5,18 +5,36 @@ import {
   ScrollView,
   Modal as RNModal,
   TouchableOpacity,
+  Text,
+  TextInput,
+  Switch,
+  Platform,
 } from 'react-native';
-import { TextInput, Button, Card, Text, Checkbox } from 'react-native-paper';
 import { Calendar } from 'react-native-calendars';
 import { Combobox } from '../../ui/Combobox';
 import { formatCurrency } from '../../../lib/pdf-utils';
 import { useToast } from '../../hooks/useToast';
 import { BASE_URL } from '../../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons'; // Using a common icon library for buttons
+
+// Custom Button Component for better styling (Pressable with Text)
+const OutlineButton = ({ onPress, children, icon }) => (
+  <TouchableOpacity onPress={onPress} style={styles.selectButton}>
+    {icon && <Icon name={icon} size={20} color="#007AFF" style={styles.selectButtonIcon} />}
+    <Text style={styles.selectButtonText}>{children}</Text>
+  </TouchableOpacity>
+);
+
+// Custom Card Component (View with Shadow/Elevation)
+const Card = ({ children, style }) => (
+  <View style={[styles.card, style]}>
+    {children}
+  </View>
+);
 
 export const ReceiptPaymentFields = props => {
   const {
-    form,
     type,
     companies,
     partyOptions,
@@ -85,7 +103,10 @@ export const ReceiptPaymentFields = props => {
 
       if (hasDecimal) {
         const [integerPart, decimalPart] = stringValue.split('.');
-        const formattedInt = Number(integerPart).toLocaleString('en-IN');
+        // Ensure integerPart is formatted but handle empty string if input starts with '.'
+        const formattedInt = integerPart 
+          ? Number(integerPart).toLocaleString('en-IN') 
+          : ''; 
         setDisplayValue(`${formattedInt}.${decimalPart}`);
       } else {
         setDisplayValue(numValue.toLocaleString('en-IN'));
@@ -96,23 +117,33 @@ export const ReceiptPaymentFields = props => {
   }, [totalAmountValue]);
 
   const formatInput = value => {
+    // 1. Clean to allow only digits and at most one decimal point
     const cleaned = value.replace(/[^\d.]/g, '');
-    const [integerPart, decimalPart] = cleaned.split('.');
+    const parts = cleaned.split('.');
+    let integerPart = parts[0];
+    let decimalPart = parts[1];
 
-    const formattedInt = integerPart
-      ? Number(integerPart).toLocaleString('en-IN')
+    // Handle multiple decimal points (keep first part)
+    if (parts.length > 2) {
+        decimalPart = parts.slice(1).join('');
+    }
+
+    // Format integer part for Indian locale (commas)
+    const formattedInt = integerPart 
+      ? Number(integerPart).toLocaleString('en-IN') 
       : '';
 
-    return decimalPart !== undefined
-      ? `${formattedInt}.${decimalPart}`
-      : formattedInt;
+    // Reconstruct the string
+    if (decimalPart !== undefined) {
+      return `${formattedInt}.${decimalPart}`;
+    }
+    return formattedInt;
   };
 
   // Fixed API call with AsyncStorage
   const createExpense = async name => {
     if (!name.trim()) return '';
     try {
-      // Fixed: Use AsyncStorage instead of localStorage
       const token = await AsyncStorage.getItem('userToken');
       if (!token) {
         throw new Error('Authentication token not found.');
@@ -162,76 +193,221 @@ export const ReceiptPaymentFields = props => {
     let backgroundColor = '#f5f5f5';
     let textColor = '#666';
     let message = '';
+    const formattedBalance = formatCurrency(Math.abs(balance));
 
     if (balance > 0) {
-      backgroundColor = isVendor ? '#e8f5e8' : '#ffebee';
+      // Customer OWES (Receipt) or We PAID Vendor (Payment)
+      backgroundColor = isVendor ? '#e8f5e8' : '#ffebee'; // Green for money we received, Red for money we spent
       textColor = isVendor ? '#2e7d32' : '#c62828';
       message = isVendor
-        ? `You have already paid: ₹${formatCurrency(balance)}`
-        : `Customer needs to pay: ₹${formatCurrency(balance)}`;
+        ? `You have already paid: ₹${formattedBalance}`
+        : `Customer needs to pay: ₹${formattedBalance}`;
     } else if (balance < 0) {
-      backgroundColor = isVendor ? '#ffebee' : '#e8f5e8';
+      // Customer PAID US (Receipt) or We OWE Vendor (Payment)
+      backgroundColor = isVendor ? '#ffebee' : '#e8f5e8'; // Red for money we owe, Green for money we received
       textColor = isVendor ? '#c62828' : '#2e7d32';
       message = isVendor
-        ? `You need to pay vendor: ₹${formatCurrency(Math.abs(balance))}`
-        : `Customer has paid: ₹${Math.abs(balance).toFixed(2)}`;
+        ? `You need to pay vendor: ₹${formattedBalance}`
+        : `Customer has paid: ₹${formattedBalance}`;
     } else {
-      message = `${isVendor ? 'Vendor' : 'Customer'} balance: ₹${formatCurrency(
-        balance,
-      )}`;
+      message = `${isVendor ? 'Vendor' : 'Customer'} balance: ₹${formattedBalance}`;
     }
 
     return (
       <Card style={[styles.balanceCard, { backgroundColor }]}>
-        <Card.Content>
+        <View style={styles.cardContent}>
           <Text style={[styles.balanceLabel, { color: '#666' }]}>
             Current Balance
           </Text>
           <Text style={[styles.balanceAmount, { color: textColor }]}>
             {message}
           </Text>
-        </Card.Content>
+        </View>
       </Card>
     );
   };
 
+  const CompanyModal = ({ visible, onClose, companies, onSelect }) => (
+    <RNModal
+      visible={visible}
+      onRequestClose={onClose}
+      transparent={true}
+      animationType="slide"
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeaderRow}>
+            <Text style={styles.modalTitle}>
+              Select Company
+            </Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.modalContent}>
+            {companies.map(company => (
+              <TouchableOpacity
+                key={company._id}
+                onPress={() => {
+                  onSelect(company._id);
+                  onClose();
+                }}
+              >
+                <Card style={styles.optionCard}>
+                  <View style={styles.cardContent}>
+                    <Text style={styles.optionText}>
+                      {company.businessName}
+                    </Text>
+                  </View>
+                </Card>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <View style={styles.modalActions}>
+            <OutlineButton onPress={onClose}>
+              Cancel
+            </OutlineButton>
+          </View>
+        </View>
+      </View>
+    </RNModal>
+  );
+
+  const DateModal = ({ visible, onClose, selectedDate, onDaySelect }) => (
+    <RNModal
+      visible={visible}
+      onRequestClose={onClose}
+      transparent={true}
+      animationType="slide"
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeaderRow}>
+            <Text style={styles.modalTitle}>
+              Select Date
+            </Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Calendar
+            onDayPress={day => {
+              onDaySelect(day.dateString);
+              onClose();
+            }}
+            markedDates={{
+              [selectedDate]: {
+                selected: true,
+                selectedColor: '#007AFF', // Better color
+              },
+            }}
+            style={styles.calendar}
+          />
+
+          <View style={styles.modalActions}>
+            <OutlineButton onPress={onClose}>
+              Cancel
+            </OutlineButton>
+          </View>
+        </View>
+      </View>
+    </RNModal>
+  );
+
+  const PaymentMethodModal = ({ visible, onClose, methods, onSelect, selectedMethod }) => (
+    <RNModal
+      visible={visible}
+      onRequestClose={onClose}
+      transparent={true}
+      animationType="slide"
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeaderRow}>
+            <Text style={styles.modalTitle}>
+              Select Payment Method
+            </Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.modalContent}>
+            {methods.map(method => (
+              <TouchableOpacity
+                key={method}
+                onPress={() => {
+                  onSelect(method);
+                  onClose();
+                }}
+              >
+                <Card 
+                  style={[
+                    styles.optionCard, 
+                    selectedMethod === method && styles.selectedOptionCard
+                  ]}
+                >
+                  <View style={styles.cardContent}>
+                    <Text 
+                      style={[
+                        styles.optionText, 
+                        selectedMethod === method && styles.selectedOptionText
+                      ]}
+                    >
+                      {method}
+                    </Text>
+                  </View>
+                </Card>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <View style={styles.modalActions}>
+            <OutlineButton onPress={onClose}>
+              Cancel
+            </OutlineButton>
+          </View>
+        </View>
+      </View>
+    </RNModal>
+  );
+
+
   return (
     <View style={styles.container}>
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Company</Text>
-          <Button
-            mode="outlined"
+          <OutlineButton
             onPress={() => setCompanyModalVisible(true)}
-            style={styles.selectButton}
           >
             {watch('company')
               ? companies.find(c => c._id === watch('company'))?.businessName
               : 'Select a company'}
-          </Button>
+          </OutlineButton>
         </View>
 
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Transaction Date</Text>
-          <Button
-            mode="outlined"
+          <OutlineButton
             onPress={() => setDatePickerVisible(true)}
-            style={styles.selectButton}
             icon="calendar"
           >
             {watch('date')
               ? new Date(watch('date')).toLocaleDateString()
               : 'Pick a date'}
-          </Button>
+          </OutlineButton>
         </View>
 
         {type === 'payment' && (
           <View style={styles.fieldContainer}>
             <View style={styles.checkboxContainer}>
-              <Checkbox.Android
-                status={watch('isExpense') ? 'checked' : 'unchecked'}
-                onPress={() => {
-                  const newValue = !watch('isExpense');
+              <Switch
+                value={watch('isExpense')}
+                onValueChange={newValue => {
                   setFormValue('isExpense', newValue);
 
                   if (newValue) {
@@ -240,6 +416,8 @@ export const ReceiptPaymentFields = props => {
                     setFormValue('expense', '');
                   }
                 }}
+                trackColor={{ false: "#767577", true: "#007AFF" }}
+                thumbColor={watch('isExpense') ? "#f4f3f4" : "#f4f3f4"}
               />
               <View style={styles.checkboxLabelContainer}>
                 <Text style={styles.checkboxLabel}>Expense</Text>
@@ -315,7 +493,7 @@ export const ReceiptPaymentFields = props => {
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Amount</Text>
           <TextInput
-            mode="outlined"
+            style={styles.input}
             placeholder="₹0.00"
             value={displayValue}
             onChangeText={text => {
@@ -329,181 +507,63 @@ export const ReceiptPaymentFields = props => {
               }
             }}
             keyboardType="numeric"
-            style={styles.input}
           />
         </View>
 
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Payment Method</Text>
-          <Button
-            mode="outlined"
+          <OutlineButton
             onPress={() => setPaymentMethodModalVisible(true)}
-            style={styles.selectButton}
           >
             {watch('paymentMethod') || 'Select Payment Method'}
-          </Button>
+          </OutlineButton>
         </View>
 
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Reference Number (Optional)</Text>
           <TextInput
-            mode="outlined"
+            style={styles.input}
             placeholder="e.g. Cheque No, Ref #"
             value={watch('referenceNumber')}
             onChangeText={text => setFormValue('referenceNumber', text)}
-            style={styles.input}
           />
         </View>
 
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Description / Narration</Text>
           <TextInput
-            mode="outlined"
+            style={[styles.input, styles.textArea]}
             placeholder="Describe the transaction..."
             value={watch('description')}
             onChangeText={text => setFormValue('description', text)}
             multiline
             numberOfLines={3}
-            style={[styles.input, styles.textArea]}
           />
         </View>
-      </View>
+      </ScrollView>
 
       {/* Modals */}
-      <RNModal
+      <CompanyModal
         visible={companyModalVisible}
-        onRequestClose={() => setCompanyModalVisible(false)}
-        transparent={true}
-        animationType="slide"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeaderRow}>
-              <Text variant="headlineSmall" style={styles.modalTitle}>
-                Select Company
-              </Text>
-              <Button onPress={() => setCompanyModalVisible(false)}>✕</Button>
-            </View>
+        onClose={() => setCompanyModalVisible(false)}
+        companies={companies}
+        onSelect={id => setFormValue('company', id)}
+      />
 
-            <ScrollView contentContainerStyle={styles.modalContent}>
-              {companies.map(company => (
-                <TouchableOpacity
-                  key={company._id}
-                  onPress={() => {
-                    setFormValue('company', company._id);
-                    setCompanyModalVisible(false);
-                  }}
-                >
-                  <Card style={styles.optionCard}>
-                    <Card.Content>
-                      <Text style={styles.optionText}>
-                        {company.businessName}
-                      </Text>
-                    </Card.Content>
-                  </Card>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <View style={styles.modalActions}>
-              <Button
-                mode="outlined"
-                onPress={() => setCompanyModalVisible(false)}
-              >
-                Cancel
-              </Button>
-            </View>
-          </View>
-        </View>
-      </RNModal>
-
-      <RNModal
+      <DateModal
         visible={datePickerVisible}
-        onRequestClose={() => setDatePickerVisible(false)}
-        transparent={true}
-        animationType="slide"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeaderRow}>
-              <Text variant="headlineSmall" style={styles.modalTitle}>
-                Select Date
-              </Text>
-              <Button onPress={() => setDatePickerVisible(false)}>✕</Button>
-            </View>
+        onClose={() => setDatePickerVisible(false)}
+        selectedDate={watch('date')}
+        onDaySelect={dateString => setFormValue('date', dateString)}
+      />
 
-            <Calendar
-              onDayPress={day => {
-                setFormValue('date', day.dateString);
-                setDatePickerVisible(false);
-              }}
-              markedDates={{
-                [watch('date')]: {
-                  selected: true,
-                  selectedColor: '#2196F3',
-                },
-              }}
-              style={styles.calendar}
-            />
-
-            <View style={styles.modalActions}>
-              <Button
-                mode="outlined"
-                onPress={() => setDatePickerVisible(false)}
-              >
-                Cancel
-              </Button>
-            </View>
-          </View>
-        </View>
-      </RNModal>
-
-      <RNModal
+      <PaymentMethodModal
         visible={paymentMethodModalVisible}
-        onRequestClose={() => setPaymentMethodModalVisible(false)}
-        transparent={true}
-        animationType="slide"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeaderRow}>
-              <Text variant="headlineSmall" style={styles.modalTitle}>
-                Select Payment Method
-              </Text>
-              <Button onPress={() => setPaymentMethodModalVisible(false)}>
-                ✕
-              </Button>
-            </View>
-
-            <ScrollView contentContainerStyle={styles.modalContent}>
-              {paymentMethodsForReceipt.map(method => (
-                <TouchableOpacity
-                  key={method}
-                  onPress={() => {
-                    setFormValue('paymentMethod', method);
-                    setPaymentMethodModalVisible(false);
-                  }}
-                >
-                  <Card style={styles.optionCard}>
-                    <Card.Content>
-                      <Text style={styles.optionText}>{method}</Text>
-                    </Card.Content>
-                  </Card>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <View style={styles.modalActions}>
-              <Button
-                mode="outlined"
-                onPress={() => setPaymentMethodModalVisible(false)}
-              >
-                Cancel
-              </Button>
-            </View>
-          </View>
-        </View>
-      </RNModal>
+        onClose={() => setPaymentMethodModalVisible(false)}
+        methods={paymentMethodsForReceipt}
+        onSelect={method => setFormValue('paymentMethod', method)}
+        selectedMethod={watch('paymentMethod')}
+      />
     </View>
   );
 };
@@ -511,6 +571,7 @@ export const ReceiptPaymentFields = props => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#F5F7FA', // Light background for the whole screen
   },
   content: {
     padding: 16,
@@ -519,44 +580,82 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    marginBottom: 8,
+    marginBottom: 6,
     color: '#333',
   },
   input: {
+    height: 50,
+    borderColor: '#D1D5DB', // Light gray border
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 16,
     backgroundColor: 'white',
+    color: '#1F2937',
   },
   textArea: {
-    minHeight: 80,
+    minHeight: 100,
+    paddingTop: 12,
+    textAlignVertical: 'top', // For Android
   },
+  // Custom Outline Button Style
   selectButton: {
-    justifyContent: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 50,
+    borderColor: '#D1D5DB',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
     backgroundColor: 'white',
+    justifyContent: 'flex-start',
   },
+  selectButtonIcon: {
+    marginRight: 8,
+  },
+  selectButtonText: {
+    fontSize: 16,
+    color: '#1F2937', // Dark text color
+  },
+  // Checkbox (Switch) Styles
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 10,
   },
   checkboxLabelContainer: {
-    marginLeft: 8,
+    marginLeft: 12,
+    flex: 1,
   },
   checkboxLabel: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#1F2937',
   },
   checkboxDescription: {
     fontSize: 12,
-    color: '#666',
+    color: '#6B7280',
     marginTop: 2,
   },
-  balanceCard: {
-    marginTop: 8,
-    elevation: 2,
+  // Card/Balance Styles
+  card: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    // Shadow for iOS
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 3,
+    // Elevation for Android
+    elevation: 3,
+  },
+  cardContent: {
+    padding: 12,
+  },
+  balanceCard: {
+    marginTop: 12,
   },
   balanceLabel: {
     fontSize: 12,
@@ -564,52 +663,75 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   balanceAmount: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
   },
-  modalContainer: {
-    backgroundColor: 'white',
-    padding: 16,
-    marginHorizontal: 20,
-    borderRadius: 10,
-    maxHeight: '80%',
-    width: '100%',
-    maxWidth: 720,
-  },
-  modalTitle: {
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
+  // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.4)', // Slightly lighter overlay
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  modalContainer: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 12,
+    maxHeight: '85%',
+    width: '100%',
+    ...Platform.select({
+      web: {
+        maxWidth: 720,
+      },
+    }),
   },
   modalHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  closeButton: {
+    padding: 5,
+  },
+  closeButtonText: {
+    fontSize: 20,
+    color: '#6B7280',
   },
   modalActions: {
-    marginTop: 12,
+    marginTop: 20,
     alignItems: 'flex-end',
-  },
-  optionText: {
-    fontSize: 16,
-    color: '#111827',
   },
   modalContent: {
     maxHeight: 400,
   },
   optionCard: {
     marginBottom: 8,
-    elevation: 1,
+    backgroundColor: '#F9FAFB', // Light gray background for options
+  },
+  selectedOptionCard: {
+    borderColor: '#007AFF',
+    borderWidth: 2,
+    backgroundColor: '#EBF5FF',
+  },
+  optionText: {
+    fontSize: 16,
+    color: '#1F2937',
+    fontWeight: '500',
+  },
+  selectedOptionText: {
+    color: '#007AFF',
   },
   calendar: {
     borderRadius: 8,
     marginVertical: 16,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
   },
 });
