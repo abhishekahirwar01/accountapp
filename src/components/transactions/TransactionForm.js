@@ -500,6 +500,37 @@ export function TransactionForm({
   });
   const type = form.watch('type');
 
+  // Reset UI-only state when switching transaction type to avoid leftover
+  // open dropdowns, dialogs or menus causing layout issues.
+  useEffect(() => {
+    // Close common dropdowns and dialogs
+    setPartyDropdownOpen(false);
+    setCompanyDropdownOpen(false);
+    setStateDropdownOpen(false);
+    setCityDropdownOpen(false);
+    setBankDropdownOpen(false);
+    setExpenseDropdownOpen(false);
+    setPaymentMethodDropdownOpen(false);
+    setUnitOpen(false);
+
+    // Close any creation dialogs or preview
+    setIsPartyDialogOpen(false);
+    setIsProductDialogOpen(false);
+    setIsServiceDialogOpen(false);
+    setInvoicePreviewOpen(false);
+    setShowNotes(false);
+
+    // Reset dropdown open maps used for per-row pickers
+    setProductDropdownOpen({});
+    setServiceDropdownOpen({});
+
+    // Reset transient UI helpers
+    setItemRenderKeys({});
+
+    // Note: per-component `expandedSections` is managed inside the
+    // SalesPurchasesFields component. Do not call setExpandedSections here.
+  }, [type]);
+
   const partyCreatable = useMemo(() => {
     if (type === 'sales' || type === 'receipt') return canCreateCustomer;
     if (type === 'purchases' || type === 'payment') return canCreateVendor;
