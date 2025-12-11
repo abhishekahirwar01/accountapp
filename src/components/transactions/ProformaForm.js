@@ -82,7 +82,7 @@ const STANDARD_GST = 18;
 const GST_OPTIONS = [
   { label: '0%', value: '0' },
   { label: '5%', value: '5' },
-  { label: '18%', value: '18' },
+  { label: 'Standard (18%)', value: '18' },
   { label: '40%', value: '40' },
 ];
 

@@ -17,7 +17,13 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Settings, FileText, PlusCircle, Package } from 'lucide-react-native';
+import {
+  Settings,
+  FileText,
+  PlusCircle,
+  Package,
+  X,
+} from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
@@ -490,30 +496,26 @@ export default function DashboardPage() {
         )}
       </ScrollView>
 
-      {/* Transaction Modals moved outside scroll so they overlay correctly */}
+      {/* Proforma Modal - TransactionsScreen style में */}
       <Modal
         visible={isProformaFormOpen}
         animationType="slide"
         onRequestClose={() => setIsProformaFormOpen(false)}
       >
         <View style={styles.modalContainer}>
-          <ScrollView
-            style={styles.modalContent}
-            contentContainerStyle={styles.modalScrollContent}
-          >
-            <View style={styles.modalHeaderInline}>
-              <Text style={styles.modalTitle}>Create Proforma Invoice</Text>
-              <TouchableOpacity
-                onPress={() => setIsProformaFormOpen(false)}
-                style={styles.closeButton}
-              >
-                <Text style={styles.closeButtonText}>×</Text>
-              </TouchableOpacity>
-            </View>
+          {/* Header - TransactionsScreen style */}
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Create Proforma Invoice</Text>
+            <TouchableOpacity
+              onPress={() => setIsProformaFormOpen(false)}
+              style={styles.closeIconButton}
+            >
+              <X size={24} color="#374151" />
+            </TouchableOpacity>
+          </View>
 
-            <Text style={styles.modalDescription}>
-              Fill in the details below to create a new proforma invoice.
-            </Text>
+          {/* Content */}
+          <ScrollView style={styles.modalScroll}>
             <Suspense
               fallback={<ActivityIndicator style={{ marginTop: 20 }} />}
             >
@@ -526,29 +528,26 @@ export default function DashboardPage() {
         </View>
       </Modal>
 
+      {/* Transaction Modal - TransactionsScreen style में */}
       <Modal
         visible={isTransactionFormOpen}
         animationType="slide"
         onRequestClose={() => setIsTransactionFormOpen(false)}
       >
         <View style={styles.modalContainer}>
-          <ScrollView
-            style={styles.modalContent}
-            contentContainerStyle={styles.modalScrollContent}
-          >
-            <View style={styles.modalHeaderInline}>
-              <Text style={styles.modalTitle}>Create a New Transaction</Text>
-              <TouchableOpacity
-                onPress={() => setIsTransactionFormOpen(false)}
-                style={styles.closeButton}
-              >
-                <Text style={styles.closeButtonText}>×</Text>
-              </TouchableOpacity>
-            </View>
+          {/* Header - TransactionsScreen style */}
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Create a New Transaction</Text>
+            <TouchableOpacity
+              onPress={() => setIsTransactionFormOpen(false)}
+              style={styles.closeIconButton}
+            >
+              <X size={24} color="#374151" />
+            </TouchableOpacity>
+          </View>
 
-            <Text style={styles.modalDescription}>
-              Fill in the details below to record a new financial event.
-            </Text>
+          {/* Content */}
+          <ScrollView style={styles.modalScroll}>
             <TransactionForm
               onFormSubmit={handleTransactionFormSubmit}
               serviceNameById={dashboardData?.serviceNameById || new Map()}
@@ -749,38 +748,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#eee',
     borderRadius: 8,
   },
-  // Modal Styles
+  // Modal Styles (TransactionsScreen style में updated)
   modalContainer: {
     flex: 1,
     backgroundColor: 'white',
   },
   modalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#e5e7eb',
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '600',
+    color: '#111827',
   },
-  closeButton: {
-    padding: 8,
+  closeIconButton: {
+    padding: 4,
   },
-  closeButtonText: {
-    fontSize: 24,
-    color: '#666',
-  },
-  modalContent: {
+  modalScroll: {
     flex: 1,
-    padding: 16,
   },
-  modalScrollContent: {
-    paddingBottom: 48,
-  },
+  // Optional: Inline header के लिए (पुराने style)
   modalHeaderInline: {
     flexDirection: 'row',
     justifyContent: 'space-between',

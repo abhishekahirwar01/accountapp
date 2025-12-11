@@ -18,6 +18,8 @@ import {
   Linking,
   Dimensions,
   TextInput as RNTextInput,
+  Keyboard,
+  ActivityIndicator,
 } from 'react-native';
 import { useForm, useFieldArray, useWatch, Controller } from 'react-hook-form';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -198,11 +200,11 @@ const IconButton = ({ icon, onPress, size = 24, style }) => (
   </TouchableOpacity>
 );
 
-const ActivityIndicator = ({ size, color }) => (
-  <View style={styles.activityIndicator}>
-    <Text style={{ color, fontSize: size === 'large' ? 24 : 16 }}>●</Text>
-  </View>
-);
+// const ActivityIndicator = ({ size, color }) => (
+//   <View style={styles.activityIndicator}>
+//     <Text style={{ color, fontSize: size === 'large' ? 24 : 16 }}>●</Text>
+//   </View>
+// );
 
 const TextInput = ({ label, error, style, ...props }) => (
   <View style={styles.textInputContainer}>
@@ -3049,8 +3051,10 @@ export function TransactionForm({
     if (loading) {
       return (
         <View style={styles.previewLoadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.previewLoadingText}>Generating preview...</Text>
+          <View style={styles.previewLoadingContent}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.previewLoadingText}>Generating preview...</Text>
+          </View>
         </View>
       );
     }
@@ -3208,8 +3212,10 @@ export function TransactionForm({
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading form data...</Text>
+        <View style={styles.loadingContent}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading form data...</Text>
+        </View>
       </View>
     );
   }
@@ -3302,6 +3308,7 @@ export function TransactionForm({
         <FormTabs
           type={type}
           onTypeChange={newType => {
+            Keyboard.dismiss();
             form.setValue('type', newType, { shouldValidate: true });
           }}
           canSales={canSales}
@@ -3796,6 +3803,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
   },
+  loadingContent: {
+    alignItems: 'center',
+    marginTop: 150,
+  },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
@@ -3956,6 +3967,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff',
+  },
+  previewLoadingContent: {
+    alignItems: 'center',
+    marginTop: 150,
   },
   previewLoadingText: {
     marginTop: 16,
