@@ -12,7 +12,8 @@ import {
 } from './pdf-utils';
 import { parseNotesHtml, capitalizeWords } from './utils';
 import { BASE_URL } from '../config';
-import RNHTMLtoPDF from 'react-native-html-to-pdf';
+import { generatePDF } from 'react-native-html-to-pdf';
+
 
 // --- Constants ---
 const PRIMARY_BLUE = '#0070c0';
@@ -22,53 +23,23 @@ const BORDER_COLOR = '#BABABA';
 
 // HTML Notes Rendering Function
 const renderNotesHTML = notes => {
-  if (!notes) return '';
+    if (!notes) return '';
+    try {
+      return notes
+        .replace(/\n/g, '<br>')
+        .replace(/<br\s*\/?>/gi, '<br>')
+        .replace(/<p>/gi, '<div style="margin-bottom: 8px;">')
+        .replace(/<\/p>/gi, '</div>')
+        .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
+        .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>')
+        .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
+        .replace(/<ul>/gi, '<ul style="padding-left: 15px;">')
+        .replace(/<li>/gi, '<li style="margin-bottom: 4px;">');
+    } catch (error) {
+      return notes.replace(/\n/g, '<br>');
+    }
+  };
 
-  try {
-    let formattedNotes = notes
-      .replace(/\n/g, '<br>')
-      .replace(/<br\s*\/?>/gi, '<br>')
-      .replace(/<p>/gi, '<div style="margin-bottom: 8px;">')
-      .replace(/<\/p>/gi, '</div>')
-      .replace(
-        /<b>(.*?)<\/b>/gi,
-        '<strong style="font-weight: bold;">$1</strong>',
-      )
-      .replace(
-        /<strong>(.*?)<\/strong>/gi,
-        '<strong style="font-weight: bold;">$1</strong>',
-      )
-      .replace(/<i>(.*?)<\/i>/gi, '<em style="font-style: italic;">$1</em>')
-      .replace(
-        /<u>(.*?)<\/u>/gi,
-        '<span style="text-decoration: underline;">$1</span>',
-      )
-      .replace(/<ul>/gi, '<div style="padding-left: 15px;">')
-      .replace(/<\/ul>/gi, '</div>')
-      .replace(/<li>/gi, '<div style="margin-bottom: 4px;">• ')
-      .replace(/<\/li>/gi, '</div>')
-      .replace(
-        /<h1>(.*?)<\/h1>/gi,
-        '<div style="font-size: 14px; font-weight: bold; margin: 10px 0 5px 0; color: #0070c0;">$1</div>',
-      )
-      .replace(
-        /<h2>(.*?)<\/h2>/gi,
-        '<div style="font-size: 12px; font-weight: bold; margin: 8px 0 4px 0; color: #0070c0;">$1</div>',
-      )
-      .replace(
-        /<h3>(.*?)<\/h3>/gi,
-        '<div style="font-size: 11px; font-weight: bold; margin: 6px 0 3px 0; color: #0070c0;">$1</div>',
-      )
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-      .trim();
-
-    return formattedNotes;
-  } catch (error) {
-    console.error('Error rendering notes HTML:', error);
-    return notes.replace(/\n/g, '<br>');
-  }
-};
 
 // Safe Phone Number Formatting
 const safeFormatPhoneNumber = phoneNumber => {
@@ -93,11 +64,12 @@ const safeNumberToWords = amount => {
 
 // --- Main PDF Component ---
 const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
+  const actualShippingAddress = shippingAddress || transaction?.shippingAddress;
   const preparedData = prepareTemplate8Data(
     transaction,
     company,
     party,
-    shippingAddress,
+    actualShippingAddress,
   );
 
   const {
@@ -153,7 +125,7 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
       : '') ||
     buyerPhone;
 
-  const bankData = bank || {};
+  const bankData = bank || transaction?.bank || {};
   const isBankDetailAvailable =
     bankData?.bankName ||
     bankData?.ifscCode ||
@@ -246,12 +218,13 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
           .logo-and-name-block {
             display: flex;
             flex-direction: row;
-            align-items: center;
-            width: 80%;
+            align-items: flex-start;
+            width: 70%;
           }
           
           .logo-container {
-            margin-right: 10px;
+            margin-right: 15px;
+            margin-top: 5px;
           }
           
           .logo {
@@ -264,25 +237,26 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
             font-size: 18px;
             font-weight: 800;
             color: ${PRIMARY_BLUE};
-            margin-bottom: 2px;
+            margin-bottom: 3px;
           }
           
           .company-details-block {
             border-left: 1px solid ${LIGHT_GRAY};
-            padding-left: 5px;
+            padding-left: 10px;
+            margin-top: 2px;
           }
           
           .gstin {
             font-size: 9px;
             font-weight: bold;
-            margin-bottom: 2px;
+            margin-bottom: 3px;
           }
           
           .address-text {
             font-size: 9.5px;
-            line-height: 1.2;
+            line-height: 1.3;
             color: ${DARK_TEXT};
-            margin-bottom: 1px;
+            margin-bottom: 2px;
           }
           
           .bold-text {
@@ -291,32 +265,32 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
           
           /* Invoice Info */
           .invoice-info-block {
-            width: 30%;
+            width: 18%;
             text-align: right;
+            margin-top: 5px;
           }
           
           .tax-invoice-title {
             font-size: 12px;
             font-weight: bold;
             color: ${PRIMARY_BLUE};
-            margin-bottom: 5px;
+            margin-bottom: 8px;
             text-decoration: underline;
           }
           
           .invoice-date-row {
             display: flex;
             flex-direction: row;
-            justify-content: flex-end;
-            margin-bottom: 2px;
+            justify-content: space-between;
+            margin-bottom: 4px;
             align-items: center;
           }
           
           .invoice-label {
             font-size: 9px;
-            width: 80px;
+            width: 70px;
             text-align: left;
             font-weight: bold;
-            margin-left: 35px;
           }
           
           .invoice-value {
@@ -330,37 +304,38 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
           .party-section {
             display: flex;
             flex-direction: row;
-            justify-content: space-around;
-            margin-bottom: 1px;
+            justify-content: space-between;
+            margin-bottom: 5px;
             border-top: 1px solid ${LIGHT_GRAY};
             border-bottom: 1px solid ${LIGHT_GRAY};
-            padding: 4px 0;
+            padding: 8px 0;
           }
           
           .combined-party-block {
-            width: 60%;
-            padding-right: 5px;
+            width: 65%;
+            padding-right: 10px;
+            border-right: 1px solid ${LIGHT_GRAY};
           }
           
           .transaction-details-block {
-            width: 38%;
-            padding-left: 10px;
-            border-left: 1px solid ${LIGHT_GRAY};
+            width: 20%;
+            padding-left: 45px;
           }
           
           .party-header {
-            font-size: 9px;
+            font-size: 10px;
             font-weight: bold;
             color: ${PRIMARY_BLUE};
             padding-bottom: 2px;
-            margin-bottom: 3px;
+            margin-bottom: 5px;
+            border-bottom: 1px solid ${LIGHT_GRAY};
           }
           
           /* Items Table */
           .table {
             width: 100%;
             border: 1px solid ${BORDER_COLOR};
-            margin-bottom: 5px;
+            margin-bottom: 8px;
           }
           
           .table-header {
@@ -378,18 +353,22 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
             flex-direction: row;
             border-bottom: 0.5px solid ${BORDER_COLOR};
             align-items: stretch;
+            min-height: 25px;
           }
           
           .table-cell-header {
             border-right: 1px solid white;
-            padding: 4px;
+            padding: 5px 2px;
             text-align: center;
             font-size: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
           }
           
           .table-cell {
             border-right: 0.5px solid ${BORDER_COLOR};
-            padding: 4px;
+            padding: 4px 2px;
             font-size: 7px;
             text-align: right;
             display: flex;
@@ -404,7 +383,7 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
           .table-cell-left {
             text-align: left;
             justify-content: flex-start;
-            padding-left: 6px;
+            padding-left: 8px;
           }
           
           .table-cell-center {
@@ -416,38 +395,62 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
             display: flex;
             flex-direction: row;
             justify-content: space-between;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
           }
           
           .left-totals {
             width: 60%;
+            padding-right: 10px;
           }
           
           .right-totals {
-            width: 38%;
+            width: 40%;
+            // border: 1px solid ${BORDER_COLOR};
+            padding: 8px;
+          }
+          
+          .total-items-row {
+            // background-color: ${LIGHT_GRAY};
+            // padding: 8px 10px;
+            margin-bottom: 10px;
+            // border: 1px solid ${BORDER_COLOR};
+            font-size: 9px;
+          }
+          
+          .amount-words-row {
+            margin-top: 15px;
+          }
+          
+          .amount-in-words {
+            font-size: 8.5px;
+            font-weight: normal;
+            // padding: 5px;
+            // border: 1px solid ${BORDER_COLOR};
+            // background-color: ${LIGHT_GRAY};
           }
           
           .totals-row {
             display: flex;
             flex-direction: row;
             justify-content: space-between;
-            padding: 1px 8px;
+            // padding: 4px 0;
             font-size: 9px;
+            border-bottom: 0.5px solid ${LIGHT_GRAY};
+          }
+          
+          .totals-row:last-child {
+            border-bottom: none;
           }
           
           .total-amount-row {
             display: flex;
             flex-direction: row;
             justify-content: space-between;
-            padding: 1px 8px;
-            background-color: ${LIGHT_GRAY};
-            font-size: 9px;
-          }
-          
-          .amount-in-words {
-            font-size: 8px;
-            font-weight: normal;
-            margin-top: 4px;
+            padding: 6px 0;
+            font-size: 10px;
+            font-weight: bold;
+            border-top: 1px solid ${BORDER_COLOR};
+            margin-top: 5px;
           }
           
           /* Bank & Terms Section */
@@ -455,9 +458,25 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
             display: flex;
             flex-direction: row;
             justify-content: space-between;
-            margin-top: 1px;
+            margin-top: 10px;
             border-top: 1px solid ${PRIMARY_BLUE};
-            padding-top: 5px;
+            padding-top: 10px;
+          }
+          
+          .bank-details-container {
+            width: 65%;
+            display: flex;
+            flex-direction: row;
+            gap: 15px;
+          }
+          
+          .bank-details {
+            flex: 1;
+          }
+          
+          .qr-code-container {
+            width: 120px;
+            text-align: center;
           }
           
           .bank-header {
@@ -470,51 +489,67 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
           .bank-row {
             display: flex;
             flex-direction: row;
-            margin-bottom: 2px;
+            margin-bottom: 3px;
             font-size: 8px;
           }
           
           .bank-label {
-            width: 65px;
+            width: 70px;
             font-weight: bold;
-            margin-right: 5px;
+            margin-right: 8px;
+            flex-shrink: 0;
           }
           
           .small-text {
-            font-size: 9px;
+            font-size: 8px;
           }
           
           /* Signature Section */
           .signature-section {
-            width: 38%;
-            text-align: right;
-            align-items: flex-end;
-            padding-top: 5px;
-            padding-left: 10px;
-            margin-top: 20px;
+            width: 20%;
+            text-align: center;
+            padding-left: 15px;
             border-left: 1px solid ${BORDER_COLOR};
+            margin-right:10px;
           }
           
           .signature-placeholder {
-            height: 55px;
-            width: 88px;
-            margin-bottom: 4px;
+            height: 60px;
+            width: 100%;
+            margin-bottom: 8px;
             display: flex;
             justify-content: center;
             align-items: center;
             border: 1px dashed #ccc;
+            background-color: #fafafa;
+          }
+          
+          .signature-text {
+            font-size: 7px;
+            color: #666;
           }
           
           /* Terms and Conditions */
           .terms-container {
-            margin-top: 8px;
-            padding-top: 6px;
+            margin-top: 15px;
+            padding-top: 10px;
             border-top: 1px solid ${PRIMARY_BLUE};
           }
           
+          .terms-title {
+            font-size: 10px;
+            font-weight: bold;
+            color: ${PRIMARY_BLUE};
+            margin-bottom: 8px;
+          }
+          
           .terms-content {
+          padding-left:12px;
             font-size: 8px;
             line-height: 1.4;
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
           }
           
           .terms-content strong {
@@ -557,6 +592,39 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
             font-size: 7px;
             color: #666;
           }
+          
+          /* Alignment Utilities */
+          .align-left {
+            text-align: left;
+          }
+          
+          .align-center {
+            text-align: center;
+          }
+          
+          .align-right {
+            text-align: right;
+          }
+          
+          .mb-2 {
+            margin-bottom: 2px;
+          }
+          
+          .mb-3 {
+            margin-bottom: 3px;
+          }
+          
+          .mb-5 {
+            margin-bottom: 5px;
+          }
+          
+          .mt-2 {
+            margin-top: 2px;
+          }
+          
+          .mt-5 {
+            margin-top: 5px;
+          }
         </style>
       </head>
       <body>
@@ -574,7 +642,7 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
                   : ''
               }
               
-              <div style="width: auto;">
+              <div style="flex: 1;">
                 <div class="company-name">
                   ${company?.businessName || company?.companyName || ''}
                 </div>
@@ -641,32 +709,32 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
             <!-- Left Block - Buyer and Consignee Combined -->
             <div class="combined-party-block">
               <!-- Buyer Details -->
-              <div style="margin-bottom: 4px;">
+              <div style="margin-bottom: 8px;">
                 <div class="party-header">Details of Buyer | Billed to :</div>
                 
-                <div class="address-text">
+                <div class="address-text mb-2">
                   <span class="bold-text">Name:</span> ${capitalizeWords(
                     party?.name || '',
                   )}
                 </div>
                 
-                <div class="address-text">
+                <div class="address-text mb-2">
                   <span class="bold-text">Address:</span> ${capitalizeWords(
                     getBillingAddress(party),
                   )}
                 </div>
                 
-                <div class="address-text">
+                <div class="address-text mb-2">
                   <span class="bold-text">Phone:</span> ${safeFormatPhoneNumber(
                     buyerPhone,
                   )}
                 </div>
                 
-                <div class="address-text">
+                <div class="address-text mb-2">
                   <span class="bold-text">GSTIN:</span> ${party?.gstin || '-'}
                 </div>
                 
-                <div class="address-text">
+                <div class="address-text mb-2">
                   <span class="bold-text">PAN:</span> ${party?.pan || '-'}
                 </div>
                 
@@ -685,19 +753,19 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
               </div>
 
               <!-- Consignee Details -->
-              <div style="margin-top: 5px; padding-top: 1px;">
+              <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid ${LIGHT_GRAY};">
                 <div class="party-header">Details of Consigned | Shipped to :</div>
                 
-                <div class="address-text">
+                <div class="address-text mb-2">
                   <span class="bold-text">Name:</span> ${capitalizeWords(
-                    shippingAddress?.label || party?.name || '',
+                    actualShippingAddress?.label || party?.name || '',
                   )}
                 </div>
                 
-                <div class="address-text">
+                <div class="address-text mb-2">
                   <span class="bold-text">Address:</span> ${capitalizeWords(
                     getShippingAddress(
-                      shippingAddress,
+                      actualShippingAddress,
                       getBillingAddress(party),
                     ),
                   )}
@@ -706,7 +774,7 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
                 ${
                   company?.Country
                     ? `
-                  <div class="address-text">
+                  <div class="address-text mb-2">
                     <span class="bold-text">Country:</span> ${capitalizeWords(
                       company.Country,
                     )}
@@ -718,7 +786,7 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
                 ${
                   consigneePhone !== '-'
                     ? `
-                  <div class="address-text">
+                  <div class="address-text mb-2">
                     <span class="bold-text">Phone:</span> ${safeFormatPhoneNumber(
                       consigneePhone,
                     )}
@@ -727,17 +795,17 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
                     : ''
                 }
                 
-                <div class="address-text">
+                <div class="address-text mb-2">
                   <span class="bold-text">GSTIN:</span> ${party?.gstin || '-'}
                 </div>
                 
                 ${
-                  shippingAddress?.state
+                  actualShippingAddress?.state
                     ? `
                   <div class="address-text">
                     <span class="bold-text">State:</span> ${capitalizeWords(
-                      shippingAddress.state,
-                    )} (${getStateCode(shippingAddress.state) || '-'})
+                      actualShippingAddress.state,
+                    )} (${getStateCode(actualShippingAddress.state) || '-'})
                   </div>
                 `
                     : ''
@@ -747,30 +815,42 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
 
             <!-- Right Block - Transaction Details -->
             <div class="transaction-details-block">
-              <div style="margin-top: 0; margin-left: 0; padding-top: 5px;">
-                <div class="address-text" style="margin-bottom: 3px;">
+              <div style="margin-top: 0;">
+                
+                
+                <div class="address-text mb-3">
                   <span class="bold-text">P.O. No.:</span> ${
                     transaction?.voucher || '-'
                   }
                 </div>
                 
-                <div class="address-text" style="margin-bottom: 3px;">
+                <div class="address-text mb-3">
                   <span class="bold-text">P.O. Date:</span> ${formatDateSafe(
                     transaction?.poDate,
                   )}
                 </div>
                 
-                <div class="address-text" style="margin-bottom: 3px;">
-                  <span class="bold-text">E-Way No.:</span> ${
-                    transaction?.eway || '-'
-                  }
-                </div>
+                ${
+                  transaction?.eway
+                    ? `
+                  <div class="address-text mb-3">
+                    <span class="bold-text">E-Way No.:</span> ${transaction.eway}
+                  </div>
+                `
+                    : ''
+                }
                 
-                <div class="address-text" style="margin-bottom: 3px;">
-                  <span class="bold-text">Due Date:</span> ${formatDateSafe(
-                    transaction?.dueDate,
-                  )}
-                </div>
+                ${
+                  transaction?.dueDate
+                    ? `
+                  <div class="address-text">
+                    <span class="bold-text">Due Date:</span> ${formatDateSafe(
+                      transaction.dueDate,
+                    )}
+                  </div>
+                `
+                    : ''
+                }
               </div>
             </div>
           </div>
@@ -892,16 +972,12 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
           <div class="totals-section">
             <!-- Left Section -->
             <div class="left-totals">
-              <div style="margin-top: 1px; margin-bottom: 2px; padding: 6px 0; width: 100%;">
-                <div style="font-size: 8px;">
-                  Total Items / Qty : <span class="bold-text">${totalItems} / ${totalQty}</span>
-                </div>
+              <div class="total-items-row">
+                <span class="bold-text">Total Items / Qty :</span> ${totalItems} / ${totalQty}
               </div>
 
-              <div style="height: 10px;"></div>
-
-              <div>
-                <div style="margin-bottom: 4px; font-size: 9px; font-weight: bold;">
+              <div class="amount-words-row">
+                <div style="margin-bottom: 5px; font-size: 9px; font-weight: bold;">
                   Total amount (in words):
                 </div>
                 <div class="amount-in-words">${amountInWords}</div>
@@ -912,7 +988,7 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
             <div class="right-totals">
               <div class="totals-row">
                 <div class="bold-text">Taxable Amount</div>
-                <div>Rs.${formatCurrency(totalTaxable)}</div>
+                <div>Rs. ${formatCurrency(totalTaxable)}</div>
               </div>
 
               ${
@@ -923,18 +999,18 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
                     ? `
                   <div class="totals-row">
                     <div class="bold-text">IGST</div>
-                    <div>Rs.${formatCurrency(totalIGST)}</div>
+                    <div>Rs. ${formatCurrency(totalIGST)}</div>
                   </div>
                 `
                     : showCGSTSGST
                     ? `
                   <div class="totals-row">
                     <div class="bold-text">CGST</div>
-                    <div>Rs.${formatCurrency(totalCGST)}</div>
+                    <div>Rs. ${formatCurrency(totalCGST)}</div>
                   </div>
                   <div class="totals-row">
                     <div class="bold-text">SGST</div>
-                    <div>Rs.${formatCurrency(totalSGST)}</div>
+                    <div>Rs. ${formatCurrency(totalSGST)}</div>
                   </div>
                 `
                     : ''
@@ -945,7 +1021,7 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
 
               <div class="total-amount-row">
                 <div class="bold-text">Total Amount</div>
-                <div>Rs.${formatCurrency(totalAmount)}</div>
+                <div>Rs. ${formatCurrency(totalAmount)}</div>
               </div>
             </div>
           </div>
@@ -953,19 +1029,17 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
           <!-- Bank and Signature Section -->
           <div class="bank-terms-section">
             <!-- Bank Details -->
-            ${
-              !shouldHideBankDetails
-                ? `
-              <div style="width: 60%; padding: 5px;">
-                <div class="bank-header" style="margin-bottom: 3px;">Bank Details:</div>
-                ${
-                  isBankDetailAvailable
-                    ? `
-                  <div style="margin-top: 2px;">
+            <div class="bank-details-container">
+              ${
+                !shouldHideBankDetails && isBankDetailAvailable
+                  ? `
+                <div class="bank-details">
+                  <div class="bank-header">Bank Details:</div>
+                  <div style="margin-top: 5px;">
                     ${
                       bankData.bankName
                         ? `
-                      <div class="bank-row" style="margin-bottom: 1px;">
+                      <div class="bank-row">
                         <div class="bank-label">Name:</div>
                         <div class="small-text">${capitalizeWords(
                           bankData.bankName,
@@ -978,7 +1052,7 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
                     ${
                       bankData.ifscCode
                         ? `
-                      <div class="bank-row" style="margin-bottom: 1px;">
+                      <div class="bank-row">
                         <div class="bank-label">IFSC:</div>
                         <div class="small-text">${capitalizeWords(
                           bankData.ifscCode,
@@ -991,7 +1065,7 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
                     ${
                       bankData?.accountNo
                         ? `
-                      <div class="bank-row" style="margin-bottom: 1px;">
+                      <div class="bank-row">
                         <div class="bank-label">Acc. No:</div>
                         <div class="small-text">${bankData.accountNo}</div>
                       </div>
@@ -1002,9 +1076,9 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
                     ${
                       bankData.branchAddress
                         ? `
-                      <div class="bank-row" style="margin-bottom: 1px;">
+                      <div class="bank-row">
                         <div class="bank-label">Branch:</div>
-                        <div class="small-text" style="flex: 1;">${capitalizeWords(
+                        <div class="small-text">${capitalizeWords(
                           bankData.branchAddress,
                         )}</div>
                       </div>
@@ -1015,7 +1089,7 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
                     ${
                       bankData?.upiDetails?.upiId
                         ? `
-                      <div class="bank-row" style="margin-bottom: 1px;">
+                      <div class="bank-row">
                         <div class="bank-label">UPI ID:</div>
                         <div class="small-text">${bankData.upiDetails.upiId}</div>
                       </div>
@@ -1026,7 +1100,7 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
                     ${
                       bankData?.upiDetails?.upiName
                         ? `
-                      <div class="bank-row" style="margin-bottom: 1px;">
+                      <div class="bank-row">
                         <div class="bank-label">UPI Name:</div>
                         <div class="small-text">${capitalizeWords(
                           bankData.upiDetails.upiName,
@@ -1039,7 +1113,7 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
                     ${
                       bankData?.upiDetails?.upiMobile
                         ? `
-                      <div class="bank-row" style="margin-bottom: 1px;">
+                      <div class="bank-row">
                         <div class="bank-label">UPI Mobile:</div>
                         <div class="small-text">${bankData.upiDetails.upiMobile}</div>
                       </div>
@@ -1047,20 +1121,25 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
                         : ''
                     }
                   </div>
-                `
-                    : `
-                  <div style="font-size: 8px; margin-top: 3px; color: #666;">
+                </div>
+              `
+                  : !shouldHideBankDetails
+                  ? `
+                <div class="bank-details">
+                  <div class="bank-header">Bank Details:</div>
+                  <div style="font-size: 8px; margin-top: 10px; color: #666;">
                     BANK DETAILS NOT AVAILABLE
                   </div>
-                `
-                }
-              </div>
+                </div>
+              `
+                  : ''
+              }
               
               ${
                 bankData?.qrCode
                   ? `
-                <div style="align-items: center; justify-content: center; padding: 5px; margin-left: 15px;">
-                  <div style="font-size: 9px; font-weight: bold; margin-left: -2px;">QR Code</div>
+                <div class="qr-code-container">
+                  <div style="font-size: 9px; font-weight: bold; margin-bottom: 5px;">QR Code</div>
                   <div style="background-color: #fff;">
                     <img src="${BASE_URL}${bankData.qrCode}" style="width: 80px; height: 80px; object-fit: contain;" />
                   </div>
@@ -1068,18 +1147,15 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
               `
                   : ''
               }
-            `
-                : ''
-            }
+            </div>
 
             <!-- Signature Section -->
             <div class="signature-section">
-              <div class="signature-placeholder">
-                <div style="font-size: 7px; text-align: center;">
-                  ${company?.businessName || 'Company'}
-                </div>
+             
+              <div style="font-size: 8px; font-weight: bold; margin-top: 5px; margin-bottom:60px;">
+                For ${company?.businessName || 'Company'}
               </div>
-              <div style="font-size: 7px; margin-top: 3px; text-align: center;">
+              <div style="font-size: 7px; margin-top: 15px; padding-top: 5px; border-top: 1px solid #ccc;">
                 AUTHORISED SIGNATORY
               </div>
             </div>
@@ -1090,6 +1166,7 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
             transaction?.notes
               ? `
             <div class="terms-container">
+              
               <div class="terms-content">
                 ${renderNotesHTML(transaction.notes)}
               </div>
@@ -1135,7 +1212,7 @@ export const generatePdfForTemplate20 = async (
       height: 842, // A4 height in points
     };
 
-    const file = await RNHTMLtoPDF.convert(options);
+    const file = await generatePDF(options);
     return file;
   } catch (error) {
     console.error('Error generating PDF:', error);

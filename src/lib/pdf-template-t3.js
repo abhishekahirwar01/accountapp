@@ -1,6 +1,7 @@
 // src/components/Template_t3.js
 import React from 'react';
-import RNHTMLtoPDF from 'react-native-html-to-pdf';
+
+import { generatePDF } from 'react-native-html-to-pdf';
 import {
   prepareTemplate8Data,
   formatCurrency,
@@ -53,6 +54,7 @@ const Template_t3 = ({
   terms = 'Goods once sold will not be taken back. Subject to {city} jurisdiction.',
   serviceNameById = new Map(),
 }) => {
+   const actualShippingAddress =  transaction?.shippingAddress;
   // Enhanced error handling
   const prepareData = () => {
     try {
@@ -65,7 +67,7 @@ const Template_t3 = ({
         transaction,
         company,
         party,
-        shippingAddress,
+        actualShippingAddress,
       );
 
       if (!result || typeof result !== 'object') {
@@ -115,7 +117,7 @@ const Template_t3 = ({
     showNoTax,
   } = preparedData;
 
-  const bankData = bank || {};
+  const bankData = bank || transaction?.bank || {};
   const isBankDetailAvailable =
     bankData?.bankName ||
     bankData?.ifscCode ||
@@ -306,7 +308,7 @@ const Template_t3 = ({
             }
           </div>
 
-          <div class="border-line">=============================================</div>
+          <div class="border-line">========================================================================</div>
 
           <!-- Invoice Title -->
           <div class="invoice-title">
@@ -319,7 +321,7 @@ const Template_t3 = ({
             }
           </div>
 
-          <div class="border-line">=============================================</div>
+          <div class="border-line">========================================================================</div>
 
           <!-- Billed To and Invoice Details -->
           <div class="billing-section">
@@ -329,12 +331,7 @@ const Template_t3 = ({
                 <div class="section-title">BILLED TO</div>
                 <div class="billed-details">
                   <div>${capitalizeWords(getPartyValue('name') || 'N/A')}</div>
-                  <div>${getPartyValue('address') || 'N/A'}</div>
-                  <div>
-                    ${getPartyValue('city') || ''} ${
-      getPartyValue('state') ? `, ${getPartyValue('state')}` : ''
-    }
-                  </div>
+                 
                   <div>
                     ${
                       getPartyValue('contactNumber')
@@ -364,18 +361,7 @@ const Template_t3 = ({
                       : 'N/A'
                   }</span>
                 </div>
-                ${
-                  getTransactionValue('dueDate')
-                    ? `
-                  <div class="invoice-detail">
-                    <span class="detail-label">DUE DATE :</span>
-                    <span class="detail-value">${new Date(
-                      getTransactionValue('dueDate'),
-                    ).toLocaleDateString('en-IN')}</span>
-                  </div>
-                `
-                    : ''
-                }
+                  
                 ${
                   getTransactionValue('poNumber')
                     ? `
@@ -392,53 +378,27 @@ const Template_t3 = ({
             </div>
           </div>
 
-          <!-- Shipping Address (if different) -->
-          ${
-            hasDifferentShippingAddress && shippingAddress
-              ? `
-            <div class="shipping-address">
-              <div class="section-title">SHIPPING ADDRESS</div>
-              <div class="shipping-details">
-                <div>${capitalizeWords(
-                  shippingAddress.name || getPartyValue('name') || '',
-                )}</div>
-                <div>${capitalizeWords(shippingAddress.address || '')}</div>
-                <div>
-                  ${capitalizeWords(shippingAddress.city || '')}
-                  ${shippingAddress.state ? `, ${shippingAddress.state}` : ''}
-                  ${
-                    shippingAddress.pincode
-                      ? ` - ${shippingAddress.pincode}`
-                      : ''
-                  }
-                </div>
-              </div>
-            </div>
-          `
-              : ''
-          }
-
-          <div class="border-line">=============================================</div>
+          <div class="border-line">========================================================================</div>
 
           <!-- Table Header -->
           <div class="table-header">
             <div class="col-item">Item</div>
-            <div class="col-gst">Rate (Rs.)</div>
+            <div class="col-gst">Amount (Rs.)</div>
             <div class="col-gst">GST</div>
             <div class="col-total">Total(Rs.)</div>
           </div>
 
-          <div class="border-line">=============================================</div>
+          <div class="border-line">========================================================================</div>
 
           <!-- Table Rows -->
           ${generateTableRows()}
 
-          <div class="border-line">=============================================</div>
+          <div class="border-line">========================================================================</div>
 
           <!-- Totals Section -->
           <div class="totals-section">
-            <div class="section-title">TOTAL AMOUNT</div>
-            <div class="border-line">=============================================</div>
+            <div class="section-title" style="text-align:center;">TOTAL AMOUNT</div>
+            <div class="border-line">========================================================================</div>
 
             <div class="total-row">
               <span class="total-label">Subtotal:</span>
@@ -498,7 +458,7 @@ const Template_t3 = ({
                 : ''
             }
 
-            <div class="border-line">=============================================</div>
+            <div class="border-line">========================================================================</div>
 
             <div class="total-row final-total">
               <span class="total-label">
@@ -508,36 +468,25 @@ const Template_t3 = ({
             </div>
 
             <div class="amount-words">
-              Amount in Words: ${numberToWords(totalAmount)}
+               ${numberToWords(totalAmount)}
             </div>
           </div>
 
           <!-- Payment Terms -->
-          ${
-            getTransactionValue('paymentTerms')
-              ? `
-            <div class="terms-section">
-              <div class="terms-title">Payment Terms:</div>
-              <div class="terms-content">${getTransactionValue(
-                'paymentTerms',
-              )}</div>
-            </div>
-          `
-              : ''
-          }
+          
 
           <!-- UPI Payment Section -->
           ${
             bankData && bankData?.upiDetails?.upiId
               ? `
             <div class="upi-section">
-              <div class="border-line">=============================================</div>
+              <div class="border-line">========================================================================</div>
 
               ${
                 bankData?.qrCode
                   ? `
                 <div class="qr-section">
-                  <div class="qr-title">SCAN TO PAY</div>
+                  <div class="qr-title">OR Code</div>
                   <div class="qr-container">
                     <img src="${BASE_URL}${bankData.qrCode}" class="qr-code" />
                   </div>
@@ -568,7 +517,7 @@ const Template_t3 = ({
                 }
               </div>
 
-              <div class="border-line">=============================================</div>
+              <div class="border-line">========================================================================</div>
             </div>
           `
               : ''
@@ -630,19 +579,16 @@ const Template_t3 = ({
                   : ''
               }
 
-              <div class="border-line">=============================================</div>
+             
             </div>
           `
               : ''
           }
 
-          <!-- Terms and Conditions -->
-          <div class="terms-section">
-            <div class="terms-title">Terms & Conditions:</div>
-            <div class="terms-content">${formattedTerms}</div>
-          </div>
+        
 
           <!-- Footer -->
+            <div class="border-line">========================================================================</div>
           <div class="footer">
             <div class="company-signature">
               For ${capitalizeWords(
@@ -652,7 +598,7 @@ const Template_t3 = ({
               )}
             </div>
             <div class="computer-generated">
-              (This is a computer generated invoice)
+             <div>E. & O.E.</div>
             </div>
           </div>
         </div>
@@ -672,11 +618,11 @@ const styles = {
     }
     
     body {
-      font-family: 'Courier New', Courier, monospace;
+      // font-family: 'Courier New', Courier, monospace;
       font-size: 8px;
       color: #000;
-      margin: 0;
-      padding: 10px;
+      margin: 0 auto; 
+      padding-top: 10px;
       line-height: 1.2;
       background: #FFFFFF;
       width: 280px; /* 80mm thermal receipt width */
@@ -774,11 +720,11 @@ const styles = {
       font-size: 7px;
     }
     .col-item {
-      width: 50%;
+      width: 30%;
       text-align: left;
     }
     .col-gst {
-      width: 20%;
+      width: 30%;
       text-align: center;
     }
     .col-total {
@@ -793,7 +739,7 @@ const styles = {
     }
     .item-name {
       font-weight: bold;
-      margin-bottom: 1px;
+      margin-bottom: 1.5px;
     }
     .item-detail {
       font-size: 5px;
@@ -840,7 +786,7 @@ const styles = {
     }
     .upi-section {
       margin-top: 8px;
-      text-align: center;
+      text-align: right;
     }
     .qr-section {
       margin: 5px 0;
@@ -888,7 +834,7 @@ const styles = {
       font-weight: normal;
     }
     .footer {
-      margin-top: 10px;
+      margin-top: 4px;
       text-align: center;
     }
     .company-signature {
@@ -928,18 +874,18 @@ export const generatePdfForTemplatet3 = async (
       serviceNameById,
     });
 
-    const options = {
-      html: HTMLContent,
-      fileName: `receipt_${
-        transaction?.invoiceNumber || 'document'
-      }_${Date.now()}`,
-      directory: 'Documents',
-      base64: false,
-      height: 'auto', // Auto height for thermal receipt
-      width: 280, // 80mm thermal receipt width
-    };
+const options = {
+  html: HTMLContent,
+  fileName: `receipt_${
+    transaction?.invoiceNumber || 'document'
+  }_${Date.now()}`,
+  directory: 'Documents',
+  base64: false,
+  // Remove the height property entirely, or set it to a number if needed
+  width: 280, // 80mm thermal receipt width
+};
 
-    const file = await RNHTMLtoPDF.convert(options);
+    const file = await generatePDF(options);
 
     if (!file || !file.filePath) {
       throw new Error('PDF generation failed - no file path returned');

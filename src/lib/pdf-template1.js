@@ -34,76 +34,23 @@ import { parseHtmlToElements, renderParsedElements } from './HtmlNoteRenderer'
  */
 
 // Advanced HTML Notes Rendering Function with WebView compatible HTML
-const renderNotesHTML = (notes, isForPDF = true) => {
-  if (!notes) return '';
-
-  try {
-    // For PDF generation, we need to convert HTML to PDF-compatible HTML
-    if (isForPDF) {
-      let formattedNotes = notes
-        // First, ensure proper line breaking
+ const renderNotesHTML = notes => {
+    if (!notes) return '';
+    try {
+      return notes
         .replace(/\n/g, '<br>')
-        // Handle very long words - break them
-        .replace(/([^\s]{30,})/g, '<span style="word-break: break-all;">$1</span>')
-        // Standardize line breaks
         .replace(/<br\s*\/?>/gi, '<br>')
-        // Convert paragraphs with proper styling
-        .replace(/<p>/gi, '<div style="margin-bottom: 8px; word-wrap: break-word; overflow-wrap: break-word;">')
+        .replace(/<p>/gi, '<div style="margin-bottom: 8px;">')
         .replace(/<\/p>/gi, '</div>')
-        // Handle bold text
-        .replace(/<b>(.*?)<\/b>/gi, '<strong style="word-wrap: break-word;">$1</strong>')
-        .replace(
-          /<strong>(.*?)<\/strong>/gi,
-          '<strong style="font-weight: bold; word-wrap: break-word;">$1</strong>',
-        )
-        // Handle italic text
-        .replace(/<i>(.*?)<\/i>/gi, '<em style="font-style: italic; word-wrap: break-word;">$1</em>')
-        // Handle underline
-        .replace(
-          /<u>(.*?)<\/u>/gi,
-          '<span style="text-decoration: underline; word-wrap: break-word;">$1</span>',
-        )
-        // Handle lists
-        .replace(/<ul>/gi, '<div style="padding-left: 15px; word-wrap: break-word;">')
-        .replace(/<\/ul>/gi, '</div>')
-        .replace(/<li>/gi, '<div style="margin-bottom: 4px; word-wrap: break-word;">• ')
-        .replace(/<\/li>/gi, '</div>')
-        // Handle headings
-        .replace(
-          /<h1>(.*?)<\/h1>/gi,
-          '<div style="font-size: 16px; font-weight: bold; margin: 10px 0 5px 0; word-wrap: break-word;">$1</div>',
-        )
-        .replace(
-          /<h2>(.*?)<\/h2>/gi,
-          '<div style="font-size: 14px; font-weight: bold; margin: 8px 0 4px 0; word-wrap: break-word;">$1</div>',
-        )
-        .replace(
-          /<h3>(.*?)<\/h3>/gi,
-          '<div style="font-size: 12px; font-weight: bold; margin: 6px 0 3px 0; word-wrap: break-word;">$1</div>',
-        )
-        // Remove any unsafe tags
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-        // Ensure text wraps properly for long content
-        .replace(/([^>]+)/gi, (match) => {
-          // Wrap long text segments
-          return `<span style="word-wrap: break-word; overflow-wrap: break-word; white-space: normal;">${match}</span>`;
-        })
-        // Ensure proper spacing
-        .replace(/\s+/g, ' ')
-        .trim();
-
-      return formattedNotes;
-    } else {
-      // For WebView display (if needed separately)
-      return notes;
+        .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
+        .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>')
+        .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
+        .replace(/<ul>/gi, '<ul style="padding-left: 15px;">')
+        .replace(/<li>/gi, '<li style="margin-bottom: 4px;">');
+    } catch (error) {
+      return notes.replace(/\n/g, '<br>');
     }
-  } catch (error) {
-    console.error('Error rendering notes HTML:', error);
-    // Fallback with wrapping
-    return `<div style="word-wrap: break-word; overflow-wrap: break-word; white-space: normal;">${notes.replace(/\n/g, '<br>')}</div>`;
-  }
-};
+  };
 
 // Safe Phone Number Formatting
 const safeFormatPhoneNumber = phoneNumber => {
@@ -158,20 +105,20 @@ const Template1 = ({
     showNoTax,
   } = prepareTemplate8Data(transaction, company, party, actualShippingAddress);
   
-  console.log("template1 transaction:",transaction)
-  console.log("template1 company:",company)
-  console.log("template1 party:",party)
-  console.log("template1 shippingAddress:",shippingAddress)
+  // console.log("template1 transaction:",transaction)
+  // console.log("template1 company:",company)
+  // console.log("template1 party:",party)
+  // console.log("template1 shippingAddress:",shippingAddress)
 
-  console.log("Company State:", company?.addressState || company?.state);
-  console.log("Party State:", party?.state);
-  console.log("Shipping State:", shippingAddress?.state);
-  console.log("Is Interstate:", isInterstate);
-  console.log("Show IGST:", showIGST);
-  console.log("Show CGSTSGST:", showCGSTSGST);
-  console.log("Total IGST:", totalIGST);
-  console.log("Total CGST:", totalCGST);
-  console.log("Total SGST:", totalSGST);
+  // console.log("Company State:", company?.addressState || company?.state);
+  // console.log("Party State:", party?.state);
+  // console.log("Shipping State:", shippingAddress?.state);
+  // console.log("Is Interstate:", isInterstate);
+  // console.log("Show IGST:", showIGST);
+  // console.log("Show CGSTSGST:", showCGSTSGST);
+  // console.log("Total IGST:", totalIGST);
+  // console.log("Total CGST:", totalCGST);
+  // console.log("Total SGST:", totalSGST);
 
   const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
 
@@ -1052,7 +999,7 @@ const Template1 = ({
           /* Terms and Conditions - UPDATED */
          .terms-container {
   margin-top: 5px;
-  padding: 0;
+  // padding: 0;
   border-top: 1px solid #0371C1;
   font-size: 8px;
   overflow-wrap: break-word;
@@ -1060,6 +1007,7 @@ const Template1 = ({
   word-break: break-word;
   flex-grow: 1; /* Take available space */
   min-height: 0;
+  margin-left:-10px
 }
           
           .terms-content {
@@ -1601,8 +1549,8 @@ const Template1 = ({
                   ${
                     transaction?.notes
                       ? `
-                  <div class="terms-container" style="flex-grow: 1; margin-top: 10px;">
-                    <div class="terms-content" style="max-width: 100%;">
+                  <div class="terms-container" style="flex-grow: 1; margin-top: 10px; width:120%; ">
+                    <div class="terms-content" style="max-width: 100%; padding-left:20px;">
                       ${renderNotesHTML(transaction.notes)}
                     </div>
                   </div>

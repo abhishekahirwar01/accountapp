@@ -12,7 +12,8 @@ import {
 } from './pdf-utils';
 import { capitalizeWords, parseNotesHtml } from './utils';
 import { BASE_URL } from '../config';
-import RNHTMLtoPDF from 'react-native-html-to-pdf';
+import { generatePDF } from 'react-native-html-to-pdf';
+
 
 // --- Constants ---
 const PRIMARY_BLUE = '#0066cc';
@@ -25,53 +26,22 @@ const PAGE_HEIGHT = 842; // A4 height in points
 
 // HTML Notes Rendering Function
 const renderNotesHTML = notes => {
-  if (!notes) return '';
-
-  try {
-    let formattedNotes = notes
-      .replace(/\n/g, '<br>')
-      .replace(/<br\s*\/?>/gi, '<br>')
-      .replace(/<p>/gi, '<div style="margin-bottom: 8px;">')
-      .replace(/<\/p>/gi, '</div>')
-      .replace(
-        /<b>(.*?)<\/b>/gi,
-        '<strong style="font-weight: bold;">$1</strong>',
-      )
-      .replace(
-        /<strong>(.*?)<\/strong>/gi,
-        '<strong style="font-weight: bold;">$1</strong>',
-      )
-      .replace(/<i>(.*?)<\/i>/gi, '<em style="font-style: italic;">$1</em>')
-      .replace(
-        /<u>(.*?)<\/u>/gi,
-        '<span style="text-decoration: underline;">$1</span>',
-      )
-      .replace(/<ul>/gi, '<div style="padding-left: 15px;">')
-      .replace(/<\/ul>/gi, '</div>')
-      .replace(/<li>/gi, '<div style="margin-bottom: 4px;">• ')
-      .replace(/<\/li>/gi, '</div>')
-      .replace(
-        /<h1>(.*?)<\/h1>/gi,
-        '<div style="font-size: 14px; font-weight: bold; margin: 10px 0 5px 0; color: #0066cc;">$1</div>',
-      )
-      .replace(
-        /<h2>(.*?)<\/h2>/gi,
-        '<div style="font-size: 12px; font-weight: bold; margin: 8px 0 4px 0; color: #0066cc;">$1</div>',
-      )
-      .replace(
-        /<h3>(.*?)<\/h3>/gi,
-        '<div style="font-size: 11px; font-weight: bold; margin: 6px 0 3px 0; color: #0066cc;">$1</div>',
-      )
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-      .trim();
-
-    return formattedNotes;
-  } catch (error) {
-    console.error('Error rendering notes HTML:', error);
-    return notes.replace(/\n/g, '<br>');
-  }
-};
+    if (!notes) return '';
+    try {
+      return notes
+        .replace(/\n/g, '<br>')
+        .replace(/<br\s*\/?>/gi, '<br>')
+        .replace(/<p>/gi, '<div style="margin-bottom: 8px;">')
+        .replace(/<\/p>/gi, '</div>')
+        .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
+        .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>')
+        .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
+        .replace(/<ul>/gi, '<ul style="padding-left: 15px;">')
+        .replace(/<li>/gi, '<li style="margin-bottom: 4px;">');
+    } catch (error) {
+      return notes.replace(/\n/g, '<br>');
+    }
+  };
 
 // Safe Phone Number Formatting
 const safeFormatPhoneNumber = phoneNumber => {
@@ -96,12 +66,14 @@ const safeNumberToWords = amount => {
 
 // Main PDF Component
 const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
+  const actualShippingAddress = shippingAddress || transaction?.shippingAddress;
   const preparedData = prepareTemplate8Data(
     transaction,
     company,
     party,
-    shippingAddress,
+    actualShippingAddress,
   );
+  
 
   const {
     totalTaxable,
@@ -122,16 +94,16 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
   const shouldHideBankDetails = transaction.type === 'proforma';
 
   const COL_WIDTH_SR_NO = 25;
-  const COL_WIDTH_NAME = showIGST ? 130 : showCGSTSGST ? 110 : 195;
-  const COL_WIDTH_HSN = showIGST ? 55 : showCGSTSGST ? 45 : 65;
-  const COL_WIDTH_QTY = showIGST ? 45 : showCGSTSGST ? 35 : 55;
-  const COL_WIDTH_RATE = showIGST ? 58 : showCGSTSGST ? 48 : 70;
-  const COL_WIDTH_TAXABLE = showIGST ? 72 : showCGSTSGST ? 58 : 80;
-  const COL_WIDTH_GST_PCT_HALF = 35;
-  const COL_WIDTH_GST_AMT_HALF = 50;
-  const COL_WIDTH_IGST_PCT = 40;
-  const COL_WIDTH_IGST_AMT = 60;
-  const COL_WIDTH_TOTAL = showIGST ? 50 : showCGSTSGST ? 65 : 90;
+  const COL_WIDTH_NAME = showIGST ? 150 : showCGSTSGST ? 140 : 195;
+  const COL_WIDTH_HSN = showIGST ? 60 : showCGSTSGST ? 55 : 65;
+  const COL_WIDTH_QTY = showIGST ? 45 : showCGSTSGST ? 45 : 55;
+  const COL_WIDTH_RATE = showIGST ? 68 : showCGSTSGST ? 48 : 70;
+  const COL_WIDTH_TAXABLE = showIGST ? 100 : showCGSTSGST ? 88 : 80;
+  const COL_WIDTH_GST_PCT_HALF = 45;
+  const COL_WIDTH_GST_AMT_HALF = 70;
+  const COL_WIDTH_IGST_PCT = 60;
+  const COL_WIDTH_IGST_AMT = 90;
+  const COL_WIDTH_TOTAL = showIGST ? 130 : showCGSTSGST ? 105 : 90;
 
   const getColWidths = () => {
     let widths = [
@@ -199,7 +171,7 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
   const getAddressLines = address =>
     address ? address.split('\n').filter(line => line.trim() !== '') : [];
 
-  const bankData = bank || {};
+  const bankData = bank || transaction?.bank || {};
   const totalAmountRounded = Math.round(totalAmount);
   const amountInWords = safeNumberToWords(totalAmountRounded);
 
@@ -263,7 +235,7 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
     const companyName = company?.businessName || company?.companyName || '-';
     const partyAddress = getBillingAddress(party);
     const shippingAddressString = getShippingAddress(
-      shippingAddress,
+      actualShippingAddress,
       partyAddress,
     );
 
@@ -353,6 +325,8 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
             width: 70px;
             height: 70px;
             object-fit: contain;
+            margin-left:185px;
+            
           }
           
           .gray-color {
@@ -634,7 +608,8 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
           </div>
 
           <!-- Address Sections -->
-          <div style="display: flex; flex-direction: row; justify-content: space-between; margin-bottom: 10px; position: relative;">
+          <div style="display: flex; flex-direction: row; justify-content: space-between; position: relative;">
+          
             <div style="position: absolute; top: -6px; left: 0; right: 0; height: 1.5px; background-color: #007AFF;"></div>
 
             <div style="flex: 2; padding-right: 10px;">
@@ -692,7 +667,7 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
                 </div>
                 <div class="company-name gray-color" style="font-size: 9px;">
                   ${capitalizeWords(
-                    shippingAddress?.label || party?.name || ' ',
+                    actualShippingAddress?.label || party?.name || ' ',
                   )}
                 </div>
                 <div class="address-text gray-color" style="font-size: 9px; margin-bottom: 1px;">
@@ -704,7 +679,7 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
                     ${
                       company?.Country ||
                       getShippingAddress(
-                        shippingAddress,
+                        actualShippingAddress,
                         getBillingAddress(party),
                       )
                         ?.split(',')[4]
@@ -718,7 +693,7 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
                   <span class="bold-text">Phone: </span>
                   <span>
                     ${
-                      shippingAddress?.contactNumber
+                      actualShippingAddress?.contactNumber
                         ? safeFormatPhoneNumber(party?.contactNumber || '')
                         : party?.contactNumber
                         ? safeFormatPhoneNumber(party?.contactNumber || '')
@@ -736,9 +711,9 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
                   <span class="bold-text" style="font-size: 9px;">State: </span>
                   <span>
                     ${capitalizeWords(
-                      shippingAddress?.state
-                        ? `${shippingAddress.state} (${
-                            getStateCode(shippingAddress.state) || '-'
+                      actualShippingAddress?.state
+                        ? `${actualShippingAddress.state} (${
+                            getStateCode(actualShippingAddress.state) || '-'
                           })`
                         : party?.state
                         ? `${party.state} (${getStateCode(party.state) || '-'})`
@@ -786,6 +761,12 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
               `
                   : ''
               }
+              <div style="display: flex; flex-direction: row; justify-content: space-between; margin-bottom: 4px;">
+                <span style="font-size: 9px; ">Due Date:</span>
+                <span style="font-size: 9px; ">${formatDateSafe(
+                  transaction?.dueDate,
+                )}</span>
+              </div>
             </div>
           </div>
 
@@ -925,25 +906,76 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
               })
               .join('')}
 
-            <!-- Total Row -->
+            <!-- Total Row - UPDATED FOR PROPER ALIGNMENT -->
+                       <!-- Total Row - WITH "Taxable Total:" TEXT -->
             <div class="table-row light-gray-bg" style="border-bottom: 1px solid ${BORDER_COLOR};">
-              <div class="table-cell" style="width: ${
-                totalLabelWidth - colWidths[4] - colWidths[5]
-              }px; font-weight: bold; text-align: left; padding-left: 3px; border-right: 0.5px solid ${BORDER_COLOR};">
-                Total Items / Qty: ${totalItems} / ${totalQty}
-              </div>
-              <div class="table-cell" style="width: ${
-                colWidths[4] + colWidths[5]
-              }px; font-weight: bold; text-align: right; padding-right: 5px; border-right: ${
-      isGSTApplicable ? '0.5px solid ' + BORDER_COLOR : 'none'
-    };">
-                Taxable Total:
-              </div>
-              <div class="table-cell" style="width: ${
-                colWidths[totalColumnIndex]
-              }px; font-weight: bold; border-right: none; padding: 4px;">
-                ${formatCurrency(totalTaxable)}
-              </div>
+              
+              ${(() => {
+                // MANUAL ADJUSTMENT VALUES - Change these as needed:
+                const config = {
+                  // For positioning "Total Items / Qty"
+                  totalItemsAlign: 'left', // 'left', 'center', or 'right'
+                  totalItemsPadding: 10,   // Space from left edge
+                  
+                  // For positioning "Taxable Total:"
+                  taxableLabelAlign: 'right', // Aligns to the right of its column
+                  showTaxableLabel: true,     // Set to false to hide "Taxable Total:"
+                  
+                  // Column widths calculation
+                  // "Total Items / Qty" spans from column 0 to 4 (first 5 columns)
+                  totalItemsSpanColumns: 5,
+                  
+                  // "Taxable Total:" is in column 5 (Taxable Value column)
+                  taxableLabelColumn: 5
+                };
+                
+                // Calculate widths
+                const totalItemsWidth = colWidths.slice(0, config.totalItemsSpanColumns).reduce((sum, width) => sum + width, 0);
+                const taxableLabelWidth = colWidths[config.taxableLabelColumn];
+                
+                // Calculate remaining columns width (GST columns if applicable)
+                const remainingColumnsStart = config.taxableLabelColumn + 1;
+                const remainingColumnsWidth = colWidths.slice(remainingColumnsStart, totalColumnIndex).reduce((sum, width) => sum + width, 0);
+                
+                return `
+                  <!-- "Total Items / Qty" - spans first ${config.totalItemsSpanColumns} columns -->
+                  <div class="table-cell" style="width: ${totalItemsWidth}px; font-weight: bold; padding-left: ${config.totalItemsPadding}px; text-align: ${config.totalItemsAlign}; border-right: 0.5px solid ${BORDER_COLOR};">
+                    Total Items / Qty: ${totalItems} / ${totalQty}
+                  </div>
+                  
+                  <!-- "Taxable Total:" label in the Taxable Value column -->
+                  ${config.showTaxableLabel ? `
+                    <div class="table-cell" style="width: ${taxableLabelWidth}px; font-weight: bold; text-align: ${config.taxableLabelAlign}; border-right: ${isGSTApplicable ? '0.5px solid ' + BORDER_COLOR : 'none'};">
+                      Taxable Total:
+                    </div>
+                  ` : ''}
+                  
+                  <!-- Empty cells for GST columns (if applicable) -->
+                  ${
+                    isGSTApplicable
+                      ? showIGST
+                        ? `
+                          <div class="table-cell" style="width: ${colWidths[6]}px; border-right: 0.5px solid ${BORDER_COLOR};"></div>
+                          <div class="table-cell" style="width: ${colWidths[7]}px; border-right: 0.5px solid ${BORDER_COLOR};"></div>
+                        `
+                        : showCGSTSGST
+                        ? `
+                          <div class="table-cell" style="width: ${colWidths[6]}px; border-right: 0.5px solid ${BORDER_COLOR};"></div>
+                          <div class="table-cell" style="width: ${colWidths[7]}px; border-right: 0.5px solid ${BORDER_COLOR};"></div>
+                          <div class="table-cell" style="width: ${colWidths[8]}px; border-right: 0.5px solid ${BORDER_COLOR};"></div>
+                          <div class="table-cell" style="width: ${colWidths[9]}px; border-right: 0.5px solid ${BORDER_COLOR};"></div>
+                        `
+                        : ''
+                      : ''
+                  }
+                  
+                  <!-- Total taxable value in the last column -->
+                  <div class="table-cell" style="width: ${colWidths[totalColumnIndex]}px; font-weight: bold; border-right: none;">
+                    ${formatCurrency(totalTaxable)}
+                  </div>
+                `;
+              })()}
+              
             </div>
           </div>
 
@@ -983,18 +1015,18 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
               ? `
             <div class="tax-summary-table">
               <div class="tax-header">
-                <div class="tax-cell" style="width: 100px; border-right: 0.5px solid white;">HSN/SAC</div>
-                <div class="tax-cell" style="width: 150px; border-right: 0.5px solid white;">Taxable Value (Rs.)</div>
-                <div class="tax-cell" style="width: 50px; border-right: 0.5px solid white;">%</div>
+                <div class="tax-cell" style="width: 130px; border-right: 0.5px solid white;">HSN/SAC</div>
+                <div class="tax-cell" style="width: 170px; border-right: 0.5px solid white;">Taxable Value (Rs.)</div>
+                <div class="tax-cell" style="width: 70px; border-right: 0.5px solid white;">%</div>
                 ${
                   showIGST
                     ? `
-                  <div class="tax-cell" style="width: 120px; border-right: 0.5px solid white;">IGST (Rs.)</div>
-                  <div class="tax-cell" style="width: 135px; border-right: none;">Total (Rs.)</div>
+                  <div class="tax-cell" style="width: 160px; border-right: 0.5px solid white;">IGST (Rs.)</div>
+                  <div class="tax-cell" style="width: 175px; border-right: none;">Total (Rs.)</div>
                 `
                     : `
-                  <div class="tax-cell" style="width: 90px; border-right: 0.5px solid white;">CGST (Rs.)</div>
-                  <div class="tax-cell" style="width: 90px; border-right: 0.5px solid white;">SGST (Rs.)</div>
+                  <div class="tax-cell" style="width: 110px; border-right: 0.5px solid white;">CGST (Rs.)</div>
+                  <div class="tax-cell" style="width: 110px; border-right: 0.5px solid white;">SGST (Rs.)</div>
                   <div class="tax-cell" style="width: 75px; border-right: none;">Total (Rs.)</div>
                 `
                 }
@@ -1008,30 +1040,30 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
                     ? 'style="border-bottom: none;"'
                     : ''
                 }>
-                  <div class="tax-cell" style="width: 100px; text-align: center;">${
+                  <div class="tax-cell" style="width: 130px; text-align: center;">${
                     summary.hsn
                   }</div>
-                  <div class="tax-cell" style="width: 150px;">${formatCurrency(
+                  <div class="tax-cell" style="width: 170px;">${formatCurrency(
                     summary.taxableValue,
                   )}</div>
-                  <div class="tax-cell" style="width: 50px; text-align: center;">${summary.rate.toFixed(
+                  <div class="tax-cell" style="width: 70px; text-align: center;">${summary.rate.toFixed(
                     2,
                   )}</div>
                   ${
                     showIGST
                       ? `
-                    <div class="tax-cell" style="width: 120px;">${formatCurrency(
+                    <div class="tax-cell" style="width: 160px;">${formatCurrency(
                       summary.igst,
                     )}</div>
-                    <div class="tax-cell" style="width: 135px; border-right: none;">${formatCurrency(
+                    <div class="tax-cell" style="width: 175px; border-right: none;">${formatCurrency(
                       summary.total,
                     )}</div>
                   `
                       : `
-                    <div class="tax-cell" style="width: 90px;">${formatCurrency(
+                    <div class="tax-cell" style="width: 110px;">${formatCurrency(
                       summary.cgst,
                     )}</div>
-                    <div class="tax-cell" style="width: 90px;">${formatCurrency(
+                    <div class="tax-cell" style="width: 110px;">${formatCurrency(
                       summary.sgst,
                     )}</div>
                     <div class="tax-cell" style="width: 75px; border-right: none;">${formatCurrency(
@@ -1045,26 +1077,26 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
                 .join('')}
 
               <div class="tax-row light-gray-bg" style="border-bottom: none;">
-                <div class="tax-cell" style="width: 100px; font-weight: bold; text-align: center;">Total Tax</div>
-                <div class="tax-cell" style="width: 150px; font-weight: bold;">${formatCurrency(
+                <div class="tax-cell" style="width: 130px; font-weight: bold; text-align: center;">Total Tax</div>
+                <div class="tax-cell" style="width: 170px; font-weight: bold;">${formatCurrency(
                   totalTaxable,
                 )}</div>
-                <div class="tax-cell" style="width: 50px;"> </div>
+                <div class="tax-cell" style="width: 70px;"> </div>
                 ${
                   showIGST
                     ? `
-                  <div class="tax-cell" style="width: 120px; font-weight: bold;">${formatCurrency(
+                  <div class="tax-cell" style="width: 160px; font-weight: bold;">${formatCurrency(
                     totalIGST,
                   )}</div>
-                  <div class="tax-cell" style="width: 135px; font-weight: bold; border-right: none;">${formatCurrency(
+                  <div class="tax-cell" style="width: 175px; font-weight: bold; border-right: none;">${formatCurrency(
                     totalIGST,
                   )}</div>
                 `
                     : `
-                  <div class="tax-cell" style="width: 90px; font-weight: bold;">${formatCurrency(
+                  <div class="tax-cell" style="width: 110px; font-weight: bold;">${formatCurrency(
                     totalCGST,
                   )}</div>
-                  <div class="tax-cell" style="width: 90px; font-weight: bold;">${formatCurrency(
+                  <div class="tax-cell" style="width: 110px; font-weight: bold;">${formatCurrency(
                     totalSGST,
                   )}</div>
                   <div class="tax-cell" style="width: 75px; font-weight: bold; border-right: none;">${formatCurrency(
@@ -1078,117 +1110,122 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
               : ''
           }
 
-          <!-- Bank and Signature Section -->
-          <div class="qr-bank-section">
-            ${
-              !shouldHideBankDetails
-                ? `
-              <div class="bank-block">
-                <div class="section-title">Bank Details:</div>
-                <div style="margin-top: 2px;">
-                  ${
-                    bankData?.bankName
-                      ? `
-                    <div class="bank-row">
-                      <div class="bank-label">Name:</div>
-                      <div class="small-text">${capitalizeWords(
-                        bankData.bankName,
-                      )}</div>
-                    </div>
-                  `
-                      : ''
-                  }
+                   <!-- Bank and Signature Section  -->
+          <div class="qr-bank-section" style="display: flex; flex-direction: row; justify-content: space-between; margin-bottom: 6px; border: 1px solid ${BORDER_COLOR}; min-height: 90px;">
+            
+            <!-- Left side - Bank Details and QR Code (if available) -->
+            <div style="display: flex; flex-direction: row; flex: 1;">
+              ${
+                !shouldHideBankDetails && isBankDetailAvailable
+                  ? `
+                <div class="bank-block" style="flex: 1; padding: 5px; border-right: 1px solid ${BORDER_COLOR};">
+                  <div class="section-title">Bank Details:</div>
+                  <div style="margin-top: 2px;">
+                    ${
+                      bankData?.bankName
+                        ? `
+                      <div class="bank-row">
+                        <div class="bank-label">Name:</div>
+                        <div class="small-text">${capitalizeWords(
+                          bankData.bankName,
+                        )}</div>
+                      </div>
+                    `
+                        : ''
+                    }
 
-                  ${
-                    bankData?.accountNo
-                      ? `
-                    <div class="bank-row">
-                      <div class="bank-label">Acc. No:</div>
-                      <div class="small-text">${bankData.accountNo}</div>
-                    </div>
-                  `
-                      : ''
-                  }
+                    ${
+                      bankData?.accountNo
+                        ? `
+                      <div class="bank-row">
+                        <div class="bank-label">Acc. No:</div>
+                        <div class="small-text">${bankData.accountNo}</div>
+                      </div>
+                    `
+                        : ''
+                    }
 
-                  ${
-                    bankData?.ifscCode
-                      ? `
-                    <div class="bank-row">
-                      <div class="bank-label">IFSC:</div>
-                      <div class="small-text">${bankData.ifscCode}</div>
-                    </div>
-                  `
-                      : ''
-                  }
+                    ${
+                      bankData?.ifscCode
+                        ? `
+                      <div class="bank-row">
+                        <div class="bank-label">IFSC:</div>
+                        <div class="small-text">${bankData.ifscCode}</div>
+                      </div>
+                    `
+                        : ''
+                    }
 
-                  ${
-                    bankData?.branchAddress
-                      ? `
-                    <div class="bank-row">
-                      <div class="bank-label">Branch:</div>
-                      <div class="small-text">${bankData.branchAddress}</div>
-                    </div>
-                  `
-                      : ''
-                  }
+                    ${
+                      bankData?.branchAddress
+                        ? `
+                      <div class="bank-row">
+                        <div class="bank-label">Branch:</div>
+                        <div class="small-text">${bankData.branchAddress}</div>
+                      </div>
+                    `
+                        : ''
+                    }
 
-                  ${
-                    bankData?.upiDetails?.upiId
-                      ? `
-                    <div class="bank-row">
-                      <div class="bank-label">UPI ID:</div>
-                      <div class="small-text">${bankData.upiDetails.upiId}</div>
-                    </div>
-                  `
-                      : ''
-                  }
+                    ${
+                      bankData?.upiDetails?.upiId
+                        ? `
+                      <div class="bank-row">
+                        <div class="bank-label">UPI ID:</div>
+                        <div class="small-text">${bankData.upiDetails.upiId}</div>
+                      </div>
+                    `
+                        : ''
+                    }
 
-                  ${
-                    bankData?.upiDetails?.upiName
-                      ? `
-                    <div class="bank-row">
-                      <div class="bank-label">UPI Name:</div>
-                      <div class="small-text">${capitalizeWords(
-                        bankData.upiDetails.upiName,
-                      )}</div>
-                    </div>
-                  `
-                      : ''
-                  }
+                    ${
+                      bankData?.upiDetails?.upiName
+                        ? `
+                      <div class="bank-row">
+                        <div class="bank-label">UPI Name:</div>
+                        <div class="small-text">${capitalizeWords(
+                          bankData.upiDetails.upiName,
+                        )}</div>
+                      </div>
+                    `
+                        : ''
+                    }
 
-                  ${
-                    bankData?.upiDetails?.upiMobile
-                      ? `
-                    <div class="bank-row">
-                      <div class="bank-label">UPI Mobile:</div>
-                      <div class="small-text">${bankData.upiDetails.upiMobile}</div>
-                    </div>
-                  `
-                      : ''
-                  }
-                </div>
-              </div>
-            `
-                : ''
-            }
-
-            ${
-              !shouldHideBankDetails && bankData?.qrCode
-                ? `
-              <div class="qr-block">
-                <div style="align-items: center; justify-content: center; margin-top: 4px;">
-                  <div style="font-size: 9px; font-weight: bold;">QR Code</div>
-                  <div style="background-color: #fff;">
-                    <img src="${BASE_URL}${bankData.qrCode}" style="width: 80px; height: 80px; object-fit: contain;" />
+                    ${
+                      bankData?.upiDetails?.upiMobile
+                        ? `
+                      <div class="bank-row">
+                        <div class="bank-label">UPI Mobile:</div>
+                        <div class="small-text">${bankData.upiDetails.upiMobile}</div>
+                      </div>
+                    `
+                        : ''
+                    }
                   </div>
                 </div>
-              </div>
-            `
-                : ''
-            }
+              `
+                  : ''
+              }
 
-            <div class="signature-block" style="border-left: none; border-left-color: transparent; padding-left: 5px;">
-              <div class="section-title" style="text-align: center; font-size: 7px;">For ${companyName}</div>
+              ${
+                !shouldHideBankDetails && bankData?.qrCode
+                  ? `
+                <div class="qr-block" style="width: 25%; border-right: 1px solid ${BORDER_COLOR}; align-items: center; text-align: center; padding: 5px;">
+                  <div style="align-items: center; justify-content: center; margin-top: 4px;">
+                    <div style="font-size: 9px; font-weight: bold;">QR Code</div>
+                    <div style="background-color: #fff;">
+                      <img src="${BASE_URL}${bankData.qrCode}" style="width: 80px; height: 80px; object-fit: contain;" />
+                    </div>
+                  </div>
+                </div>
+              `
+                  : ''
+              }
+            </div>
+
+            <!-- Right side - Signature Block  -->
+            <div class="signature-block" style="width: 25%; min-width: 150px; border-left: 1px solid ${BORDER_COLOR}; padding: 5px; margin-left: auto;">
+              <div class="section-title" style="text-align: center; font-size: 7px; margin-bottom: 20px;">For ${companyName}</div>
 
               <div style="height: 40px; width: 100%; align-items: center; justify-content: center;"></div>
 
@@ -1203,7 +1240,7 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
             transaction?.notes
               ? `
             <div class="terms-section">
-              <div class="terms-content">
+              <div style="padding-left:10px; padding-top:5px;">
                 ${renderNotesHTML(transaction.notes)}
               </div>
             </div>
@@ -1248,7 +1285,7 @@ export const generatePdfForTemplate21 = async (
       height: PAGE_HEIGHT,
     };
 
-    const file = await RNHTMLtoPDF.convert(options);
+    const file = await generatePDF(options);
     return file;
   } catch (error) {
     console.error('Error generating PDF:', error);

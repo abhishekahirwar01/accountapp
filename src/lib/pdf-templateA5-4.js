@@ -1,45 +1,21 @@
 // pdf-templateA5.js
-import React from 'react';
-// Note: @react-pdf/renderer is not compatible with React Native
-// This file uses react-native-html-to-pdf instead
-// import {
-//   Document,
-//   Page,
-//   Text,
-//   View,
-//   StyleSheet,
-//   Image,
-//   pdf,
-// } from '@react-pdf/renderer';
+import { generatePDF } from 'react-native-html-to-pdf';
 import {
-  deriveTotals,
+  prepareTemplate8Data,
   formatCurrency,
   getBillingAddress,
   getShippingAddress,
-  getItemsBody,
-  calculateGST,
-  getUnifiedLines,
-  prepareTemplate8Data,
   getStateCode,
   numberToWords,
+  formatPhoneNumber,
+  formatQuantity,
   getHsnSummary,
 } from './pdf-utils';
-import { capitalizeWords, parseNotesHtml } from './utils';
-import { formatQuantity } from './pdf-utils';
-import { parseHtmlToElements, renderParsedElements } from './HtmlNoteRenderer';
-import { formatPhoneNumber } from './pdf-utils';
-import { templateA5_4Styles } from './pdf-template-styles';
 import { BASE_URL } from '../config';
+import { capitalizeWords } from './utils';
 
-const getClientName = client => {
-  if (!client) return 'Client Name';
-  if (typeof client === 'string') return client;
-  return client.companyName || client.contactName || 'Client Name';
-};
-
-const logo = '/assets/invoice-logos/R.png';
-
-const TemplateA5_4PDF = ({
+// --- Main Template Component ---
+const TemplateA5_4 = ({
   transaction,
   company,
   party,
@@ -47,6 +23,7 @@ const TemplateA5_4PDF = ({
   bank,
   client,
 }) => {
+  // Prepare data
   const {
     totals,
     totalTaxable,
@@ -67,12 +44,10 @@ const TemplateA5_4PDF = ({
   } = prepareTemplate8Data(transaction, company, party, shippingAddress);
 
   const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
-
+  
   const shouldHideBankDetails = transaction.type === 'proforma';
-
   const bankData = bank || {};
 
-  // Check if any bank detail is available
   const isBankDetailAvailable =
     bankData?.bankName ||
     bankData?.ifscCode ||
@@ -81,1441 +56,932 @@ const TemplateA5_4PDF = ({
     bankData?.accountNo ||
     bankData?.upiDetails?.upiId;
 
-  // For IGST (Interstate)
-  const colWidthsIGST = ['4%', '30%', '10%', '8%', '10%', '15%', '20%', '12%'];
-  const totalColumnIndexIGST = 7;
+  // Column widths based on tax type
+  const getColWidths = () => {
+    if (showIGST) {
+      return ['4%', '30%', '10%', '8%', '10%', '15%', '20%', '12%'];
+    } else if (showCGSTSGST) {
+      return ['4%', '30%', '10%', '8%', '10%', '12%', '12%', '12%', '15%'];
+    } else {
+      return ['10%', '25%', '10%', '10%', '10%', '15%', '20%'];
+    }
+  };
 
-  const itemsPerPage = itemsWithGST.length;
-  const pages = [];
-  for (let i = 0; i < itemsWithGST.length; i += itemsPerPage) {
-    pages.push(itemsWithGST.slice(i, i + itemsPerPage));
-  }
+  const colWidths = getColWidths();
+  const totalColumnIndex = showIGST ? 7 : showCGSTSGST ? 8 : 6;
 
-  // For CGST/SGST (Intrastate)
-  const colWidthsCGSTSGST = [
-    '4%',
-    '30%',
-    '10%',
-    '8%',
-    '10%',
-    '12%',
-    '12%',
-    '12%',
-    '15%',
-  ];
-  const totalColumnIndexCGSTSGST = 8;
+  // Helper functions
+  const safeFormatPhoneNumber = phoneNumber => {
+    try {
+      if (!phoneNumber) return '-';
+      return formatPhoneNumber(phoneNumber);
+    } catch (error) {
+      return phoneNumber || '-';
+    }
+  };
 
-  // For No Tax
-  const colWidthsNoTax = ['10%', '25%', '10%', '10%', '10%', '15%', '20%'];
-  const totalColumnIndexNoTax = 6;
+  const safeNumberToWords = amount => {
+    try {
+      return numberToWords(amount);
+    } catch (error) {
+      return `Rupees ${formatCurrency(amount)} Only`;
+    }
+  };
 
-  // Use based on condition
-  const colWidths = showIGST
-    ? colWidthsIGST
-    : showCGSTSGST
-    ? colWidthsCGSTSGST
-    : colWidthsNoTax;
-  const totalColumnIndex = showIGST
-    ? totalColumnIndexIGST
-    : showCGSTSGST
-    ? totalColumnIndexCGSTSGST
-    : totalColumnIndexNoTax;
+  const formatDateSafe = dateString => {
+    try {
+      if (!dateString) return '-';
+      return new Date(dateString).toLocaleDateString('en-IN');
+    } catch (error) {
+      return dateString || '-';
+    }
+  };
 
-  // Calculate table width in points
-  const tableWidth = showCGSTSGST ? 488 : showIGST ? 505 : 550;
+  // Render HTML notes
+  const renderNotesHTML = notes => {
+    if (!notes) return '';
+    try {
+      return notes
+        .replace(/\n/g, '<br>')
+        .replace(/<br\s*\/?>/gi, '<br>')
+        .replace(/<p>/gi, '<div style="margin-bottom: 4px;">')
+        .replace(/<\/p>/gi, '</div>')
+        .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
+        .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>')
+        .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
+        .replace(/<ul>/gi, '<ul style="padding-left: 12px;">')
+        .replace(/<li>/gi, '<li style="margin-bottom: 2px;">');
+    } catch (error) {
+      return notes.replace(/\n/g, '<br>');
+    }
+  };
 
-  // Calculate vertical border positions
-  const borderPositions = [];
-  let cumulative = 0;
-  for (let i = 0; i < colWidths.length - 1; i++) {
-    cumulative += parseFloat(colWidths[i]);
-    borderPositions.push((cumulative / 100) * tableWidth);
-  }
+  // Generate HTML
+  const generateHTML = () => {
+    // Generate item rows
+    const itemRows = itemsWithGST
+      .map((item, index) => {
+        let row = `
+        <tr style="border-bottom: 1px solid #bfbfbf;">
+          <td style="width: ${
+            colWidths[0]
+          }; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">${
+          index + 1
+        }</td>
+          <td style="width: ${
+            colWidths[1]
+          }; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf; text-align: left;">${capitalizeWords(
+          item.name,
+        )}</td>
+          <td style="width: ${
+            colWidths[2]
+          }; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">${
+          item.code || '-'
+        }</td>
+          <td style="width: ${
+            colWidths[3]
+          }; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">${
+          item.itemType === 'service'
+            ? '-'
+            : formatQuantity(item.quantity || 0, item.unit)
+        }</td>
+          <td style="width: ${
+            colWidths[4]
+          }; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">${formatCurrency(
+          item.pricePerUnit || 0,
+        )}</td>
+          <td style="width: ${
+            colWidths[5]
+          }; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf; background-color: rgba(3, 113, 193, 0.1);">${formatCurrency(
+          item.taxableValue,
+        )}</td>
+      `;
 
-  return (
-    <Document>
-      {pages.map((pageItems, pageIndex) => {
-        const isLastPage = pageIndex === pages.length - 1;
-        return (
-          <Page
-            key={pageIndex}
-            size="A5"
-            orientation="landscape"
-            style={templateA5_4Styles.page}
-          >
-            {/* Body - Items Table */}
-            <View style={templateA5_4Styles.section}>
-              {/* table three columns */}
-              <View style={templateA5_4Styles.threeColSection} fixed>
-                {/* Column 1 - Company details */}
-                <View
-                  style={[templateA5_4Styles.column, { borderLeft: 'none' }]}
-                >
-                  <View style={templateA5_4Styles.columnHeader}>
-                    <Text style={templateA5_4Styles.threecoltableHeader}>
-                      {capitalizeWords(
-                        company?.businessName ||
-                          company?.companyName ||
-                          'Company Name',
-                      )}
-                    </Text>
-                  </View>
-                  <View style={templateA5_4Styles.dataRow}>
-                    <Text style={templateA5_4Styles.tableLabel}>Address </Text>
-                    <Text style={templateA5_4Styles.tableValue}>
-                      {[
-                        company?.address,
-                        company?.City,
-                        company?.addressState,
-                        company?.Country,
-                        company?.Pincode,
-                      ]
-                        .filter(Boolean)
-                        .join(', ') || 'Address Line 1'}
-                    </Text>
-                  </View>
+        if (showIGST) {
+          row += `
+          <td style="width: ${
+            colWidths[6]
+          }; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">
+            <div>${item.gstRate.toFixed(2)}</div>
+            <div>${formatCurrency(item.igst)}</div>
+          </td>
+        `;
+        } else if (showCGSTSGST) {
+          row += `
+          <td style="width: ${
+            colWidths[6]
+          }; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">
+            <div>${(item.gstRate / 2).toFixed(2)}</div>
+            <div>${formatCurrency(item.cgst)}</div>
+          </td>
+          <td style="width: ${
+            colWidths[7]
+          }; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">
+            <div>${(item.gstRate / 2).toFixed(2)}</div>
+            <div>${formatCurrency(item.sgst)}</div>
+          </td>
+        `;
+        }
 
-                  <View style={templateA5_4Styles.dataRow}>
-                    <Text style={templateA5_4Styles.tableLabel}>Phone</Text>
-                    <Text style={templateA5_4Styles.tableValue}>
-                      {company?.mobileNumber
-                        ? formatPhoneNumber(String(company.mobileNumber))
-                        : company?.Telephone
-                        ? formatPhoneNumber(String(company.Telephone))
-                        : '-'}
-                    </Text>
-                  </View>
-                  <View style={templateA5_4Styles.dataRow}>
-                    <Text style={templateA5_4Styles.tableLabel}>GSTIN</Text>
-                    <Text style={templateA5_4Styles.tableValue}>
-                      {company?.gstin}
-                    </Text>
-                  </View>
-                  <View style={templateA5_4Styles.dataRow}>
-                    <Text style={templateA5_4Styles.tableLabel}>PAN</Text>
-                    <Text style={templateA5_4Styles.tableValue}>
-                      {company?.PANNumber}
-                    </Text>
-                  </View>
-                </View>
+        row += `
+          <td style="width: ${
+            colWidths[totalColumnIndex]
+          }; text-align: center; padding: 2px; font-size: 7px; font-weight: bold; background-color: rgba(3, 113, 193, 0.1);">${formatCurrency(
+          item.total,
+        )}</td>
+        </tr>
+      `;
 
-                {/* Column 2 - Invoice Details */}
-                <View
-                  style={[
-                    templateA5_4Styles.column,
-                    { flex: 1, borderRight: 'none' },
-                  ]}
-                >
-                  <View style={templateA5_4Styles.columnHeader}>
-                    <Text style={templateA5_4Styles.threecoltableHeader}>
-                      {transaction.type === 'proforma'
-                        ? 'PROFORMA INVOICE'
-                        : isGSTApplicable
-                        ? 'TAX INVOICE'
-                        : 'INVOICE'}
-                    </Text>
-                  </View>
+        return row;
+      })
+      .join('');
 
-                  <View
-                    style={[
-                      templateA5_4Styles.dataRow,
-                      { display: 'flex', gap: 10 },
-                    ]}
-                  >
-                    <Text
-                      style={[templateA5_4Styles.tableLabel, { flexShrink: 0 }]}
-                    >
-                      Invoice No.
-                    </Text>
-                    <Text style={[templateA5_4Styles.tableValue, { flex: 1 }]}>
-                      {transaction.invoiceNumber || 'N/A'}
-                    </Text>
-                  </View>
+    // Table header
+    let tableHeader = `
+      <tr style="background-color: #2583C6; color: white; font-weight: bold; font-size: 8px;">
+        <th style="width: ${colWidths[0]}; text-align: center; padding: 3px; border-right: 1px solid white;">Sr. No.</th>
+        <th style="width: ${colWidths[1]}; text-align: left; padding: 3px; border-right: 1px solid white;">Name of Product/Service</th>
+        <th style="width: ${colWidths[2]}; text-align: center; padding: 3px; border-right: 1px solid white;">HSN/SAC</th>
+        <th style="width: ${colWidths[3]}; text-align: center; padding: 3px; border-right: 1px solid white;">Qty</th>
+        <th style="width: ${colWidths[4]}; text-align: center; padding: 3px; border-right: 1px solid white;">Rate (Rs.)</th>
+        <th style="width: ${colWidths[5]}; text-align: center; padding: 3px; border-right: 1px solid white; background-color: rgba(3, 113, 193, 0.2);">Taxable Value (Rs.)</th>
+    `;
 
-                  <View
-                    style={[
-                      templateA5_4Styles.dataRow,
-                      { display: 'flex', gap: 10 },
-                    ]}
-                  >
-                    <Text
-                      style={[templateA5_4Styles.tableLabel, { flexShrink: 0 }]}
-                    >
-                      Invoice Date
-                    </Text>
-                    <Text style={[templateA5_4Styles.tableValue, { flex: 1 }]}>
-                      {new Date(transaction.date).toLocaleDateString('en-IN')}
-                    </Text>
-                  </View>
+    if (showIGST) {
+      tableHeader += `
+        <th style="width: ${colWidths[6]}; text-align: center; padding: 3px; border-right: 1px solid white;">
+          <div>IGST</div>
+          <div style="display: flex; border-top: 1px solid white; margin-top: 1px;">
+            <div style="flex: 1; text-align: center; border-right: 1px solid white;">%</div>
+            <div style="flex: 1; text-align: center;">Amount (Rs.)</div>
+          </div>
+        </th>
+      `;
+    } else if (showCGSTSGST) {
+      tableHeader += `
+        <th style="width: ${colWidths[6]}; text-align: center; padding: 3px; border-right: 1px solid white;">
+          <div>CGST</div>
+          <div style="display: flex; border-top: 1px solid white; margin-top: 1px;">
+            <div style="flex: 1; text-align: center; border-right: 1px solid white;">%</div>
+            <div style="flex: 1; text-align: center;">Amount (Rs.)</div>
+          </div>
+        </th>
+        <th style="width: ${colWidths[7]}; text-align: center; padding: 3px; border-right: 1px solid white;">
+          <div>SGST</div>
+          <div style="display: flex; border-top: 1px solid white; margin-top: 1px;">
+            <div style="flex: 1; text-align: center; border-right: 1px solid white;">%</div>
+            <div style="flex: 1; text-align: center;">Amount (Rs.)</div>
+          </div>
+        </th>
+      `;
+    }
 
-                  <View
-                    style={[
-                      templateA5_4Styles.dataRow,
-                      { display: 'flex', gap: 10 },
-                    ]}
-                  >
-                    <Text
-                      style={[templateA5_4Styles.tableLabel, { flexShrink: 0 }]}
-                    >
-                      Due Date
-                    </Text>
-                    <Text style={[templateA5_4Styles.tableValue, { flex: 1 }]}>
-                      {new Date(transaction.dueDate).toLocaleDateString(
-                        'en-IN',
-                      )}
-                    </Text>
-                  </View>
+    tableHeader += `
+        <th style="width: ${colWidths[totalColumnIndex]}; text-align: center; padding: 3px; background-color: rgba(3, 113, 193, 0.2);">Total (Rs.)</th>
+      </tr>
+    `;
 
-                  {/* Empty Space Rows */}
-                  <View
-                    style={[
-                      templateA5_4Styles.dataRow,
-                      { display: 'flex', gap: 10 },
-                    ]}
-                  >
-                    <Text style={templateA5_4Styles.tableLabel}></Text>
-                    <Text style={templateA5_4Styles.tableValue}></Text>
-                  </View>
-                  <View
-                    style={[
-                      templateA5_4Styles.dataRow,
-                      { display: 'flex', gap: 10 },
-                    ]}
-                  >
-                    <Text style={templateA5_4Styles.tableLabel}></Text>
-                    <Text style={templateA5_4Styles.tableValue}></Text>
-                  </View>
-                </View>
+    // Generate HSN Summary rows
+    const hsnSummary = getHsnSummary(itemsWithGST, showIGST, showCGSTSGST);
+    const hsnRows = hsnSummary
+      .map((hsnItem, index) => {
+        let row = `
+        <tr style="border-bottom: 1px solid #bfbfbf;">
+          <td style="width: 25%; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">${hsnItem.hsnCode}</td>
+          <td style="width: 20%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">${formatCurrency(
+            hsnItem.taxableValue,
+          )}</td>
+      `;
 
-                {/* Column 3 - Details of Buyer */}
-                <View style={[templateA5_4Styles.column]}>
-                  <View style={templateA5_4Styles.columnHeader}>
-                    <Text style={templateA5_4Styles.threecoltableHeader}>
-                      To, {capitalizeWords(party?.name || 'N/A')}
-                    </Text>
-                  </View>
-                  <View style={templateA5_4Styles.dataRow}>
-                    <Text style={templateA5_4Styles.tableLabel}>Address </Text>
-                    <Text style={templateA5_4Styles.tableValue}>
-                      {capitalizeWords(getBillingAddress(party)) || '-'}
-                    </Text>
-                  </View>
-                  <View style={templateA5_4Styles.dataRow}>
-                    <Text style={templateA5_4Styles.tableLabel}>Phone</Text>
-                    <Text style={templateA5_4Styles.tableValue}>
-                      {party?.contactNumber
-                        ? formatPhoneNumber(party.contactNumber)
-                        : '-'}
-                    </Text>
-                  </View>
-                  <View style={templateA5_4Styles.dataRow}>
-                    <Text style={templateA5_4Styles.tableLabel}>GSTIN</Text>
-                    <Text style={templateA5_4Styles.tableValue}>
-                      {party?.gstin || '-'}
-                    </Text>
-                  </View>
-                  <View style={templateA5_4Styles.dataRow}>
-                    <Text style={templateA5_4Styles.tableLabel}>PAN</Text>
-                    <Text style={templateA5_4Styles.tableValue}>
-                      {party?.pan || '-'}
-                    </Text>
-                  </View>
-                  <View style={templateA5_4Styles.dataRow}>
-                    <Text style={templateA5_4Styles.tableLabel}>
-                      Place of Supply
-                    </Text>
-                    <Text style={templateA5_4Styles.tableValue}>
-                      {shippingAddress?.state
-                        ? `${capitalizeWords(shippingAddress.state)} (${
-                            getStateCode(shippingAddress.state) || '-'
-                          })`
-                        : party?.state
-                        ? `${capitalizeWords(party.state)} (${
-                            getStateCode(party.state) || '-'
-                          })`
-                        : '-'}
-                    </Text>
-                  </View>
-                </View>
+        if (showIGST) {
+          row += `
+          <td style="width: 30%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">
+            <div>${hsnItem.taxRate}</div>
+            <div>${formatCurrency(hsnItem.taxAmount)}</div>
+          </td>
+        `;
+        } else if (showCGSTSGST) {
+          row += `
+          <td style="width: 22%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">
+            <div>${(hsnItem.taxRate / 2).toFixed(2)}</div>
+            <div>${formatCurrency(hsnItem.cgstAmount)}</div>
+          </td>
+          <td style="width: 22%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">
+            <div>${(hsnItem.taxRate / 2).toFixed(2)}</div>
+            <div>${formatCurrency(hsnItem.sgstAmount)}</div>
+          </td>
+        `;
+        }
 
-                {/* Column 4 - Details of Consigned */}
-                <View style={templateA5_4Styles.column}>
-                  <View style={templateA5_4Styles.columnHeader}>
-                    <Text style={templateA5_4Styles.threecoltableHeader}>
-                      Shipped To,{' '}
-                      {capitalizeWords(
-                        shippingAddress?.label || party?.name || 'N/A',
-                      )}
-                    </Text>
-                  </View>
+        row += `
+          <td style="width: ${
+            showIGST ? '25%' : showCGSTSGST ? '20%' : '30%'
+          }; text-align: center; padding: 2px; font-size: 7px; font-weight: bold; border-left: 1px solid #bfbfbf;">${formatCurrency(
+          hsnItem.total,
+        )}</td>
+        </tr>
+      `;
 
-                  <View style={templateA5_4Styles.dataRow}>
-                    <Text style={templateA5_4Styles.tableLabel}>Address </Text>
-                    <Text style={templateA5_4Styles.tableValue}>
-                      {capitalizeWords(
-                        getShippingAddress(
-                          shippingAddress,
-                          getBillingAddress(party),
-                        ),
-                      )}
-                    </Text>
-                  </View>
-                  <View style={templateA5_4Styles.dataRow}>
-                    <Text style={templateA5_4Styles.tableLabel}>Country</Text>
-                    <Text style={templateA5_4Styles.tableValue}>India</Text>
-                  </View>
-                  <View style={templateA5_4Styles.dataRow}>
-                    <Text style={templateA5_4Styles.tableLabel}>Phone</Text>
-                    <Text style={templateA5_4Styles.tableValue}>
-                      {shippingAddress?.contactNumber
-                        ? formatPhoneNumber(
-                            String(shippingAddress.contactNumber),
-                          )
-                        : party?.contactNumber
-                        ? formatPhoneNumber(String(party.contactNumber))
-                        : '-'}
-                    </Text>
-                  </View>
-                  <View style={templateA5_4Styles.dataRow}>
-                    <Text style={templateA5_4Styles.tableLabel}>GSTIN</Text>
-                    <Text style={templateA5_4Styles.tableValue}>
-                      {party?.gstin || '-'}
-                    </Text>
-                  </View>
-                  <View style={templateA5_4Styles.dataRow}>
-                    <Text style={templateA5_4Styles.tableLabel}>State</Text>
-                    <Text style={templateA5_4Styles.tableValue}>
-                      {shippingAddress?.state
-                        ? `${capitalizeWords(shippingAddress.state)} (${
-                            getStateCode(shippingAddress.state) || '-'
-                          })`
-                        : party?.state
-                        ? `${capitalizeWords(party.state)} (${
-                            getStateCode(party.state) || '-'
-                          })`
-                        : '-'}
-                    </Text>
-                  </View>
-                </View>
-              </View>
+        return row;
+      })
+      .join('');
 
-              {/* Items Table */}
-              <View style={templateA5_4Styles.tableContainer}>
-                <View style={templateA5_4Styles.itemsTable}>
-                  {/* Vertical borders */}
-                  {borderPositions.map((pos, index) => (
-                    <View
-                      key={index}
-                      style={[templateA5_4Styles.verticalBorder, { left: pos }]}
-                    />
-                  ))}
-
-                  {/* Colored backgrounds */}
-                  <View
-                    style={[
-                      templateA5_4Styles.columnBackground,
-                      {
-                        left: borderPositions[4],
-                        width: (parseFloat(colWidths[5]) / 100) * tableWidth,
-                        backgroundColor: 'rgba(3, 113, 193, 0.2)',
-                      },
-                    ]}
-                  />
-
-                  <View
-                    style={[
-                      templateA5_4Styles.columnBackground,
-                      {
-                        left: borderPositions[totalColumnIndex - 1],
-                        width:
-                          (parseFloat(colWidths[totalColumnIndex]) / 100) *
-                          tableWidth,
-                        backgroundColor: 'rgba(3, 113, 193, 0.2)',
-                      },
-                    ]}
-                  />
-                  {/* Table Header */}
-                  <View style={templateA5_4Styles.itemsTableHeader} fixed>
-                    <Text
-                      style={[
-                        templateA5_4Styles.srNoHeader,
-                        { width: colWidths[0] },
-                      ]}
-                    >
-                      Sr. No.
-                    </Text>
-                    <Text
-                      style={[
-                        templateA5_4Styles.productHeader,
-                        { width: colWidths[1] },
-                      ]}
-                    >
-                      Name of Product/Service
-                    </Text>
-                    <Text
-                      style={[
-                        templateA5_4Styles.hsnHeader,
-                        { width: colWidths[2] },
-                      ]}
-                    >
-                      HSN/SAC
-                    </Text>
-                    <Text
-                      style={[
-                        templateA5_4Styles.qtyHeader,
-                        { width: colWidths[3] },
-                      ]}
-                    >
-                      Qty
-                    </Text>
-                    <Text
-                      style={[
-                        templateA5_4Styles.rateHeader,
-                        { width: colWidths[4] },
-                      ]}
-                    >
-                      Rate (Rs.)
-                    </Text>
-                    <Text
-                      style={[
-                        templateA5_4Styles.taxableHeader,
-                        { width: colWidths[5] },
-                      ]}
-                    >
-                      Taxable Value (Rs.)
-                    </Text>
-
-                    {/* Dynamic GST columns */}
-                    {showIGST ? (
-                      <View
-                        style={[
-                          templateA5_4Styles.igstHeader,
-                          { width: colWidths[6] },
-                        ]}
-                      >
-                        <Text style={templateA5_4Styles.igstMainHeader}>
-                          IGST
-                        </Text>
-                        <View style={templateA5_4Styles.igstSubHeader}>
-                          <Text
-                            style={[
-                              templateA5_4Styles.igstSubPercentage,
-                              { borderRight: '1px solid #0371C1' },
-                            ]}
-                          >
-                            %
-                          </Text>
-                          <Text style={templateA5_4Styles.igstSubText}>
-                            Amount (Rs.)
-                          </Text>
-                        </View>
-                      </View>
-                    ) : showCGSTSGST ? (
-                      <>
-                        <View
-                          style={[
-                            templateA5_4Styles.igstHeader,
-                            { width: colWidths[6] },
-                          ]}
-                        >
-                          <Text style={templateA5_4Styles.igstMainHeader}>
-                            CGST
-                          </Text>
-                          <View style={templateA5_4Styles.igstSubHeader}>
-                            <Text
-                              style={[
-                                templateA5_4Styles.igstSubPercentage,
-                                { borderRight: '1px solid #0371C1' },
-                              ]}
-                            >
-                              %
-                            </Text>
-                            <Text style={templateA5_4Styles.igstSubText}>
-                              Amount (Rs.)
-                            </Text>
-                          </View>
-                        </View>
-                        <View
-                          style={[
-                            templateA5_4Styles.igstHeader,
-                            { width: colWidths[7] },
-                          ]}
-                        >
-                          <Text style={templateA5_4Styles.igstMainHeader}>
-                            SGST
-                          </Text>
-                          <View style={templateA5_4Styles.igstSubHeader}>
-                            <Text
-                              style={[
-                                templateA5_4Styles.igstSubPercentage,
-                                { borderRight: '1px solid #0371C1' },
-                              ]}
-                            >
-                              %
-                            </Text>
-                            <Text style={templateA5_4Styles.igstSubText}>
-                              Amount (Rs.)
-                            </Text>
-                          </View>
-                        </View>
-                      </>
-                    ) : null}
-
-                    <Text
-                      style={[
-                        templateA5_4Styles.totalHeader,
-                        { width: colWidths[totalColumnIndex] },
-                      ]}
-                    >
-                      Total (Rs.)
-                    </Text>
-                  </View>
-
-                  {pageItems.map((item, index) => (
-                    <View
-                      key={index}
-                      style={templateA5_4Styles.itemsTableRow}
-                      wrap={false}
-                    >
-                      <Text
-                        style={[
-                          templateA5_4Styles.srNoCell,
-                          { width: colWidths[0] },
-                        ]}
-                      >
-                        {pageIndex * itemsPerPage + index + 1}
-                      </Text>
-                      <Text
-                        style={[
-                          templateA5_4Styles.productCell,
-                          { width: colWidths[1] },
-                        ]}
-                      >
-                        {capitalizeWords(item.name)}
-                      </Text>
-                      <Text
-                        style={[
-                          templateA5_4Styles.hsnCell,
-                          { width: colWidths[2] },
-                        ]}
-                      >
-                        {item.code || '-'}
-                      </Text>
-                      <Text
-                        style={[
-                          templateA5_4Styles.qtyCell,
-                          { width: colWidths[3] },
-                        ]}
-                      >
-                        {item.itemType === 'service'
-                          ? '-'
-                          : formatQuantity(item.quantity || 0, item.unit)}
-                      </Text>
-                      <Text
-                        style={[
-                          templateA5_4Styles.rateCell,
-                          { width: colWidths[4] },
-                        ]}
-                      >
-                        {formatCurrency(item.pricePerUnit || 0)}
-                      </Text>
-                      <Text
-                        style={[
-                          templateA5_4Styles.taxableCell,
-                          { width: colWidths[5] },
-                        ]}
-                      >
-                        {formatCurrency(item.taxableValue)}
-                      </Text>
-                      {showIGST ? (
-                        <View
-                          style={[
-                            templateA5_4Styles.igstCell,
-                            { width: colWidths[6] },
-                          ]}
-                        >
-                          <Text style={templateA5_4Styles.igstPercent}>
-                            {item.gstRate}
-                          </Text>
-                          <Text style={templateA5_4Styles.igstAmount}>
-                            {formatCurrency(item.igst)}
-                          </Text>
-                        </View>
-                      ) : showCGSTSGST ? (
-                        <>
-                          <View
-                            style={[
-                              templateA5_4Styles.igstCell,
-                              { width: colWidths[6] },
-                            ]}
-                          >
-                            <Text style={templateA5_4Styles.igstPercent}>
-                              {item.gstRate / 2}
-                            </Text>
-                            <Text style={templateA5_4Styles.igstAmount}>
-                              {formatCurrency(item.cgst)}
-                            </Text>
-                          </View>
-                          <View
-                            style={[
-                              templateA5_4Styles.igstCell,
-                              { width: colWidths[7] },
-                            ]}
-                          >
-                            <Text style={templateA5_4Styles.igstPercent}>
-                              {item.gstRate / 2}
-                            </Text>
-                            <Text style={templateA5_4Styles.igstAmount}>
-                              {formatCurrency(item.sgst)}
-                            </Text>
-                          </View>
-                        </>
-                      ) : null}
-                      <Text
-                        style={[
-                          templateA5_4Styles.totalCell,
-                          { width: colWidths[totalColumnIndex] },
-                        ]}
-                      >
-                        {formatCurrency(item.total)}
-                      </Text>
-                    </View>
-                  ))}
-
-                  {isLastPage && (
-                    <View style={templateA5_4Styles.itemsTableTotalRow}>
-                      <Text
-                        style={[
-                          templateA5_4Styles.totalLabel,
-                          { width: colWidths[0] },
-                        ]}
-                      ></Text>
-                      <Text
-                        style={[
-                          templateA5_4Styles.totalEmpty,
-                          { width: colWidths[1] },
-                        ]}
-                      ></Text>
-                      <Text
-                        style={[
-                          templateA5_4Styles.totalEmpty,
-                          { width: colWidths[2] },
-                        ]}
-                      >
-                        Total
-                      </Text>
-                      <Text
-                        style={[
-                          templateA5_4Styles.totalQty,
-                          { width: colWidths[3] },
-                        ]}
-                      >
-                        {totalQty}
-                      </Text>
-                      <Text
-                        style={[
-                          templateA5_4Styles.totalEmpty,
-                          { width: colWidths[4] },
-                        ]}
-                      ></Text>
-                      <Text
-                        style={[
-                          templateA5_4Styles.totalTaxable,
-                          { width: colWidths[5] },
-                        ]}
-                      >
-                        {formatCurrency(totalTaxable)}
-                      </Text>
-                      {showIGST ? (
-                        <View
-                          style={[
-                            templateA5_4Styles.igstTotal,
-                            { width: colWidths[6], paddingRight: 10 },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              templateA5_4Styles.totalIgstAmount,
-                              { paddingRight: 10 },
-                            ]}
-                          >
-                            {formatCurrency(totalIGST)}
-                          </Text>
-                        </View>
-                      ) : showCGSTSGST ? (
-                        <>
-                          <View
-                            style={[
-                              templateA5_4Styles.igstTotal,
-                              { width: colWidths[6], paddingRight: 7 },
-                            ]}
-                          >
-                            <Text style={[templateA5_4Styles.totalIgstAmount]}>
-                              {formatCurrency(totalCGST)}
-                            </Text>
-                          </View>
-                          <View
-                            style={[
-                              templateA5_4Styles.igstTotal,
-                              { width: colWidths[7], paddingRight: 7 },
-                            ]}
-                          >
-                            <Text style={[templateA5_4Styles.totalIgstAmount]}>
-                              {formatCurrency(totalSGST)}
-                            </Text>
-                          </View>
-                        </>
-                      ) : null}
-                      <Text
-                        style={[
-                          templateA5_4Styles.grandTotal,
-                          { width: colWidths[totalColumnIndex] },
-                        ]}
-                      >
-                        {formatCurrency(totalAmount)}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-
-              {isLastPage && (
-                <>
-                  <View style={templateA5_4Styles.bottomSection}>
-                    {/* Left Column */}
-                    <View style={templateA5_4Styles.leftSection}>
-                      <Text style={templateA5_4Styles.totalInWords}>
-                        Total in words : {numberToWords(totalAmount)}
-                      </Text>
-
-                      {/* HSN/SAC Tax Table */}
-                      {isGSTApplicable && (
-                        <View style={templateA5_4Styles.hsnTaxTable}>
-                          {(() => {
-                            const hsnColWidths = showIGST
-                              ? ['25%', '20%', '30%', '25%']
-                              : showCGSTSGST
-                              ? ['18%', '20%', '22%', '22%', '20%']
-                              : ['40%', '30%', '30%'];
-
-                            const hsnTotalColumnIndex = showIGST
-                              ? 3
-                              : showCGSTSGST
-                              ? 4
-                              : 2;
-
-                            return (
-                              <>
-                                <View
-                                  style={templateA5_4Styles.hsnTaxTableHeader}
-                                  fixed
-                                >
-                                  <Text
-                                    style={[
-                                      templateA5_4Styles.hsnTaxHeaderCell,
-                                      { width: hsnColWidths[0] },
-                                    ]}
-                                  >
-                                    HSN / SAC
-                                  </Text>
-                                  <Text
-                                    style={[
-                                      templateA5_4Styles.hsnTaxHeaderCell,
-                                      { width: hsnColWidths[1] },
-                                    ]}
-                                  >
-                                    Taxable Value (Rs.)
-                                  </Text>
-
-                                  {showIGST ? (
-                                    <View
-                                      style={[
-                                        templateA5_4Styles.igstHeader,
-                                        { width: hsnColWidths[2] },
-                                      ]}
-                                    >
-                                      <Text
-                                        style={
-                                          templateA5_4Styles.igstMainHeader
-                                        }
-                                      >
-                                        IGST
-                                      </Text>
-                                      <View
-                                        style={templateA5_4Styles.igstSubHeader}
-                                      >
-                                        <Text
-                                          style={[
-                                            templateA5_4Styles.igstSubPercentage,
-                                            {
-                                              borderRight: '1px solid #0371C1',
-                                            },
-                                          ]}
-                                        >
-                                          %
-                                        </Text>
-                                        <Text
-                                          style={templateA5_4Styles.igstSubText}
-                                        >
-                                          Amount (Rs.)
-                                        </Text>
-                                      </View>
-                                    </View>
-                                  ) : showCGSTSGST ? (
-                                    <>
-                                      <View
-                                        style={[
-                                          templateA5_4Styles.igstHeader,
-                                          { width: hsnColWidths[2] },
-                                        ]}
-                                      >
-                                        <Text
-                                          style={
-                                            templateA5_4Styles.igstMainHeader
-                                          }
-                                        >
-                                          CGST
-                                        </Text>
-                                        <View
-                                          style={
-                                            templateA5_4Styles.igstSubHeader
-                                          }
-                                        >
-                                          <Text
-                                            style={[
-                                              templateA5_4Styles.igstSubPercentage,
-                                              {
-                                                borderRight:
-                                                  '1px solid #0371C1',
-                                              },
-                                            ]}
-                                          >
-                                            %
-                                          </Text>
-                                          <Text
-                                            style={
-                                              templateA5_4Styles.igstSubText
-                                            }
-                                          >
-                                            Amount (Rs.)
-                                          </Text>
-                                        </View>
-                                      </View>
-                                      <View
-                                        style={[
-                                          templateA5_4Styles.igstHeader,
-                                          { width: hsnColWidths[3] },
-                                        ]}
-                                      >
-                                        <Text
-                                          style={
-                                            templateA5_4Styles.igstMainHeader
-                                          }
-                                        >
-                                          SGST
-                                        </Text>
-                                        <View
-                                          style={
-                                            templateA5_4Styles.igstSubHeader
-                                          }
-                                        >
-                                          <Text
-                                            style={[
-                                              templateA5_4Styles.igstSubPercentage,
-                                              {
-                                                borderRight:
-                                                  '1px solid #0371C1',
-                                                borderLeft: '1px solid #0371C1',
-                                              },
-                                            ]}
-                                          >
-                                            %
-                                          </Text>
-                                          <Text
-                                            style={
-                                              templateA5_4Styles.igstSubText
-                                            }
-                                          >
-                                            Amount (Rs.)
-                                          </Text>
-                                        </View>
-                                      </View>
-                                    </>
-                                  ) : null}
-
-                                  <Text
-                                    style={[
-                                      templateA5_4Styles.hsnTaxHeaderCell,
-                                      {
-                                        width:
-                                          hsnColWidths[hsnTotalColumnIndex],
-                                        borderLeft: '1px solid #0371C1',
-                                        borderRight: 'none',
-                                      },
-                                    ]}
-                                  >
-                                    Total (Rs.)
-                                  </Text>
-                                </View>
-
-                                {getHsnSummary(
-                                  itemsWithGST,
-                                  showIGST,
-                                  showCGSTSGST,
-                                ).map((hsnItem, index, arr) => (
-                                  <View
-                                    key={index}
-                                    style={templateA5_4Styles.hsnTaxTableRow}
-                                    wrap={false}
-                                  >
-                                    <Text
-                                      style={[
-                                        templateA5_4Styles.hsnTaxCell,
-                                        { width: hsnColWidths[0] },
-                                      ]}
-                                    >
-                                      {hsnItem.hsnCode}
-                                    </Text>
-                                    <Text
-                                      style={[
-                                        templateA5_4Styles.hsnTaxCell,
-                                        { width: hsnColWidths[1] },
-                                      ]}
-                                    >
-                                      {formatCurrency(hsnItem.taxableValue)}
-                                    </Text>
-
-                                    {showIGST ? (
-                                      <View
-                                        style={[
-                                          templateA5_4Styles.igstCell,
-                                          { width: hsnColWidths[2] },
-                                        ]}
-                                      >
-                                        <Text
-                                          style={templateA5_4Styles.igstPercent}
-                                        >
-                                          {hsnItem.taxRate}
-                                        </Text>
-                                        <Text
-                                          style={templateA5_4Styles.igstAmount}
-                                        >
-                                          {formatCurrency(hsnItem.taxAmount)}
-                                        </Text>
-                                      </View>
-                                    ) : showCGSTSGST ? (
-                                      <>
-                                        <View
-                                          style={[
-                                            templateA5_4Styles.igstCell,
-                                            { width: hsnColWidths[2] },
-                                            {
-                                              borderRight: '1px solid #0371C1',
-                                            },
-                                          ]}
-                                        >
-                                          <Text
-                                            style={
-                                              templateA5_4Styles.igstPercent
-                                            }
-                                          >
-                                            {hsnItem.taxRate / 2}
-                                          </Text>
-                                          <Text
-                                            style={[
-                                              templateA5_4Styles.igstAmount,
-                                            ]}
-                                          >
-                                            {formatCurrency(hsnItem.cgstAmount)}
-                                          </Text>
-                                        </View>
-                                        <View
-                                          style={[
-                                            templateA5_4Styles.igstCell,
-                                            { width: hsnColWidths[3] },
-                                          ]}
-                                        >
-                                          <Text
-                                            style={[
-                                              templateA5_4Styles.igstPercent,
-                                            ]}
-                                          >
-                                            {hsnItem.taxRate / 2}
-                                          </Text>
-                                          <Text
-                                            style={
-                                              templateA5_4Styles.igstAmount
-                                            }
-                                          >
-                                            {formatCurrency(hsnItem.sgstAmount)}
-                                          </Text>
-                                        </View>
-                                      </>
-                                    ) : null}
-
-                                    <Text
-                                      style={[
-                                        templateA5_4Styles.hsnTaxCell,
-                                        {
-                                          width:
-                                            hsnColWidths[hsnTotalColumnIndex],
-                                          borderLeft: '1px solid #0371C1',
-                                          borderRight: 'none',
-                                        },
-                                      ]}
-                                    >
-                                      {formatCurrency(hsnItem.total)}
-                                    </Text>
-                                  </View>
-                                ))}
-
-                                <View
-                                  style={templateA5_4Styles.hsnTaxTableTotalRow}
-                                >
-                                  <Text
-                                    style={[
-                                      templateA5_4Styles.hsnTaxTotalCell,
-                                      { width: hsnColWidths[0] },
-                                    ]}
-                                  >
-                                    Total
-                                  </Text>
-                                  <Text
-                                    style={[
-                                      templateA5_4Styles.hsnTaxTotalCell,
-                                      { width: hsnColWidths[1] },
-                                    ]}
-                                  >
-                                    {formatCurrency(totalTaxable)}
-                                  </Text>
-
-                                  {showIGST ? (
-                                    <View
-                                      style={[
-                                        templateA5_4Styles.igstTotal,
-                                        { width: hsnColWidths[2] },
-                                      ]}
-                                    >
-                                      <Text
-                                        style={[
-                                          templateA5_4Styles.totalIgstAmount,
-                                          { paddingRight: 18 },
-                                        ]}
-                                      >
-                                        {formatCurrency(totalIGST)}
-                                      </Text>
-                                    </View>
-                                  ) : showCGSTSGST ? (
-                                    <>
-                                      <View
-                                        style={[
-                                          templateA5_4Styles.igstTotal,
-                                          {
-                                            width: hsnColWidths[2],
-                                            paddingRight: 8,
-                                            borderRight: '1px solid #0371C1',
-                                          },
-                                        ]}
-                                      >
-                                        <Text
-                                          style={[
-                                            templateA5_4Styles.totalIgstAmount,
-                                          ]}
-                                        >
-                                          {formatCurrency(totalCGST)}
-                                        </Text>
-                                      </View>
-                                      <View
-                                        style={[
-                                          templateA5_4Styles.igstTotal,
-                                          {
-                                            width: hsnColWidths[3],
-                                            paddingRight: 8,
-                                          },
-                                        ]}
-                                      >
-                                        <Text
-                                          style={[
-                                            templateA5_4Styles.totalIgstAmount,
-                                          ]}
-                                        >
-                                          {formatCurrency(totalSGST)}
-                                        </Text>
-                                      </View>
-                                    </>
-                                  ) : null}
-
-                                  <Text
-                                    style={[
-                                      templateA5_4Styles.hsnTaxTotalCell,
-                                      {
-                                        width:
-                                          hsnColWidths[hsnTotalColumnIndex],
-                                        borderLeft: '1px solid #0371C1',
-                                        borderRight: 0,
-                                      },
-                                    ]}
-                                  >
-                                    {formatCurrency(totalAmount)}
-                                  </Text>
-                                </View>
-                              </>
-                            );
-                          })()}
-                        </View>
-                      )}
-                    </View>
-
-                    {/* Right Column: Totals */}
-                    <View style={templateA5_4Styles.rightSection}>
-                      <View style={templateA5_4Styles.totalRow}>
-                        <Text style={templateA5_4Styles.label}>
-                          Taxable Amount
-                        </Text>
-                        <Text style={templateA5_4Styles.value}>
-                          {`Rs.${formatCurrency(totalTaxable)}`}
-                        </Text>
-                      </View>
-
-                      {isGSTApplicable && (
-                        <View style={templateA5_4Styles.totalRow}>
-                          <Text style={templateA5_4Styles.label}>
-                            Total Tax
-                          </Text>
-                          <Text style={templateA5_4Styles.value}>
-                            {`Rs.${formatCurrency(
-                              showIGST ? totalIGST : totalCGST + totalSGST,
-                            )}`}
-                          </Text>
-                        </View>
-                      )}
-
-                      <View
-                        style={[
-                          templateA5_4Styles.totalRow,
-                          isGSTApplicable
-                            ? templateA5_4Styles.highlightRow
-                            : {},
-                        ]}
-                      >
-                        <Text
-                          style={
-                            isGSTApplicable
-                              ? templateA5_4Styles.labelBold
-                              : templateA5_4Styles.label
-                          }
-                        >
-                          {isGSTApplicable
-                            ? 'Total Amount After Tax'
-                            : 'Total Amount'}
-                        </Text>
-                        <Text
-                          style={
-                            isGSTApplicable
-                              ? templateA5_4Styles.valueBold
-                              : templateA5_4Styles.value
-                          }
-                        >
-                          {`Rs.${formatCurrency(totalAmount)}`}
-                        </Text>
-                      </View>
-
-                      <View style={templateA5_4Styles.totalRow}>
-                        <Text style={templateA5_4Styles.label}>
-                          For{' '}
-                          {capitalizeWords(
-                            company?.businessName ||
-                              company?.companyName ||
-                              'Company Name',
-                          )}
-                        </Text>
-                        <Text style={templateA5_4Styles.value}>(E & O.E.)</Text>
-                      </View>
-
-                      {/* Bank Details Section */}
-                      {transaction.type !== 'proforma' &&
-                        isBankDetailAvailable && (
-                          <View style={{ padding: 5 }} wrap={false}>
-                            <View
-                              style={{
-                                display: 'flex',
-                                flexDirection: 'row',
-                                justifyContent: 'space-between',
-                                alignItems: 'flex-start',
-                              }}
-                            >
-                              {/* Bank Details Text */}
-                              {!shouldHideBankDetails && (
-                                <>
-                                  <View style={{ flex: 1 }}>
-                                    <Text
-                                      style={{
-                                        fontSize: 9,
-                                        fontWeight: 'bold',
-                                        marginBottom: 5,
-                                      }}
-                                    >
-                                      Bank Details:
-                                    </Text>
-
-                                    <View>
-                                      {/* Bank Name */}
-                                      {bankData?.bankName && (
-                                        <View
-                                          style={{
-                                            flexDirection: 'row',
-                                            marginBottom: 2,
-                                            fontSize: 8,
-                                          }}
-                                        >
-                                          <Text
-                                            style={{
-                                              width: 70,
-                                              fontWeight: 'bold',
-                                            }}
-                                          >
-                                            Name:
-                                          </Text>
-                                          <Text>
-                                            {capitalizeWords(bankData.bankName)}
-                                          </Text>
-                                        </View>
-                                      )}
-
-                                      {/* Account Number */}
-                                      {bankData?.accountNo && (
-                                        <View
-                                          style={{
-                                            flexDirection: 'row',
-                                            marginBottom: 2,
-                                            fontSize: 8,
-                                          }}
-                                        >
-                                          <Text
-                                            style={{
-                                              width: 70,
-                                              fontWeight: 'bold',
-                                            }}
-                                          >
-                                            Acc. No:
-                                          </Text>
-                                          <Text>{bankData.accountNo}</Text>
-                                        </View>
-                                      )}
-                                      {/* IFSC Code */}
-                                      {bankData?.ifscCode && (
-                                        <View
-                                          style={{
-                                            flexDirection: 'row',
-                                            marginBottom: 2,
-                                            fontSize: 8,
-                                          }}
-                                        >
-                                          <Text
-                                            style={{
-                                              width: 70,
-                                              fontWeight: 'bold',
-                                            }}
-                                          >
-                                            IFSC:
-                                          </Text>
-                                          <Text>{bankData.ifscCode}</Text>
-                                        </View>
-                                      )}
-                                      {bankData?.branchAddress && (
-                                        <View
-                                          style={{
-                                            flexDirection: 'row',
-                                            marginBottom: 2,
-                                            fontSize: 8,
-                                          }}
-                                        >
-                                          <Text
-                                            style={{
-                                              width: 70,
-                                              fontWeight: 'bold',
-                                            }}
-                                          >
-                                            Branch:
-                                          </Text>
-                                          <Text style={{ flex: 1 }}>
-                                            {bankData.branchAddress}
-                                          </Text>
-                                        </View>
-                                      )}
-
-                                      {/* UPI ID */}
-                                      {bankData?.upiDetails?.upiId && (
-                                        <View
-                                          style={{
-                                            flexDirection: 'row',
-                                            marginBottom: 2,
-                                            fontSize: 8,
-                                          }}
-                                        >
-                                          <Text
-                                            style={{
-                                              width: 70,
-                                              fontWeight: 'bold',
-                                            }}
-                                          >
-                                            UPI ID:
-                                          </Text>
-                                          <Text>
-                                            {bankData.upiDetails.upiId}
-                                          </Text>
-                                        </View>
-                                      )}
-                                      {/* UPI Name */}
-                                      {bankData?.upiDetails?.upiName && (
-                                        <View
-                                          style={{
-                                            flexDirection: 'row',
-                                            marginBottom: 2,
-                                            fontSize: 8,
-                                          }}
-                                        >
-                                          <Text
-                                            style={{
-                                              width: 70,
-                                              fontWeight: 'bold',
-                                            }}
-                                          >
-                                            UPI Name:
-                                          </Text>
-                                          <Text>
-                                            {bankData.upiDetails.upiName}
-                                          </Text>
-                                        </View>
-                                      )}
-
-                                      {/* UPI Mobile */}
-                                      {bankData?.upiDetails?.upiMobile && (
-                                        <View
-                                          style={{
-                                            flexDirection: 'row',
-                                            marginBottom: 2,
-                                            fontSize: 8,
-                                          }}
-                                        >
-                                          <Text
-                                            style={{
-                                              width: 70,
-                                              fontWeight: 'bold',
-                                            }}
-                                          >
-                                            UPI Mobile:
-                                          </Text>
-                                          <Text>
-                                            {bankData.upiDetails.upiMobile}
-                                          </Text>
-                                        </View>
-                                      )}
-                                    </View>
-                                  </View>
-
-                                  {/* QR Code Section */}
-                                  {bankData?.qrCode ? (
-                                    <View
-                                      style={{
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        padding: 5,
-                                        marginLeft: 10,
-                                      }}
-                                    >
-                                      <Text
-                                        style={{
-                                          fontSize: 9,
-                                          fontWeight: 'bold',
-                                          marginBottom: 5,
-                                        }}
-                                      >
-                                        QR Code
-                                      </Text>
-                                      <View
-                                        style={{
-                                          backgroundColor: '#fff',
-                                        }}
-                                      >
-                                        <Image
-                                          src={`${BASE_URL}/${bankData.qrCode}`}
-                                          style={{
-                                            width: 70,
-                                            height: 70,
-                                            objectFit: 'contain',
-                                          }}
-                                        />
-                                      </View>
-                                    </View>
-                                  ) : null}
-                                </>
-                              )}
-                            </View>
-                          </View>
-                        )}
-                    </View>
-                  </View>
-
-                  {/* Terms and Conditions Section */}
-                  {transaction?.notes ? (
-                    <View
-                      style={[
-                        templateA5_4Styles.termsBox,
-                        {
-                          borderBottom: 0,
-                          borderLeft: '1pt solid #0371C1',
-                          borderRight: '1pt solid #0371C1',
-                        },
-                      ]}
-                      wrap={false}
-                    >
-                      <Text
-                        style={[
-                          templateA5_4Styles.termLine,
-                          { fontWeight: 'bold' },
-                        ]}
-                      ></Text>
-
-                      <>
-                        {renderParsedElements(
-                          parseHtmlToElements(transaction.notes, 7),
-                          7,
-                        )}
-                      </>
-                    </View>
-                  ) : null}
-
-                  {/* Table Bottom Border on Each Page */}
-                  <View
-                    fixed
-                    style={{
-                      height: 1,
-                      backgroundColor: '#0371C1',
-                      width: '100%',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  />
-                </>
-              )}
-            </View>
-
-            {/* Page Number */}
-            <Text
-              fixed
-              style={templateA5_4Styles.pageNumber}
-              render={({ pageNumber, totalPages }) =>
-                `${pageNumber} / ${totalPages} page`
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+          }
+          
+          body {
+            font-family: Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 10px;
+            color: #000;
+            font-size: 10px;
+            line-height: 1.1;
+          }
+          
+          .page {
+            position: relative;
+            min-height: 100vh;
+          }
+          
+          /* Four Column Layout */
+          .four-columns {
+            display: flex;
+            border: 1px solid #0371C1;
+            margin-bottom: 10px;
+          }
+          
+          .column {
+            flex: 1;
+            border-right: 1px solid #0371C1;
+            padding: 5px;
+            min-height: 120px;
+          }
+          
+          .column:last-child {
+            border-right: none;
+          }
+          
+          .column-header {
+            background-color: #0371C1;
+            color: white;
+            padding: 2px 5px;
+            margin: -5px -5px 5px -5px;
+            font-weight: bold;
+            font-size: 9px;
+            text-align: center;
+          }
+          
+          .data-row {
+            display: flex;
+            margin-bottom: 2px;
+            font-size: 8px;
+          }
+          
+          .table-label {
+            width: 50px;
+            font-weight: bold;
+            flex-shrink: 0;
+          }
+          
+          .table-value {
+            flex: 1;
+            margin-left: 5px;
+          }
+          
+          /* Table Styles */
+          .items-table {
+            width: 100%;
+            border: 1px solid #0371C1;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+          }
+          
+          .items-table th,
+          .items-table td {
+            border: 1px solid #0371C1;
+            padding: 2px;
+            font-size: 7px;
+          }
+          
+          /* Bottom Section */
+          .bottom-section {
+            display: flex;
+            margin-bottom: 10px;
+          }
+          
+          .left-section {
+            flex: 2;
+            padding-right: 10px;
+          }
+          
+          .right-section {
+            flex: 1;
+            border-left: 1px solid #0371C1;
+            padding-left: 10px;
+          }
+          
+          .total-in-words {
+            font-size: 8px;
+            margin-bottom: 8px;
+            font-weight: bold;
+          }
+          
+          /* HSN Tax Table */
+          .hsn-tax-table {
+            border: 1px solid #0371C1;
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 10px;
+          }
+          
+          .hsn-tax-table th,
+          .hsn-tax-table td {
+            border: 1px solid #0371C1;
+            padding: 2px;
+            font-size: 7px;
+          }
+          
+          .hsn-tax-header-cell {
+            background-color: #0371C1;
+            color: white;
+            text-align: center;
+            font-weight: bold;
+            padding: 3px;
+          }
+          
+          .hsn-tax-cell {
+            text-align: center;
+            padding: 2px;
+          }
+          
+          /* Total Rows */
+          .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3px;
+            font-size: 9px;
+          }
+          
+          .label {
+            font-weight: normal;
+          }
+          
+          .value {
+            font-weight: normal;
+          }
+          
+          .highlight-row {
+            border-top: 1px solid #0371C1;
+            border-bottom: 1px solid #0371C1;
+            padding: 2px 0;
+            margin: 4px 0;
+            font-weight: bold;
+          }
+          
+          .label-bold {
+            font-weight: bold;
+          }
+          
+          .value-bold {
+            font-weight: bold;
+          }
+          
+          /* Bank Details */
+          .bank-details {
+            font-size: 8px;
+            margin-top: 10px;
+          }
+          
+          .bank-row {
+            display: flex;
+            margin-bottom: 1px;
+          }
+          
+          .bank-label {
+            width: 60px;
+            font-weight: bold;
+            flex-shrink: 0;
+          }
+          
+          .qr-code {
+            width: 70px;
+            height: 70px;
+            object-fit: contain;
+          }
+          
+          /* Terms Section */
+          .terms-box {
+            border: 1px solid #0371C1;
+            border-top: none;
+            padding: 5px;
+            font-size: 7px;
+            line-height: 1.2;
+            margin-bottom: 10px;
+          }
+          
+          /* Page Number */
+          .page-number {
+            position: absolute;
+            bottom: 5px;
+            right: 10px;
+            font-size: 7px;
+            text-align: right;
+          }
+          
+          /* Utility Classes */
+          .bold {
+            font-weight: bold;
+          }
+          
+          .text-center {
+            text-align: center;
+          }
+          
+          .text-right {
+            text-align: right;
+          }
+          
+          .mb-2 {
+            margin-bottom: 2px;
+          }
+          
+          .mb-5 {
+            margin-bottom: 5px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="page">
+          <!-- Invoice Title -->
+          <div style="text-align: center; margin-bottom: 8px;">
+            <h2 style="color: #0371C1; font-size: 14px; margin-bottom: 5px;">
+              ${
+                transaction.type === 'proforma'
+                  ? 'PROFORMA INVOICE'
+                  : isGSTApplicable
+                  ? 'TAX INVOICE'
+                  : 'INVOICE'
               }
-            />
-          </Page>
-        );
-      })}
-    </Document>
-  );
+            </h2>
+          </div>
+          
+          <!-- Four Column Section -->
+          <div class="four-columns">
+            <!-- Column 1: Company Details -->
+            <div class="column">
+              <div class="column-header">
+                ${capitalizeWords(
+                  company?.businessName || company?.companyName || 'Company Name',
+                )}
+              </div>
+              <div class="data-row">
+                <div class="table-label">Address</div>
+                <div class="table-value">${[
+                  company?.address,
+                  company?.City,
+                  company?.addressState,
+                  company?.Country,
+                  company?.Pincode,
+                ]
+                  .filter(Boolean)
+                  .join(', ') || 'Address Line 1'}</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">Phone</div>
+                <div class="table-value">${safeFormatPhoneNumber(
+                  company?.mobileNumber || company?.Telephone,
+                )}</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">GSTIN</div>
+                <div class="table-value">${company?.gstin || '-'}</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">PAN</div>
+                <div class="table-value">${company?.PANNumber || '-'}</div>
+              </div>
+            </div>
+            
+            <!-- Column 2: Invoice Details -->
+            <div class="column">
+              <div class="column-header">
+                ${transaction.type === 'proforma'
+                  ? 'PROFORMA INVOICE'
+                  : isGSTApplicable
+                  ? 'TAX INVOICE'
+                  : 'INVOICE'}
+              </div>
+              <div class="data-row">
+                <div class="table-label">Invoice No.</div>
+                <div class="table-value">${transaction.invoiceNumber || 'N/A'}</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">Invoice Date</div>
+                <div class="table-value">${formatDateSafe(transaction.date)}</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">Due Date</div>
+                <div class="table-value">${formatDateSafe(transaction.dueDate)}</div>
+              </div>
+            </div>
+            
+            <!-- Column 3: Buyer Details -->
+            <div class="column">
+              <div class="column-header">
+                To, ${capitalizeWords(party?.name || 'N/A')}
+              </div>
+              <div class="data-row">
+                <div class="table-label">Address</div>
+                <div class="table-value">${capitalizeWords(
+                  getBillingAddress(party),
+                ) || '-'}</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">Phone</div>
+                <div class="table-value">${safeFormatPhoneNumber(
+                  party?.contactNumber,
+                )}</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">GSTIN</div>
+                <div class="table-value">${party?.gstin || '-'}</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">PAN</div>
+                <div class="table-value">${party?.pan || '-'}</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">Place of Supply</div>
+                <div class="table-value">${
+                  shippingAddress?.state
+                    ? `${capitalizeWords(shippingAddress.state)} (${
+                        getStateCode(shippingAddress.state) || '-'
+                      })`
+                    : party?.state
+                    ? `${capitalizeWords(party.state)} (${
+                        getStateCode(party.state) || '-'
+                      })`
+                    : '-'
+                }</div>
+              </div>
+            </div>
+            
+            <!-- Column 4: Consigned Details -->
+            <div class="column">
+              <div class="column-header">
+                Shipped To, ${capitalizeWords(
+                  shippingAddress?.label || party?.name || 'N/A',
+                )}
+              </div>
+              <div class="data-row">
+                <div class="table-label">Address</div>
+                <div class="table-value">${capitalizeWords(
+                  getShippingAddress(shippingAddress, getBillingAddress(party)),
+                )}</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">Country</div>
+                <div class="table-value">India</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">Phone</div>
+                <div class="table-value">${safeFormatPhoneNumber(
+                  shippingAddress?.contactNumber || party?.contactNumber,
+                )}</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">GSTIN</div>
+                <div class="table-value">${party?.gstin || '-'}</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">State</div>
+                <div class="table-value">${
+                  shippingAddress?.state
+                    ? `${capitalizeWords(shippingAddress.state)} (${
+                        getStateCode(shippingAddress.state) || '-'
+                      })`
+                    : party?.state
+                    ? `${capitalizeWords(party.state)} (${
+                        getStateCode(party.state) || '-'
+                      })`
+                    : '-'
+                }</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Items Table -->
+          <table class="items-table">
+            <thead>
+              ${tableHeader}
+            </thead>
+            <tbody>
+              ${itemRows}
+              <!-- Total Row -->
+              <tr style="font-weight: bold; font-size: 8px;">
+                <td style="text-align: center;"></td>
+                <td style="text-align: center;"></td>
+                <td style="text-align: center; background-color: rgba(3, 113, 193, 0.1);">Total</td>
+                <td style="text-align: center; background-color: rgba(3, 113, 193, 0.1);">${totalQty}</td>
+                <td style="text-align: center;"></td>
+                <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2);">${formatCurrency(
+                  totalTaxable,
+                )}</td>
+                ${
+                  showIGST
+                    ? `
+                  <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2);">
+                    <div></div>
+                    <div>${formatCurrency(totalIGST)}</div>
+                  </td>
+                `
+                    : ''
+                }
+                ${
+                  showCGSTSGST
+                    ? `
+                  <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2);">
+                    <div></div>
+                    <div>${formatCurrency(totalCGST)}</div>
+                  </td>
+                  <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2);">
+                    <div></div>
+                    <div>${formatCurrency(totalSGST)}</div>
+                  </td>
+                `
+                    : ''
+                }
+                <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2); font-weight: bold;">
+                  ${formatCurrency(totalAmount)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          
+          <!-- Bottom Section -->
+          <div class="bottom-section">
+            <div class="left-section">
+              <!-- Total in Words -->
+              <div class="total-in-words">
+                Total in words : ${safeNumberToWords(totalAmount)}
+              </div>
+              
+              <!-- HSN Tax Table -->
+              ${
+                isGSTApplicable
+                  ? `
+                <table class="hsn-tax-table">
+                  <thead>
+                    <tr>
+                      <th class="hsn-tax-header-cell" style="width: 25%;">HSN / SAC</th>
+                      <th class="hsn-tax-header-cell" style="width: 20%;">Taxable Value (Rs.)</th>
+                      ${
+                        showIGST
+                          ? `
+                        <th class="hsn-tax-header-cell" style="width: 30%;">
+                          <div>IGST</div>
+                          <div style="display: flex; border-top: 1px solid white;">
+                            <div style="flex: 1; border-right: 1px solid white;">%</div>
+                            <div style="flex: 1;">Amount (Rs.)</div>
+                          </div>
+                        </th>
+                      `
+                          : ''
+                      }
+                      ${
+                        showCGSTSGST
+                          ? `
+                        <th class="hsn-tax-header-cell" style="width: 22%;">
+                          <div>CGST</div>
+                          <div style="display: flex; border-top: 1px solid white;">
+                            <div style="flex: 1; border-right: 1px solid white;">%</div>
+                            <div style="flex: 1;">Amount (Rs.)</div>
+                          </div>
+                        </th>
+                        <th class="hsn-tax-header-cell" style="width: 22%;">
+                          <div>SGST</div>
+                          <div style="display: flex; border-top: 1px solid white;">
+                            <div style="flex: 1; border-right: 1px solid white;">%</div>
+                            <div style="flex: 1;">Amount (Rs.)</div>
+                          </div>
+                        </th>
+                      `
+                          : ''
+                      }
+                      <th class="hsn-tax-header-cell" style="width: ${
+                        showIGST ? '25%' : showCGSTSGST ? '20%' : '30%'
+                      }; border-left: 1px solid white;">Total (Rs.)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${hsnRows}
+                    <!-- HSN Total Row -->
+                    <tr style="font-weight: bold; font-size: 8px;">
+                      <td class="hsn-tax-cell">Total</td>
+                      <td class="hsn-tax-cell">${formatCurrency(totalTaxable)}</td>
+                      ${
+                        showIGST
+                          ? `
+                        <td class="hsn-tax-cell">
+                          <div></div>
+                          <div>${formatCurrency(totalIGST)}</div>
+                        </td>
+                      `
+                          : ''
+                      }
+                      ${
+                        showCGSTSGST
+                          ? `
+                        <td class="hsn-tax-cell">
+                          <div></div>
+                          <div>${formatCurrency(totalCGST)}</div>
+                        </td>
+                        <td class="hsn-tax-cell">
+                          <div></div>
+                          <div>${formatCurrency(totalSGST)}</div>
+                        </td>
+                      `
+                          : ''
+                      }
+                      <td class="hsn-tax-cell" style="border-left: 1px solid #0371C1;">
+                        ${formatCurrency(totalAmount)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              `
+                  : ''
+              }
+            </div>
+            
+            <!-- Right Section: Totals and Bank Details -->
+            <div class="right-section">
+              <!-- Totals -->
+              <div style="margin-bottom: 10px;">
+                <div class="total-row">
+                  <div class="label">Taxable Amount</div>
+                  <div class="value">Rs. ${formatCurrency(totalTaxable)}</div>
+                </div>
+                
+                ${
+                  isGSTApplicable
+                    ? `
+                  <div class="total-row">
+                    <div class="label">Total Tax</div>
+                    <div class="value">Rs. ${formatCurrency(
+                      showIGST ? totalIGST : totalCGST + totalSGST,
+                    )}</div>
+                  </div>
+                `
+                    : ''
+                }
+                
+                <div class="total-row ${
+                  isGSTApplicable ? 'highlight-row' : ''
+                }">
+                  <div class="${isGSTApplicable ? 'label-bold' : 'label'}">
+                    ${isGSTApplicable ? 'Total Amount After Tax' : 'Total Amount'}
+                  </div>
+                  <div class="${isGSTApplicable ? 'value-bold' : 'value'}">
+                    Rs. ${formatCurrency(totalAmount)}
+                  </div>
+                </div>
+                
+                <div class="total-row" style="margin-top: 10px;">
+                  <div class="label">For ${capitalizeWords(
+                    company?.businessName || company?.companyName || 'Company Name',
+                  )}</div>
+                  <div class="value">(E & O.E.)</div>
+                </div>
+              </div>
+              
+              <!-- Bank Details -->
+              ${
+                transaction.type !== 'proforma' &&
+                isBankDetailAvailable &&
+                !shouldHideBankDetails
+                  ? `
+                <div class="bank-details">
+                  <div class="bold mb-2">Bank Details:</div>
+                  ${
+                    bankData.bankName
+                      ? `
+                    <div class="bank-row">
+                      <div class="bank-label">Name:</div>
+                      <div>${capitalizeWords(bankData.bankName)}</div>
+                    </div>
+                  `
+                      : ''
+                  }
+                  ${
+                    bankData.branchAddress
+                      ? `
+                    <div class="bank-row">
+                      <div class="bank-label">Branch:</div>
+                      <div>${bankData.branchAddress}</div>
+                    </div>
+                  `
+                      : ''
+                  }
+                  ${
+                    bankData.accountNo
+                      ? `
+                    <div class="bank-row">
+                      <div class="bank-label">Acc. No:</div>
+                      <div>${bankData.accountNo}</div>
+                    </div>
+                  `
+                      : ''
+                  }
+                  ${
+                    bankData.ifscCode
+                      ? `
+                    <div class="bank-row">
+                      <div class="bank-label">IFSC:</div>
+                      <div>${bankData.ifscCode}</div>
+                    </div>
+                  `
+                      : ''
+                  }
+                  ${
+                    bankData.upiDetails?.upiId
+                      ? `
+                    <div class="bank-row">
+                      <div class="bank-label">UPI ID:</div>
+                      <div>${bankData.upiDetails.upiId}</div>
+                    </div>
+                  `
+                      : ''
+                  }
+                  ${
+                    bankData.upiDetails?.upiName
+                      ? `
+                    <div class="bank-row">
+                      <div class="bank-label">UPI Name:</div>
+                      <div>${bankData.upiDetails.upiName}</div>
+                    </div>
+                  `
+                      : ''
+                  }
+                  ${
+                    bankData.upiDetails?.upiMobile
+                      ? `
+                    <div class="bank-row">
+                      <div class="bank-label">UPI Mobile:</div>
+                      <div>${bankData.upiDetails.upiMobile}</div>
+                    </div>
+                  `
+                      : ''
+                  }
+                  ${
+                    bankData.qrCode
+                      ? `
+                    <div style="text-align: center; margin-top: 5px;">
+                      <div class="bold mb-2">QR Code</div>
+                      <img src="${BASE_URL}${bankData.qrCode}" class="qr-code" />
+                    </div>
+                  `
+                      : ''
+                  }
+                </div>
+              `
+                  : ''
+              }
+            </div>
+          </div>
+          
+          <!-- Terms and Conditions -->
+          ${
+            transaction?.notes
+              ? `
+            <div class="terms-box">
+              ${renderNotesHTML(transaction.notes)}
+            </div>
+          `
+              : ''
+          }
+          
+          <!-- Page Number -->
+          <div class="page-number">1 / 1 page</div>
+        </div>
+      </body>
+      </html>
+    `;
+  };
+
+  return generateHTML();
 };
 
+// --- PDF Generation Function ---
 export const generatePdfForTemplateA5_4 = async (
   transaction,
   company,
@@ -1525,18 +991,45 @@ export const generatePdfForTemplateA5_4 = async (
   bank,
   client,
 ) => {
-  const pdfDoc = pdf(
-    <TemplateA5_4PDF
-      transaction={transaction}
-      company={company}
-      party={party}
-      shippingAddress={shippingAddress}
-      bank={bank}
-      client={client}
-    />,
-  );
+  try {
+    console.log('🟡 PDF Generation Started - TemplateA5_4');
 
-  return await pdfDoc.toBlob();
+    const htmlContent = TemplateA5_4({
+      transaction,
+      company,
+      party,
+      shippingAddress,
+      bank,
+      client,
+    });
+
+    console.log('🟢 HTML Content Generated Successfully');
+    console.log('HTML Length:', htmlContent.length);
+
+    const options = {
+      html: htmlContent,
+      fileName: `invoice_${transaction.invoiceNumber || 'document'}_templateA5_4`,
+      directory: 'Documents',
+      width: 595, // A5 landscape width (approximation for A4 portrait)
+      height: 420, // A5 landscape height
+      base64: true,
+    };
+
+    const file = await generatePDF(options);
+    console.log('🟢 PDF Generated Successfully!');
+
+    return {
+      ...file,
+      output: (format = 'base64') => {
+        if (format === 'base64') return file.base64;
+        if (format === 'filePath') return file.filePath;
+        return file.base64;
+      },
+    };
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    throw error;
+  }
 };
 
-export default TemplateA5_4PDF;
+export default TemplateA5_4;

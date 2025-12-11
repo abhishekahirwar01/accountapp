@@ -332,7 +332,7 @@ const Template8 = ({
           .two-columns {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
           }
           
           .left-column {
@@ -470,6 +470,7 @@ const Template8 = ({
             margin-top: 20px;
             border-top: 3px solid #2583C6;
             padding-top: 10px;
+            padding-left:10px;
             font-size: 8px;
             line-height: 1.4;
           }
@@ -486,6 +487,7 @@ const Template8 = ({
           /* Utility Classes */
           .bold {
             font-weight: bold;
+            margin-bottom:4px;
           }
           
           .text-center {
@@ -591,7 +593,7 @@ const Template8 = ({
               
               <!-- Ship To -->
               <div>
-                <div class="section-header">Details of Consigned | Shipped to :</div>
+                <div class="section-header" style="margin-top:10px;">Details of Consigned | Shipped to :</div>
                 <div class="client-name">${capitalizeWords(
                   actualShippingAddress?.label || party?.name || 'N/A',
                 )}</div>
@@ -733,8 +735,8 @@ const Template8 = ({
           <div class="bank-section">
             <div style="display: flex; justify-content: space-between;">
               <!-- Bank Details -->
-              <div style="width: 40%;">
-                <div class="bold mb-2">Bank Details:</div>
+              <div style="width: 60%;">
+                <div class="bold ">Bank Details:</div>
                 ${
                   bankData.bankName
                     ? `
@@ -824,13 +826,15 @@ const Template8 = ({
               }
               
               <!-- Signature -->
-              <div style="width: 30%; text-align: right;">
-                <div class="signature">
+              <div style="width: 30%; padding-left:50px; padding-top:10px;">
+                <div class="signature" style="text-align:center;">
                   <div>For ${capitalizeWords(
                     company?.businessName || 'Company',
                   )}</div>
+                  <div style="text-align:center; padding-top:50px;">
                   <div class="signature-line"></div>
                   <div>Authorised Signatory</div>
+                  </div>
                 </div>
               </div>
             </div>
