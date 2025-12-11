@@ -10,15 +10,17 @@ import {
   StyleSheet,
   Modal,
   Pressable,
+  Keyboard,
 } from 'react-native';
 import { useForm, useWatch, Controller } from 'react-hook-form';
 import Toast from 'react-native-toast-message';
 import { formatCurrency } from '../../../lib/pdf-utils';
 import { Combobox } from '../../ui/Combobox';
+import CustomDropdown from '../../ui/CustomDropdown';
 import QuillEditor from '../../ui/QuillEditor';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
+// Picker replaced by CustomDropdown for consistent UI
 import { HSNSearchInput, SACSearchInput } from './transactionForm-parts';
 import { handleHSNSelect, handleSACSelect } from './transaction-utils';
 import { BASE_URL } from '../../../config';
@@ -71,16 +73,6 @@ const unitTypes = [
   'Dozen',
   'Pack',
   'Other',
-];
-
-const QUICK_DATE_OPTIONS = [
-  { label: '7 Days', days: 7 },
-  { label: '10 Days', days: 10 },
-  { label: '15 Days', days: 15 },
-  { label: '30 Days', days: 30 },
-  { label: '45 Days', days: 45 },
-  { label: '60 Days', days: 60 },
-  { label: '90 Days', days: 90 },
 ];
 
 const PAYMENT_METHOD_ICONS = {
@@ -287,7 +279,6 @@ export const SalesPurchasesFields = props => {
   const [dueDate, setDueDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showDueDatePicker, setShowDueDatePicker] = useState(false);
-  const [showDueQuickMenu, setShowDueQuickMenu] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState('');
   const [selectedParty, setSelectedParty] = useState('');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
@@ -300,14 +291,7 @@ export const SalesPurchasesFields = props => {
   const fieldRefs = useRef({});
   const [isExpense, setIsExpense] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState('');
-  const [dontSendInvoice, setDontSendInvoice] = useState(false);
   const [isBankAutoSelected, setIsBankAutoSelected] = useState(false);
-  const [expandedSections, setExpandedSections] = useState({
-    transaction: true,
-    items: true,
-    shipping: false,
-    totals: true,
-  });
 
   // Track original products for purchases transactions
   const [originalProductIds] = React.useState(() => {
@@ -323,6 +307,11 @@ export const SalesPurchasesFields = props => {
     });
     return ids;
   });
+
+  // Dismiss keyboard when component loads or type changes
+  useEffect(() => {
+    Keyboard.dismiss();
+  }, [type]);
 
   const watchedPaymentMethod = useWatch({
     control: form.control,
@@ -1055,13 +1044,6 @@ export const SalesPurchasesFields = props => {
     setValue('shippingAddressDetails.city', '');
   };
 
-  const toggleSection = section => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
-  };
-
   // NEW: Expense Section for Payment Transactions
   const renderExpenseSection = () => {
     if (type !== 'payment') return null;
@@ -1069,86 +1051,76 @@ export const SalesPurchasesFields = props => {
     return (
       <CustomCard style={styles.sectionCard}>
         <View style={styles.sectionContent}>
-          <TouchableOpacity
-            style={styles.sectionHeader}
-            onPress={() => toggleSection('expense')}
-          >
+          <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleContainer}>
               <Icon name="file-document-outline" size={20} color="#7C3AED" />
               <Text style={styles.sectionTitle}>Expense Details</Text>
             </View>
-            <Icon
-              name={expandedSections.expense ? 'chevron-up' : 'chevron-down'}
-              size={20}
-              color="#6B7280"
-            />
-          </TouchableOpacity>
+          </View>
 
-          {expandedSections.expense && (
-            <View style={styles.expenseContent}>
-              <CustomCard style={styles.checkboxCard}>
-                <View style={styles.checkboxContainer}>
-                  <CustomCheckbox
-                    status={isExpense ? 'checked' : 'unchecked'}
-                    onPress={() => {
-                      const newValue = !isExpense;
-                      setIsExpense(newValue);
-                      setValue('isExpense', newValue);
-                      if (!newValue) {
-                        setSelectedExpense('');
-                        setValue('expense', '');
-                      }
-                    }}
-                    label="Mark as Expense"
-                    description="Categorize this payment as a business expense"
-                  />
-                </View>
-              </CustomCard>
+          <View style={styles.expenseContent}>
+            <CustomCard style={styles.checkboxCard}>
+              <View style={styles.checkboxContainer}>
+                <CustomCheckbox
+                  status={isExpense ? 'checked' : 'unchecked'}
+                  onPress={() => {
+                    const newValue = !isExpense;
+                    setIsExpense(newValue);
+                    setValue('isExpense', newValue);
+                    if (!newValue) {
+                      setSelectedExpense('');
+                      setValue('expense', '');
+                    }
+                  }}
+                  label="Mark as Expense"
+                  description="Categorize this payment as a business expense"
+                />
+              </View>
+            </CustomCard>
 
-              {isExpense && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Expense Category</Text>
-                  <Controller
-                    control={control}
-                    name="expense"
-                    render={({ field: { onChange, value } }) => (
-                      <Picker
-                        selectedValue={value}
-                        onValueChange={itemValue => {
-                          onChange(itemValue);
-                          setSelectedExpense(itemValue);
-                        }}
-                        style={[
-                          styles.picker,
-                          errors.expense ? styles.errorBorder : {},
-                        ]}
-                      >
-                        <Picker.Item label="Select Expense Category" value="" />
-                        {paymentExpenses.map(expense => (
-                          <Picker.Item
-                            key={expense._id}
-                            label={
-                              expense.name ||
-                              expense.category ||
-                              'Unnamed Expense'
-                            }
-                            value={expense._id}
-                          />
-                        ))}
-                      </Picker>
-                    )}
-                  />
-                  <FormMessage error={errors.expense} />
-                  {paymentExpenses.length === 0 && (
-                    <Text style={styles.noExpensesText}>
-                      No expense categories available. Create expense categories
-                      in settings.
-                    </Text>
+            {isExpense && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Expense Category</Text>
+                <Controller
+                  control={control}
+                  name="expense"
+                  render={({ field: { onChange, value } }) => (
+                    <Picker
+                      selectedValue={value}
+                      onValueChange={itemValue => {
+                        onChange(itemValue);
+                        setSelectedExpense(itemValue);
+                      }}
+                      // style={[
+                      //   styles.picker,
+                      //   errors.expense ? styles.errorBorder : {},
+                      // ]}
+                    >
+                      <Picker.Item label="Select Expense Category" value="" />
+                      {paymentExpenses.map(expense => (
+                        <Picker.Item
+                          key={expense._id}
+                          label={
+                            expense.name ||
+                            expense.category ||
+                            'Unnamed Expense'
+                          }
+                          value={expense._id}
+                        />
+                      ))}
+                    </Picker>
                   )}
-                </View>
-              )}
-            </View>
-          )}
+                />
+                <FormMessage error={errors.expense} />
+                {paymentExpenses.length === 0 && (
+                  <Text style={styles.noExpensesText}>
+                    No expense categories available. Create expense categories
+                    in settings.
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
         </View>
       </CustomCard>
     );
@@ -1268,102 +1240,50 @@ export const SalesPurchasesFields = props => {
           </View>
 
           <View style={styles.productDetailsContainer}>
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Qty</Text>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  errors?.items?.[index]?.quantity ? styles.errorBorder : {},
-                ]}
-                ref={ref => registerFieldRef(`items.${index}.quantity`, ref)}
-                value={watch(`items.${index}.quantity`)?.toString() || ''}
-                onChangeText={text => handleQuantityChange(text, index)}
-                keyboardType="numeric"
-                placeholder="1"
-              />
-              <FormMessage error={errors?.items?.[index]?.quantity} />
-            </View>
+            <View style={styles.pairRow}>
+              <View style={[styles.inputContainer, styles.pairItem]}>
+                <Text style={styles.inputLabel}>Qty</Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    errors?.items?.[index]?.quantity ? styles.errorBorder : {},
+                  ]}
+                  ref={ref => registerFieldRef(`items.${index}.quantity`, ref)}
+                  value={watch(`items.${index}.quantity`)?.toString() || ''}
+                  onChangeText={text => handleQuantityChange(text, index)}
+                  keyboardType="numeric"
+                  placeholder="1"
+                />
+                <FormMessage error={errors?.items?.[index]?.quantity} />
+              </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Unit</Text>
-              <CustomMenu
-                visible={unitOpen && selectedUnitIndex === index}
-                onDismiss={handleUnitMenuClose}
-                anchor={
-                  <TouchableOpacity
-                    style={[
-                      styles.unitButton,
-                      errors?.items?.[index]?.unitType
-                        ? styles.errorBorder
-                        : {},
-                    ]}
-                    onPress={() => handleUnitMenuOpen(index)}
-                  >
-                    <Text style={styles.unitButtonText}>
-                      {currentUnitType === 'Other' && currentOtherUnit
-                        ? currentOtherUnit
-                        : currentUnitType || 'Select unit...'}
-                    </Text>
-                    <Icon
-                      name={IconMap.ChevronDown}
-                      size={16}
-                      color="#6B7280"
-                    />
-                  </TouchableOpacity>
-                }
-              >
-                <ScrollView style={{ maxHeight: 200 }}>
-                  {unitTypes
-                    .filter(u => u !== 'Other')
-                    .map(unit => (
-                      <MenuItem
-                        key={unit}
-                        onPress={() => handleUnitSelection(unit, index)}
-                        title={unit}
-                        leadingIcon={
-                          currentUnitType === unit ? IconMap.Check : undefined
-                        }
-                      />
-                    ))}
-
-                  {existingUnits.map(unit => (
-                    <MenuItem
-                      key={unit._id}
-                      onPress={() => handleUnitSelection(unit.name, index)}
-                      title={unit.name}
-                      leadingIcon={
-                        currentUnitType === unit.name
-                          ? IconMap.Check
-                          : undefined
-                      }
-                      trailing={
-                        <TouchableOpacity
-                          style={styles.deleteUnitButton}
-                          onPress={e => {
-                            e.stopPropagation();
-                            handleDeleteUnit(unit._id);
-                          }}
-                        >
-                          <Icon name={IconMap.X} size={14} color="#DC2626" />
-                        </TouchableOpacity>
-                      }
-                    />
-                  ))}
-
-                  <MenuItem
-                    onPress={() => handleUnitSelection('Other', index)}
-                    title="Other"
-                    leadingIcon={
-                      currentUnitType === 'Other' ? IconMap.Check : undefined
-                    }
-                  />
-                </ScrollView>
-              </CustomMenu>
-              <FormMessage error={errors?.items?.[index]?.unitType} />
+              <View style={[styles.inputContainer, styles.pairItem]}>
+                <Text style={styles.inputLabel}>Unit</Text>
+                <CustomDropdown
+                  items={[
+                    ...unitTypes
+                      .filter(u => u !== 'Other')
+                      .map(unit => ({ label: unit, value: unit })),
+                    ...existingUnits.map(unit => ({
+                      label: unit.name,
+                      value: unit.name,
+                    })),
+                    { label: 'Other', value: 'Other' },
+                  ]}
+                  value={currentUnitType || ''}
+                  onChange={value => handleUnitSelection(value, index)}
+                  placeholder="Select unit"
+                  // style={[
+                  //   styles.picker,
+                  //   errors?.items?.[index]?.unitType ? styles.errorBorder : {},
+                  // ]}
+                />
+                <FormMessage error={errors?.items?.[index]?.unitType} />
+              </View>
             </View>
 
             {currentUnitType === 'Other' && (
-              <View style={styles.inputContainer}>
+              <View style={[styles.inputContainer, { width: '100%' }]}>
                 <Text style={styles.inputLabel}>Specify Unit</Text>
                 <TextInput
                   style={[
@@ -1380,175 +1300,170 @@ export const SalesPurchasesFields = props => {
               </View>
             )}
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Price/Unit</Text>
-              <TextInput
-                key={`price-${index}-${itemRenderKeys[index] || 0}`}
-                style={[
-                  styles.textInput,
-                  styles.rightAlignedInput,
-                  errors?.items?.[index]?.pricePerUnit
-                    ? styles.errorBorder
-                    : {},
-                ]}
-                ref={ref =>
-                  registerFieldRef(`items.${index}.pricePerUnit`, ref)
-                }
-                value={watch(`items.${index}.pricePerUnit`)?.toString() || ''}
-                onChangeText={text => handlePriceChange(text, index)}
-                keyboardType="decimal-pad"
-                placeholder="0.00"
-              />
-              <FormMessage error={errors?.items?.[index]?.pricePerUnit} />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Amount</Text>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  styles.rightAlignedInput,
-                  errors?.items?.[index]?.amount ? styles.errorBorder : {},
-                ]}
-                ref={ref => registerFieldRef(`items.${index}.amount`, ref)}
-                value={formatWithCommas(watch(`items.${index}.amount`))}
-                onChangeText={text => handleAmountChange(text, index, 'amount')}
-                keyboardType="decimal-pad"
-                placeholder="0.00"
-              />
-              <FormMessage error={errors?.items?.[index]?.amount} />
-            </View>
-
-            <View style={[styles.inputContainer, styles.wideInput]}>
-              <Text style={styles.inputLabel}>HSN Code</Text>
-              {selectedProduct?.hsn ? (
-                <View style={styles.readOnlyContainer}>
-                  <Text style={styles.readOnlyText}>{selectedProduct.hsn}</Text>
-                </View>
-              ) : (
-                <HSNSearchInput
-                  onSelect={hsnCode => {
-                    handleHSNSelect(hsnCode, index, form, value =>
-                      setValue(`items.${index}.hsn`, value),
-                    );
-                  }}
-                  placeholder="Search HSN..."
+            <View style={styles.pairRow}>
+              <View style={[styles.inputContainer, styles.pairItem]}>
+                <Text style={styles.inputLabel}>Price/Unit</Text>
+                <TextInput
+                  key={`price-${index}-${itemRenderKeys[index] || 0}`}
+                  style={[
+                    styles.textInput,
+                    styles.rightAlignedInput,
+                    errors?.items?.[index]?.pricePerUnit
+                      ? styles.errorBorder
+                      : {},
+                  ]}
+                  ref={ref =>
+                    registerFieldRef(`items.${index}.pricePerUnit`, ref)
+                  }
+                  value={watch(`items.${index}.pricePerUnit`)?.toString() || ''}
+                  onChangeText={text => handlePriceChange(text, index)}
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
                 />
-              )}
-              <FormMessage error={errors?.items?.[index]?.hsn} />
+                <FormMessage error={errors?.items?.[index]?.pricePerUnit} />
+              </View>
+
+              <View style={[styles.inputContainer, styles.pairItem]}>
+                <Text style={styles.inputLabel}>Amount</Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    styles.rightAlignedInput,
+                    errors?.items?.[index]?.amount ? styles.errorBorder : {},
+                  ]}
+                  ref={ref => registerFieldRef(`items.${index}.amount`, ref)}
+                  value={formatWithCommas(watch(`items.${index}.amount`))}
+                  onChangeText={text =>
+                    handleAmountChange(text, index, 'amount')
+                  }
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                />
+                <FormMessage error={errors?.items?.[index]?.amount} />
+              </View>
             </View>
 
-            {gstEnabled && (
-              <>
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>GST %</Text>
-                  {customGstInputs[index] ? (
-                    <View style={styles.customGstContainer}>
-                      <TextInput
-                        style={[
-                          styles.textInput,
-                          { flex: 1 },
-                          errors?.items?.[index]?.gstPercentage
-                            ? styles.errorBorder
-                            : {},
-                        ]}
-                        value={
-                          watch(`items.${index}.gstPercentage`)?.toString() ||
-                          ''
-                        }
-                        onChangeText={text => {
-                          const val = text === '' ? '' : Number(text);
-                          if (val === '' || (val >= 0 && val <= 100)) {
-                            setValue(`items.${index}.gstPercentage`, val);
-                          }
-                        }}
-                        keyboardType="decimal-pad"
-                        placeholder="Enter %"
-                      />
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={() => {
-                          setCustomGstInputs(prev => ({
-                            ...prev,
-                            [index]: false,
-                          }));
-                          setValue(`items.${index}.gstPercentage`, 18);
-                        }}
-                      >
-                        <Icon name={IconMap.X} size={16} color="#6B7280" />
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <Picker
-                      selectedValue={
-                        watch(`items.${index}.gstPercentage`)?.toString() ||
-                        '18'
-                      }
-                      onValueChange={value =>
-                        handleGstPercentageChange(value, index)
-                      }
+            <View style={styles.pairRow}>
+              <View style={[styles.inputContainer, styles.pairItem]}>
+                <Text style={styles.inputLabel}>HSN Code</Text>
+                {selectedProduct?.hsn ? (
+                  <View style={styles.readOnlyContainer}>
+                    <Text style={styles.readOnlyText}>
+                      {selectedProduct.hsn}
+                    </Text>
+                  </View>
+                ) : (
+                  <HSNSearchInput
+                    onSelect={hsnCode => {
+                      handleHSNSelect(hsnCode, index, form, value =>
+                        setValue(`items.${index}.hsn`, value),
+                      );
+                    }}
+                    placeholder="Search HSN..."
+                  />
+                )}
+                <FormMessage error={errors?.items?.[index]?.hsn} />
+              </View>
+
+              <View style={[styles.inputContainer, styles.pairItem]}>
+                <Text style={styles.inputLabel}>GST %</Text>
+                {customGstInputs[index] ? (
+                  <View style={styles.customGstContainer}>
+                    <TextInput
                       style={[
-                        styles.picker,
+                        styles.textInput,
+                        { flex: 1 },
                         errors?.items?.[index]?.gstPercentage
                           ? styles.errorBorder
                           : {},
                       ]}
+                      value={
+                        watch(`items.${index}.gstPercentage`)?.toString() || ''
+                      }
+                      onChangeText={text => {
+                        const val = text === '' ? '' : Number(text);
+                        if (val === '' || (val >= 0 && val <= 100)) {
+                          setValue(`items.${index}.gstPercentage`, val);
+                        }
+                      }}
+                      keyboardType="decimal-pad"
+                      placeholder="Enter %"
+                    />
+                    <TouchableOpacity
+                      style={styles.iconButton}
+                      onPress={() => {
+                        setCustomGstInputs(prev => ({
+                          ...prev,
+                          [index]: false,
+                        }));
+                        setValue(`items.${index}.gstPercentage`, 18);
+                      }}
                     >
-                      {GST_OPTIONS.map(opt => (
-                        <Picker.Item
-                          key={opt.value}
-                          label={opt.label}
-                          value={opt.value}
-                        />
-                      ))}
-                    </Picker>
-                  )}
-                  <FormMessage error={errors?.items?.[index]?.gstPercentage} />
-                </View>
-
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>Tax</Text>
-                  <TextInput
-                    style={[
-                      styles.textInput,
-                      styles.rightAlignedInput,
-                      errors?.items?.[index]?.lineTax ? styles.errorBorder : {},
-                    ]}
-                    value={formatWithCommas(watch(`items.${index}.lineTax`))}
-                    onChangeText={text =>
-                      handleAmountChange(text, index, 'lineTax')
+                      <Icon name={IconMap.X} size={16} color="#6B7280" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <CustomDropdown
+                    items={GST_OPTIONS.map(opt => ({
+                      label: opt.label,
+                      value: opt.value,
+                    }))}
+                    value={
+                      watch(`items.${index}.gstPercentage`)?.toString() || '18'
                     }
-                    keyboardType="decimal-pad"
-                    placeholder="0.00"
+                    onChange={value => handleGstPercentageChange(value, index)}
+                    placeholder="Select GST %"
+                    // style={[
+                    //   styles.picker,
+                    //   errors?.items?.[index]?.gstPercentage
+                    //     ? styles.errorBorder
+                    //     : {},
+                    // ]}
                   />
-                  <FormMessage error={errors?.items?.[index]?.lineTax} />
-                </View>
+                )}
+                <FormMessage error={errors?.items?.[index]?.gstPercentage} />
+              </View>
+            </View>
 
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>Total</Text>
-                  <TextInput
-                    style={[
-                      styles.textInput,
-                      styles.rightAlignedInput,
-                      styles.totalInput,
-                      errors?.items?.[index]?.lineTotal
-                        ? styles.errorBorder
-                        : {},
-                    ]}
-                    ref={ref =>
-                      registerFieldRef(`items.${index}.lineTotal`, ref)
-                    }
-                    value={formatWithCommas(watch(`items.${index}.lineTotal`))}
-                    onChangeText={text =>
-                      handleAmountChange(text, index, 'lineTotal')
-                    }
-                    keyboardType="decimal-pad"
-                    placeholder="0.00"
-                  />
-                  <FormMessage error={errors?.items?.[index]?.lineTotal} />
-                </View>
-              </>
-            )}
+            <View style={styles.pairRow}>
+              <View style={[styles.inputContainer, styles.pairItem]}>
+                <Text style={styles.inputLabel}>Tax</Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    styles.rightAlignedInput,
+                    errors?.items?.[index]?.lineTax ? styles.errorBorder : {},
+                  ]}
+                  value={formatWithCommas(watch(`items.${index}.lineTax`))}
+                  onChangeText={text =>
+                    handleAmountChange(text, index, 'lineTax')
+                  }
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                />
+                <FormMessage error={errors?.items?.[index]?.lineTax} />
+              </View>
+
+              <View style={[styles.inputContainer, styles.pairItem]}>
+                <Text style={styles.inputLabel}>Total</Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    styles.rightAlignedInput,
+                    styles.totalInput,
+                    errors?.items?.[index]?.lineTotal ? styles.errorBorder : {},
+                  ]}
+                  ref={ref => registerFieldRef(`items.${index}.lineTotal`, ref)}
+                  value={formatWithCommas(watch(`items.${index}.lineTotal`))}
+                  onChangeText={text =>
+                    handleAmountChange(text, index, 'lineTotal')
+                  }
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                />
+                <FormMessage error={errors?.items?.[index]?.lineTotal} />
+              </View>
+            </View>
           </View>
         </View>
       </CustomCard>
@@ -1635,166 +1550,177 @@ export const SalesPurchasesFields = props => {
           </View>
 
           <View style={styles.serviceDetailsContainer}>
-            <View style={[styles.inputContainer, styles.flex2]}>
-              <Text style={styles.inputLabel}>Amount</Text>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  errors?.items?.[index]?.amount ? styles.errorBorder : {},
-                ]}
-                ref={ref => registerFieldRef(`items.${index}.amount`, ref)}
-                value={formatWithCommas(watch(`items.${index}.amount`))}
-                onChangeText={text => handleAmountChange(text, index, 'amount')}
-                keyboardType="decimal-pad"
-                placeholder="0.00"
-              />
-              <FormMessage error={errors?.items?.[index]?.amount} />
-            </View>
-
-            <View style={[styles.inputContainer, styles.flex3]}>
-              <Text style={styles.inputLabel}>Description</Text>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  errors?.items?.[index]?.description ? styles.errorBorder : {},
-                ]}
-                ref={ref => registerFieldRef(`items.${index}.description`, ref)}
-                value={watch(`items.${index}.description`) || ''}
-                onChangeText={text =>
-                  setValue(`items.${index}.description`, text)
-                }
-                placeholder="Service description"
-              />
-              <FormMessage error={errors?.items?.[index]?.description} />
-            </View>
-
-            <View style={[styles.inputContainer, styles.flex2]}>
-              <Text style={styles.inputLabel}>SAC Code</Text>
-              {selectedService?.sac ? (
-                <View style={styles.readOnlyContainer}>
-                  <Text style={styles.readOnlyText}>{selectedService.sac}</Text>
-                </View>
-              ) : (
-                <SACSearchInput
-                  onSelect={sacCode => {
-                    handleSACSelect(sacCode, index, form, value =>
-                      setValue(`items.${index}.sac`, value),
-                    );
-                  }}
-                  placeholder="Search SAC..."
+            <View style={styles.pairRow}>
+              <View style={[styles.inputContainer, styles.pairItem]}>
+                <Text style={styles.inputLabel}>Amount</Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    errors?.items?.[index]?.amount ? styles.errorBorder : {},
+                  ]}
+                  ref={ref => registerFieldRef(`items.${index}.amount`, ref)}
+                  value={formatWithCommas(watch(`items.${index}.amount`))}
+                  onChangeText={text =>
+                    handleAmountChange(text, index, 'amount')
+                  }
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
                 />
-              )}
-              <FormMessage error={errors?.items?.[index]?.sac} />
+                <FormMessage error={errors?.items?.[index]?.amount} />
+              </View>
+
+              <View style={[styles.inputContainer, styles.pairItem]}>
+                <Text style={styles.inputLabel}>Description</Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    errors?.items?.[index]?.description
+                      ? styles.errorBorder
+                      : {},
+                  ]}
+                  ref={ref =>
+                    registerFieldRef(`items.${index}.description`, ref)
+                  }
+                  value={watch(`items.${index}.description`) || ''}
+                  onChangeText={text =>
+                    setValue(`items.${index}.description`, text)
+                  }
+                  placeholder="Service description"
+                />
+                <FormMessage error={errors?.items?.[index]?.description} />
+              </View>
             </View>
 
-            {gstEnabled && (
-              <>
-                <View style={[styles.inputContainer, styles.flex2]}>
-                  <Text style={styles.inputLabel}>GST %</Text>
-                  {customGstInputs[index] ? (
-                    <View style={styles.customGstContainer}>
-                      <TextInput
-                        style={[
-                          styles.textInput,
-                          { flex: 1 },
-                          errors?.items?.[index]?.gstPercentage
-                            ? styles.errorBorder
-                            : {},
-                        ]}
+            <View style={styles.pairRow}>
+              <View style={[styles.inputContainer, styles.pairItem]}>
+                <Text style={styles.inputLabel}>SAC Code</Text>
+                {selectedService?.sac ? (
+                  <View style={styles.readOnlyContainer}>
+                    <Text style={styles.readOnlyText}>
+                      {selectedService.sac}
+                    </Text>
+                  </View>
+                ) : (
+                  <SACSearchInput
+                    onSelect={sacCode => {
+                      handleSACSelect(sacCode, index, form, value =>
+                        setValue(`items.${index}.sac`, value),
+                      );
+                    }}
+                    placeholder="Search SAC..."
+                  />
+                )}
+                <FormMessage error={errors?.items?.[index]?.sac} />
+              </View>
+
+              <View style={[styles.inputContainer, styles.pairItem]}>
+                {gstEnabled ? (
+                  <>
+                    <Text style={styles.inputLabel}>GST %</Text>
+                    {customGstInputs[index] ? (
+                      <View style={styles.customGstContainer}>
+                        <TextInput
+                          style={[
+                            styles.textInput,
+                            { flex: 1 },
+                            errors?.items?.[index]?.gstPercentage
+                              ? styles.errorBorder
+                              : {},
+                          ]}
+                          value={
+                            watch(`items.${index}.gstPercentage`)?.toString() ||
+                            ''
+                          }
+                          onChangeText={text => {
+                            const val = text === '' ? '' : Number(text);
+                            if (val === '' || (val >= 0 && val <= 100)) {
+                              setValue(`items.${index}.gstPercentage`, val);
+                            }
+                          }}
+                          keyboardType="decimal-pad"
+                          placeholder="Enter %"
+                        />
+                        <TouchableOpacity
+                          style={styles.iconButton}
+                          onPress={() => {
+                            setCustomGstInputs(prev => ({
+                              ...prev,
+                              [index]: false,
+                            }));
+                            setValue(`items.${index}.gstPercentage`, 18);
+                          }}
+                        >
+                          <Icon name={IconMap.X} size={16} color="#6B7280" />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <CustomDropdown
+                        items={GST_OPTIONS.map(opt => ({
+                          label: opt.label,
+                          value: opt.value,
+                        }))}
                         value={
                           watch(`items.${index}.gstPercentage`)?.toString() ||
-                          ''
+                          '18'
                         }
-                        onChangeText={text => {
-                          const val = text === '' ? '' : Number(text);
-                          if (val === '' || (val >= 0 && val <= 100)) {
-                            setValue(`items.${index}.gstPercentage`, val);
-                          }
-                        }}
-                        keyboardType="decimal-pad"
-                        placeholder="Enter %"
+                        onChange={value =>
+                          handleGstPercentageChange(value, index)
+                        }
+                        placeholder="Select GST %"
+                        // style={[
+                        //   styles.picker,
+                        //   errors?.items?.[index]?.gstPercentage
+                        //     ? styles.errorBorder
+                        //     : {},
+                        // ]}
                       />
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={() => {
-                          setCustomGstInputs(prev => ({
-                            ...prev,
-                            [index]: false,
-                          }));
-                          setValue(`items.${index}.gstPercentage`, 18);
-                        }}
-                      >
-                        <Icon name={IconMap.X} size={16} color="#6B7280" />
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <Picker
-                      selectedValue={
-                        watch(`items.${index}.gstPercentage`)?.toString() ||
-                        '18'
-                      }
-                      onValueChange={value =>
-                        handleGstPercentageChange(value, index)
-                      }
-                      style={[
-                        styles.picker,
-                        errors?.items?.[index]?.gstPercentage
-                          ? styles.errorBorder
-                          : {},
-                      ]}
-                    >
-                      {GST_OPTIONS.map(opt => (
-                        <Picker.Item
-                          key={opt.value}
-                          label={opt.label}
-                          value={opt.value}
-                        />
-                      ))}
-                    </Picker>
-                  )}
-                  <FormMessage error={errors?.items?.[index]?.gstPercentage} />
-                </View>
+                    )}
+                    <FormMessage
+                      error={errors?.items?.[index]?.gstPercentage}
+                    />
+                  </>
+                ) : null}
+              </View>
+            </View>
 
-                <View style={[styles.inputContainer, styles.flex1]}>
-                  <Text style={styles.inputLabel}>Tax</Text>
-                  <TextInput
-                    style={[
-                      styles.textInput,
-                      styles.rightAlignedInput,
-                      errors?.items?.[index]?.lineTax ? styles.errorBorder : {},
-                    ]}
-                    value={formatWithCommas(watch(`items.${index}.lineTax`))}
-                    onChangeText={text =>
-                      handleAmountChange(text, index, 'lineTax')
-                    }
-                    keyboardType="decimal-pad"
-                    placeholder="0.00"
-                  />
-                  <FormMessage error={errors?.items?.[index]?.lineTax} />
-                </View>
+            <View style={styles.pairRow}>
+              <View style={[styles.inputContainer, styles.pairItem]}>
+                <Text style={styles.inputLabel}>Tax</Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    styles.rightAlignedInput,
+                    errors?.items?.[index]?.lineTax ? styles.errorBorder : {},
+                  ]}
+                  value={formatWithCommas(watch(`items.${index}.lineTax`))}
+                  onChangeText={text =>
+                    handleAmountChange(text, index, 'lineTax')
+                  }
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                />
+                <FormMessage error={errors?.items?.[index]?.lineTax} />
+              </View>
 
-                <View style={[styles.inputContainer, styles.flex2]}>
-                  <Text style={styles.inputLabel}>Total</Text>
-                  <TextInput
-                    style={[
-                      styles.textInput,
-                      styles.rightAlignedInput,
-                      styles.serviceTotalInput,
-                      errors?.items?.[index]?.lineTotal
-                        ? styles.errorBorder
-                        : {},
-                    ]}
-                    value={formatWithCommas(watch(`items.${index}.lineTotal`))}
-                    onChangeText={text =>
-                      handleAmountChange(text, index, 'lineTotal')
-                    }
-                    keyboardType="decimal-pad"
-                    placeholder="0.00"
-                  />
-                  <FormMessage error={errors?.items?.[index]?.lineTotal} />
-                </View>
-              </>
-            )}
+              <View style={[styles.inputContainer, styles.pairItem]}>
+                <Text style={styles.inputLabel}>Total</Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    styles.rightAlignedInput,
+                    styles.serviceTotalInput,
+                    errors?.items?.[index]?.lineTotal ? styles.errorBorder : {},
+                  ]}
+                  value={formatWithCommas(watch(`items.${index}.lineTotal`))}
+                  onChangeText={text =>
+                    handleAmountChange(text, index, 'lineTotal')
+                  }
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                />
+                <FormMessage error={errors?.items?.[index]?.lineTotal} />
+              </View>
+            </View>
           </View>
         </View>
       </CustomCard>
@@ -1806,48 +1732,23 @@ export const SalesPurchasesFields = props => {
     watchedPaymentMethod !== 'Cash' &&
     paymentMethod !== 'Cash';
 
-  const renderDontSendInvoice = () => {
-    if (type !== 'sales') return null;
-
-    return (
-      <CustomCard style={styles.checkboxCard}>
-        <CustomCheckbox
-          status={dontSendInvoice ? 'checked' : 'unchecked'}
-          onPress={() => {
-            const newValue = !dontSendInvoice;
-            setDontSendInvoice(newValue);
-            setValue('dontSendInvoice', newValue);
-          }}
-          label="Don't Send Invoice"
-          description="Check this if you don't want to email the invoice to the customer"
-        />
-      </CustomCard>
-    );
-  };
-
   return (
     <View style={styles.container}>
-      {/* Transaction Details Section */}
-      <CustomCard style={styles.sectionCard}>
-        <View style={styles.sectionContent}>
-          <TouchableOpacity
-            style={styles.sectionHeader}
-            onPress={() => toggleSection('transaction')}
-          >
-            <View style={styles.sectionTitleContainer}>
-              <Icon name="file-document-outline" size={20} color="#1E40AF" />
-              <Text style={styles.sectionTitle}>Transaction Details</Text>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        scrollEnabled={true}
+        nestedScrollEnabled={true}
+      >
+        {/* Transaction Details Section */}
+        <CustomCard style={styles.sectionCard}>
+          <View style={styles.sectionContent}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleContainer}>
+                <Icon name="file-document-outline" size={20} color="#1E40AF" />
+                <Text style={styles.sectionTitle}>Transaction Details</Text>
+              </View>
             </View>
-            <Icon
-              name={
-                expandedSections.transaction ? 'chevron-up' : 'chevron-down'
-              }
-              size={20}
-              color="#6B7280"
-            />
-          </TouchableOpacity>
 
-          {expandedSections.transaction && (
             <View
               style={[styles.sectionContent, styles.transactionDetailsInner]}
             >
@@ -1859,27 +1760,26 @@ export const SalesPurchasesFields = props => {
                       control={control}
                       name="company"
                       render={({ field: { onChange, value } }) => (
-                        <Picker
-                          selectedValue={value}
-                          onValueChange={itemValue => {
+                        <CustomDropdown
+                          items={[
+                            { label: 'Select a company', value: '' },
+                            ...companies.map(c => ({
+                              label: c.businessName || c.name || 'Company',
+                              value: c._id,
+                            })),
+                          ]}
+                          value={value}
+                          onChange={itemValue => {
                             onChange(itemValue);
                             setSelectedCompany(itemValue);
                             validateField('company');
                           }}
-                          style={[
-                            styles.picker,
-                            errors.company ? styles.errorBorder : {},
-                          ]}
-                        >
-                          <Picker.Item label="Select a company" value="" />
-                          {companies.map(c => (
-                            <Picker.Item
-                              key={c._id}
-                              label={c.businessName}
-                              value={c._id}
-                            />
-                          ))}
-                        </Picker>
+                          placeholder="Select a company"
+                          // style={[
+                          //   styles.picker,
+                          //   errors.company ? styles.errorBorder : {},
+                          // ]}
+                        />
                       )}
                     />
                   </View>
@@ -1942,65 +1842,22 @@ export const SalesPurchasesFields = props => {
                       name="dueDate"
                       render={({ field: { onChange, value } }) => (
                         <View>
-                          <View style={styles.dueDateContainer}>
-                            <TouchableOpacity
-                              style={[
-                                styles.dateButton,
-                                { flex: 1 },
-                                errors.dueDate ? styles.errorBorder : {},
-                              ]}
-                              onPress={() => setShowDueDatePicker(true)}
-                            >
-                              <Text style={styles.dateButtonText}>
-                                {(value || new Date()).toLocaleDateString()}
-                              </Text>
-                              <Icon
-                                name={IconMap.Calendar}
-                                size={16}
-                                color="#6B7280"
-                              />
-                            </TouchableOpacity>
-
-                            <CustomMenu
-                              visible={showDueQuickMenu}
-                              onDismiss={() => setShowDueQuickMenu(false)}
-                              anchor={
-                                <TouchableOpacity
-                                  style={styles.quickButton}
-                                  onPress={() => setShowDueQuickMenu(true)}
-                                >
-                                  <Text style={styles.quickButtonText}>
-                                    Quick
-                                  </Text>
-                                </TouchableOpacity>
-                              }
-                            >
-                              {QUICK_DATE_OPTIONS.map(option => (
-                                <MenuItem
-                                  key={option.days}
-                                  onPress={() => {
-                                    const currentDate =
-                                      getValues('date') || new Date();
-                                    const newDueDate = new Date(currentDate);
-                                    newDueDate.setDate(
-                                      newDueDate.getDate() + option.days,
-                                    );
-                                    onChange(newDueDate);
-                                    validateField('dueDate');
-                                    setShowDueQuickMenu(false);
-                                  }}
-                                  title={option.label}
-                                />
-                              ))}
-                              <MenuItem
-                                onPress={() => {
-                                  setShowDueQuickMenu(false);
-                                  setShowDueDatePicker(true);
-                                }}
-                                title="Custom Date"
-                              />
-                            </CustomMenu>
-                          </View>
+                          <TouchableOpacity
+                            style={[
+                              styles.dateButton,
+                              errors.dueDate ? styles.errorBorder : {},
+                            ]}
+                            onPress={() => setShowDueDatePicker(true)}
+                          >
+                            <Text style={styles.dateButtonText}>
+                              {(value || new Date()).toLocaleDateString()}
+                            </Text>
+                            <Icon
+                              name={IconMap.Calendar}
+                              size={16}
+                              color="#6B7280"
+                            />
+                          </TouchableOpacity>
 
                           {showDueDatePicker && (
                             <DateTimePicker
@@ -2085,27 +1942,26 @@ export const SalesPurchasesFields = props => {
                       control={control}
                       name="paymentMethod"
                       render={({ field: { onChange, value } }) => (
-                        <Picker
-                          selectedValue={value}
-                          onValueChange={itemValue => {
+                        <CustomDropdown
+                          items={[
+                            { label: 'Select Payment Method', value: '' },
+                            ...currentPaymentMethods.map(m => ({
+                              label: m,
+                              value: m,
+                            })),
+                          ]}
+                          value={value}
+                          onChange={itemValue => {
                             onChange(itemValue);
                             setSelectedPaymentMethod(itemValue);
                             validateField('paymentMethod');
                           }}
-                          style={[
-                            styles.picker,
-                            errors.paymentMethod ? styles.errorBorder : {},
-                          ]}
-                        >
-                          <Picker.Item label="Select Payment Method" value="" />
-                          {currentPaymentMethods.map(method => (
-                            <Picker.Item
-                              key={method}
-                              label={method}
-                              value={method}
-                            />
-                          ))}
-                        </Picker>
+                          placeholder="Select Payment Method"
+                          // style={[
+                          //   styles.picker,
+                          //   errors.paymentMethod ? styles.errorBorder : {},
+                          // ]}
+                        />
                       )}
                     />
                   </View>
@@ -2122,32 +1978,31 @@ export const SalesPurchasesFields = props => {
                     render={({ field: { onChange, value } }) => (
                       <>
                         {banks && banks.length > 0 ? (
-                          <Picker
-                            selectedValue={value}
-                            onValueChange={itemValue =>
+                          <CustomDropdown
+                            items={banks.map((bank, index) => ({
+                              label: `${bank.bankName}${
+                                bank.company?.businessName
+                                  ? ` (${bank.company.businessName})`
+                                  : ''
+                              }${
+                                index === 0 && banks.length > 1
+                                  ? ' (First)'
+                                  : ''
+                              }`,
+                              value: bank._id,
+                            }))}
+                            value={value}
+                            onChange={itemValue =>
                               handleBankChange(itemValue, onChange)
                             }
-                            style={[
-                              styles.picker,
-                              errors.bank ? styles.errorBorder : {},
-                            ]}
-                          >
-                            {banks.map((bank, index) => (
-                              <Picker.Item
-                                key={bank._id}
-                                label={`${bank.bankName}${
-                                  bank.company?.businessName
-                                    ? ` (${bank.company.businessName})`
-                                    : ''
-                                }${
-                                  index === 0 && banks.length > 1
-                                    ? ' (First)'
-                                    : ''
-                                }`}
-                                value={bank._id}
-                              />
-                            ))}
-                          </Picker>
+                            placeholder={
+                              banks.length === 1 ? 'Select bank' : 'Select bank'
+                            }
+                            // style={[
+                            //   styles.picker,
+                            //   errors.bank ? styles.errorBorder : {},
+                            // ]}
+                          />
                         ) : (
                           <View style={styles.noBanksContainer}>
                             <Text style={styles.noBanksText}>
@@ -2173,33 +2028,27 @@ export const SalesPurchasesFields = props => {
                 </View>
               )}
             </View>
-          )}
-        </View>
-      </CustomCard>
+          </View>
+        </CustomCard>
 
-      {/* Expense Section for Payment Transactions */}
-      {renderExpenseSection()}
+        {/* Expense Section for Payment Transactions */}
+        {renderExpenseSection()}
 
-      {/* Shipping Address Section - Only for Sales */}
-      {type === 'sales' && (
-        <CustomCard style={styles.sectionCard}>
-          <View style={styles.sectionContent}>
-            <TouchableOpacity
-              style={styles.sectionHeader}
-              onPress={() => toggleSection('shipping')}
-            >
-              <View style={styles.sectionTitleContainer}>
-                <Icon name="truck-delivery-outline" size={20} color="#7C3AED" />
-                <Text style={styles.sectionTitle}>Shipping Address</Text>
+        {/* Shipping Address Section - Only for Sales */}
+        {type === 'sales' && (
+          <CustomCard style={styles.sectionCard}>
+            <View style={styles.sectionContent}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionTitleContainer}>
+                  <Icon
+                    name="truck-delivery-outline"
+                    size={20}
+                    color="#7C3AED"
+                  />
+                  <Text style={styles.sectionTitle}>Shipping Address</Text>
+                </View>
               </View>
-              <Icon
-                name={expandedSections.shipping ? 'chevron-up' : 'chevron-down'}
-                size={20}
-                color="#6B7280"
-              />
-            </TouchableOpacity>
 
-            {expandedSections.shipping && (
               <View style={styles.sectionContent}>
                 <CustomCard style={styles.checkboxCard}>
                   <CustomCheckbox
@@ -2214,27 +2063,26 @@ export const SalesPurchasesFields = props => {
                   <View style={styles.shippingSection}>
                     <View style={styles.inputGroup}>
                       <Text style={styles.label}>Shipping Address</Text>
-                      <Picker
-                        selectedValue={shippingAddress}
-                        onValueChange={handleShippingAddressChange}
-                        style={[
-                          styles.picker,
-                          errors.shippingAddress ? styles.errorBorder : {},
+                      <CustomDropdown
+                        items={[
+                          {
+                            label: 'Select saved address or create new',
+                            value: '',
+                          },
+                          ...shippingAddresses.map(addr => ({
+                            label: `${addr.label} - ${addr.address}, ${addr.city}`,
+                            value: addr._id,
+                          })),
+                          { label: '+ Create New Address', value: 'new' },
                         ]}
-                      >
-                        <Picker.Item
-                          label="Select saved address or create new"
-                          value=""
-                        />
-                        {shippingAddresses.map(addr => (
-                          <Picker.Item
-                            key={addr._id}
-                            label={`${addr.label} - ${addr.address}, ${addr.city}`}
-                            value={addr._id}
-                          />
-                        ))}
-                        <Picker.Item label="+ Create New Address" value="new" />
-                      </Picker>
+                        value={shippingAddress}
+                        onChange={handleShippingAddressChange}
+                        placeholder="Select saved address or create new"
+                        // style={[
+                        //   styles.picker,
+                        //   errors.shippingAddress ? styles.errorBorder : {},
+                        // ]}
+                      />
                       <FormMessage error={errors.shippingAddress} />
                     </View>
 
@@ -2428,30 +2276,20 @@ export const SalesPurchasesFields = props => {
                   </View>
                 )}
               </View>
-            )}
-          </View>
-        </CustomCard>
-      )}
-
-      {/* Items & Services Section */}
-      <CustomCard style={styles.sectionCard}>
-        <View style={styles.sectionContent}>
-          <TouchableOpacity
-            style={styles.sectionHeader}
-            onPress={() => toggleSection('items')}
-          >
-            <View style={styles.sectionTitleContainer}>
-              <Icon name="format-list-bulleted" size={20} color="#059669" />
-              <Text style={styles.sectionTitle}>Items & Services</Text>
             </View>
-            <Icon
-              name={expandedSections.items ? 'chevron-up' : 'chevron-down'}
-              size={20}
-              color="#6B7280"
-            />
-          </TouchableOpacity>
+          </CustomCard>
+        )}
 
-          {expandedSections.items && (
+        {/* Items & Services Section */}
+        <CustomCard style={styles.sectionCard}>
+          <View style={styles.sectionContent}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleContainer}>
+                <Icon name="format-list-bulleted" size={20} color="#059669" />
+                <Text style={styles.sectionTitle}>Items & Services</Text>
+              </View>
+            </View>
+
             <View style={styles.sectionContent}>
               {fields.map((item, index) =>
                 item.itemType === 'product'
@@ -2486,29 +2324,19 @@ export const SalesPurchasesFields = props => {
                 </CustomButton>
               </View>
             </View>
-          )}
-        </View>
-      </CustomCard>
+          </View>
+        </CustomCard>
 
-      {/* Totals and Notes Section */}
-      <CustomCard style={styles.sectionCard}>
-        <View style={styles.sectionContent}>
-          <TouchableOpacity
-            style={styles.sectionHeader}
-            onPress={() => toggleSection('totals')}
-          >
-            <View style={styles.sectionTitleContainer}>
-              <Icon name="calculator" size={20} color="#DC2626" />
-              <Text style={styles.sectionTitle}>Totals & Notes</Text>
+        {/* Totals and Notes Section */}
+        <CustomCard style={styles.sectionCard}>
+          <View style={styles.sectionContent}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleContainer}>
+                <Icon name="calculator" size={20} color="#DC2626" />
+                <Text style={styles.sectionTitle}>Totals & Notes</Text>
+              </View>
             </View>
-            <Icon
-              name={expandedSections.totals ? 'chevron-up' : 'chevron-down'}
-              size={20}
-              color="#6B7280"
-            />
-          </TouchableOpacity>
 
-          {expandedSections.totals && (
             <View style={styles.sectionContent}>
               {type === 'sales' && (
                 <View style={styles.notesSection}>
@@ -2587,16 +2415,13 @@ export const SalesPurchasesFields = props => {
                     </View>
                   </View>
                 </CustomCard>
-
-                {/* Don't Send Invoice Checkbox for Sales */}
-                {type === 'sales' && renderDontSendInvoice()}
               </View>
             </View>
-          )}
-        </View>
-      </CustomCard>
+          </View>
+        </CustomCard>
 
-      <Toast />
+        <Toast />
+      </ScrollView>
     </View>
   );
 };
@@ -2981,17 +2806,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     padding: 16,
     borderRadius: 8,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    flexDirection: 'column',
   },
   serviceDetailsContainer: {
     backgroundColor: '#F9FAFB',
     padding: 16,
     borderRadius: 8,
+    flexDirection: 'column',
+  },
+  pairRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 12,
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  pairItem: {
+    flex: 1,
+    minWidth: 140,
   },
   inputContainer: {
     minWidth: 80,

@@ -198,6 +198,12 @@ export function FormTabs({
     };
   }, []);
 
+  // Dismiss keyboard when tab type changes
+  useEffect(() => {
+    Keyboard.dismiss();
+    setFocusedField(null);
+  }, [type]);
+
   // Initialize date from form
   useEffect(() => {
     const formDate = formMethods.watch('date');
@@ -340,12 +346,11 @@ export function FormTabs({
   );
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <View
+    <View style={styles.container}>
+      <ScrollView
         style={[styles.scrollContent, isKeyboardVisible && styles.keyboardOpen]}
+        keyboardShouldPersistTaps="handled"
+        scrollEnabled={true}
       >
         <TypeSelectorMobile />
 
@@ -566,8 +571,8 @@ export function FormTabs({
             </View>
           )}
         </View>
-      </View>
-    </KeyboardAvoidingView>
+      </ScrollView>
+    </View>
   );
 }
 

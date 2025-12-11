@@ -9,6 +9,7 @@ import {
   TextInput,
   Switch,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { Combobox } from '../../ui/Combobox';
@@ -21,16 +22,21 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons'; // Using a 
 // Custom Button Component for better styling (Pressable with Text)
 const OutlineButton = ({ onPress, children, icon }) => (
   <TouchableOpacity onPress={onPress} style={styles.selectButton}>
-    {icon && <Icon name={icon} size={20} color="#007AFF" style={styles.selectButtonIcon} />}
+    {icon && (
+      <Icon
+        name={icon}
+        size={20}
+        color="#007AFF"
+        style={styles.selectButtonIcon}
+      />
+    )}
     <Text style={styles.selectButtonText}>{children}</Text>
   </TouchableOpacity>
 );
 
 // Custom Card Component (View with Shadow/Elevation)
 const Card = ({ children, style }) => (
-  <View style={[styles.card, style]}>
-    {children}
-  </View>
+  <View style={[styles.card, style]}>{children}</View>
 );
 
 export const ReceiptPaymentFields = props => {
@@ -104,9 +110,9 @@ export const ReceiptPaymentFields = props => {
       if (hasDecimal) {
         const [integerPart, decimalPart] = stringValue.split('.');
         // Ensure integerPart is formatted but handle empty string if input starts with '.'
-        const formattedInt = integerPart 
-          ? Number(integerPart).toLocaleString('en-IN') 
-          : ''; 
+        const formattedInt = integerPart
+          ? Number(integerPart).toLocaleString('en-IN')
+          : '';
         setDisplayValue(`${formattedInt}.${decimalPart}`);
       } else {
         setDisplayValue(numValue.toLocaleString('en-IN'));
@@ -115,6 +121,11 @@ export const ReceiptPaymentFields = props => {
       setDisplayValue('');
     }
   }, [totalAmountValue]);
+
+  // Dismiss keyboard when component loads or type changes
+  useEffect(() => {
+    Keyboard.dismiss();
+  }, [type]);
 
   const formatInput = value => {
     // 1. Clean to allow only digits and at most one decimal point
@@ -125,12 +136,12 @@ export const ReceiptPaymentFields = props => {
 
     // Handle multiple decimal points (keep first part)
     if (parts.length > 2) {
-        decimalPart = parts.slice(1).join('');
+      decimalPart = parts.slice(1).join('');
     }
 
     // Format integer part for Indian locale (commas)
-    const formattedInt = integerPart 
-      ? Number(integerPart).toLocaleString('en-IN') 
+    const formattedInt = integerPart
+      ? Number(integerPart).toLocaleString('en-IN')
       : '';
 
     // Reconstruct the string
@@ -210,7 +221,9 @@ export const ReceiptPaymentFields = props => {
         ? `You need to pay vendor: ₹${formattedBalance}`
         : `Customer has paid: ₹${formattedBalance}`;
     } else {
-      message = `${isVendor ? 'Vendor' : 'Customer'} balance: ₹${formattedBalance}`;
+      message = `${
+        isVendor ? 'Vendor' : 'Customer'
+      } balance: ₹${formattedBalance}`;
     }
 
     return (
@@ -237,9 +250,7 @@ export const ReceiptPaymentFields = props => {
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
           <View style={styles.modalHeaderRow}>
-            <Text style={styles.modalTitle}>
-              Select Company
-            </Text>
+            <Text style={styles.modalTitle}>Select Company</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
@@ -266,9 +277,7 @@ export const ReceiptPaymentFields = props => {
           </ScrollView>
 
           <View style={styles.modalActions}>
-            <OutlineButton onPress={onClose}>
-              Cancel
-            </OutlineButton>
+            <OutlineButton onPress={onClose}>Cancel</OutlineButton>
           </View>
         </View>
       </View>
@@ -285,9 +294,7 @@ export const ReceiptPaymentFields = props => {
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
           <View style={styles.modalHeaderRow}>
-            <Text style={styles.modalTitle}>
-              Select Date
-            </Text>
+            <Text style={styles.modalTitle}>Select Date</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
@@ -308,16 +315,20 @@ export const ReceiptPaymentFields = props => {
           />
 
           <View style={styles.modalActions}>
-            <OutlineButton onPress={onClose}>
-              Cancel
-            </OutlineButton>
+            <OutlineButton onPress={onClose}>Cancel</OutlineButton>
           </View>
         </View>
       </View>
     </RNModal>
   );
 
-  const PaymentMethodModal = ({ visible, onClose, methods, onSelect, selectedMethod }) => (
+  const PaymentMethodModal = ({
+    visible,
+    onClose,
+    methods,
+    onSelect,
+    selectedMethod,
+  }) => (
     <RNModal
       visible={visible}
       onRequestClose={onClose}
@@ -327,9 +338,7 @@ export const ReceiptPaymentFields = props => {
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
           <View style={styles.modalHeaderRow}>
-            <Text style={styles.modalTitle}>
-              Select Payment Method
-            </Text>
+            <Text style={styles.modalTitle}>Select Payment Method</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
@@ -344,17 +353,17 @@ export const ReceiptPaymentFields = props => {
                   onClose();
                 }}
               >
-                <Card 
+                <Card
                   style={[
-                    styles.optionCard, 
-                    selectedMethod === method && styles.selectedOptionCard
+                    styles.optionCard,
+                    selectedMethod === method && styles.selectedOptionCard,
                   ]}
                 >
                   <View style={styles.cardContent}>
-                    <Text 
+                    <Text
                       style={[
-                        styles.optionText, 
-                        selectedMethod === method && styles.selectedOptionText
+                        styles.optionText,
+                        selectedMethod === method && styles.selectedOptionText,
                       ]}
                     >
                       {method}
@@ -366,24 +375,19 @@ export const ReceiptPaymentFields = props => {
           </ScrollView>
 
           <View style={styles.modalActions}>
-            <OutlineButton onPress={onClose}>
-              Cancel
-            </OutlineButton>
+            <OutlineButton onPress={onClose}>Cancel</OutlineButton>
           </View>
         </View>
       </View>
     </RNModal>
   );
 
-
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Company</Text>
-          <OutlineButton
-            onPress={() => setCompanyModalVisible(true)}
-          >
+          <OutlineButton onPress={() => setCompanyModalVisible(true)}>
             {watch('company')
               ? companies.find(c => c._id === watch('company'))?.businessName
               : 'Select a company'}
@@ -416,8 +420,8 @@ export const ReceiptPaymentFields = props => {
                     setFormValue('expense', '');
                   }
                 }}
-                trackColor={{ false: "#767577", true: "#007AFF" }}
-                thumbColor={watch('isExpense') ? "#f4f3f4" : "#f4f3f4"}
+                trackColor={{ false: '#767577', true: '#007AFF' }}
+                thumbColor={watch('isExpense') ? '#f4f3f4' : '#f4f3f4'}
               />
               <View style={styles.checkboxLabelContainer}>
                 <Text style={styles.checkboxLabel}>Expense</Text>
@@ -512,9 +516,7 @@ export const ReceiptPaymentFields = props => {
 
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Payment Method</Text>
-          <OutlineButton
-            onPress={() => setPaymentMethodModalVisible(true)}
-          >
+          <OutlineButton onPress={() => setPaymentMethodModalVisible(true)}>
             {watch('paymentMethod') || 'Select Payment Method'}
           </OutlineButton>
         </View>
