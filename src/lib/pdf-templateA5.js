@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { generatePDF } from 'react-native-html-to-pdf';
-import ReactPDF, { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer';
 import {
   deriveTotals,
   formatCurrency,
@@ -22,7 +21,7 @@ import { BASE_URL } from '../config';
 
 // **START: ADDED IMPORT FOR HTML RENDERING UTILITIES**
 import { parseHtmlToElements, renderParsedElements } from './HtmlNoteRenderer';
-// **END: ADDED IMPORT FOR HTML RENDERING UTILITIES**
+// **END: ADDED IMPORT FOR HTML RENDERING UTILITIES'
 
 /**
  * Derives the client's name from the client object or a string.
@@ -36,502 +35,10 @@ const getClientName = client => {
   return client.companyName || client.contactName || 'Client Name';
 };
 
-// Create styles for ReactPDF
-const styles = StyleSheet.create({
-  page: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    fontFamily: 'Helvetica',
-  },
-  contentContainer: {
-    paddingBottom: 30,
-  },
-  header: {
-    flexDirection: 'row',
-    marginBottom: 8,
-    paddingBottom: 4,
-    alignItems: 'center',
-    gap: 6,
-  },
-  headerLeft: {
-    alignItems: 'flex-start',
-  },
-  headerRight: {
-    flex: 3,
-    alignItems: 'flex-start',
-  },
-  logo: {
-    width: 70,
-    height: 70,
-    resizeMode: 'contain',
-  },
-  companyName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 5,
-    color: '#000',
-  },
-  address: {
-    fontSize: 10,
-    marginBottom: 3,
-    lineHeight: 14,
-    color: '#000',
-  },
-  contactInfo: {
-    fontSize: 10,
-    lineHeight: 14,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-    alignItems: 'center',
-  },
-  contactLabel: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  contactValue: {
-    fontSize: 10,
-    fontWeight: 'normal',
-    color: '#000',
-  },
-  section: {
-    borderWidth: 1.5,
-    borderColor: '#0371C1',
-    padding: 0,
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#0371C1',
-  },
-  gstRow: {
-    flexDirection: 'row',
-    padding: 3,
-  },
-  gstLabel: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  gstValue: {
-    fontSize: 10,
-    fontWeight: 'normal',
-    color: '#000',
-  },
-  invoiceTitleRow: {
-    padding: 3,
-  },
-  invoiceTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    textAlign: 'center',
-    color: '#0371C1',
-  },
-  recipientRow: {
-    padding: 3,
-  },
-  recipientText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    color: '#000',
-  },
-  threeColSection: {
-    flexDirection: 'row',
-    borderBottomWidth: 1.5,
-    borderLeftWidth: 1.5,
-    borderRightWidth: 1.5,
-    borderColor: '#0371C1',
-  },
-  column: {
-    width: '33.3%',
-    paddingHorizontal: 4,
-    borderLeftWidth: 1,
-    borderLeftColor: '#0371C1',
-  },
-  noLeftBorder: {
-    borderLeftWidth: 0,
-  },
-  noRightBorder: {
-    borderRightWidth: 0,
-  },
-  columnHeader: {
-    marginBottom: 5,
-  },
-  dataRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingVertical: 2,
-  },
-  invoiceDetailRow: {
-    gap: 30,
-  },
-  threecoltableHeader: {
-    fontSize: 8,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  tableLabel: {
-    fontSize: 8,
-    fontWeight: 'bold',
-    width: '40%',
-    color: '#000',
-  },
-  tableValue: {
-    fontSize: 8,
-    fontWeight: 'normal',
-    width: '70%',
-    color: '#000',
-  },
-  tableContainer: {
-    borderBottomWidth: 1.5,
-    borderLeftWidth: 1.5,
-    borderRightWidth: 1.5,
-    borderColor: '#0371C1',
-  },
-  itemsTableHeader: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(3, 113, 193, 0.2)',
-    borderBottomWidth: 1,
-    borderBottomColor: '#0371C1',
-  },
-  itemsTableRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    borderBottomWidth: 1,
-    borderBottomColor: '#0371C1',
-  },
-  itemsTableTotalRow: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(3, 113, 193, 0.2)',
-    alignItems: 'center',
-  },
-  // Header Styles
-  srNoHeader: {
-    fontSize: 7,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    padding: 2,
-    color: '#000',
-  },
-  productHeader: {
-    fontSize: 7,
-    fontWeight: 'bold',
-    padding: 2,
-    color: '#000',
-  },
-  hsnHeader: {
-    fontSize: 7,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    padding: 2,
-    color: '#000',
-  },
-  qtyHeader: {
-    fontSize: 7,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    padding: 2,
-    color: '#000',
-  },
-  rateHeader: {
-    fontSize: 7,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    padding: 2,
-    color: '#000',
-  },
-  taxableHeader: {
-    fontSize: 7,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    padding: 2,
-    color: '#000',
-  },
-  igstHeader: {
-    fontSize: 7,
-    fontWeight: 'bold',
-  },
-  totalHeader: {
-    fontSize: 7,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    padding: 2,
-    color: '#000',
-  },
-  igstMainHeader: {
-    fontSize: 7,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    padding: 1,
-    color: '#000',
-  },
-  igstSubHeader: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#0371C1',
-  },
-  igstSubText: {
-    fontSize: 6,
-    fontWeight: 'bold',
-    width: '70%',
-    textAlign: 'center',
-    padding: 1,
-    color: '#000',
-  },
-  igstSubPercentage: {
-    fontSize: 6,
-    fontWeight: 'bold',
-    width: '30%',
-    textAlign: 'center',
-    padding: 1,
-    color: '#000',
-  },
-  borderRight: {
-    borderRightWidth: 1,
-    borderRightColor: '#0371C1',
-  },
-  // Cell Styles
-  srNoCell: {
-    fontSize: 7,
-    textAlign: 'center',
-    padding: 2,
-    color: '#000',
-  },
-  productCell: {
-    fontSize: 7,
-    textAlign: 'left',
-    padding: 2,
-    color: '#000',
-  },
-  hsnCell: {
-    fontSize: 7,
-    textAlign: 'center',
-    padding: 2,
-    color: '#000',
-  },
-  qtyCell: {
-    fontSize: 7,
-    textAlign: 'center',
-    padding: 2,
-    color: '#000',
-  },
-  rateCell: {
-    fontSize: 7,
-    textAlign: 'center',
-    padding: 2,
-    color: '#000',
-  },
-  taxableCell: {
-    fontSize: 7,
-    textAlign: 'center',
-    padding: 2,
-    color: '#000',
-  },
-  igstCell: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 10,
-    textAlign: 'center',
-    paddingVertical: 3,
-  },
-  igstPercent: {
-    fontSize: 7,
-    textAlign: 'center',
-    padding: 1,
-    width: '30%',
-    color: '#000',
-  },
-  igstAmount: {
-    fontSize: 7,
-    textAlign: 'center',
-    padding: 1,
-    width: '70%',
-    color: '#000',
-  },
-  totalCell: {
-    fontSize: 7,
-    textAlign: 'center',
-    padding: 2,
-    color: '#000',
-  },
-  // Total Row Styles
-  totalLabel: {
-    fontSize: 7,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    padding: 2,
-    color: '#000',
-  },
-  totalEmpty: {
-    fontSize: 7,
-    padding: 2,
-    textAlign: 'center',
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  totalQty: {
-    fontSize: 7,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    padding: 2,
-    color: '#000',
-  },
-  totalTaxable: {
-    fontSize: 7,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    padding: 2,
-    color: '#000',
-  },
-  igstTotal: {
-    fontSize: 7,
-  },
-  totalIgstAmount: {
-    fontSize: 7,
-    fontWeight: 'bold',
-    textAlign: 'right',
-    padding: 1,
-    color: '#000',
-  },
-  grandTotal: {
-    fontSize: 7,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    padding: 2,
-    color: '#000',
-  },
-  bottomSection: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#0371C1',
-    fontSize: 7,
-  },
-  leftSection: {
-    width: '65%',
-    borderRightWidth: 1,
-    borderRightColor: '#0371C1',
-  },
-  totalInWords: {
-    fontSize: 7,
-    fontWeight: 'bold',
-    borderBottomWidth: 1,
-    borderBottomColor: '#0371C1',
-    padding: 3,
-    textTransform: 'uppercase',
-    color: '#000',
-  },
-  bankDetailsWrapper: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: 4,
-  },
-  bankDetailsContainer: {
-    flex: 1,
-  },
-  bankDetailsTitle: {
-    fontSize: 9,
-    fontWeight: 'bold',
-    marginBottom: 2,
-    color: '#000',
-  },
-  bankDetailRow: {
-    flexDirection: 'row',
-    marginBottom: 1,
-    fontSize: 8,
-  },
-  bankLabel: {
-    width: 70,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  bankAddress: {
-    flex: 1,
-    color: '#000',
-  },
-  qrContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 5,
-    marginLeft: 10,
-  },
-  qrTitle: {
-    fontSize: 9,
-    fontWeight: 'bold',
-    marginBottom: 5,
-    color: '#000',
-  },
-  qrImage: {
-    width: 70,
-    height: 70,
-    resizeMode: 'contain',
-    backgroundColor: '#fff',
-  },
-  rightSection: {
-    width: '35%',
-    justifyContent: 'flex-start',
-  },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: '#0371C1',
-    padding: 3,
-  },
-  label: {
-    fontSize: 8,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  value: {
-    fontSize: 8,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  labelBold: {
-    fontSize: 8,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  valueBold: {
-    fontSize: 8,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  highlightRow: {
-    backgroundColor: '#EAF4FF',
-  },
-  termsBox: {
-    padding: 8,
-    paddingTop: 0,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: '#0371C1',
-  },
-  termLine: {
-    fontSize: 10,
-    marginBottom: 2,
-    color: '#000000',
-    textAlign: 'left',
-    textDecorationLine: 'none',
-    backgroundColor: 'transparent',
-  },
-  boldText: {
-    fontWeight: 'bold',
-  },
-});
-
-// ReactPDF Component
-const TemplateA5PDFDocument = ({ transaction, company, party }) => {
+/**
+ * Generate HTML content for the PDF
+ */
+const generateHTMLContent = (transaction, company, party) => {
   // Use the shipping address from transaction if available
   const shippingAddress = transaction?.shippingAddress || null;
   const bank = company?.bankDetails || null;
@@ -557,9 +64,7 @@ const TemplateA5PDFDocument = ({ transaction, company, party }) => {
     showNoTax,
   } = prepareTemplate8Data(transaction, company, party, shippingAddress);
 
-  const logoSrc = company?.logo
-    ? `${BASE_URL}${company.logo}`
-    : null;
+  const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
 
   // Bank Data Check - Added from Template 1
   const bankData = bank || {};
@@ -573,531 +78,865 @@ const TemplateA5PDFDocument = ({ transaction, company, party }) => {
     bankData?.accountNo ||
     bankData?.upiDetails?.upiId;
 
-  // **START: Terms and Conditions HTML rendering setup**
-  const { title } = parseNotesHtml(transaction?.notes || '');
-  const termsTitle = title || 'Terms and Conditions';
-  // **END: Terms and Conditions HTML rendering setup**
+  // Generate items table rows HTML
+  const generateItemRows = () => {
+    return itemsWithGST
+      .map((item, index) => {
+        const igstHtml = showIGST
+          ? `
+        <td style="border: 1px solid #0371C1; padding: 2px; width: 12%;">
+          <div style="display: flex; justify-content: center; align-items: center; gap: 10px;">
+            <span style="width: 30%; text-align: center; font-size: 7px;">${
+              item.gstRate
+            }</span>
+            <span style="width: 70%; text-align: center; font-size: 7px;">${formatCurrency(
+              item.igst,
+            )}</span>
+          </div>
+        </td>
+      `
+          : '';
 
-  // Render individual item row
-  const renderItemRow = (item, index) => (
-    <View key={index} style={styles.itemsTableRow}>
-      <Text style={[styles.srNoCell, { width: '8%' }]}>{index + 1}</Text>
-      <Text style={[styles.productCell, { width: '25%' }]}>
-        {capitalizeWords(item.name)}
-      </Text>
-      <Text style={[styles.hsnCell, { width: '10%' }]}>{item.code || '-'}</Text>
-      <Text style={[styles.qtyCell, { width: '8%' }]}>
-        {item.itemType === 'service'
-          ? '-'
-          : formatQuantity(item.quantity || 0, item.unit)}
-      </Text>
-      <Text style={[styles.rateCell, { width: '10%' }]}>
-        {formatCurrency(item.pricePerUnit || 0)}
-      </Text>
-      <Text style={[styles.taxableCell, { width: '12%' }]}>
-        {formatCurrency(item.taxableValue)}
-      </Text>
+        const cgstSgstHtml = showCGSTSGST
+          ? `
+        <td style="border: 1px solid #0371C1; padding: 2px; width: 12%;">
+          <div style="display: flex; justify-content: center; align-items: center; gap: 10px;">
+            <span style="width: 30%; text-align: center; font-size: 7px;">${
+              item.gstRate / 2
+            }</span>
+            <span style="width: 70%; text-align: center; font-size: 7px;">${formatCurrency(
+              item.cgst,
+            )}</span>
+          </div>
+        </td>
+        <td style="border: 1px solid #0371C1; padding: 2px; width: 12%;">
+          <div style="display: flex; justify-content: center; align-items: center; gap: 10px;">
+            <span style="width: 30%; text-align: center; font-size: 7px;">${
+              item.gstRate / 2
+            }</span>
+            <span style="width: 70%; text-align: center; font-size: 7px;">${formatCurrency(
+              item.sgst,
+            )}</span>
+          </div>
+        </td>
+      `
+          : '';
 
-      {showIGST ? (
-        <View style={[styles.igstCell, { width: '12%' }]}>
-          <Text style={styles.igstPercent}>{item.gstRate}</Text>
-          <Text style={styles.igstAmount}>{formatCurrency(item.igst)}</Text>
-        </View>
-      ) : showCGSTSGST ? (
-        <>
-          <View style={[styles.igstCell, { width: '12%' }]}>
-            <Text style={styles.igstPercent}>{item.gstRate / 2}</Text>
-            <Text style={styles.igstAmount}>{formatCurrency(item.cgst)}</Text>
-          </View>
-          <View style={[styles.igstCell, { width: '12%' }]}>
-            <Text style={styles.igstPercent}>{item.gstRate / 2}</Text>
-            <Text style={styles.igstAmount}>{formatCurrency(item.sgst)}</Text>
-          </View>
-        </>
-      ) : null}
+        return `
+        <tr style="border-bottom: 1px solid #0371C1;">
+          <td style="border: 1px solid #0371C1; padding: 2px; width: 8%; text-align: center; font-size: 7px;">${
+            index + 1
+          }</td>
+          <td style="border: 1px solid #0371C1; padding: 2px; width: 25%; text-align: left; font-size: 7px;">${capitalizeWords(
+            item.name,
+          )}</td>
+          <td style="border: 1px solid #0371C1; padding: 2px; width: 10%; text-align: center; font-size: 7px;">${
+            item.code || '-'
+          }</td>
+          <td style="border: 1px solid #0371C1; padding: 2px; width: 8%; text-align: center; font-size: 7px;">
+            ${
+              item.itemType === 'service'
+                ? '-'
+                : formatQuantity(item.quantity || 0, item.unit)
+            }
+          </td>
+          <td style="border: 1px solid #0371C1; padding: 2px; width: 10%; text-align: center; font-size: 7px;">${formatCurrency(
+            item.pricePerUnit || 0,
+          )}</td>
+          <td style="border: 1px solid #0371C1; padding: 2px; width: 12%; text-align: center; font-size: 7px;">${formatCurrency(
+            item.taxableValue,
+          )}</td>
+          ${igstHtml}
+          ${cgstSgstHtml}
+          <td style="border: 1px solid #0371C1; padding: 2px; width: 15%; text-align: center; font-size: 7px; font-weight: bold;">${formatCurrency(
+            item.total,
+          )}</td>
+        </tr>
+      `;
+      })
+      .join('');
+  };
 
-      <Text style={[styles.totalCell, { width: '15%' }]}>
-        {formatCurrency(item.total)}
-      </Text>
-    </View>
-  );
+  // Generate table header HTML
+  const generateTableHeader = () => {
+    const igstHeader = showIGST
+      ? `
+      <th style="border: 1px solid #0371C1; padding: 1px; width: 12%;">
+        <div style="text-align: center; font-weight: bold; font-size: 7px;">IGST</div>
+        <div style="display: flex; border-top: 1px solid #0371C1;">
+          <div style="width: 30%; text-align: center; border-right: 1px solid #0371C1; font-size: 6px; font-weight: bold; padding: 1px;">%</div>
+          <div style="width: 70%; text-align: center; font-size: 6px; font-weight: bold; padding: 1px;">Amount (Rs.)</div>
+        </div>
+      </th>
+    `
+      : '';
 
-  // Render table header
-  const renderTableHeader = () => (
-    <View style={styles.itemsTableHeader}>
-      <Text style={[styles.srNoHeader, { width: '8%' }]}>Sr. No.</Text>
-      <Text style={[styles.productHeader, { width: '25%' }]}>
-        Name of Product/Service
-      </Text>
-      <Text style={[styles.hsnHeader, { width: '10%' }]}>HSN/SAC</Text>
-      <Text style={[styles.qtyHeader, { width: '8%' }]}>Qty</Text>
-      <Text style={[styles.rateHeader, { width: '10%' }]}>Rate (Rs.)</Text>
-      <Text style={[styles.taxableHeader, { width: '12%' }]}>
-        Taxable Value (Rs.)
-      </Text>
+    const cgstSgstHeader = showCGSTSGST
+      ? `
+      <th style="border: 1px solid #0371C1; padding: 1px; width: 12%;">
+        <div style="text-align: center; font-weight: bold; font-size: 7px;">CGST</div>
+        <div style="display: flex; border-top: 1px solid #0371C1;">
+          <div style="width: 30%; text-align: center; border-right: 1px solid #0371C1; font-size: 6px; font-weight: bold; padding: 1px;">%</div>
+          <div style="width: 70%; text-align: center; font-size: 6px; font-weight: bold; padding: 1px;">Amount (Rs.)</div>
+        </div>
+      </th>
+      <th style="border: 1px solid #0371C1; padding: 1px; width: 12%;">
+        <div style="text-align: center; font-weight: bold; font-size: 7px;">SGST</div>
+        <div style="display: flex; border-top: 1px solid #0371C1;">
+          <div style="width: 30%; text-align: center; border-right: 1px solid #0371C1; font-size: 6px; font-weight: bold; padding: 1px;">%</div>
+          <div style="width: 70%; text-align: center; font-size: 6px; font-weight: bold; padding: 1px;">Amount (Rs.)</div>
+        </div>
+      </th>
+    `
+      : '';
 
-      {showIGST ? (
-        <View style={[styles.igstHeader, { width: '12%' }]}>
-          <Text style={styles.igstMainHeader}>IGST</Text>
-          <View style={styles.igstSubHeader}>
-            <Text style={[styles.igstSubPercentage, styles.borderRight]}>
-              %
-            </Text>
-            <Text style={styles.igstSubText}>Amount (Rs.)</Text>
-          </View>
-        </View>
-      ) : showCGSTSGST ? (
-        <>
-          <View style={[styles.igstHeader, { width: '12%' }]}>
-            <Text style={styles.igstMainHeader}>CGST</Text>
-            <View style={styles.igstSubHeader}>
-              <Text style={[styles.igstSubPercentage, styles.borderRight]}>
-                %
-              </Text>
-              <Text style={styles.igstSubText}>Amount (Rs.)</Text>
-            </View>
-          </View>
-          <View style={[styles.igstHeader, { width: '12%' }]}>
-            <Text style={styles.igstMainHeader}>SGST</Text>
-            <View style={styles.igstSubHeader}>
-              <Text style={[styles.igstSubPercentage, styles.borderRight]}>
-                %
-              </Text>
-              <Text style={styles.igstSubText}>Amount (Rs.)</Text>
-            </View>
-          </View>
-        </>
-      ) : null}
+    return `
+      <tr style="background-color: rgba(3, 113, 193, 0.2);">
+        <th style="border: 1px solid #0371C1; padding: 2px; width: 8%; text-align: center; font-size: 7px; font-weight: bold;">Sr. No.</th>
+        <th style="border: 1px solid #0371C1; padding: 2px; width: 25%; text-align: center; font-size: 7px; font-weight: bold;">Name of Product/Service</th>
+        <th style="border: 1px solid #0371C1; padding: 2px; width: 10%; text-align: center; font-size: 7px; font-weight: bold;">HSN/SAC</th>
+        <th style="border: 1px solid #0371C1; padding: 2px; width: 8%; text-align: center; font-size: 7px; font-weight: bold;">Qty</th>
+        <th style="border: 1px solid #0371C1; padding: 2px; width: 10%; text-align: center; font-size: 7px; font-weight: bold;">Rate (Rs.)</th>
+        <th style="border: 1px solid #0371C1; padding: 2px; width: 12%; text-align: center; font-size: 7px; font-weight: bold;">Taxable Value (Rs.)</th>
+        ${igstHeader}
+        ${cgstSgstHeader}
+        <th style="border: 1px solid #0371C1; padding: 2px; width: 15%; text-align: center; font-size: 7px; font-weight: bold;">Total (Rs.)</th>
+      </tr>
+    `;
+  };
 
-      <Text style={[styles.totalHeader, { width: '15%' }]}>Total (Rs.)</Text>
-    </View>
-  );
+  // Generate total row HTML
+  const generateTotalRow = () => {
+    const igstTotal = showIGST
+      ? `
+      <td style="border: 1px solid #0371C1; padding: 2px; width: 12%;">
+        <div style="text-align: right; padding-right: 20px; font-size: 7px; font-weight: bold;">${formatCurrency(
+          totalIGST,
+        )}</div>
+      </td>
+    `
+      : '';
 
-  // Render total row
-  const renderTotalRow = () => (
-    <View style={styles.itemsTableTotalRow}>
-      <Text style={[styles.totalLabel, { width: '8%' }]}></Text>
-      <Text style={[styles.totalEmpty, { width: '25%' }]}></Text>
-      <Text style={[styles.totalEmpty, { width: '10%' }]}>Total</Text>
-      <Text style={[styles.totalQty, { width: '8%' }]}>{totalQty}</Text>
-      <Text style={[styles.totalEmpty, { width: '10%' }]}></Text>
-      <Text style={[styles.totalTaxable, { width: '12%' }]}>
-        {formatCurrency(totalTaxable)}
-      </Text>
+    const cgstSgstTotal = showCGSTSGST
+      ? `
+      <td style="border: 1px solid #0371C1; padding: 2px; width: 12%;">
+        <div style="text-align: right; padding-right: 9px; font-size: 7px; font-weight: bold;">${formatCurrency(
+          totalCGST,
+        )}</div>
+      </td>
+      <td style="border: 1px solid #0371C1; padding: 2px; width: 12%;">
+        <div style="text-align: right; padding-right: 13px; font-size: 7px; font-weight: bold;">${formatCurrency(
+          totalSGST,
+        )}</div>
+      </td>
+    `
+      : '';
 
-      {showIGST ? (
-        <View style={[styles.igstTotal, { width: '12%' }]}>
-          <Text style={[styles.totalIgstAmount, { paddingRight: 20 }]}>
-            {formatCurrency(totalIGST)}
-          </Text>
-        </View>
-      ) : showCGSTSGST ? (
-        <>
-          <View style={[styles.igstTotal, { width: '12%', paddingRight: 9 }]}>
-            <Text style={styles.totalIgstAmount}>
-              {formatCurrency(totalCGST)}
-            </Text>
-          </View>
-          <View style={[styles.igstTotal, { width: '12%', paddingRight: 13 }]}>
-            <Text style={styles.totalIgstAmount}>
-              {formatCurrency(totalSGST)}
-            </Text>
-          </View>
-        </>
-      ) : null}
+    return `
+      <tr style="background-color: rgba(3, 113, 193, 0.2);">
+        <td style="border: 1px solid #0371C1; padding: 2px; width: 8%;"></td>
+        <td style="border: 1px solid #0371C1; padding: 2px; width: 25%;"></td>
+        <td style="border: 1px solid #0371C1; padding: 2px; width: 10%; text-align: center; font-size: 7px; font-weight: bold;">Total</td>
+        <td style="border: 1px solid #0371C1; padding: 2px; width: 8%; text-align: center; font-size: 7px; font-weight: bold;">${totalQty}</td>
+        <td style="border: 1px solid #0371C1; padding: 2px; width: 10%;"></td>
+        <td style="border: 1px solid #0371C1; padding: 2px; width: 12%; text-align: center; font-size: 7px; font-weight: bold;">${formatCurrency(
+          totalTaxable,
+        )}</td>
+        ${igstTotal}
+        ${cgstSgstTotal}
+        <td style="border: 1px solid #0371C1; padding: 2px; width: 15%; text-align: center; font-size: 7px; font-weight: bold;">${formatCurrency(
+          totalAmount,
+        )}</td>
+      </tr>
+    `;
+  };
 
-      <Text style={[styles.grandTotal, { width: '15%' }]}>
-        {formatCurrency(totalAmount)}
-      </Text>
-    </View>
-  );
+  // Generate bank details HTML
+  const generateBankDetails = () => {
+    if (!isBankDetailAvailable || transaction.type === 'proforma') {
+      return '';
+    }
 
-  // Render bank details
-  const renderBankDetails = () => (
-    <View style={styles.bankDetailsContainer}>
-      <Text style={styles.bankDetailsTitle}>Bank Details:</Text>
+    let bankDetailsHTML = `
+      <div style="flex: 1;">
+        <div style="font-size: 9px; font-weight: bold; margin-bottom: 2px;">Bank Details:</div>
+    `;
 
-      {bankData?.bankName && (
-        <View style={styles.bankDetailRow}>
-          <Text style={styles.bankLabel}>Name:</Text>
-          <Text>{capitalizeWords(bankData.bankName)}</Text>
-        </View>
-      )}
+    if (bankData?.bankName) {
+      bankDetailsHTML += `
+        <div style="display: flex; margin-bottom: 1px; font-size: 8px;">
+          <div style="width: 70px; font-weight: bold;">Name:</div>
+          <div>${capitalizeWords(bankData.bankName)}</div>
+        </div>
+      `;
+    }
 
-      {bankData?.accountNo && (
-        <View style={styles.bankDetailRow}>
-          <Text style={styles.bankLabel}>Acc. No:</Text>
-          <Text>{bankData.accountNo}</Text>
-        </View>
-      )}
+    if (bankData?.accountNo) {
+      bankDetailsHTML += `
+        <div style="display: flex; margin-bottom: 1px; font-size: 8px;">
+          <div style="width: 70px; font-weight: bold;">Acc. No:</div>
+          <div>${bankData.accountNo}</div>
+        </div>
+      `;
+    }
 
-      {bankData?.ifscCode && (
-        <View style={styles.bankDetailRow}>
-          <Text style={styles.bankLabel}>IFSC:</Text>
-          <Text>{bankData.ifscCode}</Text>
-        </View>
-      )}
+    if (bankData?.ifscCode) {
+      bankDetailsHTML += `
+        <div style="display: flex; margin-bottom: 1px; font-size: 8px;">
+          <div style="width: 70px; font-weight: bold;">IFSC:</div>
+          <div>${bankData.ifscCode}</div>
+        </div>
+      `;
+    }
 
-      {bankData?.branchAddress && (
-        <View style={styles.bankDetailRow}>
-          <Text style={styles.bankLabel}>Branch:</Text>
-          <Text style={styles.bankAddress}>{bankData.branchAddress}</Text>
-        </View>
-      )}
+    if (bankData?.branchAddress) {
+      bankDetailsHTML += `
+        <div style="display: flex; margin-bottom: 1px; font-size: 8px;">
+          <div style="width: 70px; font-weight: bold;">Branch:</div>
+          <div style="flex: 1;">${bankData.branchAddress}</div>
+        </div>
+      `;
+    }
 
-      {bankData?.upiDetails?.upiId && (
-        <View style={styles.bankDetailRow}>
-          <Text style={styles.bankLabel}>UPI ID:</Text>
-          <Text>{bankData.upiDetails.upiId}</Text>
-        </View>
-      )}
+    if (bankData?.upiDetails?.upiId) {
+      bankDetailsHTML += `
+        <div style="display: flex; margin-bottom: 1px; font-size: 8px;">
+          <div style="width: 70px; font-weight: bold;">UPI ID:</div>
+          <div>${bankData.upiDetails.upiId}</div>
+        </div>
+      `;
+    }
 
-      {bankData?.upiDetails?.upiName && (
-        <View style={styles.bankDetailRow}>
-          <Text style={styles.bankLabel}>UPI Name:</Text>
-          <Text>{bankData.upiDetails.upiName}</Text>
-        </View>
-      )}
+    if (bankData?.upiDetails?.upiName) {
+      bankDetailsHTML += `
+        <div style="display: flex; margin-bottom: 1px; font-size: 8px;">
+          <div style="width: 70px; font-weight: bold;">UPI Name:</div>
+          <div>${bankData.upiDetails.upiName}</div>
+        </div>
+      `;
+    }
 
-      {bankData?.upiDetails?.upiMobile && (
-        <View style={styles.bankDetailRow}>
-          <Text style={styles.bankLabel}>UPI Mobile:</Text>
-          <Text>{bankData.upiDetails.upiMobile}</Text>
-        </View>
-      )}
-    </View>
-  );
+    if (bankData?.upiDetails?.upiMobile) {
+      bankDetailsHTML += `
+        <div style="display: flex; margin-bottom: 1px; font-size: 8px;">
+          <div style="width: 70px; font-weight: bold;">UPI Mobile:</div>
+          <div>${bankData.upiDetails.upiMobile}</div>
+        </div>
+      `;
+    }
 
-  return (
-    <Document>
-      <Page size="A5" style={styles.page}>
-        {/* Header Section */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            {logoSrc && <Image src={logoSrc} style={styles.logo} />}
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.companyName}>
-              {capitalizeWords(
+    bankDetailsHTML += `</div>`;
+
+    // Add QR code if available
+    if (bankData?.qrCode) {
+      bankDetailsHTML += `
+        <div style="align-items: center; justify-content: center; padding: 5px; margin-left: 10px;">
+          <div style="font-size: 9px; font-weight: bold; margin-bottom: 5px;">QR Code</div>
+          <img src="${BASE_URL}/${bankData.qrCode}" style="width: 70px; height: 70px; background-color: #fff;" />
+        </div>
+      `;
+    }
+
+    return bankDetailsHTML;
+  };
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        @page {
+          size: A5;
+          margin: 0;
+        }
+        body {
+          font-family: 'Helvetica', Arial, sans-serif;
+          margin: 16px;
+          padding: 0;
+          color: #000;
+          background-color: #FFFFFF;
+        }
+        .container {
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
+        }
+        .header {
+          display: flex;
+          margin-bottom: 8px;
+          padding-bottom: 4px;
+          align-items: center;
+          gap: 6px;
+        }
+        .header-left {
+          flex: 1;
+        }
+        .header-right {
+          flex: 3;
+        }
+        .logo {
+          width: 70px;
+          height: 70px;
+          object-fit: contain;
+        }
+        .company-name {
+          font-size: 18px;
+          font-weight: bold;
+          margin-bottom: 5px;
+          color: #000;
+        }
+        .address {
+          font-size: 10px;
+          margin-bottom: 3px;
+          line-height: 14px;
+          color: #000;
+        }
+        .contact-info {
+          font-size: 10px;
+          line-height: 14px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          align-items: center;
+        }
+        .contact-label {
+          font-size: 10px;
+          font-weight: bold;
+          color: #000;
+        }
+        .contact-value {
+          font-size: 10px;
+          font-weight: normal;
+          color: #000;
+        }
+        .main-section {
+          border: 1.5px solid #0371C1;
+          padding: 0;
+          margin-top: 10px;
+        }
+        .table-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border: 1.5px solid #0371C1;
+        }
+        .gst-row {
+          padding: 3px;
+        }
+        .gst-label {
+          font-size: 10px;
+          font-weight: bold;
+          color: #000;
+        }
+        .gst-value {
+          font-size: 10px;
+          font-weight: normal;
+          color: #000;
+        }
+        .invoice-title-row {
+          padding: 3px;
+        }
+        .invoice-title {
+          font-size: 16px;
+          font-weight: 800;
+          text-align: center;
+          color: #0371C1;
+        }
+        .recipient-row {
+          padding: 3px;
+        }
+        .recipient-text {
+          font-size: 10px;
+          font-weight: bold;
+          text-align: center;
+          color: #000;
+        }
+        .three-col-section {
+          display: flex;
+          border-bottom: 1.5px solid #0371C1;
+          border-left: 1.5px solid #0371C1;
+          border-right: 1.5px solid #0371C1;
+        }
+        .column {
+          width: 33.3%;
+          padding: 0 4px;
+          border-left: 1px solid #0371C1;
+        }
+        .no-left-border {
+          border-left: none;
+        }
+        .no-right-border {
+          border-right: none;
+        }
+        .column-header {
+          margin-bottom: 5px;
+        }
+        .threecoltable-header {
+          font-size: 8px;
+          font-weight: bold;
+          color: #000;
+        }
+        .data-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          padding: 2px 0;
+        }
+        .invoice-detail-row {
+          gap: 30px;
+        }
+        .table-label {
+          font-size: 8px;
+          font-weight: bold;
+          width: 40%;
+          color: #000;
+        }
+        .table-value {
+          font-size: 8px;
+          font-weight: normal;
+          width: 70%;
+          color: #000;
+        }
+        .table-container {
+          border-bottom: 1.5px solid #0371C1;
+          border-left: 1.5px solid #0371C1;
+          border-right: 1.5px solid #0371C1;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+        }
+        .bottom-section {
+          display: flex;
+          border-top: 1px solid #0371C1;
+          border-left: 1px solid #0371C1;
+          border-right: 1px solid #0371C1;
+          border-bottom: 1px solid #0371C1;
+          font-size: 7px;
+        }
+        .left-section {
+          width: 65%;
+          border-right: 1px solid #0371C1;
+        }
+        .total-in-words {
+          font-size: 7px;
+          font-weight: bold;
+          border-bottom: 1px solid #0371C1;
+          padding: 3px;
+          text-transform: uppercase;
+          color: #000;
+        }
+        .bank-details-wrapper {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          padding: 4px;
+        }
+        .right-section {
+          width: 35%;
+        }
+        .total-row {
+          display: flex;
+          justify-content: space-between;
+          border-bottom: 1px solid #0371C1;
+          padding: 3px;
+        }
+        .label {
+          font-size: 8px;
+          font-weight: bold;
+          color: #000;
+        }
+        .value {
+          font-size: 8px;
+          font-weight: bold;
+          color: #000;
+        }
+        .highlight-row {
+          background-color: #EAF4FF;
+        }
+        .terms-box {
+          padding: 8px 8px 0 8px;
+          border-left: 1px solid #0371C1;
+          border-right: 1px solid #0371C1;
+        }
+        .term-line {
+          font-size: 10px;
+          margin-bottom: 2px;
+          color: #000000;
+          text-align: left;
+          text-decoration: none;
+          background-color: transparent;
+        }
+        .bold-text {
+          font-weight: bold;
+        }
+        .flex {
+          display: flex;
+        }
+        .items-center {
+          align-items: center;
+        }
+        .justify-center {
+          justify-content: center;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <!-- Header Section -->
+        <div class="header">
+          <div class="header-left">
+            ${logoSrc ? `<img src="${logoSrc}" class="logo" />` : ''}
+          </div>
+          <div class="header-right">
+            <div class="company-name">
+              ${capitalizeWords(
                 company?.businessName || company?.companyName || 'Company Name',
               )}
-            </Text>
-            <Text style={styles.address}>
-              {[
-                company?.address,
-                company?.City,
-                company?.addressState,
-                company?.Country,
-                company?.Pincode,
-              ]
-                .filter(Boolean)
-                .join(', ') || 'Address Line 1'}
-            </Text>
-            <View style={styles.contactInfo}>
-              <Text style={styles.contactLabel}>Name : </Text>
-              <Text style={styles.contactValue}>
-                {capitalizeWords(getClientName(client))}
-              </Text>
-              <Text style={styles.contactLabel}> | Phone : </Text>
-              <Text style={styles.contactValue}>
-                {company?.mobileNumber
-                  ? formatPhoneNumber(String(company.mobileNumber))
-                  : company?.Telephone
-                  ? formatPhoneNumber(String(company.Telephone))
-                  : '-'}
-              </Text>
-            </View>
-          </View>
-        </View>
+            </div>
+            <div class="address">
+              ${
+                [
+                  company?.address,
+                  company?.City,
+                  company?.addressState,
+                  company?.Country,
+                  company?.Pincode,
+                ]
+                  .filter(Boolean)
+                  .join(', ') || 'Address Line 1'
+              }
+            </div>
+            <div class="contact-info">
+              <span class="contact-label">Name : </span>
+              <span class="contact-value">${capitalizeWords(
+                getClientName(client),
+              )}</span>
+              <span class="contact-label"> | Phone : </span>
+              <span class="contact-value">
+                ${
+                  company?.mobileNumber
+                    ? formatPhoneNumber(String(company.mobileNumber))
+                    : company?.Telephone
+                    ? formatPhoneNumber(String(company.Telephone))
+                    : '-'
+                }
+              </span>
+            </div>
+          </div>
+        </div>
 
-        {/* Main Content Section */}
-        <View style={styles.section}>
-          {/* Invoice Title and GSTIN */}
-          <View style={styles.tableHeader}>
-            {company?.gstin && (
-              <View style={styles.gstRow}>
-                <Text style={styles.gstLabel}>GSTIN : </Text>
-                <Text style={styles.gstValue}>{company.gstin}</Text>
-              </View>
-            )}
+        <!-- Main Content Section -->
+        <div class="main-section">
+          <!-- Invoice Title and GSTIN -->
+          <div class="table-header">
+            ${
+              company?.gstin
+                ? `
+              <div class="gst-row">
+                <span class="gst-label">GSTIN : </span>
+                <span class="gst-value">${company.gstin}</span>
+              </div>
+            `
+                : ''
+            }
 
-            <View style={styles.invoiceTitleRow}>
-              <Text style={styles.invoiceTitle}>
-                {transaction.type === 'proforma'
-                  ? 'PROFORMA INVOICE'
-                  : isGSTApplicable
-                  ? 'TAX INVOICE'
-                  : 'INVOICE'}
-              </Text>
-            </View>
+            <div class="invoice-title-row">
+              <div class="invoice-title">
+                ${
+                  transaction.type === 'proforma'
+                    ? 'PROFORMA INVOICE'
+                    : isGSTApplicable
+                    ? 'TAX INVOICE'
+                    : 'INVOICE'
+                }
+              </div>
+            </div>
 
-            <View style={styles.recipientRow}>
-              <Text style={styles.recipientText}>ORIGINAL FOR RECIPIENT</Text>
-            </View>
-          </View>
+            <div class="recipient-row">
+              <div class="recipient-text">ORIGINAL FOR RECIPIENT</div>
+            </div>
+          </div>
 
-          {/* Three Column Details Section */}
-          <View style={styles.threeColSection}>
-            {/* Column 1 - Details of Buyer */}
-            <View style={[styles.column, styles.noLeftBorder]}>
-              <View style={styles.columnHeader}>
-                <Text style={styles.threecoltableHeader}>
-                  Details of Buyer | Billed to:
-                </Text>
-              </View>
-              <View style={styles.dataRow}>
-                <Text style={styles.tableLabel}>Name</Text>
-                <Text style={styles.tableValue}>
-                  {capitalizeWords(party?.name || 'N/A')}
-                </Text>
-              </View>
-              <View style={styles.dataRow}>
-                <Text style={styles.tableLabel}>Address</Text>
-                <Text style={styles.tableValue}>
-                  {capitalizeWords(getBillingAddress(party)) || '-'}
-                </Text>
-              </View>
-              <View style={styles.dataRow}>
-                <Text style={styles.tableLabel}>Phone</Text>
-                <Text style={styles.tableValue}>
-                  {party?.contactNumber
-                    ? formatPhoneNumber(party.contactNumber)
-                    : '-'}
-                </Text>
-              </View>
-              <View style={styles.dataRow}>
-                <Text style={styles.tableLabel}>GSTIN</Text>
-                <Text style={styles.tableValue}>{party?.gstin || '-'}</Text>
-              </View>
-              <View style={styles.dataRow}>
-                <Text style={styles.tableLabel}>PAN</Text>
-                <Text style={styles.tableValue}>{party?.pan || '-'}</Text>
-              </View>
-              <View style={styles.dataRow}>
-                <Text style={styles.tableLabel}>Place of Supply</Text>
-                <Text style={styles.tableValue}>
-                  {shippingAddress?.state
-                    ? `${capitalizeWords(shippingAddress.state)} (${
-                        getStateCode(shippingAddress.state) || '-'
-                      })`
-                    : party?.state
-                    ? `${capitalizeWords(party.state)} (${
-                        getStateCode(party.state) || '-'
-                      })`
-                    : '-'}
-                </Text>
-              </View>
-            </View>
+          <!-- Three Column Details Section -->
+          <div class="three-col-section">
+            <!-- Column 1 - Details of Buyer -->
+            <div class="column no-left-border">
+              <div class="column-header">
+                <div class="threecoltable-header">Details of Buyer | Billed to:</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">Name</div>
+                <div class="table-value">${capitalizeWords(
+                  party?.name || 'N/A',
+                )}</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">Address</div>
+                <div class="table-value">${
+                  capitalizeWords(getBillingAddress(party)) || '-'
+                }</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">Phone</div>
+                <div class="table-value">
+                  ${
+                    party?.contactNumber
+                      ? formatPhoneNumber(party.contactNumber)
+                      : '-'
+                  }
+                </div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">GSTIN</div>
+                <div class="table-value">${party?.gstin || '-'}</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">PAN</div>
+                <div class="table-value">${party?.pan || '-'}</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">Place of Supply</div>
+                <div class="table-value">
+                  ${
+                    shippingAddress?.state
+                      ? `${capitalizeWords(shippingAddress.state)} (${
+                          getStateCode(shippingAddress.state) || '-'
+                        })`
+                      : party?.state
+                      ? `${capitalizeWords(party.state)} (${
+                          getStateCode(party.state) || '-'
+                        })`
+                      : '-'
+                  }
+                </div>
+              </div>
+            </div>
 
-            {/* Column 2 - Details of Consigned */}
-            <View style={styles.column}>
-              <View style={styles.columnHeader}>
-                <Text style={styles.threecoltableHeader}>
-                  Details of Consigned | Shipped to:
-                </Text>
-              </View>
-              <View style={styles.dataRow}>
-                <Text style={styles.tableLabel}>Name</Text>
-                <Text style={styles.tableValue}>
-                  {capitalizeWords(
+            <!-- Column 2 - Details of Consigned -->
+            <div class="column">
+              <div class="column-header">
+                <div class="threecoltable-header">Details of Consigned | Shipped to:</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">Name</div>
+                <div class="table-value">
+                  ${capitalizeWords(
                     shippingAddress?.label || party?.name || 'N/A',
                   )}
-                </Text>
-              </View>
-              <View style={styles.dataRow}>
-                <Text style={styles.tableLabel}>Address</Text>
-                <Text style={styles.tableValue}>
-                  {capitalizeWords(
-                    getShippingAddress(shippingAddress, getBillingAddress(party)),
+                </div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">Address</div>
+                <div class="table-value">
+                  ${capitalizeWords(
+                    getShippingAddress(
+                      shippingAddress,
+                      getBillingAddress(party),
+                    ),
                   )}
-                </Text>
-              </View>
-              <View style={styles.dataRow}>
-                <Text style={styles.tableLabel}>Country</Text>
-                <Text style={styles.tableValue}>India</Text>
-              </View>
-              <View style={styles.dataRow}>
-                <Text style={styles.tableLabel}>Phone</Text>
-                <Text style={styles.tableValue}>
-                  {shippingAddress?.contactNumber
-                    ? formatPhoneNumber(String(shippingAddress.contactNumber))
-                    : party?.contactNumber
-                    ? formatPhoneNumber(String(party.contactNumber))
-                    : '-'}
-                </Text>
-              </View>
-              <View style={styles.dataRow}>
-                <Text style={styles.tableLabel}>GSTIN</Text>
-                <Text style={styles.tableValue}>{party?.gstin || '-'}</Text>
-              </View>
-              <View style={styles.dataRow}>
-                <Text style={styles.tableLabel}>State</Text>
-                <Text style={styles.tableValue}>
-                  {shippingAddress?.state
-                    ? `${capitalizeWords(shippingAddress.state)} (${
-                        getStateCode(shippingAddress.state) || '-'
-                      })`
-                    : party?.state
-                    ? `${capitalizeWords(party.state)} (${
-                        getStateCode(party.state) || '-'
-                      })`
-                    : '-'}
-                </Text>
-              </View>
-            </View>
+                </div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">Country</div>
+                <div class="table-value">India</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">Phone</div>
+                <div class="table-value">
+                  ${
+                    shippingAddress?.contactNumber
+                      ? formatPhoneNumber(String(shippingAddress.contactNumber))
+                      : party?.contactNumber
+                      ? formatPhoneNumber(String(party.contactNumber))
+                      : '-'
+                  }
+                </div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">GSTIN</div>
+                <div class="table-value">${party?.gstin || '-'}</div>
+              </div>
+              <div class="data-row">
+                <div class="table-label">State</div>
+                <div class="table-value">
+                  ${
+                    shippingAddress?.state
+                      ? `${capitalizeWords(shippingAddress.state)} (${
+                          getStateCode(shippingAddress.state) || '-'
+                        })`
+                      : party?.state
+                      ? `${capitalizeWords(party.state)} (${
+                          getStateCode(party.state) || '-'
+                        })`
+                      : '-'
+                  }
+                </div>
+              </div>
+            </div>
 
-            {/* Column 3 - Invoice Details */}
-            <View style={[styles.column, styles.noRightBorder]}>
-              <View style={[styles.dataRow, styles.invoiceDetailRow]}>
-                <Text style={styles.tableLabel}>Invoice No.</Text>
-                <Text style={styles.tableValue}>
-                  {transaction.invoiceNumber || 'N/A'}
-                </Text>
-              </View>
-              <View style={[styles.dataRow, styles.invoiceDetailRow]}>
-                <Text style={styles.tableLabel}>Invoice Date</Text>
-                <Text style={styles.tableValue}>
-                  {new Date(transaction.date).toLocaleDateString('en-IN')}
-                </Text>
-              </View>
-              <View style={[styles.dataRow, styles.invoiceDetailRow]}>
-                <Text style={styles.tableLabel}>Due Date</Text>
-                <Text style={styles.tableValue}>
-                  {new Date(transaction.dueDate).toLocaleDateString('en-IN')}
-                </Text>
-              </View>
-              <View style={[styles.dataRow, styles.invoiceDetailRow]}>
-                <Text style={styles.tableLabel}>P.O. No.</Text>
-                <Text style={styles.tableValue}>
-                  {transaction.voucher || '-'}
-                </Text>
-              </View>
-              <View style={[styles.dataRow, styles.invoiceDetailRow]}>
-                <Text style={styles.tableLabel}>E-Way No.</Text>
-                <Text style={styles.tableValue}>{transaction.eway || '-'}</Text>
-              </View>
-            </View>
-          </View>
+            <!-- Column 3 - Invoice Details -->
+            <div class="column no-right-border">
+              <div class="data-row invoice-detail-row">
+                <div class="table-label">Invoice No.</div>
+                <div class="table-value">${
+                  transaction.invoiceNumber || 'N/A'
+                }</div>
+              </div>
+              <div class="data-row invoice-detail-row">
+                <div class="table-label">Invoice Date</div>
+                <div class="table-value">
+                  ${new Date(transaction.date).toLocaleDateString('en-IN')}
+                </div>
+              </div>
+              <div class="data-row invoice-detail-row">
+                <div class="table-label">Due Date</div>
+                <div class="table-value">
+                  ${new Date(transaction.dueDate).toLocaleDateString('en-IN')}
+                </div>
+              </div>
+              <div class="data-row invoice-detail-row">
+                <div class="table-label">P.O. No.</div>
+                <div class="table-value">${transaction.voucher || '-'}</div>
+              </div>
+              <div class="data-row invoice-detail-row">
+                <div class="table-label">E-Way No.</div>
+                <div class="table-value">${transaction.eway || '-'}</div>
+              </div>
+            </div>
+          </div>
 
-          {/* Items Table - Main Content */}
-          <View style={styles.tableContainer}>
-            {renderTableHeader()}
-            {itemsWithGST.map(renderItemRow)}
-            {renderTotalRow()}
-          </View>
+          <!-- Items Table - Main Content -->
+          <div class="table-container">
+            <table>
+              <thead>
+                ${generateTableHeader()}
+              </thead>
+              <tbody>
+                ${generateItemRows()}
+                ${generateTotalRow()}
+              </tbody>
+            </table>
+          </div>
 
-          {/* Bottom Section */}
-          <View style={styles.bottomSection}>
-            {/* Left Column: Total in words + Bank Details */}
-            <View style={styles.leftSection}>
-              <Text style={styles.totalInWords}>
-                Total in words : {numberToWords(totalAmount)}
-              </Text>
+          <!-- Bottom Section -->
+          <div class="bottom-section">
+            <!-- Left Column: Total in words + Bank Details -->
+            <div class="left-section">
+              <div class="total-in-words">
+                Total in words : ${numberToWords(totalAmount)}
+              </div>
 
-              {/* Bank Details Section */}
-              {transaction.type !== 'proforma' && isBankDetailAvailable && (
-                <View style={styles.bankDetailsWrapper}>
-                  {renderBankDetails()}
+              <!-- Bank Details Section -->
+              ${
+                transaction.type !== 'proforma' && isBankDetailAvailable
+                  ? `
+                <div class="bank-details-wrapper">
+                  ${generateBankDetails()}
+                </div>
+              `
+                  : ''
+              }
+            </div>
 
-                  {/* QR Code Section */}
-                  {bankData?.qrCode && (
-                    <View style={styles.qrContainer}>
-                      <Text style={styles.qrTitle}>QR Code</Text>
-                      <Image
-                        src={`${BASE_URL}/${bankData.qrCode}`}
-                        style={styles.qrImage}
-                      />
-                    </View>
-                  )}
-                </View>
-              )}
-            </View>
+            <!-- Right Column: Totals -->
+            <div class="right-section">
+              <div class="total-row">
+                <div class="label">Taxable Amount</div>
+                <div class="value">Rs.${formatCurrency(totalTaxable)}</div>
+              </div>
 
-            {/* Right Column: Totals */}
-            <View style={styles.rightSection}>
-              <View style={styles.totalRow}>
-                <Text style={styles.label}>Taxable Amount</Text>
-                <Text style={styles.value}>
-                  {`Rs.${formatCurrency(totalTaxable)}`}
-                </Text>
-              </View>
-
-              {isGSTApplicable && (
-                <View style={styles.totalRow}>
-                  <Text style={styles.label}>Total Tax</Text>
-                  <Text style={styles.value}>
-                    {`Rs.${formatCurrency(
+              ${
+                isGSTApplicable
+                  ? `
+                <div class="total-row">
+                  <div class="label">Total Tax</div>
+                  <div class="value">
+                    Rs.${formatCurrency(
                       showIGST ? totalIGST : totalCGST + totalSGST,
-                    )}`}
-                  </Text>
-                </View>
-              )}
+                    )}
+                  </div>
+                </div>
+              `
+                  : ''
+              }
 
-              <View
-                style={[styles.totalRow, isGSTApplicable && styles.highlightRow]}
-              >
-                <Text style={isGSTApplicable ? styles.labelBold : styles.label}>
-                  {isGSTApplicable ? 'Total Amount After Tax' : 'Total Amount'}
-                </Text>
-                <Text style={isGSTApplicable ? styles.valueBold : styles.value}>
-                  {`Rs.${formatCurrency(totalAmount)}`}
-                </Text>
-              </View>
+              <div class="total-row ${isGSTApplicable ? 'highlight-row' : ''}">
+                <div class="${isGSTApplicable ? 'label bold-text' : 'label'}">
+                  ${isGSTApplicable ? 'Total Amount After Tax' : 'Total Amount'}
+                </div>
+                <div class="${isGSTApplicable ? 'value bold-text' : 'value'}">
+                  Rs.${formatCurrency(totalAmount)}
+                </div>
+              </div>
 
-              <View style={styles.totalRow}>
-                <Text style={styles.label}>
-                  For-
-                  {company?.businessName ||
+              <div class="total-row">
+                <div class="label">
+                  For-${
+                    company?.businessName ||
                     company?.companyName ||
-                    'Company Name'}
-                </Text>
-                <Text style={styles.value}>(E & O.E.)</Text>
-              </View>
-            </View>
-          </View>
+                    'Company Name'
+                  }
+                </div>
+                <div class="value">(E & O.E.)</div>
+              </div>
+            </div>
+          </div>
 
-          {/* Terms and Conditions */}
-          {transaction?.notes && (
-            <View style={styles.termsBox}>
-              <Text style={[styles.termLine, styles.boldText]}></Text>
-              {/* Simple text rendering for notes - adjust as needed */}
-              <Text style={styles.termLine}>{transaction.notes}</Text>
-            </View>
-          )}
-        </View>
-      </Page>
-    </Document>
-  );
+          <!-- Terms and Conditions -->
+          ${
+            transaction?.notes
+              ? `
+            <div class="terms-box">
+              <div class="term-line bold-text"></div>
+              <div class="term-line">${transaction.notes}</div>
+            </div>
+          `
+              : ''
+          }
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return html;
 };
 
 // MAIN EXPORT FUNCTION - This is what InvoicePreview.js expects
-export const generatePdfForTemplateA5 = async (transaction, company, party, serviceNameMap) => {
+export const generatePdfForTemplateA5 = async (
+  transaction,
+  company,
+  party,
+  serviceNameMap,
+) => {
   try {
-    // Generate PDF using ReactPDF
-    const pdfBytes = await ReactPDF.renderToStream(<TemplateA5PDFDocument 
-      transaction={transaction}
-      company={company}
-      party={party}
-    />);
-    
-    // Convert to base64
-    const base64 = Buffer.from(pdfBytes).toString('base64');
-    
-    // Return in the expected format
-    return {
-      base64,
-      filePath: null, // ReactPDF doesn't create a file directly
+    // Generate HTML content
+    const htmlContent = generateHTMLContent(transaction, company, party);
+
+    // Generate PDF using react-native-html-to-pdf
+    const options = {
+      html: htmlContent,
+      fileName: `invoice_${transaction.invoiceNumber || Date.now()}`,
+      directory: 'Documents',
+      // A5 size in points: 420 x 595 points (14.8 x 21.0 cm)
+      width: 420,
+      height: 595,
+      padding: 16,
+      baseUrl: BASE_URL,
     };
-    
+
+    const file = await generatePDF(options);
+    return file;
   } catch (error) {
     console.error('Template A5 PDF generation error:', error);
-    
-    // Fallback: Try using HTML to PDF if ReactPDF fails
+
+    // Fallback: Create a simpler PDF if the main generation fails
     try {
-      const RNHTMLtoPDF = require('react-native-html-to-pdf');
-      
-      // Create simple HTML as fallback
-      const htmlContent = `
+      const fallbackHtml = `
         <!DOCTYPE html>
         <html>
           <head>
@@ -1111,34 +950,52 @@ export const generatePdfForTemplateA5 = async (transaction, company, party, serv
             </style>
           </head>
           <body>
-            <div class="company-name">${company?.businessName || company?.companyName || 'Company Name'}</div>
+            <div class="company-name">${
+              company?.businessName || company?.companyName || 'Company Name'
+            }</div>
             <div class="address">
-              ${[company?.address, company?.City, company?.addressState, company?.Country, company?.Pincode]
-                .filter(Boolean).join(', ') || 'Address'}
+              ${
+                [
+                  company?.address,
+                  company?.City,
+                  company?.addressState,
+                  company?.Country,
+                  company?.Pincode,
+                ]
+                  .filter(Boolean)
+                  .join(', ') || 'Address'
+              }
             </div>
             <div class="invoice-title">
-              ${transaction.type === 'proforma' ? 'PROFORMA INVOICE' : 'INVOICE'}
+              ${
+                transaction.type === 'proforma' ? 'PROFORMA INVOICE' : 'INVOICE'
+              }
             </div>
             <div class="section">
-              <p><strong>Invoice No:</strong> ${transaction.invoiceNumber || 'N/A'}</p>
-              <p><strong>Invoice Date:</strong> ${new Date(transaction.date).toLocaleDateString('en-IN')}</p>
+              <p><strong>Invoice No:</strong> ${
+                transaction.invoiceNumber || 'N/A'
+              }</p>
+              <p><strong>Invoice Date:</strong> ${new Date(
+                transaction.date,
+              ).toLocaleDateString('en-IN')}</p>
               <p><strong>Client:</strong> ${party?.name || 'N/A'}</p>
-              <p><strong>Total Amount:</strong> Rs. ${formatCurrency(transaction.totalAmount || 0)}</p>
+              <p><strong>Total Amount:</strong> Rs. ${formatCurrency(
+                transaction.totalAmount || 0,
+              )}</p>
             </div>
             <p>Generated with Template A5</p>
           </body>
         </html>
       `;
-      
+
       const options = {
-        html: htmlContent,
-        fileName: `invoice_${transaction.invoiceNumber || Date.now()}`,
+        html: fallbackHtml,
+        fileName: `invoice_${transaction.invoiceNumber || Date.now()}_fallback`,
         directory: 'Documents',
       };
-      
+
       const file = await generatePDF(options);
       return file;
-      
     } catch (fallbackError) {
       console.error('Fallback PDF generation also failed:', fallbackError);
       throw new Error(`Failed to generate PDF: ${fallbackError.message}`);
@@ -1146,5 +1003,5 @@ export const generatePdfForTemplateA5 = async (transaction, company, party, serv
   }
 };
 
-// Also export the component for other uses
-export default TemplateA5PDFDocument;
+// Also export the HTML generation function for other uses
+export { generateHTMLContent };
