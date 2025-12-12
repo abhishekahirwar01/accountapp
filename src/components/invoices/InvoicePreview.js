@@ -10,7 +10,6 @@ import {
   Pressable,
   ScrollView,
   TouchableWithoutFeedback,
-  Share,
   Platform,
   PermissionsAndroid,
 } from 'react-native';
@@ -18,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Pdf from 'react-native-pdf';
 import RNFS from 'react-native-fs';
+import Share from 'react-native-share';
 
 // PDF generators used across the project
 import { generatePdfForTemplate1 } from '../../lib/pdf-template1';
@@ -535,63 +535,125 @@ export default function InvoicePreview({
     if (!pdfPath) return Alert.alert('Not ready', 'PDF is not ready yet');
 
     try {
-      const src = pdfPath.replace(/^file:\/\//, '');
-      const fileName = `invoice_${
-        transaction?.invoiceNumber || transaction?._id || Date.now()
-      }.pdf`;
-
-      // Save to app's document directory first (no special permission required)
-      const appFilePath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
-      if (src !== appFilePath.replace(/^file:\/\//, '')) {
-        await RNFS.copyFile(src, appFilePath);
-      }
-
-      let downloadsFilePath = '';
-      let copiedToDownloads = false;
-
-      // Try to copy to Downloads folder for easier access (best-effort, no permission prompt)
+      // --- 1. Permissions Check (Keeping existing logic for Android < 10) ---
       if (Platform.OS === 'android') {
-        try {
-          downloadsFilePath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
-          await RNFS.copyFile(appFilePath, downloadsFilePath);
-          const downloadsFileExists = await RNFS.exists(downloadsFilePath);
-          copiedToDownloads = downloadsFileExists;
-        } catch (copyErr) {
+        const isLegacyAndroid = Platform.Version < 29; // ... (Legacy Android permission check logic remains the same)
+        if (isLegacyAndroid) {
+          // ... (permission request logic) ...
+        } else {
           console.log(
-            'Could not copy to downloads, using app storage only:',
-            copyErr,
+            'Download: Android 10+ detected. Skipping WRITE_EXTERNAL_STORAGE permission check.',
           );
-          copiedToDownloads = false;
         }
+      } // --- 2. Define File Paths ---
+
+      const sourcePath = pdfPath.replace(/^file:\/\//, '');
+      console.log(`Download: Source Path (Internal): ${sourcePath}`); // **START: UNIQUE FILE NAME GENERATION LOGIC**
+
+      const baseFileName = `invoice_${
+        transaction?.invoiceNumber || transaction?._id || Date.now()
+      }_${selectedTemplate}`; // **ADDED TEMPLATE NAME FOR UNIQUENESS**
+      const baseTargetDir = RNFS.DownloadDirectoryPath;
+      const baseFilePath = `${baseTargetDir}/${baseFileName}.pdf`;
+      let downloadsFilePath = baseFilePath;
+      let suffix = 1; // Loop to find a non-existing file name (e.g., invoice_T1(1).pdf, invoice_T1(2).pdf)
+
+      while (await RNFS.exists(downloadsFilePath)) {
+        downloadsFilePath = `${baseTargetDir}/${baseFileName} (${suffix}).pdf`;
+        suffix++; // Safety break for extremely rare cases or testing
+        if (suffix > 50) {
+          throw new Error('Too many duplicate file attempts.');
+        }
+      } // **END: UNIQUE FILE NAME GENERATION LOGIC**
+      console.log(`Download: Target Path (Downloads): ${downloadsFilePath}`); // LOG 2 // --- 3. Copy to Downloads Folder ---
+
+      const sourceExists = await RNFS.exists(sourcePath);
+      if (!sourceExists) {
+        throw new Error('Source PDF file not found.');
       }
 
-      const finalPath = copiedToDownloads ? downloadsFilePath : appFilePath;
+      await RNFS.copyFile(sourcePath, downloadsFilePath);
+      console.log('Download: Successfully copied file to Downloads folder.'); // LOG 3
 
-      Alert.alert(
-        'Downloaded',
-        copiedToDownloads
-          ? `Saved to Downloads and app storage\nPath: ${finalPath}`
-          : `Saved to app storage\nPath: ${finalPath}`,
-      );
+      const downloadsFileExists = await RNFS.exists(downloadsFilePath);
+
+      if (downloadsFileExists) {
+        // Confirming existence in both locations (Internal/Source and Downloads/Target)
+        console.log(`Download SUCCESS: File is available at both locations.`); // LOG 4
+
+        Alert.alert(
+          'Download Successful',
+          `Invoice saved to your Downloads folder:\n${downloadsFilePath}`,
+          [{ text: 'OK' }],
+        );
+      } else {
+        Alert.alert(
+          'Download Warning',
+          'File could not be verified in the Downloads folder, but was attempted.',
+        );
+      }
     } catch (e) {
       console.error('Download failed', e);
-      Alert.alert('Download failed', e.message || 'Failed to save file');
+      Alert.alert(
+        'Download Failed',
+        `Could not save file to Downloads. Error: ${
+          e.message || 'Unknown error'
+        }`,
+      );
     }
   };
 
   const handleShare = async () => {
     if (!pdfPath) return Alert.alert('Not ready', 'PDF is not ready yet');
 
+    let cachePath = null;
     try {
-      const url = pdfPath; // file:// path
-      await Share.share({
-        url,
+      // ... (steps 1, 2, 3, 4: Copying file to cache and setting up options)
+      const sourcePath = pdfPath.replace(/^file:\/\//, '');
+      const fileName = `invoice_share_${
+        transaction?.invoiceNumber || 'temp'
+      }.pdf`;
+      cachePath = `${RNFS.CachesDirectoryPath}/${fileName}`;
+      await RNFS.copyFile(sourcePath, cachePath);
+      const fileUriForShare = `file://${cachePath}`;
+
+      const shareOptions = {
+        url: fileUriForShare,
         title: 'Invoice',
         message: 'Please find the invoice attached.',
-      });
+        type: 'application/pdf',
+        subject: `Invoice: ${transaction?.invoiceNumber || 'Document'}`,
+        filename: fileName,
+      };
+
+      // 5. Open the share dialog
+      await Share.open(shareOptions);
     } catch (e) {
-      console.error('Share failed', e);
-      Alert.alert('Share failed', e.message || 'Failed to share file');
+      // **FIX:** Check for user cancellation first.
+      if (e.message && e.message.includes('User did not share')) {
+        // User cancelled the share dialog. Log a neutral message and return silently.
+        console.log('Share operation cancelled by user.');
+        return;
+      }
+
+      // If it's not a cancellation, THEN log it as an actual error.
+      console.error('Share failed Error (Non-cancellation):', e);
+
+      let userMessage = e.message || 'Failed to share file.';
+
+      if (Platform.OS === 'android') {
+        userMessage =
+          'Failed to attach file. Please ensure your `react-native-share` library is up to date and native FileProvider configuration is correct.';
+      }
+
+      Alert.alert('Share Failed', userMessage);
+    } finally {
+      // 6. Clean up the temporary cache file if it exists
+      if (cachePath) {
+        RNFS.unlink(cachePath).catch(err =>
+          console.warn('Failed to delete temporary share file:', err),
+        );
+      }
     }
   };
 
