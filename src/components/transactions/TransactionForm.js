@@ -34,6 +34,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import WebView from 'react-native-webview';
 import Pdf from 'react-native-pdf';
 import RenderHtml from 'react-native-render-html';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import { useCompany } from '../../contexts/company-context.js';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
@@ -200,6 +201,17 @@ const IconButton = ({ icon, onPress, size = 24, style }) => (
   </TouchableOpacity>
 );
 
+const IconAction = ({ iconName, label, onPress, disabled }) => (
+  <TouchableOpacity
+    onPress={onPress}
+    disabled={disabled}
+    style={styles.iconActionContainer}
+  >
+    <Icon name={iconName} size={32} color={disabled ? '#AAA' : '#007AFF'} />
+    <Text style={styles.iconActionLabel}>{label}</Text>
+  </TouchableOpacity>
+);
+
 // const ActivityIndicator = ({ size, color }) => (
 //   <View style={styles.activityIndicator}>
 //     <Text style={{ color, fontSize: size === 'large' ? 24 : 16 }}>●</Text>
@@ -237,11 +249,9 @@ const Snackbar = ({ visible, children, onDismiss, duration, style }) => {
   return (
     <View style={[styles.snackbar, style]}>
       <Text style={styles.snackbarText}>{children}</Text>
-      <IconButton
-        icon="close"
-        onPress={onDismiss}
-        style={styles.snackbarClose}
-      />
+      <TouchableOpacity onPress={onDismiss} style={styles.snackbarCloseButton}>
+        <Icon name="close" size={20} color="#fff" />
+      </TouchableOpacity>
     </View>
   );
 };
@@ -382,8 +392,13 @@ export function TransactionForm({
   const [customGstInputs, setCustomGstInputs] = useState({});
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
   const [generatedInvoice, setGeneratedInvoice] = useState(null);
+  const [isPreviewProcessing, setIsPreviewProcessing] = useState(false);
+  const [previewCurrentAction, setPreviewCurrentAction] = useState(null);
   const [isTransactionSaved, setIsTransactionSaved] = useState(false);
   const [savedTransactionData, setSavedTransactionData] = useState(null);
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [emailDialogTitle, setEmailDialogTitle] = useState('');
+  const [emailDialogMessage, setEmailDialogMessage] = useState('');
   const [serviceCreationModal, setServiceCreationModal] = useState({
     open: false,
     name: '',
@@ -2497,11 +2512,11 @@ export function TransactionForm({
       }
 
       if (!partyDoc.email) {
-        setSnackbar({
-          visible: true,
-          message: 'The selected customer does not have an email address.',
-          type: 'error',
-        });
+        setEmailDialogTitle('❌ No Email Found');
+        setEmailDialogMessage(
+          'The selected customer does not have an email address. Please add an email for this customer.',
+        );
+        setIsEmailDialogOpen(true);
         return;
       }
 
@@ -2577,11 +2592,10 @@ export function TransactionForm({
         throw new Error(eData.message || 'Failed to send invoice email.');
       }
 
-      setSnackbar({
-        visible: true,
-        message: `Sent to ${partyDoc.email}`,
-        type: 'success',
-      });
+      console.log('Email sent successfully to', partyDoc.email);
+      setEmailDialogTitle('✅ Invoice Sent');
+      setEmailDialogMessage(`Sent to ${partyDoc.email}`);
+      setIsEmailDialogOpen(true);
     } catch (error) {
       // Check if it's a Gmail connection error
       if (
@@ -2590,12 +2604,11 @@ export function TransactionForm({
         error.message?.includes('not connected for the company sender')
       ) {
         // Show specific Gmail connection error with guidance
-        setSnackbar({
-          visible: true,
-          message:
-            'Gmail is not connected. Please connect Gmail in Settings → Integrations to send emails.',
-          type: 'error',
-        });
+        setEmailDialogTitle('Gmail Not Connected');
+        setEmailDialogMessage(
+          'Gmail is not connected. Please connect Gmail in Settings → Integrations to send emails.',
+        );
+        setIsEmailDialogOpen(true);
 
         // Optional: You can also show an alert for more prominent notification
         Alert.alert(
@@ -2621,21 +2634,18 @@ export function TransactionForm({
         error.message?.includes('does not have an email address')
       ) {
         // Handle missing customer email
-        setSnackbar({
-          visible: true,
-          message:
-            'Customer email not found. Please add an email address for this customer.',
-          type: 'error',
-        });
+        setEmailDialogTitle('❌ No Email Found');
+        setEmailDialogMessage(
+          'Customer email not found. Please add an email address for this customer.',
+        );
+        setIsEmailDialogOpen(true);
       } else {
-        // Generic email error
-        setSnackbar({
-          visible: true,
-          message:
-            'Email failed: ' +
-            (error.message || 'Failed to send invoice email'),
-          type: 'error',
-        });
+        console.error('Email send error:', error);
+        setEmailDialogTitle('❌ Send Failed');
+        setEmailDialogMessage(
+          'Email failed: ' + (error.message || 'Failed to send invoice email'),
+        );
+        setIsEmailDialogOpen(true);
       }
     }
   };
@@ -3718,34 +3728,62 @@ export function TransactionForm({
           <InvoiceTemplateRenderer invoiceData={generatedInvoice} />
 
           <View style={styles.modalActions}>
-            <Button
-              mode="outlined"
+            <IconAction
+              iconName="whatsapp"
+              label="WhatsApp"
               onPress={handleWhatsAppInvoice}
-              style={styles.actionButton}
-            >
-              WhatsApp
-            </Button>
-            <Button
-              mode="outlined"
+            />
+            <IconAction
+              iconName="download"
+              label="Download"
               onPress={handleDownloadInvoice}
-              style={styles.actionButton}
-            >
-              Download
-            </Button>
-            <Button
-              mode="outlined"
-              onPress={handleEmailInvoice}
-              style={styles.actionButton}
-            >
-              Email
-            </Button>
-            <Button
-              mode="contained"
+            />
+            <IconAction
+              iconName="email"
+              label="Email"
+              onPress={async () => {
+                setIsPreviewProcessing(true);
+                setPreviewCurrentAction('Email');
+                try {
+                  await handleEmailInvoice();
+                } catch (err) {
+                  console.error('Email action error:', err);
+                } finally {
+                  setIsPreviewProcessing(false);
+                  setPreviewCurrentAction(null);
+                }
+              }}
+            />
+            <IconAction
+              iconName="printer"
+              label="Print"
               onPress={handlePrintInvoice}
-              style={styles.actionButton}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Email Status Dialog */}
+      <Modal
+        visible={isEmailDialogOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsEmailDialogOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.emailDialogContainer}>
+            <View style={styles.emailDialogContent}>
+              <Text style={styles.emailDialogTitle}>{emailDialogTitle}</Text>
+              <Text style={styles.emailDialogMessage}>
+                {emailDialogMessage}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.emailDialogButton}
+              onPress={() => setIsEmailDialogOpen(false)}
             >
-              Print
-            </Button>
+              <Text style={styles.emailDialogButtonText}>OK</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -3948,19 +3986,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    paddingVertical: 0, // top & bottom bilkul kam
+    paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
   modalActions: {
     flexDirection: 'row',
-    padding: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 12,
     gap: 8,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: '#e5e7eb',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 110,
   },
   actionButton: {
     flex: 1,
+  },
+  iconActionContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+  },
+  iconActionLabel: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#111827',
+    textAlign: 'center',
   },
   previewLoadingContainer: {
     flex: 1,
@@ -4007,30 +4064,92 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   snackbar: {
-    backgroundColor: '#323232',
+    backgroundColor: '#2c2c2c',
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    margin: 16,
-    borderRadius: 4,
-    padding: 16,
+    bottom: 20,
+    left: 16,
+    right: 16,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
   snackbarText: {
-    color: 'white',
+    color: '#fff',
     flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
   },
-  snackbarClose: {
-    marginLeft: 8,
+  snackbarCloseButton: {
+    padding: 6,
+    marginLeft: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   snackbarError: {
-    backgroundColor: '#d32f2f',
+    backgroundColor: '#c62828',
+    borderColor: 'rgba(255, 107, 107, 0.4)',
   },
   snackbarSuccess: {
-    backgroundColor: '#388e3c',
+    backgroundColor: '#2e7d32',
+    borderColor: 'rgba(76, 175, 80, 0.4)',
+  },
+  // Email Dialog Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emailDialogContainer: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 24,
+    marginHorizontal: 20,
+    maxWidth: 400,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  emailDialogContent: {
+    marginBottom: 16,
+  },
+  emailDialogTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emailDialogMessage: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  emailDialogButton: {
+    backgroundColor: '#3b82f6',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  emailDialogButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 16,
   },
   textInputContainer: {
     marginBottom: 16,
