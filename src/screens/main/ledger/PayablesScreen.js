@@ -11,10 +11,11 @@ import {
   FlatList,
   Alert,
   RefreshControl,
- 
-  Dimensions
+  Dimensions,
+  Platform,
 } from 'react-native';
-import{SafeAreaView} from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Filter,
@@ -36,15 +37,20 @@ import {
 import { BASE_URL } from '../../../config';
 
 // Import your React Native components
-import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/Card';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { VendorExpenseToggle } from '../../../components/Ledger/vendor-expense-toggle';
-import { VendorLedgerView as ImportedVendorLedgerView } from '../../../components/Ledger/vendor-ledger-view'; 
+import { VendorLedgerView as ImportedVendorLedgerView } from '../../../components/Ledger/vendor-ledger-view';
 import { ExpenseLedger as ImportedExpenseLedger } from '../../../components/Ledger/expense-ledger';
-import { VendorExpenseList as ImportedVendorExpenseList } from '../../../components/Ledger/vendor-expense-list'; 
-import { Skeleton } from "../../../components/ui/Skeleton";
+import { VendorExpenseList as ImportedVendorExpenseList } from '../../../components/Ledger/vendor-expense-list';
+import { Skeleton } from '../../../components/ui/Skeleton';
 
 export default function PayablesScreen() {
   const baseURL = BASE_URL;
@@ -78,6 +84,8 @@ export default function PayablesScreen() {
     totalDebit: 0,
   });
   const [loadingTotals, setLoadingTotals] = useState(false);
+  const [showFromDatePicker, setShowFromDatePicker] = useState(false);
+  const [showToDatePicker, setShowToDatePicker] = useState(false);
 
   // For toast notifications
   const showToast = (title, description, type = 'success') => {
@@ -87,6 +95,33 @@ export default function PayablesScreen() {
   // Placeholder for company context
   // const { selectedCompanyId } = useCompany();
   const selectedCompanyId = null;
+
+  // Date picker handlers
+  const handleFromDatePickerChange = (event, selectedDate) => {
+    if (Platform.OS === 'android') {
+      setShowFromDatePicker(false);
+    }
+    if (selectedDate) {
+      const dateString = selectedDate.toISOString().split('T')[0];
+      setDateRange(prev => ({
+        ...prev,
+        from: dateString,
+      }));
+    }
+  };
+
+  const handleToDatePickerChange = (event, selectedDate) => {
+    if (Platform.OS === 'android') {
+      setShowToDatePicker(false);
+    }
+    if (selectedDate) {
+      const dateString = selectedDate.toISOString().split('T')[0];
+      setDateRange(prev => ({
+        ...prev,
+        to: dateString,
+      }));
+    }
+  };
 
   // Fetch products
   useEffect(() => {
@@ -111,14 +146,15 @@ export default function PayablesScreen() {
     }
   };
 
-  const expenseOptions = expenses.map((expense) => ({
+  const expenseOptions = expenses.map(expense => ({
     value: expense._id,
     label: expense.name,
   }));
 
-  const isDetailOpen = currentView === 'vendor'
-    ? Boolean(selectedVendor)
-    : Boolean(selectedExpense);
+  const isDetailOpen =
+    currentView === 'vendor'
+      ? Boolean(selectedVendor)
+      : Boolean(selectedExpense);
 
   // Fetch vendors
   useEffect(() => {
@@ -172,11 +208,14 @@ export default function PayablesScreen() {
       const token = await AsyncStorage.getItem('token');
       const params = new URLSearchParams();
       if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-      const res = await fetch(`${baseURL}/api/payment-expenses?${params.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${baseURL}/api/payment-expenses?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
       if (!res.ok) {
         throw new Error('Failed to fetch expenses');
@@ -213,26 +252,26 @@ export default function PayablesScreen() {
               headers: {
                 Authorization: `Bearer ${token}`,
               },
-            }
+            },
           );
           if (totalRes.ok) {
             const totalData = await totalRes.json();
             const cashExpenses = (totalData.debit || [])
-              .filter((e) => e.paymentMethod !== 'Credit')
-              .reduce(
-                (sum, e) => sum + Number(e.amount || 0),
-                0
-              );
+              .filter(e => e.paymentMethod !== 'Credit')
+              .reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
             const payments = (totalData.credit || []).reduce(
               (sum, e) => sum + Number(e.amount || 0),
-              0
+              0,
             );
 
             totals[expense._id] = cashExpenses + payments;
           }
         } catch (error) {
-          console.error(`Error fetching total for expense ${expense._id}:`, error);
+          console.error(
+            `Error fetching total for expense ${expense._id}:`,
+            error,
+          );
         }
       }
       setExpenseTotals(totals);
@@ -283,7 +322,7 @@ export default function PayablesScreen() {
     dateRange.to,
     currentView,
     baseURL,
-    selectedCompanyId
+    selectedCompanyId,
   ]);
 
   const fetchLedgerData = async () => {
@@ -357,7 +396,7 @@ export default function PayablesScreen() {
     }
   }, [selectedExpenseFilter, currentView]);
 
-  const formatDate = (dateString) => {
+  const formatDate = dateString => {
     if (!dateString) return '';
     return new Date(dateString).toLocaleDateString('en-IN', {
       day: '2-digit',
@@ -366,7 +405,7 @@ export default function PayablesScreen() {
     });
   };
 
-  const formatCurrency = (amount) => {
+  const formatCurrency = amount => {
     if (!amount && amount !== 0) return '₹0.00';
     return `₹${amount.toLocaleString('en-IN', {
       minimumFractionDigits: 2,
@@ -374,7 +413,7 @@ export default function PayablesScreen() {
     })}`;
   };
 
-  const getPaymentMethodDisplay = (method) => {
+  const getPaymentMethodDisplay = method => {
     if (!method) return 'Payment';
     const methodMap = {
       Cash: 'Cash Payment',
@@ -386,7 +425,7 @@ export default function PayablesScreen() {
     return methodMap[method] || `${method} Payment`;
   };
 
-  const getPaymentMethodBadge = (method) => {
+  const getPaymentMethodBadge = method => {
     const variantMap = {
       Cash: 'default',
       'Bank Transfer': 'secondary',
@@ -412,8 +451,8 @@ export default function PayablesScreen() {
     setDateRange({ from: '', to: '' });
   };
 
-  const getCompanyName = (companyId) => {
-    const company = companies.find((c) => c._id === companyId);
+  const getCompanyName = companyId => {
+    const company = companies.find(c => c._id === companyId);
     return company?.businessName || 'Unknown Company';
   };
 
@@ -422,11 +461,11 @@ export default function PayablesScreen() {
 
     const debitTotal = (ledgerData.debit || []).reduce(
       (sum, entry) => sum + entry.amount,
-      0
+      0,
     );
 
     const creditPurchaseEntries = (ledgerData.debit || []).filter(
-      (entry) => entry.paymentMethod !== 'Credit'
+      entry => entry.paymentMethod !== 'Credit',
     );
     const creditPaymentEntries = ledgerData.credit || [];
 
@@ -450,22 +489,37 @@ export default function PayablesScreen() {
       const token = await AsyncStorage.getItem('token');
 
       if (currentView === 'vendor' && !selectedVendor) {
-        showToast('Selection Required', 'Please select a vendor to export individual vendor data.', 'error');
+        showToast(
+          'Selection Required',
+          'Please select a vendor to export individual vendor data.',
+          'error',
+        );
         setIndividualExportLoading(false);
         return;
       }
 
       if (currentView === 'expense' && !selectedExpense) {
-        showToast('Selection Required', 'Please select an expense category to export individual expense data.', 'error');
+        showToast(
+          'Selection Required',
+          'Please select an expense category to export individual expense data.',
+          'error',
+        );
         setIndividualExportLoading(false);
         return;
       }
 
-      showToast('Export Feature', 'Export functionality would be implemented here using react-native-share or similar library.', 'info');
-
+      showToast(
+        'Export Feature',
+        'Export functionality would be implemented here using react-native-share or similar library.',
+        'info',
+      );
     } catch (error) {
       console.error('Error during individual export:', error);
-      showToast('Export Failed', 'There was an error exporting the data.', 'error');
+      showToast(
+        'Export Failed',
+        'There was an error exporting the data.',
+        'error',
+      );
     } finally {
       setIndividualExportLoading(false);
     }
@@ -493,37 +547,37 @@ export default function PayablesScreen() {
       setLoadingTotals(true);
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        throw new Error("Authentication token not found.");
+        throw new Error('Authentication token not found.');
       }
 
       let totalCredit = 0;
       let totalDebit = 0;
 
       // Fetch ledger data for each vendor
-      const vendorPromises = vendors.map(async (vendor) => {
+      const vendorPromises = vendors.map(async vendor => {
         try {
           const params = new URLSearchParams();
-          params.append("vendorId", vendor._id);
-          if (selectedCompanyId) params.append("companyId", selectedCompanyId);
+          params.append('vendorId', vendor._id);
+          if (selectedCompanyId) params.append('companyId', selectedCompanyId);
           const response = await fetch(
             `${baseURL}/api/ledger/vendor-payables?${params.toString()}`,
             {
-              method: "GET",
+              method: 'GET',
               headers: {
                 Authorization: `Bearer ${token}`,
               },
-            }
+            },
           );
 
           if (response.ok) {
             const data = await response.json();
             const debitTotal = (data.debit || []).reduce(
               (sum, entry) => sum + (entry.amount || 0),
-              0
+              0,
             );
 
             const creditPurchaseEntries = (data.debit || []).filter(
-              (entry) => entry.paymentMethod !== "Credit"
+              entry => entry.paymentMethod !== 'Credit',
             );
             const creditPaymentEntries = data.credit || [];
 
@@ -538,11 +592,16 @@ export default function PayablesScreen() {
               vendorName: vendor.vendorName,
             };
           } else {
-            console.error(`Failed to fetch ledger data for vendor ${vendor._id}`);
+            console.error(
+              `Failed to fetch ledger data for vendor ${vendor._id}`,
+            );
             return { debit: 0, credit: 0, vendorName: vendor.vendorName };
           }
         } catch (error) {
-          console.error(`Error fetching ledger data for vendor ${vendor._id}:`, error);
+          console.error(
+            `Error fetching ledger data for vendor ${vendor._id}:`,
+            error,
+          );
           return { debit: 0, credit: 0, vendorName: vendor.vendorName };
         }
       });
@@ -550,7 +609,7 @@ export default function PayablesScreen() {
       const vendorResults = await Promise.all(vendorPromises);
 
       // Sum up all vendor totals
-      vendorResults.forEach((result) => {
+      vendorResults.forEach(result => {
         totalDebit += result.debit;
         totalCredit += result.credit;
       });
@@ -560,7 +619,7 @@ export default function PayablesScreen() {
         totalDebit,
       });
     } catch (error) {
-      console.error("Error fetching overall totals:", error);
+      console.error('Error fetching overall totals:', error);
       setTransactionTotals({
         totalCredit: 0,
         totalDebit: 0,
@@ -571,15 +630,15 @@ export default function PayablesScreen() {
   };
 
   // Fetch balance for a vendor
-  const fetchVendorBalance = async (vendorId) => {
+  const fetchVendorBalance = async vendorId => {
     if (!vendorId || vendorBalances[vendorId] !== undefined) return;
 
     try {
-      setLoadingBalances((prev) => ({ ...prev, [vendorId]: true }));
+      setLoadingBalances(prev => ({ ...prev, [vendorId]: true }));
 
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        throw new Error("Authentication token not found.");
+        throw new Error('Authentication token not found.');
       }
 
       const params = new URLSearchParams();
@@ -587,41 +646,41 @@ export default function PayablesScreen() {
       const response = await fetch(
         `${baseURL}/api/vendors/${vendorId}/balance?${params.toString()}`,
         {
-          method: "GET",
+          method: 'GET',
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
 
       if (response.ok) {
         const data = await response.json();
-        setVendorBalances((prev) => ({
+        setVendorBalances(prev => ({
           ...prev,
           [vendorId]: data.balance || 0,
         }));
       } else {
         console.error(`Failed to fetch balance for vendor ${vendorId}`);
-        setVendorBalances((prev) => ({
+        setVendorBalances(prev => ({
           ...prev,
           [vendorId]: 0,
         }));
       }
     } catch (error) {
       console.error(`Error fetching balance for vendor ${vendorId}:`, error);
-      setVendorBalances((prev) => ({
+      setVendorBalances(prev => ({
         ...prev,
         [vendorId]: 0,
       }));
     } finally {
-      setLoadingBalances((prev) => ({ ...prev, [vendorId]: false }));
+      setLoadingBalances(prev => ({ ...prev, [vendorId]: false }));
     }
   };
 
   // Fetch balances for all vendors when component mounts
   useEffect(() => {
     if (currentView === 'vendor') {
-      vendors.forEach((vendor) => {
+      vendors.forEach(vendor => {
         fetchVendorBalance(vendor._id);
       });
       fetchOverallTotals();
@@ -637,7 +696,8 @@ export default function PayablesScreen() {
     }).length;
 
     // Calculate net balance
-    const netBalance = transactionTotals.totalDebit - transactionTotals.totalCredit; // Debit is purchase (you owe), Credit is payment (you paid)
+    const netBalance =
+      transactionTotals.totalDebit - transactionTotals.totalCredit; // Debit is purchase (you owe), Credit is payment (you paid)
 
     return {
       totalVendors: vendors.length,
@@ -645,7 +705,7 @@ export default function PayablesScreen() {
       netBalance,
       totalExpenseAmount: Object.values(expenseTotals).reduce(
         (sum, amount) => sum + amount,
-        0
+        0,
       ),
       settledVendors,
       totalCredit: transactionTotals.totalCredit,
@@ -680,12 +740,15 @@ export default function PayablesScreen() {
                 style={styles.comboboxTrigger}
                 onPress={() => setShowVendorModal(true)}
               >
-                <Text style={[
-                  styles.comboboxPlaceholder,
-                  selectedVendorFilter && styles.comboboxValue
-                ]}>
+                <Text
+                  style={[
+                    styles.comboboxPlaceholder,
+                    selectedVendorFilter && styles.comboboxValue,
+                  ]}
+                >
                   {selectedVendorFilter
-                    ? vendors.find(v => v._id === selectedVendorFilter)?.vendorName || 'Select vendor...'
+                    ? vendors.find(v => v._id === selectedVendorFilter)
+                        ?.vendorName || 'Select vendor...'
                     : 'Select vendor...'}
                 </Text>
               </TouchableOpacity>
@@ -700,13 +763,15 @@ export default function PayablesScreen() {
                   <View style={styles.modalContent}>
                     <View style={styles.modalHeader}>
                       <Text style={styles.modalTitle}>Select Vendor</Text>
-                      <TouchableOpacity onPress={() => setShowVendorModal(false)}>
+                      <TouchableOpacity
+                        onPress={() => setShowVendorModal(false)}
+                      >
                         <Text style={styles.modalClose}>×</Text>
                       </TouchableOpacity>
                     </View>
                     <FlatList
                       data={vendors}
-                      keyExtractor={(item) => item._id}
+                      keyExtractor={item => item._id}
                       renderItem={({ item }) => (
                         <TouchableOpacity
                           style={styles.dropdownItem}
@@ -715,7 +780,9 @@ export default function PayablesScreen() {
                             setShowVendorModal(false);
                           }}
                         >
-                          <Text style={styles.dropdownItemText}>{item.vendorName}</Text>
+                          <Text style={styles.dropdownItemText}>
+                            {item.vendorName}
+                          </Text>
                         </TouchableOpacity>
                       )}
                     />
@@ -728,18 +795,23 @@ export default function PayablesScreen() {
           {currentView === 'expense' && (
             <View style={styles.filterInputContainer}>
               <Text style={styles.filterLabel}>
-                {isDetailOpen ? 'Switch Category' : 'Filter by Expense Category'}
+                {isDetailOpen
+                  ? 'Switch Category'
+                  : 'Filter by Expense Category'}
               </Text>
               <TouchableOpacity
                 style={styles.comboboxTrigger}
                 onPress={() => setShowExpenseModal(true)}
               >
-                <Text style={[
-                  styles.comboboxPlaceholder,
-                  selectedExpenseFilter && styles.comboboxValue
-                ]}>
+                <Text
+                  style={[
+                    styles.comboboxPlaceholder,
+                    selectedExpenseFilter && styles.comboboxValue,
+                  ]}
+                >
                   {selectedExpenseFilter
-                    ? expenses.find(e => e._id === selectedExpenseFilter)?.name || 'Select category...'
+                    ? expenses.find(e => e._id === selectedExpenseFilter)
+                        ?.name || 'Select category...'
                     : 'Select category...'}
                 </Text>
               </TouchableOpacity>
@@ -753,14 +825,18 @@ export default function PayablesScreen() {
                 <View style={styles.modalOverlay}>
                   <View style={styles.modalContent}>
                     <View style={styles.modalHeader}>
-                      <Text style={styles.modalTitle}>Select Expense Category</Text>
-                      <TouchableOpacity onPress={() => setShowExpenseModal(false)}>
+                      <Text style={styles.modalTitle}>
+                        Select Expense Category
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => setShowExpenseModal(false)}
+                      >
                         <Text style={styles.modalClose}>×</Text>
                       </TouchableOpacity>
                     </View>
                     <FlatList
                       data={expenses}
-                      keyExtractor={(item) => item._id}
+                      keyExtractor={item => item._id}
                       renderItem={({ item }) => (
                         <TouchableOpacity
                           style={styles.dropdownItem}
@@ -769,7 +845,9 @@ export default function PayablesScreen() {
                             setShowExpenseModal(false);
                           }}
                         >
-                          <Text style={styles.dropdownItemText}>{item.name}</Text>
+                          <Text style={styles.dropdownItemText}>
+                            {item.name}
+                          </Text>
                         </TouchableOpacity>
                       )}
                     />
@@ -782,178 +860,47 @@ export default function PayablesScreen() {
           <View style={styles.filterInputContainer}>
             <Text style={styles.filterLabel}>Date Range</Text>
             <View style={styles.dateRangeContainer}>
-              <View style={styles.dateInputContainer}>
-                <Calendar size={16} color="#94a3b8" style={styles.dateIcon} />
-                <TextInput
-                  style={styles.dateInput}
-                  value={dateRange.from}
-                  onChangeText={(text) => {
-                    setDateRange((prev) => ({
-                      ...prev,
-                      from: text,
-                    }));
-                  }}
-                  placeholder="From date"
-                  placeholderTextColor="#94a3b8"
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => setShowFromDatePicker(true)}
+              >
+                <Text style={styles.dateButtonText}>
+                  {dateRange.from || 'From date'}
+                </Text>
+                <Icon name="calendar" size={20} color="#3B82F6" />
+              </TouchableOpacity>
+              {showFromDatePicker && (
+                <DateTimePicker
+                  value={dateRange.from ? new Date(dateRange.from) : new Date()}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={handleFromDatePickerChange}
                 />
-              </View>
-              <View style={styles.dateInputContainer}>
-                <Calendar size={16} color="#94a3b8" style={styles.dateIcon} />
-                <TextInput
-                  style={styles.dateInput}
-                  value={dateRange.to}
-                  onChangeText={(text) => {
-                    setDateRange((prev) => ({
-                      ...prev,
-                      to: text,
-                    }));
-                  }}
-                  placeholder="To date"
-                  placeholderTextColor="#94a3b8"
+              )}
+
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => setShowToDatePicker(true)}
+              >
+                <Text style={styles.dateButtonText}>
+                  {dateRange.to || 'To date'}
+                </Text>
+                <Icon name="calendar" size={20} color="#3B82F6" />
+              </TouchableOpacity>
+              {showToDatePicker && (
+                <DateTimePicker
+                  value={dateRange.to ? new Date(dateRange.to) : new Date()}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={handleToDatePickerChange}
                 />
-              </View>
+              )}
             </View>
           </View>
         </View>
       </View>
     </View>
   );
-
-  // StatCard Component
-  // const StatCard = ({
-  //   title,
-  //   value,
-  //   subtitle,
-  //   icon: Icon,
-  //   trend,
-  //   className = "",
-  //   loading = false,
-  //   valueColor = ""
-  // }) => {
-  //   const trendColor = trend === 'up' ? '#16a34a' : trend === 'down' ? '#dc2626' : '#64748b';
-
-  //   return (
-  //     <Card style={[styles.statCard, className]}>
-  //       <CardContent style={styles.statCardContent}>
-  //         <View style={styles.statCardHeader}>
-  //           <View style={[styles.statCardIcon, { backgroundColor: trendColor + '20' }]}>
-  //             <Icon size={18} color={trendColor} />
-  //           </View>
-  //           <Text style={styles.statCardTitle}>{title}</Text>
-  //         </View>
-          
-  //         {loading ? (
-  //           <ActivityIndicator size="small" color="#64748b" style={styles.statLoading} />
-  //         ) : (
-  //           <View style={styles.statCardValueRow}>
-  //             <Text style={[styles.statCardValue, valueColor && { color: valueColor }]}>
-  //               {value}
-  //             </Text>
-  //           </View>
-  //         )}
-          
-  //         <Text style={styles.statCardSubtitle}>{subtitle}</Text>
-  //       </CardContent>
-  //     </Card>
-  //   );
-  // };
-
-  // const getNetBalanceConfig = (netBalance) => {
-  //   // netBalance > 0 means Debit > Credit, so you owe money (Payable)
-  //   if (netBalance > 0) {
-  //     return {
-  //       title: "Net Payable",
-  //       subtitle: "Total amount you owe",
-  //       icon: TrendingUp, // Payable is a negative trend for cash flow
-  //       trend: "down",
-  //       className: styles.netPayableCard,
-  //       textColor: "#dc2626"
-  //     };
-  //   } else if (netBalance < 0) {
-  //     // netBalance < 0 means Debit < Credit, so they owe you (Advance)
-  //     return {
-  //       title: "Net Advance",
-  //       subtitle: "Total advance with vendors",
-  //       icon: TrendingDown, // Advance is a positive trend for cash flow
-  //       trend: "up",
-  //       className: styles.netAdvanceCard,
-  //       textColor: "#16a34a"
-  //     };
-  //   } else {
-  //     return {
-  //       title: "Net Balance",
-  //       subtitle: "All accounts settled",
-  //       icon: Minus,
-  //       trend: "neutral",
-  //       className: "",
-  //       textColor: "#64748b"
-  //     };
-  //   }
-  // };
-
-  // const netBalanceConfig = getNetBalanceConfig(stats.netBalance);
-
-  // const StatsSection = () => (
-  //   <View style={styles.statsSection}>
-  //     <View style={styles.statsGrid}>
-  //       {currentView === 'vendor' ? (
-  //         <>
-  //           <StatCard
-  //             title="Total Vendors"
-  //             value={<Text>{stats.totalVendors.toString()}</Text>}
-  //             subtitle={<Text>{`${stats.settledVendors} settled`}</Text>}
-  //             icon={Users}
-  //             trend="neutral"
-  //           />
-  //           <StatCard
-  //             title={netBalanceConfig.title}
-  //             value={<Text>{formatCurrency(Math.abs(stats.netBalance))}</Text>}
-  //             subtitle={<Text>{netBalanceConfig.subtitle}</Text>}
-  //             icon={netBalanceConfig.icon}
-  //             trend={netBalanceConfig.trend}
-  //             className={netBalanceConfig.className}
-  //             valueColor={netBalanceConfig.textColor}
-  //           />
-  //           <StatCard
-  //             title="Total Purchases (Debit)"
-  //             value={<Text>{formatCurrency(stats.totalDebit)}</Text>}
-  //             subtitle={<Text>Purchases made from vendors</Text>}
-  //             icon={IndianRupee}
-  //             trend="down"
-  //             loading={loadingTotals}
-  //             className={stats.totalDebit > 0 ? styles.debitCard : ''}
-  //           />
-  //           <StatCard
-  //             title="Total Payments (Credit)"
-  //             value={<Text>{formatCurrency(stats.totalCredit)}</Text>}
-  //             subtitle={<Text>Payments made to vendors</Text>}
-  //             icon={CreditCard}
-  //             trend="up"
-  //             loading={loadingTotals}
-  //             className={stats.totalCredit > 0 ? styles.creditCard : ''}
-  //           />
-  //         </>
-  //       ) : (
-  //         <>
-  //           <StatCard
-  //             title="Expense Categories"
-  //             value={<Text>{stats.totalExpenses.toString()}</Text>}
-  //             subtitle={<Text>Total categories</Text>}
-  //             icon={FileText}
-  //             trend="neutral"
-  //           />
-  //           <StatCard
-  //             title="Total Expenses"
-  //             value={<Text>{formatCurrency(stats.totalExpenseAmount)}</Text>}
-  //             subtitle={<Text>Total amount spent</Text>}
-  //             icon={TrendingUp}
-  //             trend="neutral"
-  //           />
-  //         </>
-  //       )}
-  //     </View>
-  //   </View>
-  // );
 
   if (vendorsLoading || expensesLoading) {
     return (
@@ -972,8 +919,8 @@ export default function PayablesScreen() {
     );
   }
 
-  const selectedVendorData = vendors.find((v) => v._id === selectedVendor);
-  const selectedExpenseData = expenses.find((e) => e._id === selectedExpense);
+  const selectedVendorData = vendors.find(v => v._id === selectedVendor);
+  const selectedExpenseData = expenses.find(e => e._id === selectedExpense);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -1075,7 +1022,7 @@ export default function PayablesScreen() {
                   loadingBalances={loadingBalances}
                   transactionTotals={transactionTotals}
                   loadingTotals={loadingTotals}
-                  onSelect={(id) => {
+                  onSelect={id => {
                     setSelectedVendor(id);
                     setSelectedVendorFilter(id);
                     AsyncStorage.setItem('selectedVendor_payables', id);
@@ -1086,11 +1033,12 @@ export default function PayablesScreen() {
               )
             ) : selectedExpense ? (
               <ImportedExpenseLedger
-              ledgerData={ledgerData}
-              loading={loading}
-              selectedExpense={selectedExpense}
-              expenses={expenses}
-              dateRange={dateRange}/>
+                ledgerData={ledgerData}
+                loading={loading}
+                selectedExpense={selectedExpense}
+                expenses={expenses}
+                dateRange={dateRange}
+              />
             ) : (
               // Using the IMPORTED VendorExpenseList component
               <ImportedVendorExpenseList
@@ -1098,7 +1046,7 @@ export default function PayablesScreen() {
                 vendors={vendors}
                 expenses={expenses}
                 expenseTotals={expenseTotals}
-                onSelect={(id) => {
+                onSelect={id => {
                   setSelectedExpense(id);
                   setSelectedExpenseFilter(id);
                 }}
@@ -1119,7 +1067,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
     // paddingTop:-40
-    
   },
   scrollView: {
     flex: 1,
@@ -1127,7 +1074,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 6,
-    marginTop: -10
+    marginTop: -10,
   },
   loadingScreen: {
     flex: 1,
@@ -1144,20 +1091,20 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   loadingTitle: {
-    height: 32,
-    width: 200,
+    height: 18,
+    width: 150,
     backgroundColor: '#e2e8f0',
     borderRadius: 4,
     marginBottom: 8,
   },
   loadingSubtitle: {
     height: 16,
-    width: 150,
+    width: 100,
     backgroundColor: '#e2e8f0',
     borderRadius: 4,
   },
   loadingButton: {
-    height: 40,
+    height: 12,
     width: 160,
     backgroundColor: '#e2e8f0',
     borderRadius: 8,
@@ -1349,6 +1296,24 @@ const styles = StyleSheet.create({
   dateRangeContainer: {
     flexDirection: 'row',
     gap: 8,
+  },
+  dateButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minHeight: 44,
+  },
+  dateButtonText: {
+    fontSize: 14,
+    color: '#0f172a',
+    fontWeight: '500',
   },
   dateInputContainer: {
     flex: 1,

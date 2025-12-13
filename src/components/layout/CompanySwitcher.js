@@ -112,7 +112,7 @@ export function CompanySwitcher() {
   if (companies.length === 1) {
     return (
       <View style={styles.singleCompanyContainer}>
-        <Ionicons name="search-outline" size={16} color="#64748b" />
+        {/* <Ionicons name="search-outline" size={16} color="#64748b" /> */}
         <Text style={styles.singleCompanyText} numberOfLines={1}>
           {companies[0].businessName}
         </Text>

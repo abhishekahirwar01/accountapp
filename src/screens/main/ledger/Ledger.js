@@ -2,51 +2,58 @@ import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import React, { useState } from 'react';
 import PayablesScreen from './PayablesScreen';
 import ReceivablesScreen from './ReceivablesScreen';
-
+import AppLayout from '../../../components/layout/AppLayout';
 export default function Ledger() {
   const [activeTab, setActiveTab] = useState('payables');
 
   return (
-    <View style={styles.container}>
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            activeTab === 'payables' && styles.activeTabButton
-          ]}
-          onPress={() => setActiveTab('payables')}
-        >
-          <Text style={[
-            styles.tabButtonText,
-            activeTab === 'payables' && styles.activeTabButtonText
-          ]}>
-            Payables
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            activeTab === 'receivables' && styles.activeTabButton
-          ]}
-          onPress={() => setActiveTab('receivables')}
-        >
-          <Text style={[
-            styles.tabButtonText,
-            activeTab === 'receivables' && styles.activeTabButtonText
-          ]}>
-            Receivables
-          </Text>
-        </TouchableOpacity>
-      </View>
+    <AppLayout>
+      <View style={styles.container}>
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === 'payables' && styles.activeTabButton,
+            ]}
+            onPress={() => setActiveTab('payables')}
+          >
+            <Text
+              style={[
+                styles.tabButtonText,
+                activeTab === 'payables' && styles.activeTabButtonText,
+              ]}
+            >
+              Payables
+            </Text>
+          </TouchableOpacity>
 
-      <View style={styles.contentArea}>
-        {activeTab === 'payables' 
-          ? <PayablesScreen />
-          : <ReceivablesScreen />
-        }
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === 'receivables' && styles.activeTabButton,
+            ]}
+            onPress={() => setActiveTab('receivables')}
+          >
+            <Text
+              style={[
+                styles.tabButtonText,
+                activeTab === 'receivables' && styles.activeTabButtonText,
+              ]}
+            >
+              Receivables
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.contentArea}>
+          {activeTab === 'payables' ? (
+            <PayablesScreen />
+          ) : (
+            <ReceivablesScreen />
+          )}
+        </View>
       </View>
-    </View>
+    </AppLayout>
   );
 }
 

@@ -1,78 +1,98 @@
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native'
-import React, { useState } from 'react'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { TrendingUp, PieChart } from 'lucide-react-native'
-import ProfitAndLossTab from '../../main/reports/ProfitLossScreen'
-import BalanceSheetTab from '../../main/reports/BalanceSheetScreen'
-import AppLayout from '../../../components/layout/AppLayout'
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  ScrollView,
+} from 'react-native';
+import React, { useState } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { TrendingUp, PieChart } from 'lucide-react-native';
+import ProfitAndLossTab from '../../main/reports/ProfitLossScreen';
+import BalanceSheetTab from '../../main/reports/BalanceSheetScreen';
+import AppLayout from '../../../components/layout/AppLayout';
 export default function Reports() {
-  const [activeTab, setActiveTab] = useState('profit-loss') // Default to Profit & Loss
+  const [activeTab, setActiveTab] = useState('profit-loss'); // Default to Profit & Loss
 
   const tabs = [
     {
       id: 'profit-loss',
       title: 'Profit & Loss',
-      icon: <TrendingUp size={20} color={activeTab === 'profit-loss' ? '#007AFF' : '#666'} />,
-      component: <ProfitAndLossTab />
+      icon: (
+        <TrendingUp
+          size={20}
+          color={activeTab === 'profit-loss' ? '#007AFF' : '#666'}
+        />
+      ),
+      component: <ProfitAndLossTab />,
     },
     {
       id: 'balance-sheet',
       title: 'Balance Sheet',
-      icon: <PieChart size={20} color={activeTab === 'balance-sheet' ? '#34C759' : '#666'} />,
-      component: <BalanceSheetTab />
-    }
-  ]
+      icon: (
+        <PieChart
+          size={20}
+          color={activeTab === 'balance-sheet' ? '#34C759' : '#666'}
+        />
+      ),
+      component: <BalanceSheetTab />,
+    },
+  ];
 
   return (
     <AppLayout>
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container}>
-        {/* Header */}
-        {/* <View style={styles.header}>
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView style={styles.container}>
+          {/* Header */}
+          {/* <View style={styles.header}>
           <Text style={styles.title}>Reports</Text>
           <Text style={styles.subtitle}>Financial statements and analytics</Text>
         </View> */}
 
-        {/* Tab Buttons */}
-        <View style={styles.tabsContainer}>
-          {tabs.map((tab) => (
-            <TouchableOpacity
-              key={tab.id}
-              style={[
-                styles.tabButton,
-                activeTab === tab.id && styles.activeTabButton
-              ]}
-              onPress={() => setActiveTab(tab.id)}
-            >
-              <View style={styles.tabContent}>
-                {tab.icon}
-                <Text style={[
-                  styles.tabText,
-                  activeTab === tab.id && styles.activeTabText
-                ]}>
-                  {tab.title}
-                </Text>
-              </View>
-              {activeTab === tab.id && <View style={styles.activeIndicator} />}
-            </TouchableOpacity>
-          ))}
-        </View>
+          {/* Tab Buttons */}
+          <View style={styles.tabsContainer}>
+            {tabs.map(tab => (
+              <TouchableOpacity
+                key={tab.id}
+                style={[
+                  styles.tabButton,
+                  activeTab === tab.id && styles.activeTabButton,
+                ]}
+                onPress={() => setActiveTab(tab.id)}
+              >
+                <View style={styles.tabContent}>
+                  {tab.icon}
+                  <Text
+                    style={[
+                      styles.tabText,
+                      activeTab === tab.id && styles.activeTabText,
+                    ]}
+                  >
+                    {tab.title}
+                  </Text>
+                </View>
+                {activeTab === tab.id && (
+                  <View style={styles.activeIndicator} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
 
-        {/* Content Area */}
-        <View style={styles.contentContainer}>
-          {tabs.find(tab => tab.id === activeTab)?.component}
-        </View>
+          {/* Content Area */}
+          <View style={styles.contentContainer}>
+            {tabs.find(tab => tab.id === activeTab)?.component}
+          </View>
 
-        {/* Footer Info */}
-        {/* <View style={styles.footer}>
+          {/* Footer Info */}
+          {/* <View style={styles.footer}>
           <Text style={styles.footerText}>
             Switch between reports using the tabs above
           </Text>
         </View> */}
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
     </AppLayout>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -111,10 +131,10 @@ const styles = StyleSheet.create({
   tabsContainer: {
     flexDirection: 'row',
     backgroundColor: 'white',
-    marginHorizontal: 20,
+    marginHorizontal: 10,
     marginTop: 8,
     borderRadius: 12,
-    padding: 8,
+    padding: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -159,9 +179,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 2,
   },
   contentContainer: {
-    marginTop: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    marginTop: 5,
+    paddingHorizontal:0,
+    paddingBottom: 0,
   },
   // footer: {
   //   padding: 20,
@@ -176,4 +196,4 @@ const styles = StyleSheet.create({
   //   textAlign: 'center',
   //   lineHeight: 20,
   // },
-})
+});

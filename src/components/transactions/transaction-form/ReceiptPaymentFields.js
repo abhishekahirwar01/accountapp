@@ -11,7 +11,7 @@ import {
   Platform,
   Keyboard,
 } from 'react-native';
-import { Calendar } from 'react-native-calendars';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Combobox } from '../../ui/Combobox';
 import { formatCurrency } from '../../../lib/pdf-utils';
 import { useToast } from '../../hooks/useToast';
@@ -284,43 +284,28 @@ export const ReceiptPaymentFields = props => {
     </RNModal>
   );
 
-  const DateModal = ({ visible, onClose, selectedDate, onDaySelect }) => (
-    <RNModal
-      visible={visible}
-      onRequestClose={onClose}
-      transparent={true}
-      animationType="slide"
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeaderRow}>
-            <Text style={styles.modalTitle}>Select Date</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>✕</Text>
-            </TouchableOpacity>
-          </View>
+  const DateModal = ({ visible, onClose, selectedDate, onDaySelect }) => {
+    const handleDateChange = (event, selectedDate) => {
+      if (selectedDate) {
+        const dateString = selectedDate.toISOString().split('T')[0];
+        onDaySelect(dateString);
+      }
+      if (Platform.OS === 'android') {
+        onClose();
+      }
+    };
 
-          <Calendar
-            onDayPress={day => {
-              onDaySelect(day.dateString);
-              onClose();
-            }}
-            markedDates={{
-              [selectedDate]: {
-                selected: true,
-                selectedColor: '#007AFF', // Better color
-              },
-            }}
-            style={styles.calendar}
-          />
+    if (!visible) return null;
 
-          <View style={styles.modalActions}>
-            <OutlineButton onPress={onClose}>Cancel</OutlineButton>
-          </View>
-        </View>
-      </View>
-    </RNModal>
-  );
+    return (
+      <DateTimePicker
+        value={selectedDate ? new Date(selectedDate) : new Date()}
+        mode="date"
+        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+        onChange={handleDateChange}
+      />
+    );
+  };
 
   const PaymentMethodModal = ({
     visible,
@@ -730,10 +715,8 @@ const styles = StyleSheet.create({
   selectedOptionText: {
     color: '#007AFF',
   },
-  calendar: {
-    borderRadius: 8,
+  datePickerContainer: {
     marginVertical: 16,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
+    paddingHorizontal: 12,
   },
 });
