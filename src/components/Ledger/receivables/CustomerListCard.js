@@ -6,9 +6,38 @@ import {
   FlatList,
   StyleSheet,
   Dimensions,
+  ActivityIndicator, // Use standard React Native ActivityIndicator
 } from 'react-native';
-import { Card, Button, ActivityIndicator } from 'react-native-paper';
+// Removed: import { Card, Button, ActivityIndicator } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+
+// Custom Button Component to replace react-native-paper Button
+const CustomButton = ({ onPress, disabled, style, textStyle, children }) => (
+  <TouchableOpacity
+    onPress={onPress}
+    disabled={disabled}
+    style={[
+      styles.buttonBase,
+      styles.buttonOutlined,
+      style,
+      disabled && styles.buttonDisabled,
+    ]}
+  >
+    <Text style={[styles.buttonText, styles.buttonTextOutlined, textStyle]}>
+      {children}
+    </Text>
+  </TouchableOpacity>
+);
+
+// Custom Card Component to replace react-native-paper Card
+const CustomCard = ({ style, children }) => (
+  <View style={[styles.cardBase, style]}>{children}</View>
+);
+
+// Helper for Card.Content (just a View with padding)
+const CustomCardContent = ({ style, children }) => (
+  <View style={style}>{children}</View>
+);
 
 const CustomerListCard = ({
   parties,
@@ -26,20 +55,20 @@ const CustomerListCard = ({
   capitalizeWords,
 }) => {
   const renderCustomerItem = ({ item, index }) => (
-    <Card style={[
-      styles.customerCard,
-      index % 2 === 0 ? styles.evenCard : styles.oddCard
-    ]}>
-      <Card style={styles.cardContent}>
+    <CustomCard
+      style={[
+        styles.customerCard,
+        index % 2 === 0 ? styles.evenCard : styles.oddCard,
+      ]}
+    >
+      <CustomCardContent style={styles.cardContent}>
         <View style={styles.customerRow}>
           <View style={styles.customerInfo}>
             <Text style={styles.customerName}>
               {capitalizeWords(item.name)}
             </Text>
             {item.contactNumber && (
-              <Text style={styles.customerContact}>
-                {item.contactNumber}
-              </Text>
+              <Text style={styles.customerContact}>{item.contactNumber}</Text>
             )}
           </View>
           <View style={styles.customerBalance}>
@@ -60,26 +89,21 @@ const CustomerListCard = ({
             </Text>
           </View>
         </View>
-        <Button
-          mode="outlined"
+        <CustomButton
           onPress={() => setSelectedParty(item._id)}
           style={styles.viewButton}
-          compact
         >
           View Ledger
-        </Button>
-      </Card>
-    </Card>
+        </CustomButton>
+      </CustomCardContent>
+    </CustomCard>
   );
 
-  // Calculate how many items we should show (max 7)
-  const itemsToShow = Math.min(parties.length, 7);
-
   return (
-    <Card style={styles.card}>
-      <Card.Content style={styles.cardContentContainer}>
+    <CustomCard style={styles.card}>
+      <CustomCardContent style={styles.cardContentContainer}>
         <Text style={styles.cardTitle}>All Customers</Text>
-        
+
         {loadingBalances ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#3b82f6" />
@@ -97,9 +121,9 @@ const CustomerListCard = ({
               <FlatList
                 data={parties}
                 renderItem={renderCustomerItem}
-                keyExtractor={(item) => item._id}
-                scrollEnabled={true}
-                showsVerticalScrollIndicator={true}
+                keyExtractor={item => item._id}
+                scrollEnabled={false}
+                showsVerticalScrollIndicator={false}
                 style={styles.list}
                 contentContainerStyle={styles.listContent}
                 initialNumToRender={7}
@@ -109,51 +133,90 @@ const CustomerListCard = ({
             </View>
 
             {/* Pagination */}
-            {totalItems > 7 && (  // Only show pagination if more than 7 items
+            {totalItems > 7 && ( // Only show pagination if more than 7 items
               <View style={styles.pagination}>
                 <View style={styles.paginationInfo}>
                   <Text style={styles.paginationText}>
-                    Showing {startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} customers
+                    Showing {startIndex + 1} to {Math.min(endIndex, totalItems)}{' '}
+                    of {totalItems} customers
                   </Text>
                 </View>
                 <View style={styles.paginationControls}>
-                  <Button
-                    mode="outlined"
+                  <CustomButton
                     onPress={goToPrevPage}
                     disabled={currentPage === 1}
                     style={styles.paginationButton}
-                    compact
                   >
                     Previous
-                  </Button>
+                  </CustomButton>
                   <Text style={styles.pageNumber}>
                     Page {currentPage} of {totalPages}
                   </Text>
-                  <Button
-                    mode="outlined"
+                  <CustomButton
                     onPress={goToNextPage}
                     disabled={currentPage === totalPages}
                     style={styles.paginationButton}
-                    compact
                   >
                     Next
-                  </Button>
+                  </CustomButton>
                 </View>
               </View>
             )}
           </View>
         )}
-      </Card.Content>
-    </Card>
+      </CustomCardContent>
+    </CustomCard>
   );
 };
 
+// You can use a smaller percentage or calculate a height based on item height
+// e.g., if one card is ~60 height, 7 items is ~420.
+const LIST_HEIGHT = Dimensions.get('window').height * 0.55;
+
 const styles = StyleSheet.create({
+  // --- Custom Button Styles (replaces react-native-paper Button) ---
+  buttonBase: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    minHeight: 30, // Approximate compact height
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonOutlined: {
+    borderWidth: 1,
+    borderColor: '#3b82f6', // Use a primary color
+    backgroundColor: 'transparent',
+  },
+  buttonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  buttonTextOutlined: {
+    color: '#3b82f6',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  // -----------------------------------------------------------------
+
+  // --- Custom Card Styles (replaces react-native-paper Card) ---
+  cardBase: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
+    elevation: 2,
+  },
+  // -----------------------------------------------------------
+
   card: {
     margin: 16,
     marginTop: 8,
-    elevation: 3,
     flex: 1,
+    // Note: elevation is now handled by cardBase
   },
   cardContentContainer: {
     padding: 0,
@@ -170,8 +233,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContainer: {
-    height: Dimensions.get('window').height * 1, // Fixed height for 7 items
-    minHeight: 400, // Minimum height
+    // Adjusted height to be less aggressive than 'window * 1'
+    // You may need to tune this to fit 7 items exactly on your target screen
+    height: LIST_HEIGHT,
+    minHeight: 400,
   },
   list: {
     flex: 1,
@@ -185,6 +250,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#e5e7eb',
+    elevation: 0, // Remove shadow for inner card
   },
   evenCard: {
     backgroundColor: '#ffffff',
@@ -239,6 +305,7 @@ const styles = StyleSheet.create({
   viewButton: {
     alignSelf: 'flex-start',
     marginTop: 4,
+    // compact is now handled by the custom button's default padding
   },
   loadingContainer: {
     alignItems: 'center',

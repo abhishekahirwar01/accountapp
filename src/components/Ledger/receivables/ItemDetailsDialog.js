@@ -5,9 +5,60 @@ import {
   ScrollView,
   StyleSheet,
   Dimensions,
+  TouchableOpacity, // Used for CustomButton
+  Modal, // Use standard React Native Modal
 } from 'react-native';
-import { Modal, Portal, Card, Button } from 'react-native-paper';
+// Removed: import { Modal, Portal, Card, Button } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+
+// Custom Button Component to replace react-native-paper Button
+const CustomButton = ({
+  onPress,
+  disabled,
+  style,
+  textStyle,
+  children,
+  mode = 'text',
+}) => {
+  const isContained = mode === 'contained';
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={disabled}
+      style={[
+        styles.buttonBase,
+        isContained ? styles.buttonContained : styles.buttonTextOnly,
+        style,
+        disabled && styles.buttonDisabled,
+      ]}
+    >
+      <Text
+        style={[
+          styles.buttonText,
+          isContained ? styles.buttonTextContained : styles.buttonTextTextOnly,
+          textStyle,
+        ]}
+      >
+        {children}
+      </Text>
+    </TouchableOpacity>
+  );
+};
+
+// Custom Card Component to replace react-native-paper Card
+const CustomCard = ({ style, children }) => (
+  <View style={[styles.cardBase, style]}>{children}</View>
+);
+
+// Helper for Card.Content (just a View with padding)
+const CustomCardContent = ({ style, children }) => (
+  <View style={[styles.cardContent, style]}>{children}</View>
+);
+
+// Helper for Card.Actions (just a View)
+const CustomCardActions = ({ style, children }) => (
+  <View style={style}>{children}</View>
+);
 
 const ItemDetailsDialog = ({
   visible,
@@ -20,7 +71,7 @@ const ItemDetailsDialog = ({
     let taxTotal = 0;
     let grandTotal = 0;
 
-    items.forEach((item) => {
+    items.forEach(item => {
       const amount = Number(item.amount || 0);
       subtotal += amount;
 
@@ -42,9 +93,10 @@ const ItemDetailsDialog = ({
 
   const renderItem = (item, index) => {
     const isService = item.itemType === 'service';
-    const quantity = !isService && item.quantity
-      ? `${item.quantity} ${item.unitType || 'Piece'}`
-      : '—';
+    const quantity =
+      !isService && item.quantity
+        ? `${item.quantity} ${item.unitType || 'Piece'}`
+        : '—';
     const pricePerUnit = !isService
       ? formatIndianNumber(Number(item.pricePerUnit || 0))
       : '—';
@@ -52,8 +104,8 @@ const ItemDetailsDialog = ({
     const hsnSacCode = isService ? item.sacCode : item.hsnCode;
 
     return (
-      <Card key={index} style={styles.itemCard}>
-        <Card.Content>
+      <CustomCard key={index} style={styles.itemCard}>
+        <CustomCardContent>
           {/* Item Header */}
           <View style={styles.itemHeader}>
             <View style={styles.itemTypeIcon}>
@@ -107,26 +159,28 @@ const ItemDetailsDialog = ({
             <Text style={styles.totalLabel}>Item Total</Text>
             <Text style={styles.totalAmount}>₹{total}</Text>
           </View>
-        </Card.Content>
-      </Card>
+        </CustomCardContent>
+      </CustomCard>
     );
   };
 
   return (
-    <Portal>
-      <Modal
-        visible={visible}
-        onDismiss={onDismiss}
-        contentContainerStyle={styles.modal}
-      >
-        <Card style={styles.dialogCard}>
+    // Replaced Portal and Paper Modal with standard React Native Modal
+    <Modal
+      visible={visible}
+      onRequestClose={onDismiss} // Handles Android back button
+      transparent={true}
+      animationType="fade"
+    >
+      <View style={styles.modalOverlay}>
+        <CustomCard style={styles.dialogCard}>
           {/* Header */}
-          <Card.Content style={styles.header}>
+          <CustomCardContent style={styles.header}>
             <Text style={styles.title}>Item Details</Text>
             <Text style={styles.subtitle}>
               A detailed list of all items in this transaction
             </Text>
-          </Card.Content>
+          </CustomCardContent>
 
           {/* Summary Stats */}
           <View style={styles.summaryContainer}>
@@ -165,25 +219,86 @@ const ItemDetailsDialog = ({
           </ScrollView>
 
           {/* Close Button */}
-          <Card.Actions style={styles.actions}>
-            <Button mode="contained" onPress={onDismiss}>
+          <CustomCardActions style={styles.actions}>
+            <CustomButton mode="contained" onPress={onDismiss}>
               Close
-            </Button>
-          </Card.Actions>
-        </Card>
-      </Modal>
-    </Portal>
+            </CustomButton>
+          </CustomCardActions>
+        </CustomCard>
+      </View>
+    </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  modal: {
+  // --- Custom Component Styles ---
+
+  // Standard Button styles (Replaces react-native-paper Button)
+  buttonBase: {
+    minWidth: 64,
+    height: 36, // Standard Paper button height
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  buttonContained: {
+    backgroundColor: '#3b82f6', // A primary blue color
+    elevation: 2,
+  },
+  buttonTextOnly: {
+    backgroundColor: 'transparent',
+  },
+  buttonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  buttonTextContained: {
+    color: 'white',
+  },
+  buttonTextTextOnly: {
+    color: '#3b82f6', // Primary color for text button
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+
+  // Standard Card styles (Replaces react-native-paper Card)
+  cardBase: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    // Mimic Paper's default elevation
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  cardContent: {
+    padding: 16, // Default padding for Card.Content
+  },
+
+  // Modal Overlay (Replaces Portal/Paper Modal structure)
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Dim background
     padding: 20,
   },
+  // -------------------------------
+
+  // Original Styles adjusted for new components
+  // modal: {
+  //   padding: 20, // This style is now handled by modalOverlay padding
+  // },
   dialogCard: {
+    width: '100%',
+    maxWidth: 500, // Max width for larger screens
     maxHeight: Dimensions.get('window').height * 0.8,
   },
   header: {
+    // Note: cardContent default padding is already applied here
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
     paddingBottom: 16,
@@ -225,11 +340,15 @@ const styles = StyleSheet.create({
   },
   itemsList: {
     maxHeight: 400,
-    padding: 16,
+    paddingHorizontal: 16, // Moved horizontal padding here
+    paddingVertical: 16, // Added vertical padding
   },
   itemCard: {
     marginBottom: 12,
     backgroundColor: 'white',
+    elevation: 1, // Slight elevation for inner cards
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
   },
   itemHeader: {
     flexDirection: 'row',
