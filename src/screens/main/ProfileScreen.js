@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,326 +6,655 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
+  Linking,
+  StatusBar,
+  useWindowDimensions,
+  RefreshControl,
+  Platform,
 } from 'react-native';
-import { Card, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  User, Bell, Send, Building, Package, Contact, Store, Server, FileText, Shield,
-  CheckCircle, XCircle, UserCircle, MessageSquare, ArrowLeft
+  Bell,
+  Send,
+  Building,
+  Package,
+  Contact,
+  Store,
+  Server,
+  FileText,
+  Shield,
+  Check,
+  X,
+  AlertTriangle,
+  Settings,
+  UserCircle,
+  MessageSquare,
+  Users,
+  CheckCircle,
+  XCircle,
+  Mail,
 } from 'lucide-react-native';
 
-// ---- Settings screens (your actual components) ----
-import VendorSettings from '../../components/settings/VendorSettings';
-import CustomerSettings from '../../components/settings/CustomerSettings';
-import ProductSettings from '../../components/settings/ProductSettings';
-import ProfileTab from '../../components/settings/ProfileTab';
-import NotificationsTab from '../../components/settings/NotificationsTab';
+import { BASE_URL } from '../../config';
+import { usePermissions } from '../../contexts/permission-context';
+import { useUserPermissions } from '../../contexts/user-permissions-context';
+import { getCurrentUser } from '../../lib/auth';
+
+import { VendorSettings } from '../../components/settings/VendorSettings';
+import { CustomerSettings } from '../../components/settings/CustomerSettings';
+import { ProductSettings } from '../../components/settings/ProductSettings';
+import { ProfileTab } from '../../components/settings/ProfileTab';
+import { NotificationsTab } from '../../components/settings/NotificationsTab';
 import ServiceSettings from '../../components/settings/ServiceSettings';
 import BankSettings from '../../components/settings/BankSettings';
 import TemplateSettings from '../../components/settings/TemplateSettings';
-import EmailSendingConsent from '../../components/settings/EmailSendingConsent';
+import { EmailSendingConsent } from '../../components/settings/EmailSendingConsent';
 
-// ---- Mocked hooks (replace with real ones) ----
-const usePermissions = () => ({
-  permissions: {
-    canCreateUsers: true,
-    canCreateCustomers: true,
-    canCreateVendors: true,
-    canCreateProducts: true,
-    canSendInvoiceEmail: true,
-    canSendInvoiceWhatsapp: true,
-    maxCompanies: 5,
-    maxUsers: 10,
-    maxInventories: 50,
-  },
-  isLoading: false,
-});
-
-const useUserPermissions = () => ({
-  permissions: {
-    canCreateSaleEntries: true,
-    canCreatePurchaseEntries: true,
-    canCreateReceiptEntries: true,
-    canCreateJournalEntries: true,
-    canCreateCustomers: true,
-    canCreateVendors: true,
-    canCreateInventory: true,
-    canSendInvoiceEmail: true,
-    canSendInvoiceWhatsapp: true,
-    canShowCustomers: true,
-    canShowVendors: true,
-  },
-  isLoading: false,
-});
-
-const getCurrentUser = () => ({
-  role: 'client', // 'client' | 'customer' | 'user' | 'manager' | 'admin'
-  name: 'John Doe',
-  email: 'john.doe@example.com',
-});
-
-// =================== Permissions Card ===================
-const PermissionsTab = ({ isUser = false }) => {
+const PermissionsTab = React.memo(() => {
   const { permissions } = usePermissions();
-  const { permissions: userCaps } = useUserPermissions();
-  const currentUser = getCurrentUser();
-  const isCustomer = currentUser?.role === 'customer' || currentUser?.role === 'client';
-  const theme = useTheme();
+  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUserLoading, setCurrentUserLoading] = useState(true);
+  const [gmailLinked, setGmailLinked] = useState(false);
+  const [gmailEmail, setGmailEmail] = useState(null);
+  const [loadingGmail, setLoadingGmail] = useState(true);
 
-  const permissionItems = [
-    { label: 'Create Users', granted: permissions?.canCreateUsers, icon: User },
-    { label: 'Create Customers', granted: permissions?.canCreateCustomers, icon: Contact },
-    { label: 'Create Vendors', granted: permissions?.canCreateVendors, icon: Store },
-    { label: 'Create Products', granted: permissions?.canCreateProducts, icon: Package },
-    { label: 'Send Invoice via Email', granted: permissions?.canSendInvoiceEmail, icon: Send },
-    { label: 'Send Invoice via WhatsApp', granted: permissions?.canSendInvoiceWhatsapp, icon: MessageSquare },
-  ];
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const u = await getCurrentUser();
+        if (mounted) setCurrentUser(u);
+      } catch (err) {
+      } finally {
+        if (mounted) setCurrentUserLoading(false);
+      }
+    })();
 
-  const userPermissionItems = [
-    { label: 'Create Sales Entries', granted: userCaps?.canCreateSaleEntries, icon: User },
-    { label: 'Create Purchase Entries', granted: userCaps?.canCreatePurchaseEntries, icon: Store },
-    { label: 'Create Receipt Entries', granted: userCaps?.canCreateReceiptEntries, icon: Contact },
-    { label: 'Create Journal Entries', granted: userCaps?.canCreateJournalEntries, icon: Package },
-    { label: 'Create Customers', granted: userCaps?.canCreateCustomers, icon: Contact },
-    { label: 'Create Vendors', granted: userCaps?.canCreateVendors, icon: Store },
-    { label: 'Create Inventory', granted: userCaps?.canCreateInventory, icon: Package },
-    { label: 'Send Invoice via Email', granted: userCaps?.canSendInvoiceEmail, icon: Send },
-    { label: 'Send Invoice via WhatsApp', granted: userCaps?.canSendInvoiceWhatsapp, icon: MessageSquare },
-    { label: 'Show Customers', granted: userCaps?.canShowCustomers, icon: Contact },
-    { label: 'Show Vendors', granted: userCaps?.canShowVendors, icon: Store },
-  ];
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
-  const limitItems = [
-    { label: 'Max Companies', value: permissions?.maxCompanies, icon: Building },
-    { label: 'Max Users', value: permissions?.maxUsers, icon: User },
-    { label: 'Max Inventories', value: permissions?.maxInventories, icon: Package },
-  ];
+  const isCustomer =
+    currentUser?.role === 'customer' || currentUser?.role === 'client';
 
-  const features = isUser
-    ? userPermissionItems.filter((item) => item.granted)
-    : permissionItems;
+  const permissionItems = useMemo(
+    () => [
+      {
+        label: 'Create Users',
+        granted: permissions?.canCreateUsers,
+        icon: Users,
+      },
+      {
+        label: 'Create Customers',
+        granted: permissions?.canCreateCustomers,
+        icon: Contact,
+      },
+      {
+        label: 'Create Vendors',
+        granted: permissions?.canCreateVendors,
+        icon: Store,
+      },
+      {
+        label: 'Create Products',
+        granted: permissions?.canCreateProducts,
+        icon: Package,
+      },
+      {
+        label: 'Send Invoice via Email',
+        granted: permissions?.canSendInvoiceEmail,
+        icon: Send,
+      },
+      {
+        label: 'Send Invoice via WhatsApp',
+        granted: permissions?.canSendInvoiceWhatsapp,
+        icon: MessageSquare,
+      },
+    ],
+    [permissions],
+  );
 
-  if (isUser && features.length === 0) {
+  const limitItems = useMemo(
+    () => [
+      {
+        label: 'Max Companies',
+        value: permissions?.maxCompanies,
+        icon: Building,
+      },
+      { label: 'Max Users', value: permissions?.maxUsers, icon: Users },
+      {
+        label: 'Max Inventories',
+        value: permissions?.maxInventories,
+        icon: Package,
+      },
+    ],
+    [permissions],
+  );
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      if (isCustomer && permissions?.canSendInvoiceEmail) {
+        setLoadingGmail(true);
+        try {
+          const token = await AsyncStorage.getItem('token');
+
+          if (!token) return;
+
+          const response = await fetch(
+            `${BASE_URL}/api/integrations/gmail/status`,
+            {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            },
+          );
+
+          if (response.ok && mounted) {
+            const data = await response.json();
+            setGmailLinked(!!data?.connected);
+            setGmailEmail(data?.email);
+          }
+        } catch (error) {
+          if (mounted) {
+            setGmailLinked(false);
+            setGmailEmail(null);
+          }
+        } finally {
+          if (mounted) {
+            setLoadingGmail(false);
+          }
+        }
+      } else {
+        setLoadingGmail(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [isCustomer, permissions?.canSendInvoiceEmail]);
+
+  const emailPerm = permissions?.canSendInvoiceEmail === true;
+
+  if (!isCustomer) {
     return (
-      <View style={styles.tabBody}>
-        <Text style={styles.noPermissionsText}>No permissions granted.</Text>
+      <View style={styles.permissionsContainer}>
+        <View style={styles.card}>
+          <View style={styles.cardContent}>
+            <View style={styles.cardHeader}>
+              <Shield size={24} color="#3b82f6" />
+              <Text style={styles.cardTitle}>Permissions</Text>
+            </View>
+            <Text style={styles.cardSubtitle}>
+              Only available for customer accounts.
+            </Text>
+          </View>
+        </View>
       </View>
     );
   }
 
   return (
     <ScrollView style={styles.tabBody} showsVerticalScrollIndicator={false}>
-      {isCustomer && !isUser && (
-        <Card style={styles.card}>
-          <Card.Content>
-            <View style={styles.cardHeader}>
-              <Shield size={24} color={theme?.colors?.primary || '#3b82f6'} />
-              <View style={styles.cardHeaderText}>
-                <Text style={styles.cardTitle}>Plan & Permissions</Text>
-                <Text style={styles.cardDescription}>
-                  Your current feature access and limits
-                </Text>
-              </View>
+      <View style={styles.card}>
+        <View style={styles.cardContent}>
+          <View style={styles.cardHeader}>
+            <Shield size={24} color="#3b82f6" />
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.cardTitle}>Plan & Permissions</Text>
+              <Text style={styles.cardDescription}>
+                Your current feature access and limits
+              </Text>
             </View>
+          </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>USAGE LIMITS</Text>
-              <View style={styles.limitsRow}>
-                {limitItems.map((item, idx) => (
-                  <View
-                    key={item.label}
-                    style={[styles.limitItem, idx % 3 !== 2 && { marginRight: 12 }]}
-                  >
-                    <View style={styles.limitItemHeader}>
-                      <item.icon size={20} color={'#9ca3af'} />
-                      <Text style={styles.limitValue}>{item.value ?? 'N/A'}</Text>
-                    </View>
-                    <Text style={styles.limitLabel}>{item.label}</Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>USAGE LIMITS</Text>
+            <View style={styles.limitsRow}>
+              {limitItems.map((item, idx) => (
+                <View
+                  key={item.label}
+                  style={[
+                    styles.limitItem,
+                    idx % 3 !== 2 && { marginRight: 12 },
+                  ]}
+                >
+                  <View style={styles.limitItemHeader}>
+                    <item.icon size={20} color="#9ca3af" />
+                    <Text style={styles.limitValue}>{item.value ?? 'N/A'}</Text>
                   </View>
-                ))}
-              </View>
+                  <Text style={styles.limitLabel}>{item.label}</Text>
+                </View>
+              ))}
             </View>
+          </View>
 
-            <View style={styles.separator} />
+          <View style={styles.separator} />
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>FEATURE ACCESS</Text>
-              <View>
-                {features.map((item) => (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>FEATURE ACCESS</Text>
+            <View>
+              {permissionItems.map(item => {
+                const isEmailRow = item.label === 'Send Invoice via Email';
+
+                return (
                   <View key={item.label} style={styles.featureItem}>
                     <View style={styles.featureInfo}>
-                      <item.icon size={16} color={'#9ca3af'} />
+                      <item.icon size={16} color="#9ca3af" />
                       <Text style={styles.featureLabel}>{item.label}</Text>
+
+                      {isEmailRow && (
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (emailPerm) {
+                              Linking.openURL(`${BASE_URL}/integrations/gmail`);
+                            }
+                          }}
+                          disabled={!emailPerm || loadingGmail}
+                          style={styles.emailStatusIndicator}
+                        >
+                          {loadingGmail ? (
+                            <ActivityIndicator size="small" color="#3b82f6" />
+                          ) : !emailPerm ? (
+                            <AlertTriangle size={16} color="#f59e0b" />
+                          ) : gmailLinked ? (
+                            <Check size={16} color="#10b981" />
+                          ) : (
+                            <AlertTriangle size={16} color="#f59e0b" />
+                          )}
+                        </TouchableOpacity>
+                      )}
                     </View>
+
                     {item.granted ? (
                       <CheckCircle size={20} color="#10b981" />
                     ) : (
                       <XCircle size={20} color="#ef4444" />
                     )}
                   </View>
-                ))}
-              </View>
+                );
+              })}
             </View>
-          </Card.Content>
-        </Card>
-      )}
+          </View>
+        </View>
+      </View>
 
-      {isUser && (
-        <Card style={styles.card}>
-          <Card.Content>
-            <View style={styles.cardHeader}>
-              <Shield size={24} color={theme?.colors?.primary || '#3b82f6'} />
-              <View style={styles.cardHeaderText}>
-                <Text style={styles.cardTitle}>My Permissions</Text>
-                <Text style={styles.cardDescription}>
-                  What I'm allowed to do in this account
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.separator} />
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>FEATURE ACCESS</Text>
-              <View>
-                {features.map((item) => (
-                  <View key={item.label} style={styles.featureItem}>
-                    <View style={styles.featureInfo}>
-                      <item.icon size={16} color={'#9ca3af'} />
-                      <Text style={styles.featureLabel}>{item.label}</Text>
-                    </View>
-                    <CheckCircle size={20} color="#10b981" />
-                  </View>
-                ))}
-              </View>
-            </View>
-          </Card.Content>
-        </Card>
+      {isCustomer && permissions?.canSendInvoiceEmail && (
+        <View style={styles.emailConsentSection}>
+          <EmailSendingConsent />
+        </View>
       )}
     </ScrollView>
   );
-};
+});
 
-// =================== Main Screen ===================
-export default function ProfileScreen({ navigation }) {
-  const { permissions, isLoading } = usePermissions();
-  const { permissions: userCaps, isLoading: isUserLoading } = useUserPermissions();
-  const currentUser = getCurrentUser();
+PermissionsTab.displayName = 'PermissionsTab';
+
+const UserPermissionsTab = React.memo(() => {
+  const { permissions: userCaps } = useUserPermissions();
+
+  const yes = useCallback(v => {
+    return v === true;
+  }, []);
+
+  const features = useMemo(() => {
+    const allFeatures = [
+      {
+        label: 'Create Sales Entries',
+        granted: yes(userCaps?.canCreateSaleEntries),
+        icon: Users,
+      },
+      {
+        label: 'Create Purchase Entries',
+        granted: yes(userCaps?.canCreatePurchaseEntries),
+        icon: Store,
+      },
+      {
+        label: 'Create Receipt Entries',
+        granted: yes(userCaps?.canCreateReceiptEntries),
+        icon: Contact,
+      },
+      {
+        label: 'Create Payment Entries',
+        granted: yes(userCaps?.canCreatePaymentEntries),
+        icon: Send,
+      },
+      {
+        label: 'Create Journal Entries',
+        granted: yes(userCaps?.canCreateJournalEntries),
+        icon: Package,
+      },
+      {
+        label: 'Create Customers',
+        granted: yes(userCaps?.canCreateCustomers),
+        icon: Contact,
+      },
+      {
+        label: 'Create Vendors',
+        granted: yes(userCaps?.canCreateVendors),
+        icon: Store,
+      },
+      {
+        label: 'Create Inventory',
+        granted: yes(userCaps?.canCreateInventory),
+        icon: Package,
+      },
+      {
+        label: 'Send Invoice via Email',
+        granted: yes(userCaps?.canSendInvoiceEmail),
+        icon: Send,
+      },
+      {
+        label: 'Send Invoice via WhatsApp',
+        granted: yes(userCaps?.canSendInvoiceWhatsapp),
+        icon: MessageSquare,
+      },
+      {
+        label: 'Show Customers',
+        granted: yes(userCaps?.canShowCustomers),
+        icon: Contact,
+      },
+      {
+        label: 'Show Vendors',
+        granted: yes(userCaps?.canShowVendors),
+        icon: Store,
+      },
+    ];
+
+    const filteredFeatures = allFeatures.filter(f => f.granted);
+    return filteredFeatures;
+  }, [userCaps, yes]);
+
+  if (features.length === 0) {
+    return (
+      <View style={styles.permissionsContainer}>
+        <View style={styles.card}>
+          <View style={styles.cardContent}>
+            <Text style={styles.noPermissionsText}>
+              No permissions granted.
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={styles.tabBody} showsVerticalScrollIndicator={false}>
+      <View style={styles.card}>
+        <View style={styles.cardContent}>
+          <View style={styles.cardHeader}>
+            <Shield size={24} color="#3b82f6" />
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.cardTitle}>My Permissions</Text>
+              <Text style={styles.cardDescription}>
+                What I'm allowed to do in this account
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.separator} />
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>FEATURE ACCESS</Text>
+            <View>
+              {features.map(feature => (
+                <View key={feature.label} style={styles.featureItem}>
+                  <View style={styles.featureInfo}>
+                    <feature.icon size={16} color="#9ca3af" />
+                    <Text style={styles.featureLabel}>{feature.label}</Text>
+                  </View>
+                  <CheckCircle size={20} color="#10b981" />
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+      </View>
+    </ScrollView>
+  );
+});
+
+UserPermissionsTab.displayName = 'UserPermissionsTab';
+
+export default function ProfilePage() {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
+
+  const {
+    permissions,
+    isLoading: permissionsLoading,
+    fetchPermissions,
+  } = usePermissions();
+  const {
+    permissions: userCaps,
+    isLoading: userCapsLoading,
+    fetchUserPermissions,
+  } = useUserPermissions();
+
+  const [currentUser, setCurrentUser] = useState(null);
+  const [selectedTab, setSelectedTab] = useState('profile');
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadCurrentUser();
+  }, []);
+
+  const loadCurrentUser = async () => {
+    try {
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+
+      if (user) {
+        let initialTab = 'profile';
+        if (
+          user.role === 'user' ||
+          user.role === 'manager' ||
+          user.role === 'admin'
+        ) {
+          initialTab = 'my-permissions';
+        } else if (user.role === 'customer') {
+          initialTab = 'permissions';
+        }
+        setSelectedTab(initialTab);
+      }
+    } catch (error) {}
+  };
+
   const role = currentUser?.role;
-  const theme = useTheme();
-
-  // 🔥 Updated here to support both "customer" and "client"
-  const isClient = role === 'customer' || role === 'client';
-  const isUser =
-    role === 'user' || role === 'manager' || role === 'admin';
+  const isClient = role === 'customer';
+  const isUser = role === 'user' || role === 'manager' || role === 'admin';
   const isMember = isClient || isUser;
 
-  if (isMember && (isLoading || isUserLoading)) {
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadCurrentUser();
+    if (isClient) {
+      await fetchPermissions();
+    }
+    if (isUser) {
+      await fetchUserPermissions();
+    }
+    setRefreshing(false);
+  }, [isClient, isUser, fetchPermissions, fetchUserPermissions]);
+
+  const allow = useCallback(
+    (clientFlag, userFlag) => {
+      return (isClient && !!clientFlag) || (isUser && !!userFlag);
+    },
+    [isClient, isUser],
+  );
+
+  const availableTabs = useMemo(() => {
+    const adminTabs = [
+      {
+        value: 'profile',
+        label: 'Profile',
+        component: <ProfileTab />,
+        icon: UserCircle,
+      },
+      {
+        value: 'notifications',
+        label: 'Notifications',
+        component: <NotificationsTab />,
+        icon: Bell,
+      },
+    ];
+
+    const permissionsTab = isUser
+      ? {
+          value: 'my-permissions',
+          label: 'My Permissions',
+          icon: Shield,
+          component: <UserPermissionsTab />,
+        }
+      : {
+          value: 'permissions',
+          label: 'Permissions',
+          icon: Shield,
+          component: <PermissionsTab />,
+        };
+
+    const memberTabs = [permissionsTab];
+
+    if (
+      isClient ||
+      allow(permissions?.canCreateVendors, userCaps?.canCreateVendors)
+    ) {
+      memberTabs.push({
+        value: 'vendors',
+        label: 'Vendors',
+        component: <VendorSettings />,
+        icon: Store,
+      });
+    }
+
+    if (
+      isClient ||
+      allow(permissions?.canCreateCustomers, userCaps?.canCreateCustomers)
+    ) {
+      memberTabs.push({
+        value: 'customers',
+        label: 'Customers',
+        icon: Contact,
+        component: <CustomerSettings />,
+      });
+    }
+
+    if (allow(userCaps?.canCreateInventory, userCaps?.canCreateInventory)) {
+      memberTabs.push({
+        value: 'products',
+        label: 'Products',
+        icon: Package,
+        component: <ProductSettings />,
+      });
+    }
+
+    if (allow(userCaps?.canCreateInventory, userCaps?.canCreateInventory)) {
+      memberTabs.push({
+        value: 'services',
+        label: 'Services',
+        icon: Server,
+        component: <ServiceSettings />,
+      });
+    }
+
+    if (role !== 'user') {
+      memberTabs.push({
+        value: 'templates',
+        label: 'Invoices',
+        icon: FileText,
+        component: <TemplateSettings />,
+      });
+    }
+
+    if (role !== 'user') {
+      memberTabs.push({
+        value: 'banks',
+        label: 'Banks',
+        icon: Building,
+        component: <BankSettings />,
+      });
+    }
+
+    if (role !== 'user') {
+      memberTabs.push({
+        value: 'notifications',
+        label: 'Notifications',
+        icon: Bell,
+        component: <NotificationsTab />,
+      });
+    }
+
+    return isMember ? memberTabs : adminTabs;
+  }, [isMember, isUser, isClient, role, permissions, userCaps, allow]);
+
+  const isInitialLoading =
+    !currentUser || (isMember && (permissionsLoading || userCapsLoading));
+
+  if (isInitialLoading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme?.colors?.primary || '#3b82f6'} />
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#3b82f6" />
+          <Text style={styles.loadingText}>Loading settings...</Text>
+        </View>
       </SafeAreaView>
     );
   }
 
-  const allow = (clientFlag, userFlag) =>
-    (isClient && !!clientFlag) || (isUser && !!userFlag);
-
-  const adminTabs = [
-    { value: 'profile', label: 'Profile', component: <ProfileTab />, icon: UserCircle },
-    { value: 'notifications', label: 'Notifications', component: <NotificationsTab />, icon: Bell },
-  ];
-
-  const permissionsTab = isUser
-    ? { value: 'my-permissions', label: 'My Permissions', component: <PermissionsTab isUser />, icon: Shield }
-    : { value: 'permissions', label: 'Permissions', component: <PermissionsTab />, icon: Shield };
-
-  const memberTabs = [permissionsTab];
-
-  if (allow(permissions?.canCreateVendors, userCaps?.canCreateVendors) || userCaps?.canShowVendors) {
-    memberTabs.push({ value: 'vendors', label: 'Vendors', component: <VendorSettings />, icon: Store });
-  }
-
-  if (allow(permissions?.canCreateCustomers, userCaps?.canCreateCustomers) || userCaps?.canShowCustomers) {
-    memberTabs.push({ value: 'customers', label: 'Customers', component: <CustomerSettings />, icon: Contact });
-  }
-
-  if (allow(userCaps?.canCreateInventory, userCaps?.canCreateInventory)) {
-    memberTabs.push({ value: 'products', label: 'Products', component: <ProductSettings />, icon: Package });
-    memberTabs.push({ value: 'services', label: 'Services', component: <ServiceSettings />, icon: Server });
-  }
-
-  if (role !== 'user') {
-    memberTabs.push({ value: 'templates', label: 'Invoices', component: <TemplateSettings />, icon: FileText });
-
-    if (allow(userCaps?.canCreateInventory, userCaps?.canCreateInventory)) {
-      memberTabs.push({ value: 'banks', label: 'Banks', component: <BankSettings />, icon: Building });
-    }
-
-    memberTabs.push({ value: 'notifications', label: 'Notifications', component: <NotificationsTab />, icon: Bell });
-  }
-
-  if (isClient && permissions?.canSendInvoiceEmail === true) {
-    memberTabs.push({ value: 'email-consent', label: 'Email Consent', component: <EmailSendingConsent />, icon: Send });
-  }
-
-  const availableTabs = isMember ? memberTabs : adminTabs;
-
-  let defaultTab = 'profile';
-  if (isUser) defaultTab = 'my-permissions';
-  else if (isMember) defaultTab = 'permissions';
-
-  const [selectedTab, setSelectedTab] = useState(defaultTab);
-
-  // Handle back navigation
-  const handleBackPress = () => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    }
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#3b82f6']}
+            tintColor="#3b82f6"
+          />
+        }
+      >
         <View style={styles.contentContainer}>
-          {/* Header with Back Button */}
           <View style={styles.headerContainer}>
-            <View style={styles.headerTopRow}>
-              <TouchableOpacity 
-                style={styles.backButton}
-                onPress={handleBackPress}
-              >
-                <ArrowLeft size={24} color="#1f2937" />
-              </TouchableOpacity>
-              <View style={styles.headerTextContainer}>
-                <Text style={styles.headerTitle}>Settings</Text>
-                <Text style={styles.headerSubtitle}>
-                  Manage your account and business entities.
-                </Text>
-              </View>
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerTitle}>Settings</Text>
+              <Text style={styles.headerSubtitle}>
+                Manage your account, preferences, and business entities.
+              </Text>
             </View>
           </View>
 
-          {/* Tabs */}
           <View style={styles.tabsContainer}>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.tabsScrollContent}
             >
-              {availableTabs.map((tab) => {
+              {availableTabs.map(tab => {
                 const active = selectedTab === tab.value;
+
                 return (
                   <TouchableOpacity
                     key={tab.value}
                     style={[styles.tabItem, active && styles.tabItemActive]}
-                    onPress={() => setSelectedTab(tab.value)}
+                    onPress={() => {
+                      setSelectedTab(tab.value);
+                    }}
                   >
                     <View style={styles.tabRow}>
                       {tab.icon && (
                         <tab.icon
                           size={18}
-                          color={active ? (theme?.colors?.primary || '#3b82f6') : '#9ca3af'}
+                          color={active ? '#3b82f6' : '#9ca3af'}
                           style={{ marginRight: 8 }}
                         />
                       )}
@@ -344,9 +673,13 @@ export default function ProfileScreen({ navigation }) {
             </ScrollView>
           </View>
 
-          {/* Tab Content */}
           <View style={styles.tabContentWrapper}>
-            {availableTabs.find((t) => t.value === selectedTab)?.component}
+            {(() => {
+              const selectedTabData = availableTabs.find(
+                t => t.value === selectedTab,
+              );
+              return selectedTabData?.component;
+            })()}
           </View>
         </View>
       </ScrollView>
@@ -354,7 +687,6 @@ export default function ProfileScreen({ navigation }) {
   );
 }
 
-// =================== Styles ===================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -371,19 +703,15 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#1f2937',
   },
   headerContainer: {
     marginBottom: 24,
-  },
-  headerTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  backButton: {
-    padding: 8,
-    marginRight: 12,
-    marginTop: 4,
   },
   headerTextContainer: {
     flex: 1,
@@ -399,8 +727,6 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     lineHeight: 22,
   },
-
-  // Tabs
   tabsContainer: {
     marginBottom: 16,
   },
@@ -449,19 +775,13 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 2,
     borderTopRightRadius: 2,
   },
-
-  // Tab Content Wrapper
   tabContentWrapper: {
     flex: 1,
     marginTop: 12,
   },
-
-  // Tab body wrapper (PermissionsTab scroll area)
   tabBody: {
     flex: 1,
   },
-
-  // Cards
   card: {
     marginBottom: 16,
     borderRadius: 12,
@@ -471,6 +791,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 6,
     backgroundColor: '#fff',
+  },
+  cardContent: {
+    padding: 20,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -492,8 +815,10 @@ const styles = StyleSheet.create({
     marginTop: 4,
     lineHeight: 20,
   },
-
-  // Sections
+  cardSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
   section: {
     marginBottom: 24,
   },
@@ -510,8 +835,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#e5e7eb',
     marginVertical: 20,
   },
-
-  // Limits (3-up row)
   limitsRow: {
     flexDirection: 'row',
   },
@@ -541,8 +864,6 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
   },
-
-  // Features list
   featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -563,8 +884,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1f2937',
   },
-
-  // Empty state
+  emailStatusIndicator: {
+    marginLeft: 10,
+    padding: 4,
+  },
+  emailConsentSection: {
+    marginTop: 20,
+  },
+  emailConsentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f8fafc',
+    marginBottom: 16,
+  },
+  emailConsentIcon: {
+    marginRight: 12,
+  },
+  emailConsentText: {
+    flex: 1,
+  },
+  emailConsentTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  emailConsentDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    lineHeight: 20,
+  },
+  permissionsContainer: {
+    flex: 1,
+    paddingBottom: 20,
+  },
   noPermissionsText: {
     fontSize: 16,
     color: '#6b7280',

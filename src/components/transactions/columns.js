@@ -929,11 +929,11 @@ const LinesCell = ({ transaction, serviceNameById, onViewItems }) => {
           <Feather name="copy" size={16} color="#666" />
         </TouchableOpacity>
 
-        {showCopied && (
+        {/* {showCopied && (
           <View style={styles.copiedMessage}>
             <Text style={styles.copiedText}>✓ Copied!</Text>
           </View>
-        )}
+        )} */}
       </View>
 
       <TouchableOpacity

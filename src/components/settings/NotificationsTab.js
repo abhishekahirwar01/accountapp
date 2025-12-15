@@ -1,86 +1,97 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
+  Switch as RNSwitch,
   ScrollView,
-  Switch,
-  StyleSheet
+  StyleSheet,
 } from 'react-native';
-import { Bell } from 'lucide-react-native';
+import Icon from 'react-native-vector-icons/Feather';
 
-const NotificationsTab = () => {
-  const [invoiceEmails, setInvoiceEmails] = React.useState(true);
-  const [reportEmails, setReportEmails] = React.useState(false);
-  const [securityAlerts, setSecurityAlerts] = React.useState(true);
+export function NotificationsTab() {
+  const [invoiceEmails, setInvoiceEmails] = useState(true);
+  const [monthlyReports, setMonthlyReports] = useState(false);
+  const [securityAlerts, setSecurityAlerts] = useState(true);
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.card}>
+        {/* Card Header */}
         <View style={styles.cardHeader}>
+          <View style={styles.headerIcon}>
+            <Icon name="bell" size={24} color="#3b82f6" />
+          </View>
           <View style={styles.headerContent}>
-            <Bell size={24} color="#000" />
-            <View style={styles.headerText}>
-              <Text style={styles.cardTitle}>Notification Settings</Text>
-              <Text style={styles.cardDescription}>
-                Configure how you receive notifications
-              </Text>
-            </View>
+            <Text style={styles.cardTitle}>Notification Settings</Text>
+            <Text style={styles.cardDescription}>
+              Configure how you receive notifications
+            </Text>
           </View>
         </View>
 
+        {/* Card Content */}
         <View style={styles.cardContent}>
           {/* Invoice Emails */}
-          <View style={styles.settingItem}>
-            <View style={styles.settingText}>
-              <Text style={styles.label}>Invoice Emails</Text>
-              <Text style={styles.description}>
+          <View style={styles.notificationItem}>
+            <View style={styles.notificationContent}>
+              <Text style={styles.notificationTitle}>Invoice Emails</Text>
+              <Text style={styles.notificationDescription}>
                 Receive email notifications for new invoices and payments.
               </Text>
             </View>
-            <Switch
+            <RNSwitch
               value={invoiceEmails}
               onValueChange={setInvoiceEmails}
+              trackColor={{ false: '#d1d5db', true: '#3b82f6' }}
+              thumbColor="#ffffff"
+              ios_backgroundColor="#d1d5db"
             />
           </View>
 
+          {/* Separator */}
           <View style={styles.separator} />
 
           {/* Monthly Reports */}
-          <View style={styles.settingItem}>
-            <View style={styles.settingText}>
-              <Text style={styles.label}>Monthly Reports</Text>
-              <Text style={styles.description}>
+          <View style={styles.notificationItem}>
+            <View style={styles.notificationContent}>
+              <Text style={styles.notificationTitle}>Monthly Reports</Text>
+              <Text style={styles.notificationDescription}>
                 Receive monthly financial summary reports via email.
               </Text>
             </View>
-            <Switch
-              value={reportEmails}
-              onValueChange={setReportEmails}
+            <RNSwitch
+              value={monthlyReports}
+              onValueChange={setMonthlyReports}
+              trackColor={{ false: '#d1d5db', true: '#3b82f6' }}
+              thumbColor="#ffffff"
+              ios_backgroundColor="#d1d5db"
             />
           </View>
 
+          {/* Separator */}
           <View style={styles.separator} />
 
           {/* Security Alerts */}
-          <View style={styles.settingItem}>
-            <View style={styles.settingText}>
-              <Text style={styles.label}>Security Alerts</Text>
-              <Text style={styles.description}>
+          <View style={styles.notificationItem}>
+            <View style={styles.notificationContent}>
+              <Text style={styles.notificationTitle}>Security Alerts</Text>
+              <Text style={styles.notificationDescription}>
                 Receive email notifications for security-related events.
               </Text>
             </View>
-            <Switch
+            <RNSwitch
               value={securityAlerts}
               onValueChange={setSecurityAlerts}
+              trackColor={{ false: '#d1d5db', true: '#3b82f6' }}
+              thumbColor="#ffffff"
+              ios_backgroundColor="#d1d5db"
             />
           </View>
         </View>
       </View>
     </ScrollView>
   );
-};
-
-export default NotificationsTab;
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -88,66 +99,73 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   card: {
-    backgroundColor: 'white',
-    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
     margin: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowRadius: 8,
     elevation: 3,
   },
   cardHeader: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
-  },
-  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
-  headerText: {
+  headerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  headerContent: {
     flex: 1,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: '600',
+    color: '#111827',
     marginBottom: 4,
   },
   cardDescription: {
     fontSize: 14,
-    color: '#666',
+    color: '#6b7280',
+    lineHeight: 20,
   },
   cardContent: {
-    padding: 16,
+    paddingVertical: 8,
   },
-  settingItem: {
+  notificationItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingVertical: 12,
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
   },
-  settingText: {
+  notificationContent: {
     flex: 1,
     marginRight: 16,
   },
-  label: {
+  notificationTitle: {
     fontSize: 16,
     fontWeight: '500',
+    color: '#374151',
     marginBottom: 4,
   },
-  description: {
+  notificationDescription: {
     fontSize: 14,
-    color: '#666',
-    lineHeight: 18,
+    color: '#6b7280',
+    lineHeight: 20,
   },
   separator: {
     height: 1,
-    backgroundColor: '#e5e5e5',
-    marginVertical: 8,
+    backgroundColor: '#e5e7eb',
+    marginHorizontal: 20,
   },
 });

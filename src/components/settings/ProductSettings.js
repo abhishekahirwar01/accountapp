@@ -1,296 +1,200 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   ScrollView,
+  TouchableOpacity,
   Alert,
-  StyleSheet,
   Modal,
-  FlatList,
-  TextInput,
-  CheckBox,
+  StyleSheet,
+  Dimensions,
+  ActivityIndicator,
+  RefreshControl,
   Platform,
+  Linking,
+  Switch,
+  TextInput,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Toast from 'react-native-toast-message';
 import {
-  Package,
-  Server,
-  Calendar,
+  MoreHorizontal,
   Edit,
   Trash2,
   PlusCircle,
-  MoreHorizontal,
-  Loader2,
+  Building,
+  Check,
   X,
-  Eye,
-  Download,
-  Upload,
-  CheckCircle,
   FileText,
+  Hash,
+  Phone,
+  Mail,
+  MapPin,
+  Percent,
+  Upload,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Package,
+  Server,
+  Calendar,
+  Eye,
 } from 'lucide-react-native';
-
-// Mock data for demonstration
-const MOCK_PRODUCTS = [
-  {
-    _id: '1',
-    name: 'Website Development',
-    stocks: 5,
-    unit: 'Project',
-    type: 'service',
-    createdAt: new Date('2024-01-15').toISOString(),
-  },
-  {
-    _id: '2',
-    name: 'Laptop',
-    stocks: 10,
-    unit: 'Piece',
-    type: 'product',
-    createdAt: new Date('2024-01-20').toISOString(),
-  },
-  {
-    _id: '3',
-    name: 'Consulting Hours',
-    stocks: 0,
-    unit: 'Hour',
-    type: 'service',
-    createdAt: new Date('2024-02-01').toISOString(),
-  },
-];
-
-const MOCK_COMPANIES = [
-  {
-    _id: '1',
-    name: 'Demo Company',
-    status: 'active',
-  }
-];
-
 import ProductForm from '../products/ProductForm';
+import ExcelImportExport from '../ui/ExcelImportExport';
+import { BASE_URL } from '../../config';
+import CheckBox from '@react-native-community/checkbox';
 
-// Custom Checkbox Component for React Native
-const Checkbox = ({ checked, onCheckedChange, style }) => {
-  return (
-    <TouchableOpacity
-      style={[
-        styles.checkbox,
-        checked && styles.checkboxChecked,
-        style
-      ]}
-      onPress={() => onCheckedChange(!checked)}
-    >
-      {checked && <CheckCircle size={16} color="#3B82F6" />}
-    </TouchableOpacity>
-  );
-};
-
-// Custom Badge Component
-const Badge = ({ children, variant = 'default', style }) => {
-  const variantStyles = {
-    outline: styles.badgeOutline,
-    default: styles.badgeDefault,
-  };
-
-  return (
-    <View style={[styles.badge, variantStyles[variant], style]}>
-      <Text style={styles.badgeText}>{children}</Text>
-    </View>
-  );
-};
-
-// Excel Import/Export Component for React Native
-const ExcelImportExport = ({ 
-  onImportSuccess, 
-  transformImportData 
-}) => {
-  const [isImporting, setIsImporting] = useState(false);
-
-  const handleImport = async () => {
-    setIsImporting(true);
-    // Simulate file import process
-    try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Mock imported data
-      const mockImportedData = [
-        { "Item Name": "New Product 1", Stock: "15", Unit: "Piece" },
-        { "Item Name": "New Service 1", Stock: "0", Unit: "Hour" },
-      ];
-      
-      const transformedData = transformImportData 
-        ? transformImportData(mockImportedData)
-        : mockImportedData.map(item => ({
-            name: item["Item Name"],
-            stocks: parseInt(item["Stock"]),
-            unit: item["Unit"],
-            type: parseInt(item["Stock"]) === 0 ? 'service' : 'product',
-            _id: Date.now().toString() + Math.random(),
-            createdAt: new Date().toISOString(),
-          }));
-      
-      onImportSuccess(transformedData);
-      Alert.alert('Success', 'Products imported successfully!');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to import products');
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
-  const handleExport = () => {
-    Alert.alert('Export', 'Export functionality would download Excel file');
-  };
-
-  return (
-    <View style={styles.excelContainer}>
-      <TouchableOpacity
-        style={[styles.excelButton, styles.importButton]}
-        onPress={handleImport}
-        disabled={isImporting}
-      >
-        {isImporting ? (
-          <Loader2 size={16} color="#fff" style={styles.spinner} />
-        ) : (
-          <Upload size={16} color="#fff" />
-        )}
-        <Text style={styles.excelButtonText}>
-          {isImporting ? 'Importing...' : 'Import Excel'}
-        </Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity
-        style={[styles.excelButton, styles.exportButton]}
-        onPress={handleExport}
-      >
-        <Download size={16} color="#3B82F6" />
-        <Text style={[styles.excelButtonText, styles.exportButtonText]}>
-          Export Excel
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-};
-
-// Dropdown Menu Component
-const DropdownMenu = ({ trigger, children }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <View>
-      <TouchableOpacity onPress={() => setIsOpen(true)}>
-        {trigger}
-      </TouchableOpacity>
-      
-      <Modal
-        visible={isOpen}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsOpen(false)}
-      >
-        <TouchableOpacity 
-          style={styles.dropdownOverlay}
-          onPress={() => setIsOpen(false)}
-        >
-          <View style={styles.dropdownContent}>
-            {React.Children.map(children, (child) =>
-              React.cloneElement(child, {
-                onPress: () => {
-                  child.props.onPress?.();
-                  setIsOpen(false);
-                }
-              })
-            )}
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </View>
-  );
-};
-
-const DropdownMenuTrigger = ({ children }) => children;
-const DropdownMenuContent = ({ children }) => children;
-const DropdownMenuItem = ({ children, onPress, className }) => (
-  <TouchableOpacity 
-    style={[
-      styles.dropdownMenuItem,
-      className?.includes('destructive') && styles.dropdownMenuDestructive
-    ]} 
-    onPress={onPress}
-  >
-    {children}
-  </TouchableOpacity>
-);
-
-// Main ProductSettings Component
-const ProductSettings = () => {
-  const [products, setProducts] = useState(MOCK_PRODUCTS);
-  const [companies, setCompanies] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
+export function ProductSettings() {
+  const [products, setProducts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [productToDelete, setProductToDelete] = useState(null);
   const [selectedProducts, setSelectedProducts] = useState([]);
-  const [role, setRole] = useState('admin'); // Mock role
+  const [companies, setCompanies] = useState([]);
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
+  const [openNameDialog, setOpenNameDialog] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Simulate loading companies and products
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const productsPerPage = 10;
+
+  const [role, setRole] = useState(null);
+
   useEffect(() => {
-    const loadData = async () => {
-      setIsLoadingCompanies(true);
-      setIsLoading(true);
-      
+    const getRole = async () => {
       try {
-        // Simulate API calls
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        setCompanies(MOCK_COMPANIES);
-        
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setProducts(MOCK_PRODUCTS);
+        const storedRole = await AsyncStorage.getItem('role');
+        setRole(storedRole);
       } catch (error) {
-        Alert.alert('Error', 'Failed to load data');
-      } finally {
-        setIsLoadingCompanies(false);
-        setIsLoading(false);
+        console.error('Error getting role:', error);
       }
     };
-
-    loadData();
+    getRole();
   }, []);
+
+  const fetchCompanies = useCallback(async () => {
+    setIsLoadingCompanies(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const res = await fetch(`${BASE_URL}/api/companies/my`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to fetch companies.');
+      const data = await res.json();
+      setCompanies(Array.isArray(data) ? data : data.companies || []);
+    } catch (err) {
+      console.error(err);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to load companies',
+      });
+    } finally {
+      setIsLoadingCompanies(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCompanies();
+  }, [fetchCompanies]);
+
+  const fetchProducts = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const res = await fetch(`${BASE_URL}/api/products`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error('Failed to fetch products.');
+      const data = await res.json();
+      setProducts(Array.isArray(data) ? data : data.products || []);
+      setCurrentPage(1);
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Failed to load products',
+        text2: error instanceof Error ? error.message : 'Something went wrong.',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchProducts();
+    setRefreshing(false);
+  }, [fetchProducts]);
 
   const handleOpenForm = (product = null) => {
     setSelectedProduct(product);
     setIsFormOpen(true);
   };
 
-  const handleOpenDeleteDialog = (product) => {
+  const handleOpenDeleteDialog = product => {
     setProductToDelete(product);
     setIsAlertOpen(true);
   };
 
-  const handleFormSuccess = (productData) => {
+  const handleFormSuccess = () => {
     setIsFormOpen(false);
-    
-    if (selectedProduct) {
-      // Update existing product
-      setProducts(prev => prev.map(p => 
-        p._id === productData._id ? { ...p, ...productData } : p
-      ));
-    } else {
-      // Add new product
-      setProducts(prev => [...prev, { ...productData, _id: Date.now().toString() }]);
-    }
-    
+    fetchProducts();
+    const action = selectedProduct ? 'updated' : 'created';
+    Toast.show({
+      type: 'success',
+      text1: `Item ${action} successfully`,
+      text2: `The item details have been ${action}.`,
+    });
     setSelectedProduct(null);
-    Alert.alert('Success', `Product ${selectedProduct ? 'updated' : 'created'} successfully!`);
   };
 
-  const handleDeleteProduct = () => {
+  const handleDeleteProduct = async () => {
     if (!productToDelete) return;
-    
-    setProducts(prev => prev.filter(p => p._id !== productToDelete._id));
-    setIsAlertOpen(false);
-    setProductToDelete(null);
-    Alert.alert('Success', 'Product deleted successfully!');
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const res = await fetch(
+        `${BASE_URL}/api/products/${productToDelete._id}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      if (!res.ok) throw new Error('Failed to delete product.');
+
+      Toast.show({
+        type: 'success',
+        text1: 'Item Deleted',
+        text2: 'The item has been successfully removed.',
+      });
+
+      fetchProducts();
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Deletion Failed',
+        text2: error instanceof Error ? error.message : 'Something went wrong.',
+      });
+    } finally {
+      setIsAlertOpen(false);
+      setProductToDelete(null);
+    }
   };
 
   const handleSelectProduct = (productId, checked) => {
@@ -301,7 +205,7 @@ const ProductSettings = () => {
     }
   };
 
-  const handleSelectAll = (checked) => {
+  const handleSelectAll = checked => {
     if (checked) {
       setSelectedProducts(products.map(p => p._id));
     } else {
@@ -309,736 +213,831 @@ const ProductSettings = () => {
     }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (selectedProducts.length === 0) return;
-    
-    Alert.alert(
-      'Confirm Bulk Delete',
-      `Are you sure you want to delete ${selectedProducts.length} items?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            setProducts(prev => prev.filter(p => !selectedProducts.includes(p._id)));
-            setSelectedProducts([]);
-            Alert.alert('Success', `${selectedProducts.length} items deleted successfully!`);
-          },
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const res = await fetch(`${BASE_URL}/api/products/bulk-delete`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
-      ]
-    );
+        body: JSON.stringify({ productIds: selectedProducts }),
+      });
+
+      if (!res.ok) throw new Error('Failed to delete products.');
+
+      Toast.show({
+        type: 'success',
+        text1: 'Items Deleted',
+        text2: `${selectedProducts.length} items have been successfully removed.`,
+      });
+
+      setSelectedProducts([]);
+      fetchProducts();
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Bulk Deletion Failed',
+        text2: error instanceof Error ? error.message : 'Something went wrong.',
+      });
+    }
   };
 
-  const handleImportSuccess = (importedProducts) => {
-    setProducts(prev => [...prev, ...importedProducts]);
+  const extractNumber = value => {
+    if (!value) return 0;
+    const strValue = String(value);
+    const numeric = strValue.replace(/[^0-9.]/g, '');
+    return numeric ? Number(numeric) : 0;
   };
 
-  const renderProductItem = ({ item: product }) => (
-    <View style={styles.productCard}>
-      <View style={styles.productHeader}>
-        <View style={styles.productInfo}>
-          {role !== "user" && (
-            <Checkbox
-              checked={selectedProducts.includes(product._id)}
-              onCheckedChange={(checked) => handleSelectProduct(product._id, checked)}
-              style={styles.productCheckbox}
-            />
-          )}
-          <View style={[
-            styles.productIcon,
-            product.type === 'service' ? styles.serviceIcon : styles.productIconBg
-          ]}>
-            {product.type === 'service' ? (
-              <Server size={16} color="#8B5CF6" />
-            ) : (
-              <Package size={16} color="#3B82F6" />
-            )}
-          </View>
-          <View style={styles.productDetails}>
-            <Text style={styles.productName}>{product.name}</Text>
-            {product.type === 'service' && (
-              <Badge variant="outline" style={styles.serviceBadge}>
-                Service
-              </Badge>
-            )}
-          </View>
-        </View>
-        
-        {role !== "user" && (
-          <DropdownMenu
-            trigger={
-              <TouchableOpacity style={styles.moreButton}>
-                <MoreHorizontal size={16} color="#666" />
-              </TouchableOpacity>
-            }
-          >
-            <DropdownMenuContent>
-              <DropdownMenuItem onPress={() => handleOpenForm(product)}>
-                <View style={styles.dropdownItemContent}>
-                  <Edit size={14} color="#374151" />
-                  <Text style={styles.dropdownItemText}>Edit</Text>
-                </View>
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onPress={() => handleOpenDeleteDialog(product)}
-                className="text-destructive"
-              >
-                <View style={styles.dropdownItemContent}>
-                  <Trash2 size={14} color="#EF4444" />
-                  <Text style={[styles.dropdownItemText, styles.destructiveText]}>Delete</Text>
-                </View>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </View>
-
-      <View style={styles.productStats}>
-        <View style={styles.statItem}>
-          <Text style={styles.statLabel}>
-            {product.type === 'service' ? 'Type' : 'Stock'}
-          </Text>
-          <View style={styles.statValue}>
-            {product.type === 'service' ? (
-              <Text style={styles.statText}>Service Item</Text>
-            ) : (
-              <View style={styles.stockInfo}>
-                <View 
-                  style={[
-                    styles.stockIndicator,
-                    { backgroundColor: (product.stocks ?? 0) > 0 ? '#10B981' : '#EF4444' }
-                  ]} 
-                />
-                <Text 
-                  style={[
-                    styles.stockText,
-                    { color: (product.stocks ?? 0) > 0 ? '#10B981' : '#EF4444' }
-                  ]}
-                >
-                  {product.stocks ?? 0} in stock
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Unit</Text>
-          <Text style={styles.statText}>{product.unit ?? 'Piece'}</Text>
-        </View>
-      </View>
-
-      <View style={styles.productFooter}>
-        <View style={styles.dateInfo}>
-          <Calendar size={12} color="#6B7280" />
-          <Text style={styles.dateText}>
-            Created: {new Date(product.createdAt).toLocaleDateString()}
-          </Text>
-        </View>
-        
-        <View style={styles.actionButtons}>
-          {role === "user" ? (
-            <TouchableOpacity
-              style={styles.viewButton}
-              onPress={() => handleOpenForm(product)}
-            >
-              <Eye size={14} color="#3B82F6" />
-              <Text style={styles.viewButtonText}>View</Text>
-            </TouchableOpacity>
-          ) : (
-            <>
-              <TouchableOpacity
-                style={styles.editButton}
-                onPress={() => handleOpenForm(product)}
-              >
-                <Edit size={14} color="#3B82F6" />
-                <Text style={styles.editButtonText}>Edit</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => handleOpenDeleteDialog(product)}
-              >
-                <Trash2 size={14} color="#EF4444" />
-                <Text style={styles.deleteButtonText}>Delete</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-      </View>
-    </View>
+  // Pagination Logic
+  const indexOfLastProduct = currentPage * productsPerPage;
+  const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
+  const currentProducts = products.slice(
+    indexOfFirstProduct,
+    indexOfLastProduct,
   );
+  const totalPages = Math.ceil(products.length / productsPerPage);
 
-  const renderDesktopTable = () => (
-    <View style={styles.tableContainer}>
-      <View style={styles.tableHeader}>
-        {role !== "user" && (
-          <View style={styles.tableHeaderCell}>
-            <Checkbox
-              checked={selectedProducts.length === products.length && products.length > 0}
-              onCheckedChange={handleSelectAll}
-            />
-          </View>
-        )}
-        <Text style={styles.tableHeaderText}>Product Name</Text>
-        <Text style={styles.tableHeaderText}>Stock</Text>
-        <Text style={styles.tableHeaderText}>Unit</Text>
-        <Text style={styles.tableHeaderText}>Created At</Text>
-        {role !== "user" && <Text style={styles.tableHeaderText}>Actions</Text>}
-      </View>
-      
-      {products.map((product) => (
-        <View key={product._id} style={styles.tableRow}>
-          {role !== "user" && (
-            <View style={styles.tableCell}>
-              <Checkbox
-                checked={selectedProducts.includes(product._id)}
-                onCheckedChange={(checked) => handleSelectProduct(product._id, checked)}
-              />
-            </View>
-          )}
-          <View style={styles.tableCell}>
-            <View style={styles.productNameCell}>
-              {product.type === "service" ? (
-                <Server size={16} color="#6B7280" />
-              ) : (
-                <Package size={16} color="#6B7280" />
-              )}
-              <Text style={styles.productNameText}>{product.name}</Text>
-              {product.type === "service" && (
-                <Badge variant="outline">Service</Badge>
-              )}
-            </View>
-          </View>
-          <View style={styles.tableCell}>
-            <Text style={styles.stockText}>
-              {product.type === "service" ? "N/A" : product.stocks ?? 0}
-            </Text>
-          </View>
-          <View style={styles.tableCell}>
-            <Text style={styles.unitText}>{product.unit ?? "Piece"}</Text>
-          </View>
-          <View style={styles.tableCell}>
-            <Text style={styles.dateText}>
-              {new Date(product.createdAt).toLocaleDateString()}
-            </Text>
-          </View>
-          {role !== "user" && (
-            <View style={styles.tableCell}>
-              <DropdownMenu
-                trigger={
-                  <TouchableOpacity style={styles.actionButton}>
-                    <MoreHorizontal size={16} color="#666" />
-                  </TouchableOpacity>
-                }
-              >
-                <DropdownMenuContent>
-                  <DropdownMenuItem onPress={() => handleOpenForm(product)}>
-                    <View style={styles.dropdownItemContent}>
-                      <Edit size={14} color="#374151" />
-                      <Text style={styles.dropdownItemText}>Edit</Text>
-                    </View>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onPress={() => handleOpenDeleteDialog(product)}
-                    className="text-destructive"
-                  >
-                    <View style={styles.dropdownItemContent}>
-                      <Trash2 size={14} color="#EF4444" />
-                      <Text style={[styles.dropdownItemText, styles.destructiveText]}>Delete</Text>
-                    </View>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </View>
-          )}
-        </View>
-      ))}
-    </View>
-  );
-
+  // Loading state
   if (isLoadingCompanies) {
     return (
-      <View style={styles.loadingContainer}>
-        <Loader2 size={24} color="#3B82F6" style={styles.spinner} />
-        <Text style={styles.loadingText}>Loading companies...</Text>
-      </View>
-    );
-  }
-
-  if (companies.length === 0) {
-    return (
-      <View style={styles.companySetupContainer}>
-        <View style={styles.companySetupCard}>
-          <View style={styles.companyIcon}>
-            <FileText size={32} color="#3B82F6" />
-          </View>
-          <Text style={styles.companySetupTitle}>Company Setup Required</Text>
-          <Text style={styles.companySetupDescription}>
-            Contact us to enable your company account and access all features.
-          </Text>
-          <View style={styles.contactButtons}>
-            <TouchableOpacity style={styles.phoneButton}>
-              <Text style={styles.phoneButtonText}>+91-8989773689</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.emailButton}>
-              <Text style={styles.emailButtonText}>Email Us</Text>
-            </TouchableOpacity>
-          </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#3b82f6" />
+          <Text style={styles.loadingText}>Loading companies...</Text>
         </View>
-      </View>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <Loader2 size={24} color="#3B82F6" style={styles.spinner} />
-        <Text style={styles.loadingText}>Loading products...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.title}>Manage Products & Services</Text>
-          <Text style={styles.subtitle}>
-            A list of all your products or services.
-          </Text>
-        </View>
-        
-        <View style={styles.headerActions}>
-          <ExcelImportExport
-            onImportSuccess={handleImportSuccess}
-            transformImportData={(data) =>
-              data.map((item) => ({
-                name: item["Item Name"],
-                stocks: item["Stock"],
-                unit: item["Unit"],
-              }))
-            }
-          />
-
-          {selectedProducts.length > 0 && role !== "user" && (
-            <TouchableOpacity
-              style={styles.bulkDeleteButton}
-              onPress={handleBulkDelete}
-            >
-              <Trash2 size={16} color="#fff" />
-              <Text style={styles.bulkDeleteText}>
-                Delete ({selectedProducts.length})
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => handleOpenForm()}
-          >
-            <PlusCircle size={16} color="#fff" />
-            <Text style={styles.addButtonText}>Add Product</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {products.length > 0 ? (
-        <>
-          {/* Desktop Table View */}
-          <View style={styles.desktopView}>
-            {renderDesktopTable()}
-          </View>
-
-          {/* Mobile Card View */}
-          <View style={styles.mobileView}>
-            {role !== "user" && products.length > 0 && (
-              <View style={styles.mobileSelectAll}>
-                <Checkbox
-                  checked={selectedProducts.length === products.length && products.length > 0}
-                  onCheckedChange={handleSelectAll}
-                />
-                <Text style={styles.selectAllText}>
-                  Select All ({products.length} items)
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {companies.length === 0 ? (
+          <View style={styles.noCompanyContainer}>
+            <View style={styles.card}>
+              <View style={styles.cardContent}>
+                <View style={styles.companyIconContainer}>
+                  <Building size={48} color="#3b82f6" />
+                </View>
+                <Text style={styles.companyTitle}>Company Setup Required</Text>
+                <Text style={styles.companyDescription}>
+                  Contact us to enable your company account and access all
+                  features.
                 </Text>
-                {selectedProducts.length > 0 && (
+                <View style={styles.contactButtons}>
                   <TouchableOpacity
-                    style={styles.mobileBulkDelete}
+                    style={styles.phoneButton}
+                    onPress={() => Linking.openURL('tel:+91-8989773689')}
+                  >
+                    <Phone size={20} color="#fff" />
+                    <Text style={styles.buttonText}>+91-8989773689</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.emailButton}
+                    onPress={() =>
+                      Linking.openURL('mailto:support@company.com')
+                    }
+                  >
+                    <Mail size={20} color="#3b82f6" />
+                    <Text style={styles.emailButtonText}>Email Us</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.contentContainer}>
+            {/* Header */}
+            <View style={styles.header}>
+              <View style={styles.headerText}>
+                <Text style={styles.title}>Manage Products & Services</Text>
+                <Text style={styles.subtitle}>
+                  A list of all your products or services.
+                </Text>
+              </View>
+
+              <View style={styles.headerActions}>
+                <ExcelImportExport
+                  templateData={[
+                    {
+                      Company: '',
+                      'Item Name': '',
+                      Stock: '',
+                      Unit: '',
+                      'Cost Price': '',
+                      'Selling Price': '',
+                      HSN: '',
+                    },
+                  ]}
+                  templateFileName="product_template.xlsx"
+                  importEndpoint={`${BASE_URL}/api/products`}
+                  onImportSuccess={fetchProducts}
+                  expectedColumns={[
+                    'Company',
+                    'Item Name',
+                    'Stock',
+                    'Unit',
+                    'Cost Price',
+                    'Selling Price',
+                    'HSN',
+                  ]}
+                  transformImportData={data => {
+                    return data.map(item => {
+                      const companyName = item['Company']?.trim();
+                      const foundCompany = companies.find(
+                        c =>
+                          c.businessName.toLowerCase() ===
+                          companyName?.toLowerCase(),
+                      );
+
+                      return {
+                        company: foundCompany?._id || companies[0]?._id || '',
+                        name: item['Item Name'],
+                        stocks: item['Stock'] || 0,
+                        unit: item['Unit'] || 'Piece',
+                        costPrice: extractNumber(item['Cost Price']),
+                        sellingPrice: extractNumber(item['Selling Price']),
+                        hsn: item['HSN'] || '',
+                      };
+                    });
+                  }}
+                />
+
+                {/* Bulk Delete Button */}
+                {selectedProducts.length > 0 && role !== 'user' && (
+                  <TouchableOpacity
+                    style={styles.bulkDeleteButton}
                     onPress={handleBulkDelete}
                   >
-                    <Trash2 size={14} color="#fff" />
-                    <Text style={styles.mobileBulkDeleteText}>
+                    <Trash2 size={16} color="#fff" />
+                    <Text style={styles.bulkDeleteButtonText}>
                       Delete ({selectedProducts.length})
                     </Text>
                   </TouchableOpacity>
                 )}
+
+                {/* Add Item Button */}
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => handleOpenForm()}
+                >
+                  <PlusCircle size={16} color="#fff" />
+                  <Text style={styles.addButtonText}>Add Product</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Main Content */}
+            {isLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#3b82f6" />
+                <Text style={styles.loadingText}>Loading products...</Text>
+              </View>
+            ) : products.length > 0 ? (
+              <>
+                {/* Select All for Mobile */}
+                {role !== 'user' && products.length > 0 && (
+                  <View style={styles.selectAllContainer}>
+                    <View style={styles.checkboxContainer}>
+                      <CheckBox
+                        value={
+                          selectedProducts.length === products.length &&
+                          products.length > 0
+                        }
+                        onValueChange={handleSelectAll}
+                        tintColors={{ true: '#3b82f6', false: '#9ca3af' }}
+                      />
+                      <Text style={styles.selectAllText}>
+                        Select All ({products.length} items)
+                      </Text>
+                    </View>
+                    {selectedProducts.length > 0 && (
+                      <TouchableOpacity
+                        style={styles.mobileDeleteButton}
+                        onPress={handleBulkDelete}
+                      >
+                        <Trash2 size={14} color="#fff" />
+                        <Text style={styles.mobileDeleteButtonText}>
+                          Delete ({selectedProducts.length})
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
+                {/* Product List */}
+                <View style={styles.productList}>
+                  {currentProducts.map(product => (
+                    <View key={product._id} style={styles.productCard}>
+                      {/* Product Header */}
+                      <View style={styles.productHeader}>
+                        <View style={styles.productInfo}>
+                          <View style={styles.productNameRow}>
+                            {role !== 'user' && (
+                              <CheckBox
+                                value={selectedProducts.includes(product._id)}
+                                onValueChange={checked =>
+                                  handleSelectProduct(product._id, checked)
+                                }
+                                style={styles.productCheckbox}
+                                tintColors={{
+                                  true: '#3b82f6',
+                                  false: '#9ca3af',
+                                }}
+                              />
+                            )}
+                            <View style={styles.productIconContainer}>
+                              {product.type === 'service' ? (
+                                <View style={styles.serviceIcon}>
+                                  <Server size={16} color="#8b5cf6" />
+                                </View>
+                              ) : (
+                                <View style={styles.productIcon}>
+                                  <Package size={16} color="#3b82f6" />
+                                </View>
+                              )}
+                            </View>
+                            <View style={styles.productNameContainer}>
+                              <Text
+                                style={styles.productName}
+                                numberOfLines={1}
+                              >
+                                {product.name.charAt(0).toUpperCase() +
+                                  product.name.slice(1)}
+                              </Text>
+                              <Text
+                                style={styles.companyName}
+                                numberOfLines={1}
+                              >
+                                {typeof product.company === 'object' &&
+                                product.company
+                                  ? product.company.businessName
+                                  : '-'}
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={styles.productTags}>
+                            {product.type === 'service' && (
+                              <View style={styles.serviceTag}>
+                                <Text style={styles.serviceTagText}>
+                                  Service
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+
+                        {role !== 'user' && (
+                          <TouchableOpacity
+                            style={styles.menuButton}
+                            onPress={() => {
+                              Alert.alert('Actions', 'Choose an action', [
+                                {
+                                  text: 'Edit',
+                                  onPress: () => handleOpenForm(product),
+                                },
+                                {
+                                  text: 'Delete',
+                                  onPress: () =>
+                                    handleOpenDeleteDialog(product),
+                                  style: 'destructive',
+                                },
+                                { text: 'Cancel', style: 'cancel' },
+                              ]);
+                            }}
+                          >
+                            <MoreHorizontal size={20} color="#6b7280" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+
+                      {/* Created Date */}
+                      <View style={styles.createdDateContainer}>
+                        <Calendar size={12} color="#9ca3af" />
+                        <Text style={styles.createdDateText}>
+                          Created:{' '}
+                          {new Date(product.createdAt).toLocaleDateString(
+                            'en-GB',
+                          )}
+                        </Text>
+                      </View>
+
+                      {/* Stock and Unit Section */}
+                      <View style={styles.infoGrid}>
+                        <View style={styles.infoItem}>
+                          <Text style={styles.infoLabel}>
+                            {product.type === 'service' ? 'Type' : 'Stock'}
+                          </Text>
+                          <View style={styles.infoValueContainer}>
+                            {product.type === 'service' ? (
+                              <Text style={styles.infoValue}>Service Item</Text>
+                            ) : (
+                              <>
+                                <View
+                                  style={[
+                                    styles.stockIndicator,
+                                    (product.stocks ?? 0) > 0
+                                      ? styles.stockAvailable
+                                      : styles.stockOut,
+                                  ]}
+                                />
+                                <Text
+                                  style={[
+                                    styles.stockText,
+                                    (product.stocks ?? 0) > 0
+                                      ? styles.stockAvailableText
+                                      : styles.stockOutText,
+                                  ]}
+                                >
+                                  {product.stocks ?? 0} in stock
+                                </Text>
+                              </>
+                            )}
+                          </View>
+                        </View>
+
+                        <View style={styles.infoItem}>
+                          <Text style={styles.infoLabel}>Unit</Text>
+                          <Text style={styles.infoValue}>
+                            {product.unit ?? 'Piece'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Price Section */}
+                      <View style={styles.priceSection}>
+                        <View style={styles.priceItem}>
+                          <Text style={styles.priceLabel}>Cost Price</Text>
+                          <Text style={styles.priceValue}>
+                            {product.type === 'service'
+                              ? '-'
+                              : product.costPrice
+                              ? `₹${product.costPrice}`
+                              : '₹0'}
+                          </Text>
+                        </View>
+                        <View style={styles.priceDivider} />
+                        <View style={styles.priceItem}>
+                          <Text style={styles.priceLabel}>Selling Price</Text>
+                          <Text style={styles.priceValue}>
+                            {product.type === 'service'
+                              ? '-'
+                              : product.sellingPrice
+                              ? `₹${product.sellingPrice}`
+                              : '₹0'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* HSN Code Section */}
+                      <View style={styles.hsnSection}>
+                        <Hash size={12} color="#9ca3af" />
+                        <Text style={styles.hsnText}>
+                          HSN Code: {product.hsn ? product.hsn : 'N/A'}
+                        </Text>
+                      </View>
+
+                      {/* Quick Actions for Users */}
+                      {role === 'user' && (
+                        <View style={styles.userActions}>
+                          <TouchableOpacity
+                            style={styles.viewButton}
+                            onPress={() => handleOpenForm(product)}
+                          >
+                            <Eye size={12} color="#3b82f6" />
+                            <Text style={styles.viewButtonText}>View</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <View style={styles.pagination}>
+                    <TouchableOpacity
+                      style={[
+                        styles.pageButton,
+                        currentPage === 1 && styles.pageButtonDisabled,
+                      ]}
+                      onPress={() =>
+                        setCurrentPage(prev => Math.max(1, prev - 1))
+                      }
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft
+                        size={20}
+                        color={currentPage === 1 ? '#9ca3af' : '#3b82f6'}
+                      />
+                      <Text
+                        style={[
+                          styles.pageButtonText,
+                          currentPage === 1 && styles.pageButtonTextDisabled,
+                        ]}
+                      >
+                        Previous
+                      </Text>
+                    </TouchableOpacity>
+
+                    <Text style={styles.pageInfo}>
+                      Page {currentPage} of {totalPages}
+                    </Text>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.pageButton,
+                        currentPage === totalPages && styles.pageButtonDisabled,
+                      ]}
+                      onPress={() =>
+                        setCurrentPage(prev => Math.min(totalPages, prev + 1))
+                      }
+                      disabled={currentPage === totalPages}
+                    >
+                      <Text
+                        style={[
+                          styles.pageButtonText,
+                          currentPage === totalPages &&
+                            styles.pageButtonTextDisabled,
+                        ]}
+                      >
+                        Next
+                      </Text>
+                      <ChevronRight
+                        size={20}
+                        color={
+                          currentPage === totalPages ? '#9ca3af' : '#3b82f6'
+                        }
+                      />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Package size={48} color="#9ca3af" />
+                <Text style={styles.emptyTitle}>No Products Found</Text>
+                <Text style={styles.emptyText}>
+                  Get started by adding your first product or service.
+                </Text>
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => handleOpenForm()}
+                >
+                  <PlusCircle size={16} color="#fff" />
+                  <Text style={styles.addButtonText}>Add Product</Text>
+                </TouchableOpacity>
               </View>
             )}
-            <FlatList
-              data={products}
-              renderItem={renderProductItem}
-              keyExtractor={(item) => item._id}
-              contentContainerStyle={styles.productsList}
-              showsVerticalScrollIndicator={false}
-            />
           </View>
-        </>
-      ) : (
-        <View style={styles.emptyState}>
-          <Package size={48} color="#9CA3AF" />
-          <Text style={styles.emptyTitle}>No Products Found</Text>
-          <Text style={styles.emptyDescription}>
-            Get started by adding your first product or service.
-          </Text>
-          <TouchableOpacity
-            style={styles.emptyButton}
-            onPress={() => handleOpenForm()}
-          >
-            <PlusCircle size={16} color="#fff" />
-            <Text style={styles.emptyButtonText}>Add Product</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        )}
+      </ScrollView>
 
       {/* Product Form Modal */}
       <Modal
         visible={isFormOpen}
         animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setIsFormOpen(false)}
+        transparent={true}
+        onRequestClose={() => {
+          setSelectedProduct(null);
+          setIsFormOpen(false);
+        }}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              {selectedProduct ? 'Edit Product' : 'Create New Product'}
-            </Text>
-            <TouchableOpacity
-              onPress={() => setIsFormOpen(false)}
-              style={styles.closeButton}
-            >
-              <X size={24} color="#666" />
-            </TouchableOpacity>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {selectedProduct ? 'Edit Product' : 'Create New Product'}
+              </Text>
+              <Text style={styles.modalDescription}>
+                {selectedProduct
+                  ? 'Update the details for this item.'
+                  : 'Fill in the form to add a new product or service.'}
+              </Text>
+            </View>
+            <ScrollView style={styles.modalContent}>
+              <ProductForm
+                product={selectedProduct || undefined}
+                onSuccess={handleFormSuccess}
+                onCancel={() => {
+                  setSelectedProduct(null);
+                  setIsFormOpen(false);
+                }}
+              />
+            </ScrollView>
           </View>
-          <ProductForm
-            product={selectedProduct}
-            onSuccess={handleFormSuccess}
-          />
         </View>
       </Modal>
 
       {/* Delete Confirmation Alert */}
-      <Modal
-        visible={isAlertOpen}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsAlertOpen(false)}
-      >
-        <View style={styles.alertOverlay}>
-          <View style={styles.alertContent}>
-            <Text style={styles.alertTitle}>Are you absolutely sure?</Text>
-            <Text style={styles.alertDescription}>
-              This action cannot be undone. This will permanently delete the item.
+      <Modal visible={isAlertOpen} animationType="fade" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.alertModalContainer}>
+            <Text style={styles.alertModalTitle}>Delete Product</Text>
+            <Text style={styles.alertModalDescription}>
+              Are you sure you want to delete this product? This action cannot
+              be undone.
             </Text>
-            <View style={styles.alertActions}>
+            <View style={styles.alertModalButtons}>
               <TouchableOpacity
-                style={styles.alertCancel}
+                style={styles.alertCancelButton}
                 onPress={() => setIsAlertOpen(false)}
               >
-                <Text style={styles.alertCancelText}>Cancel</Text>
+                <Text style={styles.alertCancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.alertConfirm}
+                style={styles.alertDeleteButton}
                 onPress={handleDeleteProduct}
               >
-                <Text style={styles.alertConfirmText}>Continue</Text>
+                <Text style={styles.alertDeleteButtonText}>Delete</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    </View>
+
+      {/* Product Name Dialog Modal */}
+      <Modal
+        visible={openNameDialog !== null}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setOpenNameDialog(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.detailModalContainer}>
+            <View style={styles.detailModalHeader}>
+              <View style={styles.detailModalTitleRow}>
+                <Package size={20} color="#3b82f6" />
+                <Text style={styles.detailModalTitle}>Product Overview</Text>
+              </View>
+            </View>
+
+            <View style={styles.detailContent}>
+              <View style={styles.detailCard}>
+                <View style={styles.detailCardIcon}>
+                  <Package size={16} color="#3b82f6" />
+                </View>
+                <View style={styles.detailCardContent}>
+                  <Text style={styles.detailCardLabel}>PRODUCT NAME</Text>
+                  <Text style={styles.detailCardValue}>
+                    {openNameDialog
+                      ? openNameDialog.charAt(0).toUpperCase() +
+                        openNameDialog.slice(1)
+                      : ''}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.detailCard}>
+                <View style={[styles.detailCardIcon, styles.companyIcon]}>
+                  <Building size={16} color="#10b981" />
+                </View>
+                <View style={styles.detailCardContent}>
+                  <Text style={[styles.detailCardLabel, styles.companyLabel]}>
+                    COMPANY
+                  </Text>
+                  <Text style={styles.detailCardValue}>
+                    {openNameDialog &&
+                    products.find(p => p.name === openNameDialog)
+                      ? typeof products.find(p => p.name === openNameDialog)
+                          .company === 'object'
+                        ? products.find(p => p.name === openNameDialog).company
+                            .businessName
+                        : 'No company assigned'
+                      : 'No company assigned'}
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.closeDetailButton}
+                onPress={() => setOpenNameDialog(null)}
+              >
+                <Text style={styles.closeDetailButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f8fafc',
+  },
+  scrollView: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  spinner: {
-    transform: [{ rotate: '0deg' }],
+    padding: 20,
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#6B7280',
+    color: '#6b7280',
   },
-  companySetupContainer: {
+  noCompanyContainer: {
     flex: 1,
+    padding: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
   },
-  companySetupCard: {
+  card: {
+    width: '100%',
+    maxWidth: 400,
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 3,
   },
-  companyIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#EFF6FF',
+  cardContent: {
+    alignItems: 'center',
+  },
+  companyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#eff6ff',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
-  companySetupTitle: {
+  companyTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#111827',
+    color: '#1f2937',
     marginBottom: 8,
     textAlign: 'center',
   },
-  companySetupDescription: {
+  companyDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#6b7280',
     textAlign: 'center',
     marginBottom: 24,
+    lineHeight: 20,
   },
   contactButtons: {
     flexDirection: 'row',
     gap: 12,
+    width: '100%',
   },
   phoneButton: {
     flex: 1,
-    backgroundColor: '#3B82F6',
+    flexDirection: 'row',
+    backgroundColor: '#3b82f6',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
     alignItems: 'center',
-  },
-  phoneButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
+    justifyContent: 'center',
+    gap: 8,
   },
   emailButton: {
     flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#3B82F6',
+    borderColor: '#3b82f6',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: '500',
+    fontSize: 14,
   },
   emailButtonText: {
-    color: '#3B82F6',
-    fontSize: 14,
+    color: '#3b82f6',
     fontWeight: '500',
+    fontSize: 14,
+  },
+  contentContainer: {
+    flex: 1,
+    padding: 16,
   },
   header: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    marginBottom: 24,
   },
-  headerContent: {
+  headerText: {
     marginBottom: 16,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#111827',
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1f2937',
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#6b7280',
+    lineHeight: 20,
   },
   headerActions: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: 12,
     flexWrap: 'wrap',
-  },
-  excelContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  excelButton: {
-    flexDirection: 'row',
+    gap: 12,
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    gap: 6,
-  },
-  importButton: {
-    backgroundColor: '#10B981',
-  },
-  exportButton: {
-    borderWidth: 1,
-    borderColor: '#3B82F6',
-  },
-  excelButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#fff',
-  },
-  exportButtonText: {
-    color: '#3B82F6',
   },
   bulkDeleteButton: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EF4444',
+    backgroundColor: '#ef4444',
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    paddingVertical: 8,
     borderRadius: 8,
-    gap: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
-  bulkDeleteText: {
+  bulkDeleteButtonText: {
     color: '#fff',
-    fontSize: 14,
     fontWeight: '500',
+    fontSize: 14,
   },
   addButton: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#3b82f6',
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    paddingVertical: 8,
     borderRadius: 8,
-    gap: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   addButtonText: {
     color: '#fff',
-    fontSize: 14,
     fontWeight: '500',
+    fontSize: 14,
   },
-  desktopView: {
-    display: Platform.OS === 'web' ? 'flex' : 'none',
-  },
-  mobileView: {
-    display: Platform.OS === 'web' ? 'none' : 'flex',
-    flex: 1,
-  },
-  tableContainer: {
-    flex: 1,
-    padding: 16,
-  },
-  tableHeader: {
+  selectAllContainer: {
     flexDirection: 'row',
-    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  tableHeaderCell: {
-    width: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tableHeaderText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    textAlign: 'left',
-  },
-  tableRow: {
-    flexDirection: 'row',
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    alignItems: 'center',
-  },
-  tableCell: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  productNameCell: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  productNameText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#111827',
-    flex: 1,
-  },
-  stockText: {
-    fontSize: 14,
-    color: '#374151',
-  },
-  unitText: {
-    fontSize: 14,
-    color: '#374151',
-  },
-  actionButton: {
-    padding: 4,
-  },
-  mobileSelectAll: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 12,
-    backgroundColor: '#F9FAFB',
-    marginHorizontal: 16,
-    marginTop: 16,
+    backgroundColor: '#f3f4f6',
     borderRadius: 8,
+    marginBottom: 16,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   selectAllText: {
     fontSize: 14,
     fontWeight: '500',
     color: '#374151',
-    flex: 1,
   },
-  mobileBulkDelete: {
+  mobileDeleteButton: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 12,
+    backgroundColor: '#ef4444',
     paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: 6,
+    alignItems: 'center',
     gap: 4,
   },
-  mobileBulkDeleteText: {
+  mobileDeleteButtonText: {
     color: '#fff',
     fontSize: 12,
     fontWeight: '500',
   },
-  productsList: {
-    padding: 16,
-    gap: 12,
+  productList: {
+    gap: 16,
   },
   productCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 3,
+    shadowRadius: 4,
     elevation: 2,
   },
   productHeader: {
@@ -1048,325 +1047,399 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   productInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
     flex: 1,
   },
+  productNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   productCheckbox: {
+    marginRight: 4,
+  },
+  productIconContainer: {
     marginRight: 8,
   },
   productIcon: {
     width: 32,
     height: 32,
     borderRadius: 8,
+    backgroundColor: '#eff6ff',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
-  },
-  productIconBg: {
-    backgroundColor: '#EFF6FF',
   },
   serviceIcon: {
-    backgroundColor: '#F3E8FF',
-  },
-  productDetails: {
-    flex: 1,
-    flexDirection: 'row',
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#f5f3ff',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+  },
+  productNameContainer: {
+    flex: 1,
+    minWidth: 0,
   },
   productName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
-    flex: 1,
+    color: '#1f2937',
   },
-  serviceBadge: {
-    backgroundColor: '#F3E8FF',
+  companyName: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
   },
-  moreButton: {
+  productTags: {
+    marginTop: 8,
+  },
+  serviceTag: {
+    backgroundColor: '#f5f3ff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  serviceTagText: {
+    fontSize: 11,
+    color: '#8b5cf6',
+    fontWeight: '500',
+  },
+  menuButton: {
     padding: 4,
   },
-  productStats: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 12,
-    padding: 12,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-  },
-  statItem: {
-    flex: 1,
-  },
-  statLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  statValue: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  stockInfo: {
+  createdDateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    marginBottom: 12,
+    paddingLeft: 40,
+  },
+  createdDateText: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  infoGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+  },
+  infoItem: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  infoValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  infoValue: {
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '600',
   },
   stockIndicator: {
     width: 8,
     height: 8,
     borderRadius: 4,
   },
+  stockAvailable: {
+    backgroundColor: '#10b981',
+  },
+  stockOut: {
+    backgroundColor: '#ef4444',
+  },
   stockText: {
     fontSize: 14,
     fontWeight: '600',
   },
-  productFooter: {
+  stockAvailableText: {
+    color: '#10b981',
+  },
+  stockOutText: {
+    color: '#ef4444',
+  },
+  priceSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    padding: 12,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    marginBottom: 12,
   },
-  dateInfo: {
+  priceItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  priceLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  priceValue: {
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '600',
+  },
+  priceDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: '#d1d5db',
+  },
+  hsnSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-  },
-  dateText: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  actionButtons: {
-    flexDirection: 'row',
     gap: 8,
+    padding: 12,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  hsnText: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  userActions: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
   },
   viewButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    gap: 4,
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+    borderRadius: 6,
   },
   viewButtonText: {
     fontSize: 12,
+    color: '#3b82f6',
     fontWeight: '500',
-    color: '#3B82F6',
   },
-  editButton: {
+  pagination: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    marginTop: 8,
+  },
+  pageButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    gap: 4,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
   },
-  editButtonText: {
-    fontSize: 12,
+  pageButtonDisabled: {
+    opacity: 0.5,
+  },
+  pageButtonText: {
+    fontSize: 14,
+    color: '#3b82f6',
     fontWeight: '500',
-    color: '#3B82F6',
   },
-  deleteButton: {
-    flexDirection: 'row',
+  pageButtonTextDisabled: {
+    color: '#9ca3af',
+  },
+  pageInfo: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  emptyContainer: {
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    gap: 4,
-  },
-  deleteButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#EF4444',
-  },
-  emptyState: {
-    flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
     padding: 40,
+    backgroundColor: '#fff',
+    borderRadius: 12,
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#374151',
+    color: '#1f2937',
     marginTop: 16,
     marginBottom: 8,
   },
-  emptyDescription: {
+  emptyText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#6b7280',
     textAlign: 'center',
     marginBottom: 24,
+    lineHeight: 20,
   },
-  emptyButton: {
-    flexDirection: 'row',
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 6,
-  },
-  emptyButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
+    padding: 16,
   },
   modalContainer: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  closeButton: {
-    padding: 4,
-  },
-  alertOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  alertContent: {
+    width: '100%',
+    maxWidth: 600,
+    maxHeight: '90%',
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 20,
-    width: '100%',
-    maxWidth: 400,
+    overflow: 'hidden',
   },
-  alertTitle: {
-    fontSize: 18,
+  modalHeader: {
+    padding: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 20,
     fontWeight: '600',
-    color: '#111827',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  modalContent: {
+    maxHeight: Dimensions.get('window').height * 0.7,
+  },
+  alertModalContainer: {
+    width: '90%',
+    maxWidth: 400,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 24,
+  },
+  alertModalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1f2937',
     marginBottom: 8,
   },
-  alertDescription: {
+  alertModalDescription: {
     fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 20,
+    color: '#6b7280',
+    marginBottom: 24,
+    lineHeight: 20,
   },
-  alertActions: {
+  alertModalButtons: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
     gap: 12,
   },
-  alertCancel: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-  },
-  alertCancelText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  alertConfirm: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: '#EF4444',
-  },
-  alertConfirmText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#fff',
-  },
-  // Checkbox styles
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
-    borderRadius: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#3B82F6',
-  },
-  // Badge styles
-  badge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  badgeOutline: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#8B5CF6',
-  },
-  badgeDefault: {
-    backgroundColor: '#F3F4F6',
-  },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: '500',
-  },
-  // Dropdown styles
-  dropdownOverlay: {
+  alertCancelButton: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dropdownContent: {
-    backgroundColor: '#fff',
+    paddingVertical: 12,
+    backgroundColor: '#f3f4f6',
     borderRadius: 8,
-    padding: 4,
-    minWidth: 150,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  dropdownMenuItem: {
-    flexDirection: 'row',
     alignItems: 'center',
-    padding: 8,
-    borderRadius: 4,
   },
-  dropdownMenuDestructive: {
-    // Additional styles for destructive items
+  alertCancelButtonText: {
+    fontSize: 14,
+    color: '#4b5563',
+    fontWeight: '500',
   },
-  dropdownItemContent: {
+  alertDeleteButton: {
+    flex: 1,
+    paddingVertical: 12,
+    backgroundColor: '#ef4444',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  alertDeleteButtonText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '500',
+  },
+  detailModalContainer: {
+    width: '90%',
+    maxWidth: 400,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  detailModalHeader: {
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  detailModalTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  dropdownItemText: {
-    fontSize: 14,
-    color: '#374151',
+  detailModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
   },
-  destructiveText: {
-    color: '#EF4444',
+  detailContent: {
+    padding: 20,
+  },
+  detailCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  detailCardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#eff6ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  companyIcon: {
+    backgroundColor: '#d1fae5',
+  },
+  detailCardContent: {
+    flex: 1,
+  },
+  detailCardLabel: {
+    fontSize: 10,
+    color: '#3b82f6',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  companyLabel: {
+    color: '#10b981',
+  },
+  detailCardValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  closeDetailButton: {
+    marginTop: 16,
+    paddingVertical: 12,
+    backgroundColor: '#3b82f6',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  closeDetailButtonText: {
+    color: '#fff',
+    fontWeight: '500',
+    fontSize: 14,
   },
 });
-
-export default ProductSettings;
