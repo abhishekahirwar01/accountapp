@@ -1,102 +1,178 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   Alert,
+  Modal,
   StyleSheet,
-  RefreshControl
+  Dimensions,
+  ActivityIndicator,
+  RefreshControl,
+  Platform,
+  Linking,
+  TextInput,
+  FlatList,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import DocumentPicker from '@react-native-documents/picker';
+import RNFS from 'react-native-fs';
+import * as XLSX from 'xlsx';
+import Toast from 'react-native-toast-message';
 import {
-  Loader2,
   MoreHorizontal,
   Edit,
   Trash2,
   PlusCircle,
+  Building,
+  Check,
+  X,
+  FileText,
+  Hash,
+  Phone,
+  Mail,
+  MapPin,
+  Percent,
+  Upload,
+  ChevronLeft,
+  ChevronRight,
+  Download,
   Server,
   Calendar,
-  Eye
+  Eye,
+  IndianRupee,
+  Loader2,
 } from 'lucide-react-native';
-import { ServiceForm } from '../services/ServiceForm';
+import { BASE_URL } from '../../config';
+import ServiceForm from '../services/ServiceForm';
 
-// Mock data for services
-const MOCK_SERVICES = [
-  { 
-    _id: '1', 
-    serviceName: 'Annual Maintenance Contract',
-    createdAt: '2024-01-15T00:00:00.000Z'
-  },
-  { 
-    _id: '2', 
-    serviceName: 'IT Consulting',
-    createdAt: '2024-02-20T00:00:00.000Z'
-  },
-  { 
-    _id: '3', 
-    serviceName: 'Software Development',
-    createdAt: '2024-03-10T00:00:00.000Z'
-  },
-];
-
-// Mock companies data
-const MOCK_COMPANIES = [
-  { _id: '1', companyName: 'Tech Solutions Inc.' },
-  { _id: '2', companyName: 'Digital Innovations Ltd.' },
-];
+const { width } = Dimensions.get('window');
+const ITEMS_PER_PAGE = 10;
 
 const ServiceSettings = () => {
-  const [services, setServices] = React.useState(MOCK_SERVICES);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [isFormOpen, setIsFormOpen] = React.useState(false);
-  const [isAlertOpen, setIsAlertOpen] = React.useState(false);
-  const [selectedService, setSelectedService] = React.useState(null);
-  const [serviceToDelete, setServiceToDelete] = React.useState(null);
-  const [companies, setCompanies] = React.useState(MOCK_COMPANIES);
-  const [refreshing, setRefreshing] = React.useState(false);
+  const [services, setServices] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [selectedService, setSelectedService] = useState(null);
+  const [serviceToDelete, setServiceToDelete] = useState(null);
+  const [companies, setCompanies] = useState([]);
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
+  const [role, setRole] = useState(null);
 
-  // Mock role - you can get this from your app's state management
-  const role = 'admin'; // or 'user'
+  const totalPages = Math.ceil(services.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const currentServices = services.slice(startIndex, endIndex);
 
-  const fetchCompanies = React.useCallback(async () => {
-    setIsLoading(true);
+  const formatCurrency = amount => {
+    if (!amount) amount = 0;
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const formatDate = dateString => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  };
+
+  useEffect(() => {
+    const getUserRole = async () => {
+      try {
+        const userRole = await AsyncStorage.getItem('role');
+        setRole(userRole);
+      } catch (error) {
+        console.error('Error getting user role:', error);
+      }
+    };
+    getUserRole();
+  }, []);
+
+  const fetchCompanies = useCallback(async () => {
+    setIsLoadingCompanies(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setCompanies(MOCK_COMPANIES);
-    } catch (err) {
-      console.error(err);
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const response = await fetch(`${BASE_URL}/api/companies/my`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch companies.');
+
+      const data = await response.json();
+      setCompanies(Array.isArray(data) ? data : data.companies || []);
+    } catch (error) {
+      console.error('Error fetching companies:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to load companies',
+      });
     } finally {
-      setIsLoading(false);
+      setIsLoadingCompanies(false);
     }
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     fetchCompanies();
   }, [fetchCompanies]);
 
-  const fetchServices = React.useCallback(async () => {
-    setRefreshing(true);
+  const fetchServices = useCallback(async () => {
+    setIsLoading(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setServices(MOCK_SERVICES);
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const response = await fetch(`${BASE_URL}/api/services`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch services.');
+
+      const data = await response.json();
+      setServices(Array.isArray(data) ? data : data.services || []);
+      setCurrentPage(1);
     } catch (error) {
-      Alert.alert(
-        'Failed to load services',
-        error instanceof Error ? error.message : 'Something went wrong.',
-        [{ text: 'OK' }]
-      );
+      console.error('Error fetching services:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to load services',
+      });
     } finally {
+      setIsLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  const onRefresh = React.useCallback(() => {
+  useEffect(() => {
     fetchServices();
   }, [fetchServices]);
 
-  React.useEffect(() => {
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
     fetchServices();
   }, [fetchServices]);
 
@@ -105,335 +181,607 @@ const ServiceSettings = () => {
     setIsFormOpen(true);
   };
 
-  const handleOpenDeleteDialog = (service) => {
+  const handleOpenDeleteDialog = service => {
     setServiceToDelete(service);
     setIsAlertOpen(true);
   };
 
-  const handleFormSuccess = (newService) => {
+  const handleFormSuccess = newService => {
     setIsFormOpen(false);
     const action = selectedService ? 'updated' : 'created';
 
     if (selectedService) {
       setServices(prev =>
-        prev.map(s => (s._id === newService._id ? newService : s))
+        prev.map(s => (s._id === newService._id ? newService : s)),
       );
     } else {
-      setServices(prev => [...prev, { ...newService, createdAt: new Date().toISOString() }]);
+      setServices(prev => [...prev, newService]);
     }
 
-    Alert.alert(
-      `Service ${action} successfully`,
-      `The service details have been ${action}.`,
-      [{ text: 'OK' }]
-    );
+    Toast.show({
+      type: 'success',
+      text1: `Service ${action} successfully`,
+      text2: `The service details have been ${action}.`,
+    });
     setSelectedService(null);
   };
 
   const handleDeleteService = async () => {
     if (!serviceToDelete) return;
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      Alert.alert(
-        'Service Deleted',
-        'The service has been successfully removed.',
-        [{ text: 'OK' }]
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const response = await fetch(
+        `${BASE_URL}/api/services/${serviceToDelete._id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
       );
-      
+
+      if (!response.ok) throw new Error('Failed to delete service.');
+
+      Toast.show({
+        type: 'success',
+        text1: 'Service Deleted',
+        text2: 'The service has been successfully removed.',
+      });
+
       setServices(prev => prev.filter(s => s._id !== serviceToDelete._id));
+
+      if (currentServices.length === 1 && currentPage > 1) {
+        setCurrentPage(prev => prev - 1);
+      }
     } catch (error) {
-      Alert.alert(
-        'Deletion Failed',
-        error instanceof Error ? error.message : 'Something went wrong.',
-        [{ text: 'OK' }]
-      );
+      console.error('Error deleting service:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Deletion Failed',
+        text2: error.message || 'Something went wrong.',
+      });
     } finally {
       setIsAlertOpen(false);
       setServiceToDelete(null);
     }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+  const handleImportClick = () => {
+    setIsImportDialogOpen(true);
   };
 
-  if (isLoading) {
+  const handleFilePick = async () => {
+    try {
+      const result = await DocumentPicker.pickSingle({
+        type: [
+          DocumentPicker.types.xlsx,
+          DocumentPicker.types.xls,
+          DocumentPicker.types.csv,
+        ],
+      });
+
+      const fileSize = result.size;
+      if (fileSize > 10 * 1024 * 1024) {
+        Toast.show({
+          type: 'error',
+          text1: 'File too large',
+          text2: 'Please select a file smaller than 10MB.',
+        });
+        return;
+      }
+
+      handleFileUpload(result);
+    } catch (err) {
+      if (!DocumentPicker.isCancel(err)) {
+        console.error('Error picking file:', err);
+      }
+    }
+  };
+
+  const handleFileUpload = async file => {
+    setIsImporting(true);
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const formData = new FormData();
+      formData.append('file', {
+        uri: file.uri,
+        type:
+          file.type ||
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        name: file.name,
+      });
+
+      const response = await fetch(`${BASE_URL}/api/services/import`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to import services');
+      }
+
+      const result = await response.json();
+
+      Toast.show({
+        type: 'success',
+        text1: 'Import Successful',
+        text2: `Successfully imported ${result.importedCount} services. ${
+          result.errors?.length
+            ? `${result.errors.length} errors occurred.`
+            : ''
+        }`,
+      });
+
+      fetchServices();
+      setIsImportDialogOpen(false);
+    } catch (error) {
+      console.error('Error importing services:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Import Failed',
+        text2: error.message || 'Something went wrong during import.',
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const downloadTemplate = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      const response = await fetch(`${BASE_URL}/api/services/import/template`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to download template');
+
+      const result = await response.blob();
+      const base64Data = await new Promise(resolve => {
+        const reader = new FileReader();
+        reader.readAsDataURL(result);
+        reader.onloadend = () => {
+          resolve(reader.result);
+        };
+      });
+
+      const path = `${RNFS.DocumentDirectoryPath}/services_import_template.xlsx`;
+      await RNFS.writeFile(path, base64Data.split(',')[1], 'base64');
+
+      if (Platform.OS === 'ios') {
+        await RNFS.writeFile(path, base64Data.split(',')[1], 'base64');
+        Toast.show({
+          type: 'success',
+          text1: 'Template Downloaded',
+          text2: 'File saved to Documents folder.',
+        });
+      } else {
+        await RNFS.writeFile(path, base64Data.split(',')[1], 'base64');
+        Toast.show({
+          type: 'success',
+          text1: 'Template Downloaded',
+          text2: 'File saved to device storage.',
+        });
+      }
+    } catch (error) {
+      console.error('Error downloading template:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Download Failed',
+        text2: error.message || 'Failed to download template.',
+      });
+    }
+  };
+
+  const goToPrevPage = () => {
+    setCurrentPage(prev => Math.max(1, prev - 1));
+  };
+
+  const goToNextPage = () => {
+    setCurrentPage(prev => Math.min(totalPages, prev + 1));
+  };
+
+  const makePhoneCall = () => {
+    Linking.openURL('tel:+918989773689');
+  };
+
+  const sendEmail = () => {
+    Linking.openURL('mailto:support@company.com');
+  };
+
+  const renderServiceItem = ({ item }) => (
+    <View style={styles.serviceCard}>
+      <View style={styles.serviceCardHeader}>
+        <View style={styles.serviceTitleContainer}>
+          <View style={styles.serviceIcon}>
+            <Server size={16} color="#0d9488" />
+          </View>
+          <Text style={styles.serviceName} numberOfLines={1}>
+            {item.serviceName}
+          </Text>
+        </View>
+
+        {role !== 'user' && (
+          <TouchableOpacity
+            style={styles.moreButton}
+            onPress={() => {
+              Alert.alert('Actions', 'Choose an action', [
+                { text: 'Edit', onPress: () => handleOpenForm(item) },
+                {
+                  text: 'Delete',
+                  onPress: () => handleOpenDeleteDialog(item),
+                  style: 'destructive',
+                },
+                { text: 'Cancel', style: 'cancel' },
+              ]);
+            }}
+          >
+            <MoreHorizontal size={20} color="#666" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View style={styles.serviceDetails}>
+        <View style={styles.detailRow}>
+          <View style={styles.detailLabel}>
+            <IndianRupee size={14} color="#666" />
+            <Text style={styles.detailLabelText}>Amount</Text>
+          </View>
+          <Text style={styles.detailValue}>
+            {formatCurrency(item.amount || 0)}
+          </Text>
+        </View>
+
+        <View style={styles.detailRow}>
+          <View style={styles.detailLabel}>
+            <Calendar size={14} color="#666" />
+            <Text style={styles.detailLabelText}>Created</Text>
+          </View>
+          <Text style={styles.detailValue}>{formatDate(item.createdAt)}</Text>
+        </View>
+
+        <View style={styles.detailRow}>
+          <View style={styles.detailLabel}>
+            <Hash size={14} color="#666" />
+            <Text style={styles.detailLabelText}>SAC Code</Text>
+          </View>
+          <Text style={styles.detailValue}>{item.sac || 'N/A'}</Text>
+        </View>
+      </View>
+
+      {role === 'user' && (
+        <View style={styles.userActions}>
+          <TouchableOpacity
+            style={styles.viewButton}
+            onPress={() => handleOpenForm(item)}
+          >
+            <Eye size={14} color="#3b82f6" />
+            <Text style={styles.viewButtonText}>View Details</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+
+  if (isLoadingCompanies) {
     return (
-      <View style={styles.centered}>
-        <Loader2 size={24} color="#3b82f6" style={styles.spinner} />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#3b82f6" />
       </View>
     );
   }
 
-  return (
-    <ScrollView 
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      {companies.length === 0 ? (
-        <View style={styles.centeredCard}>
-          <View style={styles.setupCard}>
-            <View style={styles.cardContent}>
-              <View style={styles.centeredContent}>
-                {/* Icon Section */}
-                <View style={styles.iconContainer}>
-                  <Server size={32} color="#3b82f6" />
-                </View>
+  if (companies.length === 0) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <View style={styles.noCompanyCard}>
+            <View style={styles.iconContainer}>
+              <Building size={32} color="#3b82f6" />
+            </View>
+            <Text style={styles.noCompanyTitle}>Company Setup Required</Text>
+            <Text style={styles.noCompanyDescription}>
+              Contact us to enable your company account and access all features.
+            </Text>
 
-                {/* Text Content */}
-                <Text style={styles.setupTitle}>Company Setup Required</Text>
-                <Text style={styles.setupDescription}>
-                  Contact us to enable your company account and access all features.
-                </Text>
+            <View style={styles.contactButtons}>
+              <TouchableOpacity
+                style={styles.phoneButton}
+                onPress={makePhoneCall}
+              >
+                <Phone size={20} color="white" />
+                <Text style={styles.phoneButtonText}>+91-8989773689</Text>
+              </TouchableOpacity>
 
-                {/* Call-to-Action Buttons */}
-                <View style={styles.contactButtons}>
-                  <TouchableOpacity style={styles.primaryButton}>
-                    <Text style={styles.primaryButtonText}>+91-8989773689</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity style={styles.secondaryButton}>
-                    <Text style={styles.secondaryButtonText}>Email Us</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+              <TouchableOpacity style={styles.emailButton} onPress={sendEmail}>
+                <Mail size={20} color="#3b82f6" />
+                <Text style={styles.emailButtonText}>Email Us</Text>
+              </TouchableOpacity>
             </View>
           </View>
-        </View>
-      ) : (
-        <>
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <View style={styles.headerContent}>
-                <View style={styles.headerText}>
-                  <Text style={styles.cardTitle}>Manage Services</Text>
-                  <Text style={styles.cardDescription}>
-                    A list of all your available services.
-                  </Text>
-                </View>
-                <TouchableOpacity 
-                  style={styles.addButton}
-                  onPress={() => handleOpenForm()}
-                >
-                  <PlusCircle size={16} color="#fff" />
-                  <Text style={styles.addButtonText}>Add Service</Text>
-                </TouchableOpacity>
-              </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        style={styles.container}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        <View style={styles.mainCard}>
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <Text style={styles.title}>Manage Services</Text>
+              <Text style={styles.subtitle}>
+                A list of all your available services with their pricing.
+              </Text>
             </View>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => handleOpenForm()}
+              >
+                <PlusCircle size={20} color="white" />
+                <Text style={styles.addButtonText}>Add Service</Text>
+              </TouchableOpacity>
 
-            <View style={styles.cardContent}>
-              {isLoading ? (
-                <View style={styles.centered}>
-                  <Loader2 size={24} color="#3b82f6" style={styles.spinner} />
-                </View>
-              ) : services.length > 0 ? (
-                <View style={styles.servicesList}>
-                  {services.map((service) => (
-                    <View key={service._id} style={styles.serviceCard}>
-                      {/* Header Section */}
-                      <View style={styles.serviceHeader}>
-                        <View style={styles.serviceInfo}>
-                          <View style={styles.serviceTitle}>
-                            <View style={styles.serviceIcon}>
-                              <Server size={16} color="#0d9488" />
-                            </View>
-                            <Text style={styles.serviceName} numberOfLines={1}>
-                              {service.serviceName}
-                            </Text>
-                          </View>
-                        </View>
+              <TouchableOpacity
+                style={styles.importButton}
+                onPress={handleImportClick}
+              >
+                <Upload size={20} color="#3b82f6" />
+                <Text style={styles.importButtonText}>Import Services</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
-                        {role !== 'user' && (
-                          <TouchableOpacity 
-                            style={styles.menuButton}
-                            onPress={() => handleOpenDeleteDialog(service)}
-                          >
-                            <MoreHorizontal size={16} color="#666" />
-                          </TouchableOpacity>
-                        )}
-                      </View>
+          {isLoading ? (
+            <View style={styles.loadingContent}>
+              <ActivityIndicator size="large" color="#3b82f6" />
+            </View>
+          ) : services.length > 0 ? (
+            <>
+              <FlatList
+                data={currentServices}
+                renderItem={renderServiceItem}
+                keyExtractor={item => item._id}
+                scrollEnabled={false}
+                contentContainerStyle={styles.flatListContent}
+              />
 
-                      {/* Details Section */}
-                      <View style={styles.serviceDetails}>
-                        <View style={styles.dateRow}>
-                          <View style={styles.dateLabel}>
-                            <Calendar size={12} color="#666" />
-                            <Text style={styles.dateLabelText}>Created</Text>
-                          </View>
-                          <Text style={styles.dateValue}>
-                            {formatDate(service.createdAt)}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* Actions */}
-                      <View style={styles.serviceActions}>
-                        {role === 'user' ? (
-                          <TouchableOpacity 
-                            style={styles.viewButton}
-                            onPress={() => handleOpenForm(service)}
-                          >
-                            <Eye size={12} color="#3b82f6" />
-                            <Text style={styles.viewButtonText}>View Details</Text>
-                          </TouchableOpacity>
-                        ) : (
-                          <View style={styles.actionButtons}>
-                            <TouchableOpacity 
-                              style={styles.editButton}
-                              onPress={() => handleOpenForm(service)}
-                            >
-                              <Edit size={12} color="#3b82f6" />
-                              <Text style={styles.editButtonText}>Edit</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity 
-                              style={styles.deleteButton}
-                              onPress={() => handleOpenDeleteDialog(service)}
-                            >
-                              <Trash2 size={12} color="#ef4444" />
-                              <Text style={styles.deleteButtonText}>Delete</Text>
-                            </TouchableOpacity>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              ) : (
-                <View style={styles.emptyState}>
-                  <Server size={48} color="#666" />
-                  <Text style={styles.emptyTitle}>No Services Found</Text>
-                  <Text style={styles.emptyDescription}>
-                    Get started by adding your first service.
-                  </Text>
-                  <TouchableOpacity 
-                    style={styles.emptyButton}
-                    onPress={() => handleOpenForm()}
+              {totalPages > 1 && (
+                <View style={styles.paginationContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.pageButton,
+                      currentPage === 1 && styles.pageButtonDisabled,
+                    ]}
+                    onPress={goToPrevPage}
+                    disabled={currentPage === 1}
                   >
-                    <PlusCircle size={16} color="#fff" />
-                    <Text style={styles.emptyButtonText}>Add Service</Text>
+                    <ChevronLeft
+                      size={20}
+                      color={currentPage === 1 ? '#999' : '#333'}
+                    />
+                    <Text
+                      style={[
+                        styles.pageButtonText,
+                        currentPage === 1 && styles.pageButtonTextDisabled,
+                      ]}
+                    >
+                      Previous
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.pageButton,
+                      styles.nextButton,
+                      currentPage === totalPages && styles.pageButtonDisabled,
+                    ]}
+                    onPress={goToNextPage}
+                    disabled={currentPage === totalPages}
+                  >
+                    <Text
+                      style={[
+                        styles.pageButtonText,
+                        styles.nextButtonText,
+                        currentPage === totalPages &&
+                          styles.pageButtonTextDisabled,
+                      ]}
+                    >
+                      Next
+                    </Text>
+                    <ChevronRight
+                      size={20}
+                      color={currentPage === totalPages ? '#999' : 'white'}
+                    />
                   </TouchableOpacity>
                 </View>
               )}
+            </>
+          ) : (
+            <View style={styles.noServicesContainer}>
+              <Server size={48} color="#999" />
+              <Text style={styles.noServicesTitle}>No Services Found</Text>
+              <Text style={styles.noServicesDescription}>
+                Get started by adding your first service.
+              </Text>
+              <TouchableOpacity
+                style={styles.addServiceButton}
+                onPress={() => handleOpenForm()}
+              >
+                <PlusCircle size={20} color="white" />
+                <Text style={styles.addServiceButtonText}>Add Service</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Service Form Modal */}
+      <Modal
+        visible={isFormOpen}
+        animationType="slide"
+        onRequestClose={() => {
+          setSelectedService(null);
+          setIsFormOpen(false);
+        }}
+      >
+        <ServiceForm
+          service={selectedService || undefined}
+          onSuccess={handleFormSuccess}
+          onCancel={() => {
+            setSelectedService(null);
+            setIsFormOpen(false);
+          }}
+        />
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={isAlertOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsAlertOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.alertModal}>
+            <Text style={styles.alertTitle}>Are you absolutely sure?</Text>
+            <Text style={styles.alertDescription}>
+              This action cannot be undone. This will permanently delete the
+              service.
+            </Text>
+            <View style={styles.alertButtons}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setIsAlertOpen(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={handleDeleteService}
+              >
+                <Text style={styles.deleteButtonText}>Continue</Text>
+              </TouchableOpacity>
             </View>
           </View>
+        </View>
+      </Modal>
 
-          {/* Service Form Modal */}
-          {isFormOpen && (
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>
-                    {selectedService ? 'Edit Service' : 'Create New Service'}
-                  </Text>
-                  <Text style={styles.modalDescription}>
-                    {selectedService
-                      ? 'Update the details for this service.'
-                      : 'Fill in the form to add a new service.'}
-                  </Text>
-                </View>
-                
-                <ServiceForm
-                  service={selectedService || undefined}
-                  onSuccess={handleFormSuccess}
-                  onDelete={selectedService ? handleDeleteService : undefined}
-                />
-                
-                <TouchableOpacity 
-                  style={styles.closeButton}
-                  onPress={() => {
-                    setSelectedService(null);
-                    setIsFormOpen(false);
-                  }}
-                >
-                  <Text style={styles.closeButtonText}>Close</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
+      {/* Import Dialog Modal */}
+      <Modal
+        visible={isImportDialogOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsImportDialogOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.importModal}>
+            <Text style={styles.importTitle}>Import Services</Text>
+            <Text style={styles.importDescription}>
+              Upload an Excel file (.xlsx, .xls) or CSV file containing services
+              data.
+            </Text>
 
-          {/* Delete Confirmation Alert */}
-          {isAlertOpen && (
-            <View style={styles.modalOverlay}>
-              <View style={styles.alertContent}>
-                <View style={styles.alertHeader}>
-                  <Text style={styles.alertTitle}>Are you absolutely sure?</Text>
-                  <Text style={styles.alertDescription}>
-                    This action cannot be undone. This will permanently delete the service.
-                  </Text>
-                </View>
-                <View style={styles.alertFooter}>
-                  <TouchableOpacity 
-                    style={styles.cancelButton}
-                    onPress={() => setIsAlertOpen(false)}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.confirmButton}
-                    onPress={handleDeleteService}
-                  >
-                    <Text style={styles.confirmButtonText}>Continue</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+            <View style={styles.uploadArea}>
+              <Upload size={32} color="#999" />
+              <Text style={styles.uploadText}>
+                Drag and drop your file here, or click to browse
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.selectFileButton,
+                  isImporting && styles.selectFileButtonDisabled,
+                ]}
+                onPress={handleFilePick}
+                disabled={isImporting}
+              >
+                {isImporting ? (
+                  <ActivityIndicator size="small" color="#666" />
+                ) : (
+                  <>
+                    <Upload size={20} color="#666" />
+                    <Text style={styles.selectFileButtonText}>Select File</Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
-          )}
-        </>
-      )}
-    </ScrollView>
+
+            <TouchableOpacity
+              style={styles.downloadTemplateButton}
+              onPress={downloadTemplate}
+            >
+              <Download size={20} color="#3b82f6" />
+              <Text style={styles.downloadTemplateButtonText}>
+                Download Template
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={styles.templateNote}>
+              Download the template file to ensure proper formatting.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.closeImportButton}
+              onPress={() => setIsImportDialogOpen(false)}
+            >
+              <Text style={styles.closeImportButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 };
 
+// ==================== STYLES ====================
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  centered: {
+  container: {
+    flex: 1,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    padding: 16,
+  },
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    height: 200,
   },
-  spinner: {
-    animationKeyframes: {
-      '0%': { transform: [{ rotate: '0deg' }] },
-      '100%': { transform: [{ rotate: '360deg' }] },
-    },
-    animationDuration: '1s',
-    animationIterationCount: 'infinite',
-  },
-  centeredCard: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  setupCard: {
+  noCompanyCard: {
     backgroundColor: 'white',
     borderRadius: 12,
     padding: 24,
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowRadius: 4,
     elevation: 3,
-    width: '100%',
-    maxWidth: 400,
-  },
-  cardContent: {
-    padding: 0,
-  },
-  centeredContent: {
-    alignItems: 'center',
   },
   iconContainer: {
     width: 64,
@@ -444,352 +792,416 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  setupTitle: {
+  noCompanyTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: '#1f2937',
     marginBottom: 8,
     textAlign: 'center',
   },
-  setupDescription: {
-    fontSize: 16,
+  noCompanyDescription: {
+    fontSize: 14,
     color: '#6b7280',
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 20,
   },
   contactButtons: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: 12,
     width: '100%',
   },
-  primaryButton: {
-    flex: 1,
+  phoneButton: {
     backgroundColor: '#3b82f6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    gap: 8,
   },
-  primaryButtonText: {
+  phoneButtonText: {
     color: 'white',
-    fontWeight: '500',
+    fontWeight: '600',
     fontSize: 14,
   },
-  secondaryButton: {
-    flex: 1,
+  emailButton: {
     borderWidth: 1,
     borderColor: '#3b82f6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    gap: 8,
   },
-  secondaryButtonText: {
+  emailButtonText: {
     color: '#3b82f6',
-    fontWeight: '500',
+    fontWeight: '600',
     fontSize: 14,
   },
-  card: {
+  mainCard: {
     backgroundColor: 'white',
-    borderRadius: 8,
+    borderRadius: 12,
+    padding: 16,
     margin: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowRadius: 4,
     elevation: 3,
   },
-  cardHeader: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
+  header: {
+    flexDirection: 'column',
+    gap: 16,
+    marginBottom: 20,
   },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  headerText: {
+  headerLeft: {
     flex: 1,
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 4,
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
     color: '#1f2937',
+    marginBottom: 4,
   },
-  cardDescription: {
+  subtitle: {
     fontSize: 14,
     color: '#6b7280',
+    lineHeight: 20,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 12,
   },
   addButton: {
     backgroundColor: '#3b82f6',
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
+    borderRadius: 8,
     gap: 8,
+    flex: 1,
   },
   addButtonText: {
     color: 'white',
-    fontWeight: '500',
+    fontWeight: '600',
     fontSize: 14,
   },
-  cardContent: {
-    padding: 16,
+  importButton: {
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 8,
+    flex: 1,
   },
-  servicesList: {
+  importButtonText: {
+    color: '#3b82f6',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  loadingContent: {
+    padding: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  flatListContent: {
     gap: 12,
   },
   serviceCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#f3f4f6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    borderColor: '#e5e7eb',
   },
-  serviceHeader: {
+  serviceCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 12,
   },
-  serviceInfo: {
-    flex: 1,
-  },
-  serviceTitle: {
+  serviceTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
     gap: 8,
   },
   serviceIcon: {
-    padding: 8,
     backgroundColor: '#ccfbf1',
-    borderRadius: 8,
+    padding: 8,
+    borderRadius: 6,
   },
   serviceName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
+    color: '#111827',
     flex: 1,
   },
-  menuButton: {
+  moreButton: {
     padding: 4,
   },
   serviceDetails: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 8,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 6,
     padding: 12,
-    marginBottom: 12,
+    gap: 8,
   },
-  dateRow: {
+  detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  dateLabel: {
+  detailLabel: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
-  dateLabelText: {
+  detailLabelText: {
     fontSize: 12,
     fontWeight: '500',
     color: '#6b7280',
   },
-  dateValue: {
+  detailValue: {
     fontSize: 14,
     color: '#374151',
   },
-  serviceActions: {
+  userActions: {
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
-    paddingTop: 12,
   },
   viewButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 6,
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: '#3b82f6',
     borderRadius: 6,
   },
   viewButtonText: {
+    fontSize: 12,
     color: '#3b82f6',
-    fontSize: 12,
     fontWeight: '500',
   },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  editButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#3b82f6',
-    borderRadius: 6,
-  },
-  editButtonText: {
-    color: '#3b82f6',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  deleteButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#ef4444',
-    borderRadius: 6,
-  },
-  deleteButtonText: {
-    color: '#ef4444',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  emptyState: {
+  noServicesContainer: {
     alignItems: 'center',
     paddingVertical: 48,
-    paddingHorizontal: 20,
   },
-  emptyTitle: {
+  noServicesTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#374151',
     marginTop: 16,
     marginBottom: 8,
   },
-  emptyDescription: {
+  noServicesDescription: {
     fontSize: 14,
     color: '#6b7280',
     textAlign: 'center',
     marginBottom: 24,
-    lineHeight: 20,
   },
-  emptyButton: {
+  addServiceButton: {
     backgroundColor: '#3b82f6',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    justifyContent: 'center',
     paddingVertical: 10,
-    borderRadius: 6,
+    paddingHorizontal: 20,
+    borderRadius: 8,
     gap: 8,
   },
-  emptyButtonText: {
+  addServiceButtonText: {
     color: 'white',
-    fontWeight: '500',
+    fontWeight: '600',
     fontSize: 14,
   },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  pageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    gap: 8,
+  },
+  pageButtonDisabled: {
+    opacity: 0.5,
+  },
+  pageButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  pageButtonTextDisabled: {
+    color: '#9ca3af',
+  },
+  nextButton: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#2563eb',
+  },
+  nextButtonText: {
+    color: 'white',
+  },
   modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-  modalContent: {
+  alertModal: {
     backgroundColor: 'white',
     borderRadius: 12,
-    padding: 20,
+    padding: 24,
     width: '100%',
     maxWidth: 400,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
-    color: '#1f2937',
-  },
-  modalDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-    lineHeight: 20,
-  },
-  closeButton: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: '#6b7280',
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    color: 'white',
-    fontWeight: '500',
-  },
-  alertContent: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
-    width: '100%',
-    maxWidth: 400,
-  },
-  alertHeader: {
-    marginBottom: 20,
   },
   alertTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: 'bold',
+    color: '#111827',
     marginBottom: 8,
-    color: '#1f2937',
   },
   alertDescription: {
     fontSize: 14,
     color: '#6b7280',
     lineHeight: 20,
+    marginBottom: 24,
   },
-  alertFooter: {
+  alertButtons: {
     flexDirection: 'row',
-    gap: 12,
     justifyContent: 'flex-end',
+    gap: 12,
   },
   cancelButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
     borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
   },
   cancelButtonText: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  deleteButton: {
+    backgroundColor: '#ef4444',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 6,
+  },
+  deleteButtonText: {
+    fontSize: 14,
+    color: 'white',
+    fontWeight: '500',
+  },
+  importModal: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  importTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  importDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  uploadArea: {
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  uploadText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginVertical: 12,
+    lineHeight: 20,
+  },
+  selectFileButton: {
+    backgroundColor: '#f3f4f6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 6,
+    gap: 8,
+  },
+  selectFileButtonDisabled: {
+    opacity: 0.5,
+  },
+  selectFileButtonText: {
+    fontSize: 14,
     color: '#374151',
     fontWeight: '500',
   },
-  confirmButton: {
+  downloadTemplateButton: {
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    paddingVertical: 8,
     borderRadius: 6,
-    backgroundColor: '#ef4444',
+    gap: 8,
+    marginBottom: 8,
   },
-  confirmButtonText: {
-    color: 'white',
+  downloadTemplateButtonText: {
+    fontSize: 14,
+    color: '#3b82f6',
+    fontWeight: '500',
+  },
+  templateNote: {
+    fontSize: 12,
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  closeImportButton: {
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  closeImportButtonText: {
+    fontSize: 14,
+    color: '#6b7280',
     fontWeight: '500',
   },
 });
