@@ -206,14 +206,73 @@ export function CustomerSettings() {
   };
 
   const pickFileForImport = async () => {
+    let pickFn = null;
+
+    if (DocumentPicker) {
+      if (typeof DocumentPicker.pick === 'function')
+        pickFn = DocumentPicker.pick;
+      else if (typeof DocumentPicker.pickDocument === 'function')
+        pickFn = DocumentPicker.pickDocument;
+      else if (typeof DocumentPicker.default === 'function')
+        pickFn = DocumentPicker.default;
+    }
+
+    if (!pickFn) {
+      try {
+        const pickerModule = require('@react-native-documents/picker');
+        pickFn =
+          pickerModule.pick ||
+          pickerModule.pickDocument ||
+          pickerModule.pickSingle ||
+          pickerModule.pickMultiple ||
+          pickerModule.default?.pick ||
+          pickerModule.default?.pickDocument ||
+          pickerModule.default;
+      } catch (e) {
+        try {
+          const pickerModule2 = require('react-native-document-picker');
+          pickFn =
+            pickerModule2.pick ||
+            pickerModule2.pickDocument ||
+            pickerModule2.pickSingle ||
+            pickerModule2.pickMultiple ||
+            pickerModule2.default;
+        } catch (e2) {
+          pickFn = null;
+        }
+      }
+    }
+
+    if (!pickFn || typeof pickFn !== 'function') {
+      console.error('Document picker pick function not found', DocumentPicker);
+      Alert.alert(
+        'Import Unavailable',
+        'Document picker native module is not available or not linked. Install @react-native-documents/picker (or react-native-document-picker) and rebuild the app.',
+      );
+      return;
+    }
+
     try {
-      const [result] = await DocumentPicker.pick({
+      const res = await pickFn({
         type: [
-          DocumentPicker.types.xlsx,
-          DocumentPicker.types.xls,
-          DocumentPicker.types.csv,
+          DocumentPicker?.types?.xlsx ||
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          DocumentPicker?.types?.xls || 'application/vnd.ms-excel',
+          DocumentPicker?.types?.csv || 'text/csv',
         ],
+        allowMultiSelection: false,
       });
+
+      const result = Array.isArray(res) ? res[0] : res;
+
+      if (!result || !result.uri) {
+        Toast.show({
+          type: 'error',
+          text1: 'Import Failed',
+          text2: 'No file selected.',
+        });
+        return;
+      }
 
       if (result.size && result.size > 10 * 1024 * 1024) {
         Toast.show({
@@ -226,14 +285,20 @@ export function CustomerSettings() {
 
       await handleFileUpload(result);
     } catch (err) {
-      if (!DocumentPicker.isCancel(err)) {
-        console.error('Picker Error:', err);
-        Toast.show({
-          type: 'error',
-          text1: 'Import Failed',
-          text2: 'Failed to select file.',
-        });
+      const msg = err?.message || err;
+      if (
+        err?.code === 'DOCUMENT_PICKER_CANCELED' ||
+        /cancel/i.test(String(msg))
+      ) {
+        return;
       }
+
+      console.error('Picker Error:', err);
+      Toast.show({
+        type: 'error',
+        text1: 'Import Failed',
+        text2: err?.message || 'Failed to select file.',
+      });
     }
   };
 
@@ -244,7 +309,9 @@ export function CustomerSettings() {
 
     try {
       const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('Authentication token not found.');
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
 
       // Create FormData for upload
       const formData = new FormData();
@@ -287,16 +354,43 @@ export function CustomerSettings() {
         text2: description,
       });
 
+      // Fallback alert in case Toast is not visible
+      try {
+        if (data.importedCount > 0) {
+          Alert.alert('Import Completed', description);
+        }
+      } catch (e) {
+        // Silently handle fallback alert error
+      }
+
       setIsImportDialogOpen(false);
       fetchCustomers();
     } catch (error) {
-      console.error('Import error:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Import Failed',
-        text2:
-          error instanceof Error ? error.message : 'Failed to import customers',
-      });
+      const errMsg = error instanceof Error ? error.message : String(error);
+
+      if (
+        /csv/i.test(errMsg) &&
+        /(please upload|upload a|only support|invalid file)/i.test(errMsg)
+      ) {
+        const userMessage =
+          'Invalid file format. Please upload a CSV, XLS, or XLSX file.';
+        Toast.show({
+          type: 'error',
+          text1: 'Invalid file format',
+          text2: userMessage,
+        });
+        try {
+          Alert.alert('Invalid file format', userMessage);
+        } catch (e) {
+          // Silently handle fallback alert error
+        }
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Import Failed',
+          text2: errMsg || 'Failed to import customers',
+        });
+      }
     } finally {
       setIsImporting(false);
     }
@@ -437,6 +531,12 @@ export function CustomerSettings() {
           text1: 'Template Downloaded',
           text2: 'Excel template has been downloaded to your device.',
         });
+        try {
+          Alert.alert(
+            'Template Downloaded',
+            'Excel template has been downloaded to your device.',
+          );
+        } catch (e) {}
       })
       .catch(error => {
         console.error('Download error:', error);
@@ -888,9 +988,6 @@ export function CustomerSettings() {
             >
               <Upload size={32} color="#9ca3af" />
               <Text style={styles.importBoxText}>Tap to select file</Text>
-              <Text style={styles.importBoxSubtext}>
-                Supports .xlsx, .xls, .csv files
-              </Text>
             </TouchableOpacity>
 
             <View style={styles.importInfo}>
