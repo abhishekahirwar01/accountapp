@@ -1283,7 +1283,7 @@ const TemplateSettings = () => {
   const hasUnsavedChanges = selectedTemplate !== fetchedTemplate;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Header */}
@@ -1482,7 +1482,7 @@ const TemplateSettings = () => {
       />
 
       <Toast />
-    </SafeAreaView>
+    </View>
   );
 };
 

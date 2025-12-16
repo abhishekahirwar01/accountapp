@@ -2055,7 +2055,7 @@ const TransactionsScreen = ({ navigation }) => {
                   ]}
                   onPress={() => {
                     setIsGmailNotConnected(false);
-                    navigation.navigate('Settings', { tab: 'email' });
+                    navigation.navigate('ProfileScreen', { tab: 'email' });
                   }}
                 >
                   <Text style={styles.gmailDialogButtonPrimaryText}>

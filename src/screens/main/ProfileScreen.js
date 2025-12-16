@@ -777,7 +777,7 @@ const styles = StyleSheet.create({
   },
   tabContentWrapper: {
     flex: 1,
-    marginTop: 12,
+    marginTop: 8,
   },
   tabBody: {
     flex: 1,
