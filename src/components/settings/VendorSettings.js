@@ -202,14 +202,74 @@ export function VendorSettings() {
   };
 
   const pickFileForImport = async () => {
+    // Resolve pick function dynamically to support multiple export shapes
+    let pickFn = null;
+
+    if (DocumentPicker) {
+      if (typeof DocumentPicker.pick === 'function')
+        pickFn = DocumentPicker.pick;
+      else if (typeof DocumentPicker.pickDocument === 'function')
+        pickFn = DocumentPicker.pickDocument;
+      else if (typeof DocumentPicker.default === 'function')
+        pickFn = DocumentPicker.default;
+    }
+
+    if (!pickFn) {
+      try {
+        const pickerModule = require('@react-native-documents/picker');
+        pickFn =
+          pickerModule.pick ||
+          pickerModule.pickDocument ||
+          pickerModule.pickSingle ||
+          pickerModule.pickMultiple ||
+          pickerModule.default?.pick ||
+          pickerModule.default?.pickDocument ||
+          pickerModule.default;
+      } catch (e) {
+        try {
+          const pickerModule2 = require('react-native-document-picker');
+          pickFn =
+            pickerModule2.pick ||
+            pickerModule2.pickDocument ||
+            pickerModule2.pickSingle ||
+            pickerModule2.pickMultiple ||
+            pickerModule2.default;
+        } catch (e2) {
+          pickFn = null;
+        }
+      }
+    }
+
+    if (!pickFn || typeof pickFn !== 'function') {
+      console.error('Document picker pick function not found', DocumentPicker);
+      Alert.alert(
+        'Import Unavailable',
+        'Document picker native module is not available or not linked. Install @react-native-documents/picker (or react-native-document-picker) and rebuild the app.',
+      );
+      return;
+    }
+
     try {
-      const [result] = await DocumentPicker.pick({
+      const res = await pickFn({
         type: [
-          DocumentPicker.types.xlsx,
-          DocumentPicker.types.xls,
-          DocumentPicker.types.csv,
+          DocumentPicker?.types?.xlsx ||
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          DocumentPicker?.types?.xls || 'application/vnd.ms-excel',
+          DocumentPicker?.types?.csv || 'text/csv',
         ],
+        allowMultiSelection: false,
       });
+
+      const result = Array.isArray(res) ? res[0] : res;
+
+      if (!result || !result.uri) {
+        Toast.show({
+          type: 'error',
+          text1: 'Import Failed',
+          text2: 'No file selected.',
+        });
+        return;
+      }
 
       if (result.size && result.size > 10 * 1024 * 1024) {
         Toast.show({
@@ -222,14 +282,21 @@ export function VendorSettings() {
 
       await handleFileUpload(result);
     } catch (err) {
-      if (!DocumentPicker.isCancel(err)) {
-        console.error('Picker Error:', err);
-        Toast.show({
-          type: 'error',
-          text1: 'Import Failed',
-          text2: 'Failed to select file.',
-        });
+      const msg = err?.message || err;
+      if (
+        err?.code === 'DOCUMENT_PICKER_CANCELED' ||
+        /cancel/i.test(String(msg))
+      ) {
+        // user cancelled - ignore
+        return;
       }
+
+      console.error('Picker Error:', err);
+      Toast.show({
+        type: 'error',
+        text1: 'Import Failed',
+        text2: err?.message || 'Failed to select file.',
+      });
     }
   };
 
@@ -283,16 +350,40 @@ export function VendorSettings() {
         text2: description,
       });
 
+      // Fallback alert in case Toast is not visible
+      try {
+        if (data.importedCount > 0) {
+          Alert.alert('Import Completed', description);
+        }
+      } catch (e) {}
+
       setIsImportDialogOpen(false);
       fetchVendors();
     } catch (error) {
-      console.error('Import error:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Import Failed',
-        text2:
-          error instanceof Error ? error.message : 'Failed to import vendors',
-      });
+      const errMsg = error instanceof Error ? error.message : String(error);
+
+      // If server returned a file-format instruction like "Please upload a CSV file",
+      // show a friendly, actionable message to the user instead of the raw server text.
+      if (
+        /csv/i.test(errMsg) &&
+        /(please upload|upload a|only support|invalid file)/i.test(errMsg)
+      ) {
+        const userMessage = 'Invalid file format. Please upload a CSV.';
+        Toast.show({
+          type: 'error',
+          text1: 'Invalid file format',
+          text2: userMessage,
+        });
+        try {
+          Alert.alert('Invalid file format', userMessage);
+        } catch (e) {}
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Import Failed',
+          text2: errMsg || 'Failed to import vendors',
+        });
+      }
     } finally {
       setIsImporting(false);
     }
@@ -395,6 +486,12 @@ export function VendorSettings() {
           text1: 'Template Downloaded',
           text2: 'Excel template has been downloaded to your device.',
         });
+        try {
+          Alert.alert(
+            'Template Downloaded',
+            'Excel template has been downloaded to your device.',
+          );
+        } catch (e) {}
       })
       .catch(error => {
         console.error('Download error:', error);
@@ -428,7 +525,7 @@ export function VendorSettings() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ScrollView
         style={styles.scrollView}
         refreshControl={
@@ -811,9 +908,6 @@ export function VendorSettings() {
             >
               <Upload size={32} color="#9ca3af" />
               <Text style={styles.importBoxText}>Tap to select file</Text>
-              <Text style={styles.importBoxSubtext}>
-                Supports .xlsx, .xls, .csv files
-              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -869,7 +963,7 @@ export function VendorSettings() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -977,7 +1071,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    padding: 16,
+    padding: 10,
   },
   header: {
     marginBottom: 24,

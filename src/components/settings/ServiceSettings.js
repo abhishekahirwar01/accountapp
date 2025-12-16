@@ -519,7 +519,7 @@ const ServiceSettings = () => {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <ScrollView
         style={styles.container}
         refreshControl={
@@ -750,7 +750,7 @@ const ServiceSettings = () => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 
