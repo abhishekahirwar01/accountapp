@@ -24,7 +24,7 @@ import UsersScreen from '../screens/main/UsersScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
 import Reports from '../screens/main/reports/Reports';
 import Ledger from '../screens/main/ledger/Ledger';
-import CompanyForm from '../components/companies/CompanyForm';
+import { CompanyForm } from '../components/companies/CompanyForm';
 import { TransactionForm } from '../components/transactions/TransactionForm';
 const Stack = createNativeStackNavigator();
 
