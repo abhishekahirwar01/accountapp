@@ -1,5 +1,6 @@
 // components/transactions/columns.js
 import React, { useState, useEffect, useRef } from 'react';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 // Global helper: when a DropdownMenu opens it will set this to its
 // close function. Menu items call this to ensure the menu is closed
@@ -1666,7 +1667,7 @@ export const columns = ({
       const companyName = companyMap?.get(companyId) || 'N/A';
       return (
         <View style={styles.companySection}>
-          <Feather name="building" size={16} color="#666" />
+         <Ionicons name="business-outline" size={16} color="#666" />
           <Text style={styles.companyText} numberOfLines={1}>
             {companyName}
           </Text>
@@ -1683,7 +1684,7 @@ export const columns = ({
       const companyName = companyMap?.get(companyId) || 'N/A';
       return (
         <View style={styles.companySection}>
-          <Feather name="building" size={16} color="#666" />
+          <Ionicons name="business-outline" size={16} color="#666" />
           <Text style={styles.companyText} numberOfLines={1}>
             {companyName}
           </Text>
