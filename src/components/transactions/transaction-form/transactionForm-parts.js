@@ -215,13 +215,21 @@ export function FormTabs({
   // Sync journal display value
   useEffect(() => {
     const amount = formMethods.watch('totalAmount');
-    if (amount) {
-      setJournalDisplayValue(
-        Number(amount).toLocaleString('en-IN', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        }),
-      );
+    const numValue = Number(amount);
+
+    if (numValue && !isNaN(numValue)) {
+      const stringValue = amount.toString();
+      const hasDecimal = stringValue.includes('.');
+
+      if (hasDecimal) {
+        const [integerPart, decimalPart] = stringValue.split('.');
+        const formattedInt = integerPart
+          ? Number(integerPart).toLocaleString('en-IN')
+          : '';
+        setJournalDisplayValue(`${formattedInt}.${decimalPart}`);
+      } else {
+        setJournalDisplayValue(numValue.toLocaleString('en-IN'));
+      }
     } else {
       setJournalDisplayValue('');
     }
@@ -239,14 +247,28 @@ export function FormTabs({
 
   const formatInput = useCallback(value => {
     if (!value) return '';
+
+    // 1. Clean to allow only digits and at most one decimal point
     const cleaned = value.replace(/[^\d.]/g, '');
-    const [integerPart, decimalPart] = cleaned.split('.');
+    const parts = cleaned.split('.');
+    let integerPart = parts[0];
+    let decimalPart = parts[1];
+
+    // Handle multiple decimal points (keep first part)
+    if (parts.length > 2) {
+      decimalPart = parts.slice(1).join('');
+    }
+
+    // Format integer part for Indian locale (commas)
     const formattedInt = integerPart
       ? Number(integerPart).toLocaleString('en-IN')
       : '';
-    return decimalPart !== undefined
-      ? `${formattedInt}.${decimalPart.slice(0, 2)}`
-      : formattedInt;
+
+    // Reconstruct the string
+    if (decimalPart !== undefined) {
+      return `${formattedInt}.${decimalPart}`;
+    }
+    return formattedInt;
   }, []);
 
   const formatDate = useCallback(date => {
@@ -495,12 +517,17 @@ export function FormTabs({
                       )}
                       value={journalDisplayValue}
                       onChangeText={text => {
-                        const formatted = formatInput(text);
-                        setJournalDisplayValue(formatted);
-                        formMethods.setValue(
-                          'totalAmount',
-                          formatted.replace(/,/g, ''),
-                        );
+                        if (!text.trim()) {
+                          setJournalDisplayValue('');
+                          formMethods.setValue('totalAmount', '');
+                        } else {
+                          const formatted = formatInput(text);
+                          setJournalDisplayValue(formatted);
+                          formMethods.setValue(
+                            'totalAmount',
+                            formatted.replace(/,/g, ''),
+                          );
+                        }
                       }}
                       keyboardType="numeric"
                       ref={ref => registerField('totalAmount', ref)}
