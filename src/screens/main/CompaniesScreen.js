@@ -13,7 +13,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import CompanyForm from '../../components/companies/CompanyForm';
+import { CompanyForm } from '../../components/companies/CompanyForm';
 import {
   PlusCircle,
   Building,
@@ -24,6 +24,7 @@ import {
   Hash,
   FileText,
   MoreHorizontal,
+  X,
 } from 'lucide-react-native';
 import { usePermissions } from '../../contexts/permission-context';
 import { BASE_URL } from '../../config';
@@ -417,28 +418,14 @@ const CompaniesScreen = () => {
             presentationStyle="pageSheet"
             onRequestClose={() => setIsDialogOpen(false)}
           >
-            <SafeAreaView style={styles.modalSafeArea}>
-              <View style={styles.modalContainer}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>
-                    {selectedCompany ? 'Edit Company' : 'Add New Company'}
-                  </Text>
-                  <Text style={styles.modalDescription}>
-                    {selectedCompany
-                      ? `Update the details for ${selectedCompany.businessName}.`
-                      : 'Fill in the form below to add a new company.'}
-                  </Text>
-                </View>
-                <ScrollView style={styles.modalContent}>
-                  <CompanyForm
-                    company={selectedCompany || undefined}
-                    clients={clients}
-                    onFormSubmit={onFormSubmit}
-                    onCancel={() => setIsDialogOpen(false)}
-                  />
-                </ScrollView>
-              </View>
-            </SafeAreaView>
+            <View style={{ flex: 1 }}>
+              <CompanyForm
+                company={selectedCompany || undefined}
+                clients={clients}
+                onFormSubmit={onFormSubmit}
+                onCancel={() => setIsDialogOpen(false)}
+              />
+            </View>
           </Modal>
         </View>
       </SafeAreaView>
@@ -450,10 +437,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-  },
-  modalSafeArea: {
-    flex: 1,
-    backgroundColor: 'white',
   },
   container: {
     flex: 1,
@@ -488,10 +471,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#007AFF',
     paddingHorizontal: 18,
-    paddingVertical: 12, // वर्टिकल पैडिंग बढ़ाई (हाइट बढ़ी)
-    borderRadius: 10, // बॉर्डर रेडियस थोड़ा बढ़ाया
+    paddingVertical: 12,
+    borderRadius: 10,
     gap: 8,
-
     elevation: 4,
     shadowColor: '#007AFF',
     shadowOffset: { width: 0, height: 2 },
@@ -730,29 +712,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '600',
     fontSize: 14,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'white',
-  },
-  modalHeader: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 4,
-    color: '#1a1a1a',
-  },
-  modalDescription: {
-    fontSize: 14,
-    color: '#666',
-  },
-  modalContent: {
-    flex: 1,
-    padding: 16,
   },
 });
 
