@@ -10,7 +10,6 @@ import {
   ScrollView,
   Alert,
   Modal,
-  TouchableWithoutFeedback,
   Text,
   ActivityIndicator,
 } from 'react-native';
@@ -23,12 +22,6 @@ import CustomDropdown from '../../components/ui/CustomDropdown';
 
 import { Combobox } from '../../components/ui/Combobox';
 import QuillEditor from '../../components/ui/QuillEditor';
-
-// Country State City
-import {
-  getStatesOfCountry,
-  getCitiesOfState,
-} from '../utils/country-utils.js';
 
 // Context
 import { useCompany } from '../../contexts/company-context.js';
@@ -233,30 +226,11 @@ export default function ProformaForm({
   const [unitOpen, setUnitOpen] = useState(false);
   const [originalQuantities, setOriginalQuantities] = useState(new Map());
   const [shippingAddresses, setShippingAddresses] = useState([]);
-  const [isEditShippingAddressDialogOpen, setIsEditShippingAddressDialogOpen] =
-    useState(false);
-  const [editingShippingAddress, setEditingShippingAddress] = useState(null);
-  const [editAddressForm, setEditAddressForm] = useState({
-    label: '',
-    address: '',
-    city: '',
-    state: '',
-    pincode: '',
-    contactNumber: '',
-  });
   const [lastEditedField, setLastEditedField] = useState({});
-  const [indiaStates, setIndiaStates] = useState([]);
-  const [shippingStateCode, setShippingStateCode] = useState(null);
-  const [shippingCityOptions, setShippingCityOptions] = useState([]);
-
-  // Dropdown states (replaced by CustomDropdown; internal open-state removed)
 
   // Date picker states
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showDueDatePicker, setShowDueDatePicker] = useState(false);
-
-  // Shipping address states
-  const [sameAsBilling, setSameAsBilling] = useState(true);
 
   const { selectedCompanyId } = useCompany();
   const { permissions: userCaps } = useUserPermissions();
@@ -291,7 +265,7 @@ export default function ProformaForm({
     },
   });
 
-  const { fields, append, remove, replace } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: 'items',
   });
@@ -328,43 +302,6 @@ export default function ProformaForm({
   const canSales = isSuper || !!userCaps?.canCreateSaleEntries;
   const canCreateCustomer = isSuper || !!userCaps?.canCreateCustomers;
   const canCreateInventory = isSuper || !!userCaps?.canCreateInventory;
-
-  // Load states
-  useEffect(() => {
-    const loadStates = async () => {
-      try {
-        const states = await getStatesOfCountry('IN');
-        setIndiaStates(states);
-      } catch (error) {
-        console.error('Failed to load states:', error);
-        setIndiaStates([]);
-      }
-    };
-    loadStates();
-  }, []);
-
-  // Load cities when state changes
-  useEffect(() => {
-    const loadCities = async () => {
-      if (!shippingStateCode) {
-        setShippingCityOptions([]);
-        return;
-      }
-
-      try {
-        const cities = await getCitiesOfState('IN', shippingStateCode);
-        const cityOptions = cities
-          .map(c => ({ value: c.name, label: c.name }))
-          .sort((a, b) => a.label.localeCompare(b.label));
-        setShippingCityOptions(cityOptions);
-      } catch (error) {
-        console.error('Failed to load cities:', error);
-        setShippingCityOptions([]);
-      }
-    };
-
-    loadCities();
-  }, [shippingStateCode]);
 
   // Populate form with transactionToEdit data
   useEffect(() => {
@@ -738,46 +675,6 @@ export default function ProformaForm({
     }
   }, [selectedCompanyIdWatch, fetchBanks]);
 
-  // Fetch shipping addresses
-  const fetchShippingAddresses = useCallback(
-    async partyId => {
-      if (!partyId) {
-        setShippingAddresses([]);
-        return;
-      }
-
-      try {
-        const token = await AsyncStorage.getItem('token');
-        if (!token) throw new Error('Authentication token not found.');
-
-        const res = await fetch(
-          `${BASE_URL}/api/shipping-addresses/party/${partyId}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-
-        if (res.ok) {
-          const data = await res.json();
-          setShippingAddresses(data.shippingAddresses || []);
-        } else {
-          setShippingAddresses([]);
-        }
-      } catch (error) {
-        console.error('Error fetching shipping addresses:', error);
-        setShippingAddresses([]);
-      }
-    },
-    [BASE_URL],
-  );
-
-  useEffect(() => {
-    const partyId = form.watch('party');
-    if (partyId) {
-      fetchShippingAddresses(partyId);
-    }
-  }, [form.watch('party'), fetchShippingAddresses]);
-
   // Handle form submission
   const onSubmit = async values => {
     setIsSubmitting(true);
@@ -791,19 +688,6 @@ export default function ProformaForm({
       if (transactionToEdit) {
         endpoint = `/api/proforma/${transactionToEdit._id}`;
       }
-
-      const safeShipping = values.shippingAddressDetails
-        ? {
-            label: sanitizeInput(values.shippingAddressDetails.label),
-            address: sanitizeInput(values.shippingAddressDetails.address),
-            city: sanitizeInput(values.shippingAddressDetails.city),
-            state: sanitizeInput(values.shippingAddressDetails.state),
-            pincode: sanitizeInput(values.shippingAddressDetails.pincode),
-            contactNumber: sanitizeInput(
-              values.shippingAddressDetails.contactNumber,
-            ),
-          }
-        : null;
 
       const productLines =
         values.items
@@ -842,57 +726,10 @@ export default function ProformaForm({
         ? Number(values.invoiceTotal ?? uiSubTotal)
         : uiSubTotal;
 
+      // Shipping address logic (same as web)
       let shippingAddressId = null;
       if (values.sameAsBilling) {
         shippingAddressId = null;
-      } else if (values.shippingAddress && values.shippingAddress !== 'new') {
-        shippingAddressId = values.shippingAddress;
-      } else if (
-        values.shippingAddress === 'new' &&
-        values.shippingAddressDetails
-      ) {
-        try {
-          const shippingPayload = {
-            party: values.party,
-            label: safeShipping?.label || 'New Address',
-            address: safeShipping?.address || '',
-            city: safeShipping?.city || '',
-            state: safeShipping?.state || '',
-            pincode: safeShipping?.pincode || '',
-            contactNumber: safeShipping?.contactNumber || '',
-          };
-
-          const shippingRes = await fetch(
-            `${BASE_URL}/api/shipping-addresses`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify(shippingPayload),
-            },
-          );
-
-          if (shippingRes.ok) {
-            const shippingData = await shippingRes.json();
-            shippingAddressId = shippingData.shippingAddress._id;
-            setShippingAddresses(prev => [
-              ...prev,
-              shippingData.shippingAddress,
-            ]);
-          } else {
-            throw new Error('Failed to create shipping address');
-          }
-        } catch (error) {
-          console.error('Error creating shipping address:', error);
-          setSnackbar({
-            visible: true,
-            message:
-              'Failed to save shipping address. Proforma will proceed without it.',
-            type: 'error',
-          });
-        }
       }
 
       const safeNotes = sanitizeInput(values.notes);
@@ -1078,28 +915,6 @@ export default function ProformaForm({
     value: c._id,
   }));
 
-  const bankOptions = banks.map(b => ({
-    label: `${b.bankName} - ${b.accountNumber}`,
-    value: b._id,
-  }));
-
-  const paymentMethodOptions = paymentMethods.map(method => ({
-    label: method,
-    value: method,
-  }));
-
-  const shippingStateOptions = indiaStates
-    .map(s => ({ value: s.isoCode, label: s.name }))
-    .sort((a, b) => a.label.localeCompare(b.label));
-
-  const shippingAddressOptions = [
-    ...shippingAddresses.map(addr => ({
-      label: addr.label || 'Shipping Address',
-      value: addr._id,
-    })),
-    { label: 'Add New Address', value: 'new' },
-  ];
-
   const renderItemRow = (field, index) => {
     const itemType = form.watch(`items.${index}.itemType`);
 
@@ -1219,7 +1034,10 @@ export default function ProformaForm({
                 <View style={styles.formField}>
                   <Text style={styles.label}>Unit</Text>
                   <CustomDropdown
-                    items={unitTypes.map(unit => ({ label: unit, value: unit }))}
+                    items={unitTypes.map(unit => ({
+                      label: unit,
+                      value: unit,
+                    }))}
                     value={form.watch(`items.${index}.unitType`) || 'Piece'}
                     onChange={val => {
                       form.setValue(`items.${index}.unitType`, val);
@@ -1682,195 +1500,6 @@ export default function ProformaForm({
           </View>
         </View>
 
-        {/* Shipping Address */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Shipping Address</Text>
-
-          <View style={styles.formRow}>
-            <View style={styles.formField}>
-              <View style={styles.checkboxContainer}>
-                <TouchableOpacity
-                  style={styles.checkbox}
-                  onPress={() => {
-                    const newValue = !form.watch('sameAsBilling');
-                    form.setValue('sameAsBilling', newValue);
-                    setSameAsBilling(newValue);
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.checkboxBox,
-                      form.watch('sameAsBilling') && styles.checkboxChecked,
-                    ]}
-                  >
-                    {form.watch('sameAsBilling') && (
-                      <Text style={styles.checkboxCheck}>✓</Text>
-                    )}
-                  </View>
-                  <Text style={styles.checkboxLabel}>
-                    Same as billing address
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-
-          {!form.watch('sameAsBilling') && (
-            <>
-              <View style={styles.formRow}>
-                <View style={styles.formField}>
-                  <Text style={styles.label}>Shipping Address</Text>
-                  <CustomDropdown
-                    items={shippingAddressOptions}
-                    value={form.watch('shippingAddress')}
-                    onChange={val => {
-                      form.setValue('shippingAddress', val);
-                      if (val === 'new') {
-                        form.setValue('shippingAddressDetails', {
-                          label: '',
-                          address: '',
-                          city: '',
-                          state: '',
-                          pincode: '',
-                          contactNumber: '',
-                        });
-                      } else {
-                        const selectedAddr = shippingAddresses.find(
-                          addr => addr._id === val,
-                        );
-                        if (selectedAddr) {
-                          form.setValue('shippingAddressDetails', {
-                            label: selectedAddr.label,
-                            address: selectedAddr.address,
-                            city: selectedAddr.city,
-                            state: selectedAddr.state,
-                            pincode: selectedAddr.pincode || '',
-                            contactNumber: selectedAddr.contactNumber || '',
-                          });
-                        }
-                      }
-                    }}
-                    placeholder="Select shipping address"
-                    style={styles.dropdown}
-                  />
-                </View>
-              </View>
-
-              {/* Shipping Address Details */}
-              {(form.watch('shippingAddress') === 'new' ||
-                (form.watch('shippingAddress') &&
-                  form.watch('shippingAddress') !== 'new')) && (
-                <>
-                  <View style={styles.formRow}>
-                    <View style={styles.formField}>
-                      <Text style={styles.label}>Label</Text>
-                      <Controller
-                        control={form.control}
-                        name="shippingAddressDetails.label"
-                        render={({ field }) => (
-                          <TextInput
-                            style={styles.input}
-                            value={field.value}
-                            onChangeText={field.onChange}
-                            placeholder="e.g., Home, Office"
-                          />
-                        )}
-                      />
-                    </View>
-                  </View>
-
-                  <View style={styles.formRow}>
-                    <View style={styles.formField}>
-                      <Text style={styles.label}>Address</Text>
-                      <Controller
-                        control={form.control}
-                        name="shippingAddressDetails.address"
-                        render={({ field }) => (
-                          <TextInput
-                            style={styles.input}
-                            value={field.value}
-                            onChangeText={field.onChange}
-                            placeholder="Full address"
-                            multiline
-                          />
-                        )}
-                      />
-                    </View>
-                  </View>
-
-                  <View style={styles.formRow}>
-                    <View style={styles.formField}>
-                      <Text style={styles.label}>State</Text>
-                      <CustomDropdown
-                        items={shippingStateOptions}
-                        value={form.watch('shippingAddressDetails.state')}
-                        onChange={val => {
-                          const item = shippingStateOptions.find(s => s.value === val);
-                          form.setValue('shippingAddressDetails.state', item?.label || val);
-                          setShippingStateCode(val);
-                          form.setValue('shippingAddressDetails.city', '');
-                        }}
-                        placeholder="Select state"
-                        style={styles.dropdown}
-                      />
-                    </View>
-
-                    <View style={styles.formField}>
-                      <Text style={styles.label}>City</Text>
-                      <CustomDropdown
-                        items={shippingCityOptions}
-                        value={form.watch('shippingAddressDetails.city')}
-                        onChange={val => {
-                          form.setValue('shippingAddressDetails.city', val);
-                        }}
-                        placeholder="Select city"
-                        style={styles.dropdown}
-                        disabled={!shippingStateCode}
-                      />
-                    </View>
-                  </View>
-
-                  <View style={styles.formRow}>
-                    <View style={styles.formField}>
-                      <Text style={styles.label}>Pincode</Text>
-                      <Controller
-                        control={form.control}
-                        name="shippingAddressDetails.pincode"
-                        render={({ field }) => (
-                          <TextInput
-                            style={styles.input}
-                            value={field.value}
-                            onChangeText={field.onChange}
-                            placeholder="Pincode"
-                            keyboardType="numeric"
-                          />
-                        )}
-                      />
-                    </View>
-
-                    <View style={styles.formField}>
-                      <Text style={styles.label}>Contact Number</Text>
-                      <Controller
-                        control={form.control}
-                        name="shippingAddressDetails.contactNumber"
-                        render={({ field }) => (
-                          <TextInput
-                            style={styles.input}
-                            value={field.value}
-                            onChangeText={field.onChange}
-                            placeholder="Contact number"
-                            keyboardType="phone-pad"
-                          />
-                        )}
-                      />
-                    </View>
-                  </View>
-                </>
-              )}
-            </>
-          )}
-        </View>
-
         {/* Items Section */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Items</Text>
@@ -1911,30 +1540,6 @@ export default function ProformaForm({
         {/* Additional Details */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Additional Details</Text>
-
-          <View style={styles.formRow}>
-            {/* <View style={styles.formField}>
-              <Text style={styles.label}>Payment Method</Text>
-              <CustomDropdown
-                items={paymentMethodOptions}
-                value={form.watch('paymentMethod')}
-                onChange={val => form.setValue('paymentMethod', val)}
-                placeholder="Select payment method"
-                style={styles.dropdown}
-              />
-            </View> */}
-
-            {/* <View style={styles.formField}>
-              <Text style={styles.label}>Bank</Text>
-              <CustomDropdown
-                items={bankOptions}
-                value={form.watch('bank')}
-                onChange={val => form.setValue('bank', val)}
-                placeholder="Select bank"
-                style={styles.dropdown}
-              />
-            </View> */}
-          </View>
 
           {/* Notes Section */}
           {showNotes ? (
@@ -2200,9 +1805,6 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     minHeight: 44,
   },
-  dropdownText: {
-    fontSize: 14,
-  },
   dateButton: {
     backgroundColor: 'white',
     borderWidth: 1,
@@ -2370,35 +1972,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 16,
     textAlign: 'center',
-  },
-  checkboxContainer: {
-    marginBottom: 16,
-  },
-  checkbox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  checkboxBox: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
-    borderColor: '#007AFF',
-    borderRadius: 4,
-    marginRight: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: '#007AFF',
-  },
-  checkboxCheck: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  checkboxLabel: {
-    fontSize: 14,
-    color: '#333',
   },
   snackbar: {
     position: 'absolute',
