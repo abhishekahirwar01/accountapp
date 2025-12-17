@@ -4,11 +4,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   Text,
-  ScrollView,
+  Dimensions,
   Modal,
-  TextInput,
-  Platform,
-  Pressable,
+  FlatList,
 } from 'react-native';
 import {
   RichEditor,
@@ -16,25 +14,39 @@ import {
   actions,
 } from 'react-native-pell-rich-editor';
 
-// 2. Font/Size Data
+// --- FONT SIZE DATA ---
 const FONT_SIZES_MAP = {
-  // Mapping Quill-like names to HTML font sizes (1-7) for pell-rich-editor
   Small: '1',
-  Normal: '3', // Default
+  Normal: '3',
   Large: '5',
   Huge: '7',
 };
 const FONT_SIZE_LABELS = Object.keys(FONT_SIZES_MAP);
 const FONT_SIZE_DEFAULT_LABEL = 'Normal';
+const FONT_FAMILY_DEFAULT = 'Times New Roman';
 
-const FONT_FAMILIES = ['Arial', 'Georgia', 'Times New Roman', 'Verdana'];
-const FONT_FAMILY_DEFAULT = 'Arial';
+const htmlSizeToPx = size => {
+  switch (size) {
+    case '1':
+      return 12;
+    case '3':
+      return 16;
+    case '5':
+      return 20;
+    case '7':
+      return 24;
+    default:
+      return 16;
+  }
+};
 
-// Custom Toolbar Picker Component
-const PickerButton = ({ label, onPress, isActive }) => (
+const WORD_LIMIT = 50;
+const DROPDOWN_HEIGHT = 200;
+
+const PickerButton = ({ label, onPress, isActive, style = {} }) => (
   <TouchableOpacity
     onPress={onPress}
-    style={[styles.pickerButton, isActive && styles.pickerButtonActive]}
+    style={[styles.pickerButton, isActive && styles.pickerButtonActive, style]}
   >
     <Text
       style={[
@@ -50,445 +62,278 @@ const PickerButton = ({ label, onPress, isActive }) => (
 const QuillEditor = ({
   value,
   onChange,
-  placeholder = 'Enter your notes here...',
+  placeholder = 'Add detailed notes with formatting...',
   style = {},
 }) => {
   const richText = useRef(null);
+  const sizeDropdownRef = useRef(null);
+
   const [editorValue, setEditorValue] = useState(value);
   const [currentFontSize, setCurrentFontSize] = useState(
     FONT_SIZE_DEFAULT_LABEL,
   );
-  const [currentFontFamily, setCurrentFontFamily] =
-    useState(FONT_FAMILY_DEFAULT);
-  const [isPickerVisible, setIsPickerVisible] = useState(null); // 'size' or 'family'
-  const [showLinkModal, setShowLinkModal] = useState(false);
-  const [showImageModal, setShowImageModal] = useState(false);
-  const [linkUrl, setLinkUrl] = useState('');
-  const [linkTitle, setLinkTitle] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
-  const [showColorPicker, setShowColorPicker] = useState(null); // 'fore'|'back'|null
+  const [isPickerVisible, setIsPickerVisible] = useState(false);
+  const [isOpeningUpward, setIsOpeningUpward] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({
+    pageX: 0,
+    pageY: 0,
+    width: 0,
+    height: 0,
+  });
   const [defaultEditorCss, setDefaultEditorCss] = useState('');
+  const [wordCount, setWordCount] = useState(0);
 
-  // 🔄 UNDO/REDO STATE MANAGEMENT (Manual Tracking)
   const history = useRef([]);
   const historyIndex = useRef(-1);
-  const isRestoring = useRef(false); // Flag to prevent history updates during undo/redo
+  const isRestoring = useRef(false);
+  const [showLimitWarning, setShowLimitWarning] = useState(false);
+  const lastValidHtml = useRef(value || '');
 
-  // Function to apply Font Size
-  const applyFontSize = useCallback(
-    label => {
-      const size = FONT_SIZES_MAP[label];
-      if (size) {
-        // 1. Apply formatting to current selection/typing via direct Pell function
-        richText.current?.setFontSize && richText.current.setFontSize(size);
+  const countWords = html => {
+    if (!html) return 0;
+    const text = html
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .trim();
+    if (text.length === 0) return 0;
+    return text.split(/\s+/).filter(word => word.length > 0).length;
+  };
 
-        // 2. Fallback: set default editor CSS for subsequent typing (uses px value)
-        const px =
-          size === '1' ? 12 : size === '3' ? 16 : size === '5' ? 20 : 24;
-        setDefaultEditorCss(prev => {
-          const familyMatch = prev.match(/font-family:\s*([^;]+);?/);
-          const family = familyMatch ? familyMatch[1] : currentFontFamily;
-          return `font-size: ${px}px; font-family: ${family};`;
-        });
-        setCurrentFontSize(label);
-      }
-      setIsPickerVisible(null);
-    },
-    [currentFontFamily],
-  );
-
-  // Function to apply Font Family
-  const applyFontFamily = useCallback(family => {
-    // 1. Apply formatting to current selection/typing via direct Pell function
-    richText.current?.setFontName && richText.current.setFontName(family);
-
-    // 2. Fallback: set default editor CSS for subsequent typing
-    setDefaultEditorCss(prev => {
-      const sizeMatch = prev.match(/font-size:\s*([^;]+);?/);
-      const size = sizeMatch ? sizeMatch[1] : '16px';
-      return `font-family: ${family}; font-size: ${size};`;
-    });
-    setCurrentFontFamily(family);
-    setIsPickerVisible(null);
+  const measureAndSetPosition = useCallback(ref => {
+    if (ref.current) {
+      ref.current.measureInWindow((pageX, pageY, width, height) => {
+        setDropdownPosition({ pageX, pageY, width, height });
+        const screenHeight = Dimensions.get('window').height;
+        setIsOpeningUpward(
+          screenHeight - pageY - height < DROPDOWN_HEIGHT + 50,
+        );
+      });
+    }
   }, []);
 
-  // Insert link
-  const handleInsertLink = useCallback(() => {
-    if (!linkUrl) return;
-    try {
-      richText.current?.insertLink(linkUrl, linkTitle || linkUrl);
-    } catch (e) {
-      // no-op
+  const applyFontSize = useCallback(label => {
+    const size = FONT_SIZES_MAP[label];
+    if (size) {
+      richText.current?.setFontSize(size);
+      const px = htmlSizeToPx(size);
+      setDefaultEditorCss(
+        `font-size: ${px}px; font-family: ${FONT_FAMILY_DEFAULT};`,
+      );
+      setCurrentFontSize(label);
     }
-    setLinkUrl('');
-    setLinkTitle('');
-    setShowLinkModal(false);
-  }, [linkUrl, linkTitle]);
+    setIsPickerVisible(false);
+  }, []);
 
-  // Insert image by URL
-  const handleInsertImage = useCallback(() => {
-    if (!imageUrl) return;
-    try {
-      richText.current?.insertImage(imageUrl);
-    } catch (e) {
-      // no-op fallback
-    }
-    setImageUrl('');
-    setShowImageModal(false);
-  }, [imageUrl]);
-
-  // ⚡ UPDATED: Manual Undo
   const handleUndo = useCallback(() => {
     if (historyIndex.current > 0) {
-      isRestoring.current = true; // Set flag
+      isRestoring.current = true;
       historyIndex.current -= 1;
-      const previousContent = history.current[historyIndex.current];
-      // Set content directly
-      richText.current?.setContentHTML(previousContent);
-      setEditorValue(previousContent); // Update local state
-      onChange(previousContent); // Notify parent
+      const content = history.current[historyIndex.current];
+      richText.current?.setContentHTML(content);
+      setEditorValue(content);
+      lastValidHtml.current = content;
+      setWordCount(countWords(content));
+      onChange(content);
     }
   }, [onChange]);
 
-  // ⚡ UPDATED: Manual Redo
   const handleRedo = useCallback(() => {
     if (historyIndex.current < history.current.length - 1) {
-      isRestoring.current = true; // Set flag
+      isRestoring.current = true;
       historyIndex.current += 1;
-      const nextContent = history.current[historyIndex.current];
-      // Set content directly
-      richText.current?.setContentHTML(nextContent);
-      setEditorValue(nextContent); // Update local state
-      onChange(nextContent); // Notify parent
+      const content = history.current[historyIndex.current];
+      richText.current?.setContentHTML(content);
+      setEditorValue(content);
+      lastValidHtml.current = content;
+      setWordCount(countWords(content));
+      onChange(content);
     }
   }, [onChange]);
 
-  const applyColor = color => {
-    if (!color) return;
-    if (showColorPicker === 'fore') {
-      richText.current?.setForeColor
-        ? richText.current.setForeColor(color)
-        : richText.current?.sendAction &&
-          richText.current.sendAction('foreColor', color);
-    } else if (showColorPicker === 'back') {
-      richText.current?.setHiliteColor
-        ? richText.current.setHiliteColor(color)
-        : richText.current?.sendAction &&
-          richText.current.sendAction('hiliteColor', color);
-    }
-    setShowColorPicker(null);
-  };
-
-  // Sync editor when parent value changes
   useEffect(() => {
-    if (value !== editorValue) {
-      setEditorValue(value);
-      if (richText.current) {
-        richText.current.setContentHTML(value);
-      }
-    }
-    // Initialize history with initial value
-    if (historyIndex.current === -1 && value) {
-      history.current = [value];
+    const initialValue = value || '';
+    setEditorValue(initialValue);
+    lastValidHtml.current = initialValue;
+    setWordCount(countWords(initialValue));
+    if (historyIndex.current === -1) {
+      history.current = [initialValue];
       historyIndex.current = 0;
     }
+    const initialCss = `font-size: 16px; font-family: ${FONT_FAMILY_DEFAULT};`;
+    setDefaultEditorCss(initialCss);
   }, [value]);
 
-  // ⚡ UPDATED: Manual History Tracking in content change
   const handleContentChange = htmlContent => {
-    setEditorValue(htmlContent);
-    onChange(htmlContent);
-
-    // Track history only if we are NOT restoring content
-    if (!isRestoring.current) {
-      // Debounce history saving here if needed, but keeping it simple for now:
-      // 1. Cut off future history (for redo)
-      history.current = history.current.slice(0, historyIndex.current + 1);
-      // 2. Add current content
-      history.current.push(htmlContent);
-      // 3. Update index
-      historyIndex.current = history.current.length - 1;
+    if (isRestoring.current) {
+      isRestoring.current = false;
+      return;
     }
-    // Reset flag after content change
-    isRestoring.current = false;
+    const words = countWords(htmlContent);
+    if (words <= WORD_LIMIT) {
+      setEditorValue(htmlContent);
+      lastValidHtml.current = htmlContent;
+      setWordCount(words);
+      onChange(htmlContent);
+      history.current = [
+        ...history.current.slice(0, historyIndex.current + 1),
+        htmlContent,
+      ];
+      historyIndex.current = history.current.length - 1;
+      setShowLimitWarning(false);
+    } else {
+      isRestoring.current = true;
+      richText.current?.setContentHTML(lastValidHtml.current);
+      setShowLimitWarning(true);
+    }
   };
 
-  // Removed native undo/redo actions from toolbar, relying on manual buttons
-  const toolbarActions = [
-    actions.setBold,
-    actions.setItalic,
-    actions.setUnderline,
-    actions.setStrikethrough,
-    actions.heading1,
-    actions.heading2,
-    actions.heading3,
-    actions.insertBulletsList,
-    actions.insertOrderedList,
-    actions.alignLeft,
-    actions.alignCenter,
-    actions.alignRight,
-    actions.removeFormat,
-    // Native link/image actions removed as we use modals/custom buttons
-    // Native undo/redo actions removed as we use manual logic
-  ];
-
-  const handleEditorFocus = () => {
-    setIsPickerVisible(null); // Hide pickers when editing starts
-  };
-
-  // Render Font/Size Picker
-  const renderPicker = () => {
+  const renderPickerModal = () => {
     if (!isPickerVisible) return null;
-
-    const items = isPickerVisible === 'size' ? FONT_SIZE_LABELS : FONT_FAMILIES;
-    const onPress =
-      isPickerVisible === 'size' ? applyFontSize : applyFontFamily;
-
     return (
-      <Modal visible={!!isPickerVisible} transparent animationType="fade">
+      <Modal visible={isPickerVisible} transparent animationType="none">
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setIsPickerVisible(null)} // Close modal on overlay click
+          onPress={() => setIsPickerVisible(false)}
         >
-          <View style={styles.pickerModalContainer}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.pickerScroll}
-            >
-              {items.map(item => (
+          <View
+            style={[
+              styles.pickerStyle,
+              {
+                left: dropdownPosition.pageX,
+                ...(isOpeningUpward
+                  ? {
+                      bottom:
+                        Dimensions.get('window').height -
+                        dropdownPosition.pageY,
+                    }
+                  : { top: dropdownPosition.pageY + dropdownPosition.height }),
+              },
+            ]}
+          >
+            <FlatList
+              data={FONT_SIZE_LABELS}
+              renderItem={({ item }) => (
                 <PickerButton
-                  key={item}
                   label={item}
-                  onPress={() => onPress(item)}
-                  isActive={
-                    isPickerVisible === 'size'
-                      ? currentFontSize === item
-                      : currentFontFamily === item
-                  }
+                  onPress={() => applyFontSize(item)}
+                  isActive={currentFontSize === item}
                 />
-              ))}
-            </ScrollView>
+              )}
+              keyExtractor={item => item}
+            />
           </View>
         </TouchableOpacity>
       </Modal>
     );
   };
 
+  const toolbarActions = [
+    actions.setBold,
+    actions.setItalic,
+    actions.setUnderline,
+    actions.setStrikethrough,
+    actions.insertBulletsList,
+    actions.insertOrderedList,
+    actions.alignLeft,
+    actions.alignCenter,
+    actions.alignRight,
+    actions.removeFormat,
+  ];
+
   return (
     <View style={[styles.container, style]}>
-      {/* Custom Header Toolbar */}
-      <View style={styles.customToolbar}>
-        {/* Size Dropdown */}
+      {/* Word Limit Modal */}
+      <Modal visible={showLimitWarning} transparent animationType="fade">
+        <View style={styles.warningOverlay}>
+          <View style={styles.warningBox}>
+            <Text style={styles.warningText}>
+              ⚠️ Word limit reached ({WORD_LIMIT} words).
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowLimitWarning(false)}
+              style={styles.closeButton}
+            >
+              <Text style={styles.closeButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {renderPickerModal()}
+
+      {/* Main Toolbar - Fixed Alignment */}
+      <View style={styles.richToolbarContainer}>
         <TouchableOpacity
-          onPress={() =>
-            setIsPickerVisible(isPickerVisible === 'size' ? null : 'size')
-          }
-          style={styles.pickerDropdown}
+          ref={sizeDropdownRef}
+          onLayout={() => measureAndSetPosition(sizeDropdownRef)}
+          onPress={() => {
+            measureAndSetPosition(sizeDropdownRef);
+            setIsPickerVisible(true);
+          }}
+          style={styles.fontDropdown}
         >
           <Text style={styles.dropdownText}>{currentFontSize} ▾</Text>
         </TouchableOpacity>
 
-        {/* Family Dropdown */}
-        <TouchableOpacity
-          onPress={() =>
-            setIsPickerVisible(isPickerVisible === 'family' ? null : 'family')
-          }
-          style={styles.pickerDropdown}
-        >
-          <Text style={styles.dropdownText}>
-            {currentFontFamily.slice(0, 5)}... ▾
-          </Text>
-        </TouchableOpacity>
-
-        {/* Separator */}
-        <View style={styles.separator} />
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.toolbarFlatList}
+          contentContainerStyle={styles.toolbarContent}
+          data={toolbarActions}
+          renderItem={({ item }) => (
+            <RichToolbar
+              editor={richText}
+              actions={[item]}
+              iconTint="#333"
+              style={styles.singleActionToolbar}
+              flatContainerStyle={{ backgroundColor: 'transparent' }}
+            />
+          )}
+          keyExtractor={(item, index) => `action-${index}`}
+        />
       </View>
 
-      {/* Font/Size Selection UI (modal) */}
-      {renderPicker()}
-
-      {/* Rich Toolbar (Main actions) */}
-      <RichToolbar
-        editor={richText}
-        actions={toolbarActions}
-        style={styles.richToolbar}
-        iconTint="#333"
-      />
-
-      {/* Extra small toolbar controls: Link/Image/Colors/Undo/Redo */}
+      {/* Undo/Redo & Count */}
       <View style={styles.extraToolbar}>
         <TouchableOpacity
-          onPress={() => setShowLinkModal(true)}
+          onPress={handleUndo}
           style={styles.extraButton}
+          disabled={historyIndex.current <= 0}
         >
-          <Text style={styles.extraButtonText}>🔗 Link</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setShowImageModal(true)}
-          style={styles.extraButton}
-        >
-          <Text style={styles.extraButtonText}>🖼️ Image</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() =>
-            setShowColorPicker(showColorPicker === 'fore' ? null : 'fore')
-          }
-          style={styles.extraButton}
-        >
-          <Text style={styles.extraButtonText}>A</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() =>
-            setShowColorPicker(showColorPicker === 'back' ? null : 'back')
-          }
-          style={styles.extraButton}
-        >
-          <Text style={styles.extraButtonText}>BG</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handleUndo} style={styles.extraButton}>
           <Text style={styles.extraButtonText}>⏪ Undo</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={handleRedo} style={styles.extraButton}>
+        <TouchableOpacity
+          onPress={handleRedo}
+          style={styles.extraButton}
+          disabled={historyIndex.current >= history.current.length - 1}
+        >
           <Text style={styles.extraButtonText}>⏩ Redo</Text>
         </TouchableOpacity>
+        <View style={styles.wordCountContainer}>
+          <Text
+            style={[
+              styles.wordCountText,
+              wordCount >= WORD_LIMIT && styles.wordCountExceeded,
+            ]}
+          >
+            {wordCount}/{WORD_LIMIT}
+          </Text>
+        </View>
       </View>
 
-      {/* Color picker rendered as Modal overlay so it stays above the editor */}
-      <Modal
-        visible={!!showColorPicker}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowColorPicker(null)}
-        presentationStyle="overFullScreen"
-      >
-        <Pressable
-          style={styles.colorModalOverlay}
-          onPress={() => setShowColorPicker(null)}
-        >
-          <Pressable style={styles.colorModalContainer} onPress={() => {}}>
-            <Text style={styles.modalTitle}>Choose Color</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.colorPickerScroll}
-              keyboardShouldPersistTaps="handled"
-            >
-              {[
-                '#000000',
-                '#DC2626',
-                '#16A34A',
-                '#1E40AF',
-                '#F59E0B',
-                '#9333EA',
-                '#6B7280',
-                '#FFFFFF',
-              ].map(c => (
-                <TouchableOpacity
-                  key={c}
-                  onPress={() => applyColor(c)}
-                  style={[
-                    styles.colorSwatch,
-                    { backgroundColor: c },
-                    c === '#FFFFFF' && { borderWidth: 1, borderColor: '#ccc' },
-                  ]}
-                />
-              ))}
-            </ScrollView>
-            <View style={styles.colorModalActions}>
-              <TouchableOpacity
-                onPress={() => setShowColorPicker(null)}
-                style={[styles.modalButton, { marginRight: 8 }]}
-              >
-                <Text>Close</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* Link Modal */}
-      <Modal visible={showLinkModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>Insert Link</Text>
-            <TextInput
-              placeholder="URL"
-              value={linkUrl}
-              onChangeText={setLinkUrl}
-              style={styles.modalInput}
-              keyboardType={Platform.OS === 'ios' ? 'url' : 'default'}
-              autoCapitalize="none"
-            />
-            <TextInput
-              placeholder="Text (optional)"
-              value={linkTitle}
-              onChangeText={setLinkTitle}
-              style={styles.modalInput}
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                onPress={() => setShowLinkModal(false)}
-                style={styles.modalButton}
-              >
-                <Text>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleInsertLink}
-                style={[styles.modalButton, styles.modalPrimary]}
-              >
-                <Text style={{ color: 'white' }}>Insert</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Image Modal */}
-      <Modal visible={showImageModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>Insert Image (URL)</Text>
-            <TextInput
-              placeholder="Image URL"
-              value={imageUrl}
-              onChangeText={setImageUrl}
-              style={styles.modalInput}
-              autoCapitalize="none"
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                onPress={() => setShowImageModal(false)}
-                style={styles.modalButton}
-              >
-                <Text>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleInsertImage}
-                style={[styles.modalButton, styles.modalPrimary]}
-              >
-                <Text style={{ color: 'white' }}>Insert</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Rich Editor */}
       <RichEditor
         ref={richText}
-        initialContentHTML={editorValue}
+        initialContentHTML={value}
         placeholder={placeholder}
         onChange={handleContentChange}
-        onFocus={handleEditorFocus}
-        style={[styles.editor, style && style.editor]}
+        style={styles.editor}
         editorStyle={{
           ...styles.editorContent,
-          // Apply custom CSS for initial/default typing style
           ...(defaultEditorCss ? { cssText: defaultEditorCss } : {}),
         }}
-        initialHeight={200} // Ensure enough space
+        initialHeight={250}
       />
     </View>
   );
@@ -497,202 +342,114 @@ const QuillEditor = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    margin: 0,
-    borderWidth: 0,
-    borderColor: 'transparent',
-    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    backgroundColor: '#fff',
     overflow: 'hidden',
-    backgroundColor: '#ffffff',
-    padding: 6,
   },
-  // --- Custom Toolbar Styles ---
-  customToolbar: {
+  richToolbarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    backgroundColor: '#fbfbfb',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  richToolbar: {
     backgroundColor: '#f9f9f9',
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
-  },
-  pickerDropdown: {
-    paddingVertical: 6,
+    borderBottomColor: '#eee',
+    height: 50,
     paddingHorizontal: 10,
+  },
+  fontDropdown: {
+    height: 34,
+    minWidth: 80,
     borderWidth: 1,
-    borderColor: '#E6EEF5',
-    borderRadius: 6,
-    marginRight: 8,
-    minWidth: 72,
+    borderColor: '#ccc',
+    borderRadius: 4,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 8,
   },
   dropdownText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#333',
-    fontWeight: '500',
+    fontWeight: '600',
   },
-  separator: {
-    width: 1,
-    height: '80%',
-    backgroundColor: '#ddd',
-    marginHorizontal: 10,
-  },
-  // --- Picker Menu Styles ---
-  pickerModalContainer: {
-    width: '90%',
-    maxWidth: 700,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-  },
-  pickerScroll: {
-    alignItems: 'center',
-    paddingVertical: 6,
-  },
-  pickerButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginRight: 8,
-    borderRadius: 4,
-    backgroundColor: '#eee',
-  },
-  pickerButtonActive: {
-    backgroundColor: '#007aff',
-  },
-  pickerButtonText: {
-    color: '#333',
-    fontSize: 14,
-  },
-  pickerButtonTextActive: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  // --- Editor Styles ---
-  editor: {
+  toolbarFlatList: {
     flex: 1,
-    minHeight: 120,
-    backgroundColor: '#fff',
   },
-  editorContent: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 15,
-    paddingVertical: 12,
+  toolbarContent: {
+    alignItems: 'center',
+  },
+  singleActionToolbar: {
+    backgroundColor: 'transparent',
+    width: 38,
+    height: 38,
+    justifyContent: 'center',
   },
   extraToolbar: {
     flexDirection: 'row',
-    paddingHorizontal: 6,
-    paddingVertical: 8,
-    gap: 8,
-    backgroundColor: '#ffffff',
+    padding: 10,
+    alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-    flexWrap: 'wrap',
+    borderBottomColor: '#f0f0f0',
   },
   extraButton: {
     paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#ffffff',
+    paddingVertical: 5,
     borderWidth: 1,
-    borderColor: '#eef2f6',
-    minWidth: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: '#ddd',
+    borderRadius: 4,
+    marginRight: 8,
   },
-  extraButtonText: {
-    fontSize: 13,
-    color: '#374151',
-    textAlign: 'center',
+  extraButtonText: { fontSize: 12, color: '#444' },
+  wordCountContainer: {
+    marginLeft: 'auto',
+    backgroundColor: '#eee',
+    paddingHorizontal: 8,
+    borderRadius: 10,
   },
-  colorPicker: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
+  wordCountText: { fontSize: 12, color: '#666' },
+  wordCountExceeded: { color: 'red', fontWeight: 'bold' },
+  editor: { flex: 1 },
+  editorContent: { padding: 15 },
+  modalOverlay: { flex: 1 },
+  pickerStyle: {
+    position: 'absolute',
+    width: 120,
+    backgroundColor: 'white',
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    elevation: 5,
+    zIndex: 2000,
+  },
+  pickerButton: {
+    padding: 10,
+    borderBottomWidth: 0.5,
     borderBottomColor: '#eee',
   },
-  colorSwatch: {
-    width: 40,
-    height: 40,
-    borderRadius: 6,
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: '#eef2f6',
-    elevation: 2,
-  },
-  modalOverlay: {
+  pickerButtonActive: { backgroundColor: '#f0f0f0' },
+  pickerButtonText: { fontSize: 14, color: '#333' },
+  pickerButtonTextActive: { fontWeight: 'bold' },
+  warningOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalContainer: {
-    width: '92%',
-    maxWidth: 560,
-    backgroundColor: 'white',
-    padding: 14,
-    borderRadius: 10,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  modalInput: {
-    height: 44,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    marginBottom: 8,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  modalButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
+  warningBox: {
     backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  modalPrimary: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
-  },
-  colorModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
-  colorModalContainer: {
-    width: '100%',
-    maxWidth: 720,
-    backgroundColor: 'white',
+    padding: 20,
     borderRadius: 10,
-    padding: 14,
-    elevation: 30,
-    zIndex: 1000,
-  },
-  colorPickerScroll: {
-    paddingVertical: 8,
     alignItems: 'center',
   },
-  colorModalActions: {
-    marginTop: 12,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
+  warningText: { color: 'red', marginBottom: 15 },
+  closeButton: {
+    backgroundColor: '#007aff',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 5,
   },
+  closeButtonText: { color: '#fff', fontWeight: 'bold' },
 });
 
 export default QuillEditor;

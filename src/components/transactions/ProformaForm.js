@@ -1913,7 +1913,7 @@ export default function ProformaForm({
           <Text style={styles.sectionTitle}>Additional Details</Text>
 
           <View style={styles.formRow}>
-            <View style={styles.formField}>
+            {/* <View style={styles.formField}>
               <Text style={styles.label}>Payment Method</Text>
               <CustomDropdown
                 items={paymentMethodOptions}
@@ -1922,9 +1922,9 @@ export default function ProformaForm({
                 placeholder="Select payment method"
                 style={styles.dropdown}
               />
-            </View>
+            </View> */}
 
-            <View style={styles.formField}>
+            {/* <View style={styles.formField}>
               <Text style={styles.label}>Bank</Text>
               <CustomDropdown
                 items={bankOptions}
@@ -1933,7 +1933,7 @@ export default function ProformaForm({
                 placeholder="Select bank"
                 style={styles.dropdown}
               />
-            </View>
+            </View> */}
           </View>
 
           {/* Notes Section */}
