@@ -78,10 +78,20 @@ const generateHTMLContent = (transaction, company, party) => {
     bankData?.accountNo ||
     bankData?.upiDetails?.upiId;
 
-  // Generate items table rows HTML
-  const generateItemRows = () => {
-    return itemsWithGST
+  // Pagination logic - 27 items per page
+  const ITEMS_PER_PAGE = 40;
+  const totalItemsCount = itemsWithGST.length;
+  const totalPages = Math.max(1, Math.ceil(totalItemsCount / ITEMS_PER_PAGE));
+
+  // Function to generate item rows for a specific page
+  const generateItemRowsForPage = (pageNumber) => {
+    const startIndex = (pageNumber - 1) * ITEMS_PER_PAGE;
+    const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalItemsCount);
+    const pageItems = itemsWithGST.slice(startIndex, endIndex);
+
+    return pageItems
       .map((item, index) => {
+        const itemIndex = startIndex + index;
         const igstHtml = showIGST
           ? `
         <td style="border: 1px solid #0371C1; padding: 2px; width: 12%;">
@@ -125,7 +135,7 @@ const generateHTMLContent = (transaction, company, party) => {
         return `
         <tr style="border-bottom: 1px solid #0371C1;">
           <td style="border: 1px solid #0371C1; padding: 2px; width: 8%; text-align: center; font-size: 7px;">${
-            index + 1
+            itemIndex + 1
           }</td>
           <td style="border: 1px solid #0371C1; padding: 2px; width: 25%; text-align: left; font-size: 7px;">${capitalizeWords(
             item.name,
@@ -205,8 +215,10 @@ const generateHTMLContent = (transaction, company, party) => {
     `;
   };
 
-  // Generate total row HTML
-  const generateTotalRow = () => {
+  // Generate total row HTML - only shown on last page
+  const generateTotalRow = (isLastPage) => {
+    if (!isLastPage) return '';
+    
     const igstTotal = showIGST
       ? `
       <td style="border: 1px solid #0371C1; padding: 2px; width: 12%;">
@@ -340,252 +352,17 @@ const generateHTMLContent = (transaction, company, party) => {
     return bankDetailsHTML;
   };
 
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>
-        @page {
-          size: A5;
-          margin: 0;
-        }
-        body {
-          font-family: 'Helvetica', Arial, sans-serif;
-          margin: 16px;
-          padding: 0;
-          color: #000;
-          background-color: #FFFFFF;
-        }
-        .container {
-          width: 100%;
-          max-width: 100%;
-          box-sizing: border-box;
-        }
-        .header {
-          display: flex;
-          margin-bottom: 8px;
-          padding-bottom: 4px;
-          align-items: center;
-          gap: 6px;
-        }
-        .header-left {
-          flex: 1;
-        }
-        .header-right {
-          flex: 3;
-        }
-        .logo {
-          width: 70px;
-          height: 70px;
-          object-fit: contain;
-        }
-        .company-name {
-          font-size: 18px;
-          font-weight: bold;
-          margin-bottom: 5px;
-          color: #000;
-        }
-        .address {
-          font-size: 10px;
-          margin-bottom: 3px;
-          line-height: 14px;
-          color: #000;
-        }
-        .contact-info {
-          font-size: 10px;
-          line-height: 14px;
-          display: flex;
-          flex-wrap: wrap;
-          gap: 4px;
-          align-items: center;
-        }
-        .contact-label {
-          font-size: 10px;
-          font-weight: bold;
-          color: #000;
-        }
-        .contact-value {
-          font-size: 10px;
-          font-weight: normal;
-          color: #000;
-        }
-        .main-section {
-          border: 1.5px solid #0371C1;
-          padding: 0;
-          margin-top: 10px;
-        }
-        .table-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border: 1.5px solid #0371C1;
-        }
-        .gst-row {
-          padding: 3px;
-        }
-        .gst-label {
-          font-size: 10px;
-          font-weight: bold;
-          color: #000;
-        }
-        .gst-value {
-          font-size: 10px;
-          font-weight: normal;
-          color: #000;
-        }
-        .invoice-title-row {
-          padding: 3px;
-        }
-        .invoice-title {
-          font-size: 16px;
-          font-weight: 800;
-          text-align: center;
-          color: #0371C1;
-        }
-        .recipient-row {
-          padding: 3px;
-        }
-        .recipient-text {
-          font-size: 10px;
-          font-weight: bold;
-          text-align: center;
-          color: #000;
-        }
-        .three-col-section {
-          display: flex;
-          border-bottom: 1.5px solid #0371C1;
-          border-left: 1.5px solid #0371C1;
-          border-right: 1.5px solid #0371C1;
-        }
-        .column {
-          width: 33.3%;
-          padding: 0 4px;
-          border-left: 1px solid #0371C1;
-        }
-        .no-left-border {
-          border-left: none;
-        }
-        .no-right-border {
-          border-right: none;
-        }
-        .column-header {
-          margin-bottom: 5px;
-        }
-        .threecoltable-header {
-          font-size: 8px;
-          font-weight: bold;
-          color: #000;
-        }
-        .data-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          padding: 2px 0;
-        }
-        .invoice-detail-row {
-          gap: 30px;
-        }
-        .table-label {
-          font-size: 8px;
-          font-weight: bold;
-          width: 40%;
-          color: #000;
-        }
-        .table-value {
-          font-size: 8px;
-          font-weight: normal;
-          width: 70%;
-          color: #000;
-        }
-        .table-container {
-          border-bottom: 1.5px solid #0371C1;
-          border-left: 1.5px solid #0371C1;
-          border-right: 1.5px solid #0371C1;
-        }
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          table-layout: fixed;
-        }
-        .bottom-section {
-          display: flex;
-          border-top: 1px solid #0371C1;
-          border-left: 1px solid #0371C1;
-          border-right: 1px solid #0371C1;
-          border-bottom: 1px solid #0371C1;
-          font-size: 7px;
-        }
-        .left-section {
-          width: 65%;
-          border-right: 1px solid #0371C1;
-        }
-        .total-in-words {
-          font-size: 7px;
-          font-weight: bold;
-          border-bottom: 1px solid #0371C1;
-          padding: 3px;
-          text-transform: uppercase;
-          color: #000;
-        }
-        .bank-details-wrapper {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          padding: 4px;
-        }
-        .right-section {
-          width: 35%;
-        }
-        .total-row {
-          display: flex;
-          justify-content: space-between;
-          border-bottom: 1px solid #0371C1;
-          padding: 3px;
-        }
-        .label {
-          font-size: 8px;
-          font-weight: bold;
-          color: #000;
-        }
-        .value {
-          font-size: 8px;
-          font-weight: bold;
-          color: #000;
-        }
-        .highlight-row {
-          background-color: #EAF4FF;
-        }
-        .terms-box {
-          padding: 8px 8px 0 8px;
-          border-left: 1px solid #0371C1;
-          border-right: 1px solid #0371C1;
-        }
-        .term-line {
-          font-size: 10px;
-          margin-bottom: 2px;
-          color: #000000;
-          text-align: left;
-          text-decoration: none;
-          background-color: transparent;
-        }
-        .bold-text {
-          font-weight: bold;
-        }
-        .flex {
-          display: flex;
-        }
-        .items-center {
-          align-items: center;
-        }
-        .justify-center {
-          justify-content: center;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
+  // Function to generate page HTML
+  const generatePageHTML = (pageNumber) => {
+    const isLastPage = pageNumber === totalPages;
+    const hasNextPage = pageNumber < totalPages;
+    
+    // Calculate the height needed for the items table
+    const itemRowsHeight = Math.min(ITEMS_PER_PAGE, totalItemsCount - ((pageNumber - 1) * ITEMS_PER_PAGE)) * 20;
+    const tableHeight = itemRowsHeight + 40; // Add header height
+
+    return `
+      <div class="page" style="page-break-after: ${hasNextPage ? 'always' : 'auto'};">
         <!-- Header Section -->
         <div class="header">
           <div class="header-left">
@@ -810,19 +587,22 @@ const generateHTMLContent = (transaction, company, party) => {
           </div>
 
           <!-- Items Table - Main Content -->
-          <div class="table-container">
+          <div class="table-container" border-bottom: none;">
             <table>
               <thead>
                 ${generateTableHeader()}
               </thead>
               <tbody>
-                ${generateItemRows()}
-                ${generateTotalRow()}
+                ${generateItemRowsForPage(pageNumber)}
+                ${generateTotalRow(isLastPage)}
               </tbody>
             </table>
           </div>
 
-          <!-- Bottom Section -->
+          <!-- Bottom Section (only on last page) -->
+          ${
+            isLastPage
+              ? `
           <div class="bottom-section">
             <!-- Left Column: Total in words + Bank Details -->
             <div class="left-section">
@@ -886,7 +666,7 @@ const generateHTMLContent = (transaction, company, party) => {
             </div>
           </div>
 
-          <!-- Terms and Conditions -->
+          <!-- Terms and Conditions (only on last page) -->
           ${
             transaction?.notes
               ? `
@@ -897,7 +677,288 @@ const generateHTMLContent = (transaction, company, party) => {
           `
               : ''
           }
+          `
+              : ''
+          }
         </div>
+
+        <!-- Page Number Footer -->
+        <div class="page-number">
+          Page ${pageNumber} of ${totalPages}
+        </div>
+      </div>
+    `;
+  };
+
+  // Generate all pages HTML
+  let allPagesHTML = '';
+  for (let i = 1; i <= totalPages; i++) {
+    allPagesHTML += generatePageHTML(i);
+  }
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        @page {
+          size: A4;
+          margin: 0;
+        }
+        body {
+          font-family: 'Helvetica', Arial, sans-serif;
+          margin: 16px;
+          padding: 0;
+          color: #000;
+          background-color: #FFFFFF;
+          position: relative;
+          min-height: 864px; /* A4 height in pixels at 96 DPI */
+        }
+        .page {
+          position: relative;
+          width: 100%;
+          min-height: 864px; /* A4 height minus margins */
+        }
+        .page-number {
+          position: absolute;
+          bottom: 0;
+          right: 0;
+          font-size: 10px;
+          color: #666;
+          padding: 5px 10px;
+        }
+        .container {
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
+        }
+        .header {
+          display: flex;
+          margin-bottom: 8px;
+          padding-bottom: 4px;
+          align-items: center;
+          gap: 6px;
+        }
+        .header-left {
+          flex: 1;
+        }
+        .header-right {
+          flex: 8;
+        }
+        .logo {
+          width: 70px;
+          height: 70px;
+          object-fit: contain;
+        }
+        .company-name {
+          font-size: 18px;
+          font-weight: bold;
+          margin-bottom: 5px;
+          color: #000;
+        }
+        .address {
+          font-size: 10px;
+          margin-bottom: 3px;
+          line-height: 14px;
+          color: #000;
+        }
+        .contact-info {
+          font-size: 10px;
+          line-height: 14px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          align-items: center;
+        }
+        .contact-label {
+          font-size: 10px;
+          font-weight: bold;
+          color: #000;
+        }
+        .contact-value {
+          font-size: 10px;
+          font-weight: normal;
+          color: #000;
+        }
+        .main-section {
+          border: 1.5px solid #0371C1;
+          padding: 0;
+          margin-top: 10px;
+        }
+        .table-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border: 1.5px solid #0371C1;
+        }
+        .gst-row {
+          padding: 3px;
+        }
+        .gst-label {
+          font-size: 10px;
+          font-weight: bold;
+          color: #000;
+        }
+        .gst-value {
+          font-size: 10px;
+          font-weight: normal;
+          color: #000;
+        }
+        .invoice-title-row {
+          padding: 3px;
+        }
+        .invoice-title {
+          font-size: 16px;
+          font-weight: 800;
+          text-align: center;
+          color: #0371C1;
+        }
+        .recipient-row {
+          padding: 3px;
+        }
+        .recipient-text {
+          font-size: 10px;
+          font-weight: bold;
+          text-align: center;
+          color: #000;
+        }
+        .three-col-section {
+          display: flex;
+          border-bottom: 1.5px solid #0371C1;
+          border-left: 1.5px solid #0371C1;
+          border-right: 1.5px solid #0371C1;
+        }
+        .column {
+          width: 33.3%;
+          padding: 0 4px;
+          border-left: 1px solid #0371C1;
+        }
+        .no-left-border {
+          border-left: none;
+        }
+        .no-right-border {
+          border-right: none;
+        }
+        .column-header {
+          margin-bottom: 5px;
+        }
+        .threecoltable-header {
+          font-size: 8px;
+          font-weight: bold;
+          color: #000;
+        }
+        .data-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          padding: 2px 0;
+        }
+        .invoice-detail-row {
+          gap: 30px;
+        }
+        .table-label {
+          font-size: 8px;
+          font-weight: bold;
+          width: 40%;
+          color: #000;
+        }
+        .table-value {
+          font-size: 8px;
+          font-weight: normal;
+          width: 70%;
+          color: #000;
+        }
+        .table-container {
+          // border-left: 1.5px solid #0371C1;
+          // border-right: 1.5px solid #0371C1;
+          overflow: hidden;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+        }
+        .bottom-section {
+          display: flex;
+          border-top: 1px solid #0371C1;
+          border-left: 1.5px solid #0371C1;
+          border-right: 1.5px solid #0371C1;
+          border-bottom: 1.5px solid #0371C1;
+          font-size: 7px;
+        }
+        .left-section {
+          width: 65%;
+          border-right: 1px solid #0371C1;
+        }
+        .total-in-words {
+          font-size: 7px;
+          font-weight: bold;
+          border-bottom: 1px solid #0371C1;
+          padding: 3px;
+          text-transform: uppercase;
+          color: #000;
+        }
+        .bank-details-wrapper {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          padding: 4px;
+        }
+        .right-section {
+          width: 35%;
+        }
+        .total-row {
+          display: flex;
+          justify-content: space-between;
+          border-bottom: 1px solid #0371C1;
+          padding: 3px;
+        }
+        .label {
+          font-size: 8px;
+          font-weight: bold;
+          color: #000;
+        }
+        .value {
+          font-size: 8px;
+          font-weight: bold;
+          color: #000;
+        }
+        .highlight-row {
+          background-color: #EAF4FF;
+        }
+        .terms-box {
+          padding: 8px 8px 0 18px;
+          border-left: 1.5px solid #0371C1;
+          border-right: 1.5px solid #0371C1;
+          margin-bottom: -12px;
+        }
+        .term-line {
+          font-size: 10px;
+          // margin-bottom: 2px;
+          color: #000000;
+          text-align: left;
+          text-decoration: none;
+          background-color: transparent;
+        }
+        .bold-text {
+          font-weight: bold;
+        }
+        .flex {
+          display: flex;
+        }
+        .items-center {
+          align-items: center;
+        }
+        .justify-center {
+          justify-content: center;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        ${allPagesHTML}
       </div>
     </body>
     </html>
@@ -922,9 +983,9 @@ export const generatePdfForTemplateA5 = async (
       html: htmlContent,
       fileName: `invoice_${transaction.invoiceNumber || Date.now()}`,
       directory: 'Documents',
-      // A5 size in points: 420 x 595 points (14.8 x 21.0 cm)
-      width: 420,
-      height: 595,
+      // A4 size in points: 595 x 842 points (21.0 x 29.7 cm)
+      width: 595,
+      height: 842,
       padding: 16,
       baseUrl: BASE_URL,
     };

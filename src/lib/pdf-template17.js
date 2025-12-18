@@ -1,1724 +1,909 @@
-// template17.js
-import React, { useRef } from 'react';
+// template17.js - Tax Invoice with A4 size, repeating header on every page
+import React from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Platform,
-  Share,
-} from 'react-native';
-import { capitalizeWords, parseNotesHtml } from './utils';
-import {
-  invNo,
+  formatCurrency,
   getBillingAddress,
   getShippingAddress,
-  getStateCode,
+  prepareTemplate8Data,
   numberToWords,
+  getStateCode,
   formatPhoneNumber,
   formatQuantity,
 } from './pdf-utils';
-import RNHTMLtoPDF from 'react-native-html-to-pdf';
-import { BASE_URL } from '../config';
+import { capitalizeWords } from './utils';
+import { generatePDF } from 'react-native-html-to-pdf';
 
-// Constants
-const PRIMARY_BLUE = '#006EC8';
-const DARK = '#2D3748';
-const BORDER = '#006EC8';
-const LIGHT_BLUE = '#C8E1FF';
+// --- Constants ---
+const PRIMARY_BLUE = '#0066cc';
+const LIGHT_BLUE = '#e6f2ff';
+const TABLE_ROW_ALT = '#f0f8ff';
+const DARK_TEXT = '#000000';
+const PAGE_WIDTH = 595;
+const PAGE_HEIGHT = 842;
+const PAGE_MARGIN = 15;
+const PAGE_MARGIN_BOTTOM = 30;
+const ITEMS_PER_PAGE = 38; // Approximate items that fit per page
 
-export const Template17 = ({
-  transaction,
-  company,
-  party,
-  shippingAddress,
-  bank,
-}) => {
-  const scrollViewRef = useRef();
+// --- Helper Functions ---
 
-  // Helper functions
-  const _getGSTIN = x => {
-    return (
-      x?.gstin ??
-      x?.gstIn ??
-      x?.gstNumber ??
-      x?.gst_no ??
-      x?.gst ??
-      x?.gstinNumber ??
-      x?.tax?.gstin ??
-      null
-    );
-  };
+// HTML Notes Rendering Function
+const renderNotesHTML = notes => {
+  if (!notes) return '';
+  try {
+    return notes
+      .replace(/\n/g, '<br>')
+      .replace(/<br\s*\/?>/gi, '<br>')
+      .replace(/<p>/gi, '<div style="margin-bottom: 8px;">')
+      .replace(/<\/p>/gi, '</div>')
+      .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
+      .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>')
+      .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
+      .replace(/<ul>/gi, '<ul style="padding-left: 15px;">')
+      .replace(/<li>/gi, '<li style="margin-bottom: 4px;">');
+  } catch (error) {
+    return notes.replace(/\n/g, '<br>');
+  }
+};
 
-  const money = n => {
-    return Number(n || 0).toLocaleString('en-IN', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-  };
+// Safe Phone Number Formatting
+const safeFormatPhoneNumber = phoneNumber => {
+  try {
+    if (!phoneNumber) return '-';
+    return formatPhoneNumber(phoneNumber);
+  } catch (error) {
+    console.error('Error formatting phone number:', error);
+    return phoneNumber || '-';
+  }
+};
 
-  const fmtDate = d => {
-    if (!d) return '-';
-    const date = new Date(d);
-    return date.toLocaleDateString('en-GB').replace(/\//g, '-');
-  };
+// Safe Number to Words
+const safeNumberToWords = amount => {
+  try {
+    return numberToWords(amount);
+  } catch (error) {
+    console.error('Error converting number to words:', error);
+    return `Rupees ${formatCurrency(amount)} Only`;
+  }
+};
 
-  const convertNumberToWords = n => {
-    return numberToWords(n);
-  };
+// Safe date formatting
+const formatDateSafe = dateString => {
+  try {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString('en-IN');
+  } catch (error) {
+    return dateString || '-';
+  }
+};
 
-  const checkValue = value => {
-    const val = String(value || '');
-    if (
-      val === 'N/A' ||
-      val === 'null' ||
-      val === 'undefined' ||
-      val === '' ||
-      val.toLowerCase().includes('not available')
-    ) {
-      return '-';
-    }
-    return val;
-  };
+// --- Generate Header Function (Reused on each page) ---
+const generateHeaderContent = (transaction, company, party, actualShippingAddress, isGSTApplicable) => {
+  const companyName = company?.businessName || company?.companyName || '-';
+  const partyAddress = getBillingAddress(party);
+  const shippingAddressString = getShippingAddress(
+    actualShippingAddress,
+    partyAddress,
+  );
 
-  // Prepare data with GST calculations
-  const prepareData = () => {
-    const items = transaction?.items || [];
+  return `
+    <div class="page-header">
+      <div class="header-title">${
+        transaction.type === 'proforma'
+          ? 'PROFORMA INVOICE'
+          : isGSTApplicable
+          ? 'TAX INVOICE'
+          : 'INVOICE'
+      }</div>
+      
+      <table class="header-table">
+        <tr>
+          <td class="company-col">
+            <div class="company-name">${capitalizeWords(companyName)}</div>
+            ${company?.address
+              ? `<div class="company-line">${company.address}</div>`
+              : ''
+            }
+            <div class="company-line">
+              ${company?.City ? capitalizeWords(company.City) + ', ' : ''}${
+                company?.addressState ? capitalizeWords(company.addressState) + ', ' : ''
+              }${company?.Pincode || ''}
+            </div>
+            ${company?.Country
+              ? `<div class="company-line">${capitalizeWords(company.Country)}</div>`
+              : ''
+            }
+            ${company?.gstin
+              ? `<div class="company-line"><span class="bold">GSTIN:</span> ${company.gstin}</div>`
+              : ''
+            }
+            <div class="company-line">
+              <span class="bold">Phone:</span> ${
+                company?.mobileNumber
+                  ? safeFormatPhoneNumber(company.mobileNumber)
+                  : company?.Telephone
+                  ? safeFormatPhoneNumber(company.Telephone)
+                  : '-'
+              }
+            </div>
+            ${company?.email
+              ? `<div class="company-line"><span class="bold">Email:</span> ${company.email}</div>`
+              : ''
+            }
+          </td>
+          <td class="invoice-col">
+            <table class="invoice-grid">
+              <tr>
+                <td class="invoice-cell">
+                  <div class="invoice-label">Invoice No.:</div>
+                  <div class="invoice-value">${
+                    transaction?.invoiceNumber?.toString() || '-'
+                  }</div>
+                </td>
+                <td class="invoice-cell">
+                  <div class="invoice-label">Invoice Date:</div>
+                  <div class="invoice-value">${formatDateSafe(transaction?.date)}</div>
+                </td>
+              </tr>
+              <tr>
+                <td class="invoice-cell">
+                  <div class="invoice-label">P.O. No.:</div>
+                  <div class="invoice-value">${
+                    transaction?.poNumber || '-'
+                  }</div>
+                </td>
+                <td class="invoice-cell">
+                  <div class="invoice-label">P.O. Date:</div>
+                  <div class="invoice-value">${formatDateSafe(transaction?.poDate)}</div>
+                </td>
+              </tr>
+              <tr>
+                <td class="invoice-cell">
+                  <div class="invoice-label">Due Date:</div>
+                  <div class="invoice-value">${formatDateSafe(transaction?.dueDate)}</div>
+                </td>
+                <td class="invoice-cell">
+                  <div class="invoice-label">E-Way No.:</div>
+                  <div class="invoice-value">${
+                    transaction?.ewayNumber || '-'
+                  }</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+      
+      <table class="party-table">
+        <tr>
+          <td class="party-col">
+            <div class="party-heading">Details of Buyer | Billed to:</div>
+            <div class="party-name">${capitalizeWords(party?.name || '-')}</div>
+            <div class="party-line">${capitalizeWords(partyAddress || '-')}</div>
+            ${party?.gstin
+              ? `<div class="party-line"><span class="bold">GSTIN:</span> ${party.gstin}</div>`
+              : ''
+            }
+            ${party?.pan
+              ? `<div class="party-line"><span class="bold">PAN:</span> ${party.pan}</div>`
+              : ''
+            }
+            <div class="party-line">
+              <span class="bold">Phone:</span> ${
+                party?.contactNumber
+                  ? safeFormatPhoneNumber(party.contactNumber)
+                  : '-'
+              }
+            </div>
+            <div class="party-line">
+              <span class="bold">Place of Supply:</span> 
+              ${
+                actualShippingAddress?.state
+                  ? `${actualShippingAddress.state} (${getStateCode(actualShippingAddress.state) || '-'})`
+                  : party?.state
+                  ? `${party.state} (${getStateCode(party.state) || '-'})`
+                  : '-'
+              }
+            </div>
+          </td>
+          <td class="party-col party-col-right">
+            <div class="party-heading">Details of Consignee | Shipped to:</div>
+            <div class="party-name">${capitalizeWords(
+              actualShippingAddress?.label || party?.name || '-'
+            )}</div>
+            <div class="party-line">${capitalizeWords(shippingAddressString || '-')}</div>
+            ${company?.Country
+              ? `<div class="party-line"><span class="bold">Country:</span> ${company.Country}</div>`
+              : ''
+            }
+            <div class="party-line">
+              <span class="bold">Phone:</span> ${
+                actualShippingAddress?.contactNumber
+                  ? safeFormatPhoneNumber(actualShippingAddress.contactNumber)
+                  : party?.contactNumber
+                  ? safeFormatPhoneNumber(party.contactNumber)
+                  : '-'
+              }
+            </div>
+            ${party?.gstin
+              ? `<div class="party-line"><span class="bold">GSTIN:</span> ${party.gstin}</div>`
+              : ''
+            }
+            <div class="party-line">
+              <span class="bold">State:</span> 
+              ${
+                actualShippingAddress?.state
+                  ? `${actualShippingAddress.state} (${getStateCode(actualShippingAddress.state) || '-'})`
+                  : party?.state
+                  ? `${party.state} (${getStateCode(party.state) || '-'})`
+                  : '-'
+              }
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `;
+};
 
-    // Calculate totals
-    const totalTaxable = items.reduce(
-      (sum, item) => sum + (item.taxableValue || item.amount || 0),
-      0,
-    );
-    const totalAmount = items.reduce(
-      (sum, item) => sum + (item.total || item.lineTotal || 0),
-      0,
-    );
-    const totalItems = items.length;
-    const totalQty = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+// Generate table header
+const generateTableHeader = (showIGST, showCGSTSGST) => {
+  return `
+    <tr class="table-header-row">
+      <th style="width: 35px;">Sr.No.</th>
+      <th style="width: 150px;">Name of Product / Service</th>
+      <th style="width: 65px;">HSN/SAC</th>
+      <th style="width: 40px;">Qty</th>
+      <th style="width: 50px;">Unit</th>
+      <th style="width: 70px;">Rate (Rs.)</th>
+      <th style="width: 85px;">Taxable Value (Rs.)</th>
+      ${
+        showIGST
+          ? `
+        <th style="width: 40px;">IGST %</th>
+        <th style="width: 70px;">Amount (Rs.)</th>
+      `
+          : showCGSTSGST
+          ? `
+        <th style="width: 40px;">CGST %</th>
+        <th style="width: 60px;">Amount (Rs.)</th>
+        <th style="width: 40px;">SGST %</th>
+        <th style="width: 60px;">Amount (Rs.)</th>
+      `
+          : ''
+      }
+      <th style="width: 75px;">Total (Rs.)</th>
+    </tr>
+  `;
+};
 
-    // GST calculations
-    const totalCGST = items.reduce((sum, item) => sum + (item.cgst || 0), 0);
-    const totalSGST = items.reduce((sum, item) => sum + (item.sgst || 0), 0);
-    const totalIGST = items.reduce((sum, item) => sum + (item.igst || 0), 0);
-
-    // Determine GST type
-    const isGSTApplicable =
-      totalCGST > 0 ||
-      totalSGST > 0 ||
-      totalIGST > 0 ||
-      items.some(item => item.gstRate || item.gstPercentage);
-    const isInterstate =
-      totalIGST > 0 ||
-      !company?.addressState ||
-      !party?.state ||
-      company.addressState !== party.state;
-    const showIGST = isGSTApplicable && isInterstate;
-    const showCGSTSGST = isGSTApplicable && !isInterstate;
-
-    // Prepare items with GST data
-    const itemsWithGST = items.map(item => ({
-      ...item,
-      name: capitalizeWords(item.name || ''),
-      description: item.description || '',
-      quantity: item.itemType === 'service' ? '-' : item.quantity || 0,
-      pricePerUnit: item.pricePerUnit || item.rate || 0,
-      taxableValue: item.taxableValue || item.amount || 0,
-      gstRate: item.gstRate || item.gstPercentage || 0,
-      cgst: item.cgst || 0,
-      sgst: item.sgst || 0,
-      igst: item.igst || 0,
-      total: item.total || item.lineTotal || 0,
-      hsnSac: item.hsnSac || item.code || 'N/A',
-      unit: item.unit || 'PCS',
-      itemType: item.itemType,
-    }));
-
-    return {
-      totalTaxable,
-      totalAmount,
-      totalCGST,
-      totalSGST,
-      totalIGST,
-      items: itemsWithGST,
-      totalItems,
-      totalQty,
-      isGSTApplicable,
-      isInterstate,
-      showIGST,
-      showCGSTSGST,
-    };
-  };
+// --- Main PDF Component ---
+const Template17 = ({ transaction, company, party, shippingAddress, bank }) => {
+  const actualShippingAddress = shippingAddress || transaction?.shippingAddress;
+  const preparedData = prepareTemplate8Data(
+    transaction,
+    company,
+    party,
+    actualShippingAddress,
+  );
 
   const {
     totalTaxable,
     totalAmount,
+    items: allItems,
+    totalQty,
     totalCGST,
     totalSGST,
     totalIGST,
-    items,
-    totalItems,
-    totalQty,
     isGSTApplicable,
     showIGST,
     showCGSTSGST,
-  } = prepareData();
+  } = preparedData;
 
-  // Bank details logic
-  const handleUndefined = (value, fallback = '-') => {
-    if (value === undefined || value === null) return fallback;
-    if (typeof value === 'string' && value.trim() === '') return fallback;
-    if (value === 'N/A') return fallback;
-    return value.toString();
-  };
+  const typedItems = preparedData.itemsWithGST || allItems;
+  const shouldHideBankDetails = transaction.type === 'proforma';
 
-  const getBankDetails = () => {
-    if (!bank || typeof bank !== 'object') {
-      return {
-        name: 'Bank Details Not Available',
-        branch: '-',
-        accNumber: '-',
-        ifsc: '-',
-        upiId: '-',
-        upiName: '-',
-        upiMobile: '-',
-        qrCode: null,
+  const bankData = bank || transaction?.bank || {};
+  const totalAmountRounded = Math.round(totalAmount);
+  const amountInWords = safeNumberToWords(totalAmountRounded);
+  const isBankDetailAvailable =
+    bankData?.bankName ||
+    bankData?.ifscCode ||
+    bankData?.branchAddress ||
+    bankData?.accountNo ||
+    bankData?.upiDetails?.upiId;
+
+  const taxSummary = typedItems.reduce((acc, item) => {
+    const key = `${item.code || '-'}-${item.gstRate || 0}`;
+    if (!acc[key]) {
+      acc[key] = {
+        hsn: item.code || '-',
+        taxableValue: 0,
+        rate: item.gstRate || 0,
+        igst: 0,
+        cgst: 0,
+        sgst: 0,
+        total: 0,
       };
     }
+    acc[key].taxableValue += item.taxableValue || 0;
+    acc[key].igst += item.igst || 0;
+    acc[key].cgst += item.cgst || 0;
+    acc[key].sgst += item.sgst || 0;
+    acc[key].total += (item.igst || 0) + (item.cgst || 0) + (item.sgst || 0);
+    return acc;
+  }, {});
 
-    const bankObj = bank;
-    const hasBankDetails =
-      bankObj.bankName ||
-      bankObj.branchName ||
-      bankObj.branchAddress ||
-      bankObj.accountNumber ||
-      bankObj.accountNo ||
-      bankObj.ifscCode ||
-      bankObj.upiDetails?.upiId ||
-      bankObj.upiId;
+  const taxSummaryArray = Object.values(taxSummary);
+  const companyName = company?.businessName || company?.companyName || '-';
 
-    if (!hasBankDetails) {
-      return {
-        name: 'Bank Details Not Available',
-        branch: '-',
-        accNumber: '-',
-        ifsc: '-',
-        upiId: '-',
-        upiName: '-',
-        upiMobile: '-',
-        qrCode: bankObj.qrCode || null,
-      };
-    }
-
-    const accountNumber =
-      bankObj.accountNo ||
-      bankObj.accountNumber ||
-      bankObj.account_number ||
-      '-';
-    const upiId =
-      bankObj.upiDetails?.upiId || bankObj.upiId || bankObj.upi_id || '-';
-    const upiName = bankObj.upiDetails?.upiName || '-';
-    const upiMobile = bankObj.upiDetails?.upiMobile || '-';
-
-    return {
-      name: handleUndefined(capitalizeWords(bankObj.bankName)),
-      branch: handleUndefined(
-        capitalizeWords(bankObj.branchName || bankObj.branchAddress),
-      ),
-      accNumber: handleUndefined(String(accountNumber)),
-      ifsc: handleUndefined(capitalizeWords(bankObj.ifscCode)),
-      upiId: handleUndefined(String(upiId)),
-      upiName: handleUndefined(capitalizeWords(upiName)),
-      upiMobile: handleUndefined(String(upiMobile)),
-      qrCode: bankObj.qrCode || null,
-    };
-  };
-
-  const bankDetails = getBankDetails();
-  const areBankDetailsAvailable =
-    bankDetails.name !== 'Bank Details Not Available';
-
-  const invoiceData = {
-    invoiceNumber: checkValue(invNo(transaction)),
-    date: checkValue(fmtDate(transaction?.date) || fmtDate(new Date())),
-    poNumber: checkValue(transaction?.poNumber),
-    poDate: checkValue(fmtDate(transaction?.poDate)),
-    eWayNo: checkValue(transaction?.eWayBillNo),
-
-    placeOfSupply: party?.state
-      ? `${capitalizeWords(party.state)} (${getStateCode(party.state) || '-'})`
-      : '-',
-
-    company: {
-      name: capitalizeWords(company?.businessName || 'Your Company Name'),
-      address: capitalizeWords(company?.address || 'Company Address Missing'),
-      gstin: checkValue(_getGSTIN(company)),
-      pan: checkValue(company?.panNumber),
-      state: checkValue(company?.addressState),
-      city: capitalizeWords(company?.City || '-'),
-      phone: checkValue(
-        company?.mobileNumber
-          ? formatPhoneNumber(company.mobileNumber)
-          : company?.Telephone
-          ? formatPhoneNumber(company.Telephone)
-          : '-',
-      ),
-      email: checkValue(company?.email || company?.emailId),
-    },
-
-    invoiceTo: {
-      name: capitalizeWords(party?.name || 'Client Name'),
-      billingAddress: capitalizeWords(getBillingAddress(party)),
-      gstin: checkValue(_getGSTIN(party)),
-      pan: checkValue(party?.panNumber),
-      state: checkValue(party?.state),
-      email: checkValue(party?.email),
-      phone: checkValue(
-        party?.contactNumber ? formatPhoneNumber(party.contactNumber) : '-',
-      ),
-    },
-
-    shippingAddress: {
-      name: capitalizeWords(
-        shippingAddress?.name || party?.name || 'Client Name',
-      ),
-      label: capitalizeWords(shippingAddress?.label || party?.name || '-'),
-      address: capitalizeWords(
-        getShippingAddress(shippingAddress, getBillingAddress(party)),
-      ),
-      state: checkValue(shippingAddress?.state || party?.state),
-      contactNumber: checkValue(shippingAddress?.contactNumber),
-    },
-  };
-
-  const {
-    title,
-    isList,
-    items: notesItems,
-  } = parseNotesHtml(transaction?.notes || '');
-  const termsTitle = title || 'Terms and Conditions';
-
-  // Table rendering functions
-  const renderTableHeaders = () => {
-    if (showCGSTSGST) {
-      return [
-        'Sr.No.',
-        'Name of Product / Service',
-        'HSN/SAC',
-        'Qty',
-        'Unit',
-        'Rate (Rs.)',
-        'Taxable Value (Rs.)',
-        'CGST %',
-        'CGST Amount(Rs.)',
-        'SGST %',
-        'SGST Amount(Rs.)',
-        'Total (Rs.)',
-      ];
-    } else if (showIGST) {
-      return [
-        'Sr.No.',
-        'Name of Product / Service',
-        'HSN/SAC',
-        'Qty',
-        'Unit',
-        'Rate (Rs.)',
-        'Taxable Value (Rs.)',
-        'IGST %',
-        'IGST Amount (Rs.)',
-        'Total (Rs.)',
-      ];
-    } else {
-      return [
-        'Sr.No.',
-        'Name of Product / Service',
-        'HSN/SAC',
-        'Qty',
-        'Unit',
-        'Rate (Rs.)',
-        'Taxable Value (Rs.)',
-        'Total (Rs.)',
-      ];
-    }
-  };
-
-  const renderTableRow = (item, index) => {
-    const baseData = [
-      index + 1,
-      `${capitalizeWords(item.name || '')}\n${
-        item.description ? item.description.split('\n').join(' / ') : ''
-      }`,
-      checkValue(item.hsnSac),
-      item.quantity === '-' ? '-' : Number(item.quantity),
-      item.itemType === 'service' ? '-' : item.unit || 'PCS',
-      money(item.pricePerUnit),
-      money(item.taxableValue),
-    ];
-
-    if (showCGSTSGST) {
-      const cgstPct = (item.gstRate || 0) / 2;
-      const sgstPct = (item.gstRate || 0) / 2;
-      return [
-        ...baseData,
-        `${cgstPct}`,
-        money(item.cgst || 0),
-        `${sgstPct}`,
-        money(item.sgst || 0),
-        money(item.total),
-      ];
-    } else if (showIGST) {
-      return [
-        ...baseData,
-        `${item.gstRate || 0}`,
-        money(item.igst || 0),
-        money(item.total),
-      ];
-    } else {
-      return [...baseData, money(item.total)];
-    }
-  };
-
-  // PDF Generation function
-  const generatePDF = async () => {
-    try {
-      const htmlContent = generateHTMLContent();
-
-      const options = {
-        html: htmlContent,
-        fileName: `Invoice_${invoiceData.invoiceNumber}`,
-        directory: 'Documents',
-      };
-
-      const file = await RNHTMLtoPDF.convert(options);
-
-      if (file.filePath) {
-        await Share.open({
-          url: `file://${file.filePath}`,
-          type: 'application/pdf',
-          filename: `Invoice_${invoiceData.invoiceNumber}`,
-        });
-      }
-    } catch (error) {
-      console.error('PDF generation failed:', error);
-    }
-  };
+  // Split items into pages
+  const itemPages = [];
+  for (let i = 0; i < typedItems.length; i += ITEMS_PER_PAGE) {
+    itemPages.push(typedItems.slice(i, i + ITEMS_PER_PAGE));
+  }
 
   // Generate HTML content for PDF
-  const generateHTMLContent = () => {
-    const renderTableHeadersHTML = () => {
-      if (showCGSTSGST) {
-        return `
-          <tr>
-            <th>Sr.No.</th>
-            <th>Name of Product / Service</th>
-            <th>HSN/SAC</th>
-            <th>Qty</th>
-            <th>Unit</th>
-            <th>Rate (Rs.)</th>
-            <th>Taxable Value (Rs.)</th>
-            <th colspan="2">CGST</th>
-            <th colspan="2">SGST</th>
-            <th>Total (Rs.)</th>
-          </tr>
-          <tr>
-            <th></th>
-            <th></th>
-            <th></th>
-            <th></th>
-            <th></th>
-            <th></th>
-            <th></th>
-            <th>%</th>
-            <th>Amount(Rs.)</th>
-            <th>%</th>
-            <th>Amount(Rs.)</th>
-            <th></th>
-          </tr>
-        `;
-      } else if (showIGST) {
-        return `
-          <tr>
-            <th>Sr.No.</th>
-            <th>Name of Product / Service</th>
-            <th>HSN/SAC</th>
-            <th>Qty</th>
-            <th>Unit</th>
-            <th>Rate (Rs.)</th>
-            <th>Taxable Value (Rs.)</th>
-            <th colspan="2">IGST</th>
-            <th>Total (Rs.)</th>
-          </tr>
-          <tr>
-            <th></th>
-            <th></th>
-            <th></th>
-            <th></th>
-            <th></th>
-            <th></th>
-            <th></th>
-            <th>%</th>
-            <th>Amount (Rs.)</th>
-            <th></th>
-          </tr>
-        `;
-      } else {
-        return `
-          <tr>
-            <th>Sr.No.</th>
-            <th>Name of Product / Service</th>
-            <th>HSN/SAC</th>
-            <th>Qty</th>
-            <th>Unit</th>
-            <th>Rate (Rs.)</th>
-            <th>Taxable Value (Rs.)</th>
-            <th>Total (Rs.)</th>
-          </tr>
-        `;
-      }
-    };
-
-    const renderTableRowsHTML = () => {
-      return items
-        .map((item, index) => {
-          const rowData = renderTableRow(item, index);
-          return `
-          <tr>
-            ${rowData.map(cell => `<td>${cell}</td>`).join('')}
-          </tr>
-        `;
-        })
-        .join('');
-    };
-
-    const renderTaxSummaryHTML = () => {
-      // Group by HSN/SAC
-      const groupedByHSN = {};
-      items.forEach(item => {
-        const key = checkValue(item.hsnSac);
-        if (!groupedByHSN[key]) {
-          groupedByHSN[key] = {
-            hsn: key,
-            taxable: 0,
-            cgstAmt: 0,
-            sgstAmt: 0,
-            igstAmt: 0,
-            total: 0,
-          };
-        }
-        groupedByHSN[key].taxable += item.taxableValue || 0;
-        groupedByHSN[key].cgstAmt += item.cgst || 0;
-        groupedByHSN[key].sgstAmt += item.sgst || 0;
-        groupedByHSN[key].igstAmt += item.igst || 0;
-        groupedByHSN[key].total += item.total || 0;
-      });
-
-      const taxSummaryData = Object.values(groupedByHSN);
-
-      if (showCGSTSGST) {
-        return `
-          <table class="tax-summary">
-            <thead>
-              <tr>
-                <th>HSN / SAC</th>
-                <th>Taxable Value (Rs.)</th>
-                <th>%</th>
-                <th>CGST (Rs.)</th>
-                <th>%</th>
-                <th>SGST (Rs.)</th>
-                <th>Total (Rs.)</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${taxSummaryData
-                .map(
-                  item => `
-                <tr>
-                  <td>${item.hsn}</td>
-                  <td>${money(item.taxable)}</td>
-                  <td>${
-                    item.taxable
-                      ? (((item.cgstAmt / item.taxable) * 100) / 2).toFixed(2)
-                      : '0'
-                  }</td>
-                  <td>${money(item.cgstAmt)}</td>
-                  <td>${
-                    item.taxable
-                      ? (((item.sgstAmt / item.taxable) * 100) / 2).toFixed(2)
-                      : '0'
-                  }</td>
-                  <td>${money(item.sgstAmt)}</td>
-                  <td>${money(item.total)}</td>
-                </tr>
-              `,
-                )
-                .join('')}
-              <tr class="total-row">
-                <td><strong>Total</strong></td>
-                <td><strong>${money(totalTaxable)}</strong></td>
-                <td></td>
-                <td><strong>${money(totalCGST)}</strong></td>
-                <td></td>
-                <td><strong>${money(totalSGST)}</strong></td>
-                <td><strong>${money(totalAmount)}</strong></td>
-              </tr>
-            </tbody>
-          </table>
-        `;
-      } else if (showIGST) {
-        return `
-          <table class="tax-summary">
-            <thead>
-              <tr>
-                <th>HSN / SAC</th>
-                <th>Taxable Value (Rs.)</th>
-                <th>%</th>
-                <th>IGST (Rs.)</th>
-                <th>Total (Rs.)</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${taxSummaryData
-                .map(
-                  item => `
-                <tr>
-                  <td>${item.hsn}</td>
-                  <td>${money(item.taxable)}</td>
-                  <td>${
-                    item.taxable
-                      ? ((item.igstAmt / item.taxable) * 100).toFixed(2)
-                      : '0'
-                  }</td>
-                  <td>${money(item.igstAmt)}</td>
-                  <td>${money(item.total)}</td>
-                </tr>
-              `,
-                )
-                .join('')}
-              <tr class="total-row">
-                <td><strong>Total</strong></td>
-                <td><strong>${money(totalTaxable)}</strong></td>
-                <td></td>
-                <td><strong>${money(totalIGST)}</strong></td>
-                <td><strong>${money(totalAmount)}</strong></td>
-              </tr>
-            </tbody>
-          </table>
-        `;
-      } else {
-        return `
-          <table class="tax-summary">
-            <thead>
-              <tr>
-                <th>HSN / SAC</th>
-                <th>Taxable Value (Rs.)</th>
-                <th>Total (Rs.)</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${taxSummaryData
-                .map(
-                  item => `
-                <tr>
-                  <td>${item.hsn}</td>
-                  <td>${money(item.taxable)}</td>
-                  <td>${money(item.total)}</td>
-                </tr>
-              `,
-                )
-                .join('')}
-              <tr class="total-row">
-                <td><strong>Total</strong></td>
-                <td><strong>${money(totalTaxable)}</strong></td>
-                <td><strong>${money(totalAmount)}</strong></td>
-              </tr>
-            </tbody>
-          </table>
-        `;
-      }
-    };
-
+  const generateHTML = () => {
     return `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-          body { 
-            font-family: Arial, sans-serif; 
-            margin: 20px; 
-            color: #2D3748; 
+          * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+          }
+          
+          @page {
+            margin: ${PAGE_MARGIN}px;
+            margin-bottom: ${PAGE_MARGIN_BOTTOM}px;
+            size: A4 portrait;
+          }
+          
+          body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            color: ${DARK_TEXT};
+            font-size: 9px;
+            line-height: 1.2;
+          }
+          
+          .invoice-container {
+            background: white;
+          }
+          
+          .page {
+            page-break-after: always;
+          }
+          
+          .page:last-child {
+            page-break-after: auto;
+          }
+          
+          /* Header styling */
+          .page-header {
+            margin-bottom: 10px;
+          }
+          
+          .header-title {
+            color: black;
+            text-align: center;
+            padding: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+          }
+          
+          .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid ${PRIMARY_BLUE};
+            margin-bottom: 0;
+          }
+          
+          .company-col {
+            width: 60%;
+            padding: 8px 10px;
+            vertical-align: top;
+            border-right: 2px solid ${PRIMARY_BLUE};
+          }
+          
+          .invoice-col {
+            width: 40%;
+            padding: 0;
+            vertical-align: top;
+          }
+          
+          .company-name {
             font-size: 12px;
-          }
-          .frame {
-            border: 2px solid ${PRIMARY_BLUE};
-            padding: 15px;
-            margin-bottom: 20px;
-          }
-          .header { 
-            display: flex; 
-            justify-content: space-between; 
-            margin-bottom: 20px; 
-          }
-          .title { 
-            font-size: 18px; 
-            font-weight: bold; 
-            color: ${PRIMARY_BLUE};
-            text-align: center;
-            margin-bottom: 10px;
-          }
-          .company-name { 
-            font-size: 14px; 
-            font-weight: bold; 
-            color: #000;
-            margin-bottom: 8px; 
-          }
-          .separator { 
-            height: 1px; 
-            background: ${BORDER}; 
-            margin: 15px 0; 
-          }
-          .buyer-consignee-section {
-            display: flex;
-            border-top: 1px solid ${BORDER};
-            border-bottom: 1px solid ${BORDER};
-            margin: 20px 0;
-          }
-          .buyer-column, .consignee-column {
-            flex: 1;
-            padding: 10px;
-          }
-          .vertical-divider {
-            border-left: 1px solid ${BORDER};
-            margin: 0 10px;
-          }
-          .section-title {
-            font-size: 10px;
             font-weight: bold;
-            color: #2D3748;
-            margin-bottom: 12px;
+            margin-bottom: 2px;
           }
-          .detail-row {
-            display: flex;
-            margin-bottom: 8px;
-          }
-          .detail-label {
-            font-size: 9px;
-            font-weight: bold;
-            color: #2D3748;
-            width: 80px;
-          }
-          .detail-value {
-            font-size: 9px;
-            color: #2D3748;
-            flex: 1;
-          }
-          .meta-section {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-          }
-          .meta-column {
-            flex: 1;
-          }
-          .meta-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 12px;
-            padding: 8px;
-            border-bottom: 1px solid #f0f0f0;
-          }
-          .meta-label {
-            font-size: 9px;
-            font-weight: bold;
-            color: #2D3748;
-          }
-          .meta-value {
-            font-size: 9px;
-            color: ${PRIMARY_BLUE};
-            font-weight: bold;
-          }
-          table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            margin: 20px 0; 
-            font-size: 8px;
-          }
-          th { 
-            background: ${LIGHT_BLUE}; 
-            color: #2D3748; 
-            padding: 8px; 
-            text-align: center; 
-            font-size: 7px;
-            font-weight: bold;
-            border: 1px solid ${BORDER};
-          }
-          td { 
-            border: 1px solid ${BORDER}; 
-            padding: 6px; 
-            text-align: center; 
+          
+          .company-line {
             font-size: 7.5px;
+            margin-bottom: 1px;
+            line-height: 1.2;
           }
-          .tax-summary {
-            margin: 20px 0;
+          
+          .invoice-grid {
+            width: 100%;
+            border-collapse: collapse;
           }
-          .tax-summary th {
-            background: ${LIGHT_BLUE};
+          
+          .invoice-cell {
+            width: 50%;
+            padding: 4px 6px;
+            font-size: 7.5px;
+            border: 1px solid ${PRIMARY_BLUE};
+            vertical-align: top;
           }
-          .total-row {
-            background: #f0f0f0;
+          
+          .invoice-label {
             font-weight: bold;
+            margin-bottom: 1px;
           }
-          .totals-section {
-            margin: 20px 0;
-          }
-          .amount-words {
+          
+          .invoice-value {
             font-size: 8px;
-            color: #2D3748;
-            margin: 10px 0;
           }
-          .footer-section {
-            display: flex;
-            justify-content: space-between;
-            margin: 30px 0;
-            border-top: 1px solid ${BORDER};
-            padding-top: 20px;
-          }
-          .bank-section {
-            flex: 1;
-          }
-          .signature-section {
-            width: 200px;
-            text-align: center;
-          }
-          .signature-box {
-            width: 150px;
-            height: 60px;
-            border: 0.5px solid #DCE0E4;
-            margin: 10px auto;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-          }
-          .terms-section {
-            margin-bottom: 20px;
-          }
-          .terms-title {
-            font-size: 10px;
-            font-weight: bold;
-            color: #000;
+          
+          .party-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid ${PRIMARY_BLUE};
+            border-top: none;
             margin-bottom: 10px;
           }
-          .term-item {
+          
+          .party-col {
+            width: 50%;
+            padding: 8px 10px;
+            vertical-align: top;
+          }
+          
+          .party-col-right {
+            border-left: 2px solid ${PRIMARY_BLUE};
+          }
+          
+          .party-heading {
             font-size: 8px;
-            color: #2D3748;
-            margin-bottom: 6px;
-            line-height: 12px;
+            font-weight: bold;
+            margin-bottom: 3px;
+            color: ${PRIMARY_BLUE};
           }
-          .qr-placeholder {
-            width: 80px;
-            height: 80px;
-            background: #f0f0f0;
-            border: 0.5px solid #DCE0E4;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 8px 0;
+          
+          .party-name {
+            font-size: 9px;
+            font-weight: bold;
+            margin-bottom: 2px;
           }
-          .page-number {
+          
+          .party-line {
+            font-size: 7.5px;
+            margin-bottom: 1px;
+            line-height: 1.2;
+          }
+          
+          /* Styled Items Table */
+          .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 5px;
+          }
+          
+          .items-table .table-header-row {
+            background-color: ${LIGHT_BLUE};
+          }
+          
+          .items-table th {
+            background-color: ${LIGHT_BLUE};
+            color: ${DARK_TEXT};
+            font-weight: bold;
+            padding: 6px 4px;
+            text-align: center;
+            font-size: 7.5px;
+            border: 1px solid ${PRIMARY_BLUE};
+            line-height: 1.2;
+          }
+          
+          .items-table td {
+            padding: 5px 4px;
             text-align: center;
             font-size: 8px;
-            color: #697077;
-            margin-top: 20px;
+            border: 1px solid ${PRIMARY_BLUE};
+            vertical-align: middle;
+          }
+          
+          /* Alternating row colors */
+          .items-table tbody tr:nth-child(even) {
+            background-color: ${TABLE_ROW_ALT};
+          }
+          
+          .items-table tbody tr:nth-child(odd) {
+            background-color: white;
+          }
+          
+          .items-table td.left {
+            text-align: left;
+            padding-left: 6px;
+          }
+          
+          .items-table td.right {
+            text-align: right;
+            padding-right: 6px;
+          }
+          
+          /* Footer Row Styles */
+          .footer-total-row td {
+            font-weight: bold;
+            border: 1px solid ${PRIMARY_BLUE};
+            padding: 6px 4px;
+            font-size: 8px;
+            color: ${DARK_TEXT};
+            background-color: white;
+          }
+          
+          .amount-words {
+            margin: 6px 0;
+            padding: 6px;
+            font-size: 8px;
+          }
+          
+          .tax-summary {
+            margin: 8px 0;
+            border: 1px solid ${PRIMARY_BLUE};
+          }
+          
+          .tax-summary table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+          
+          .tax-summary th {
+            background-color: ${LIGHT_BLUE};
+            padding: 4px;
+            font-size: 7.5px;
+            border: 1px solid ${PRIMARY_BLUE};
+            font-weight: bold;
+          }
+          
+          .tax-summary td {
+            padding: 3px 4px;
+            font-size: 7.5px;
+            border: 1px solid ${PRIMARY_BLUE};
+            text-align: right;
+          }
+          
+          .bank-sign-section {
+            display: table;
+            width: 100%;
+            border: 1px solid ${PRIMARY_BLUE};
+            border-bottom: none;
+            min-height: 100px;
+            // margin-bottom: 5px;
+          }
+          
+          .bank-col-section {
+            display: table-cell;
+            width: 60%;
+            padding: 8px 10px;
+            vertical-align: top;
+            border-right: 2px solid ${PRIMARY_BLUE};
+          }
+          
+          .sign-col {
+            display: table-cell;
+            width: 40%;
+            padding: 8px 10px;
+            vertical-align: top;
+            text-align: right;
+          }
+          
+          .section-heading {
+            font-size: 8px;
+            font-weight: bold;
+            margin-bottom: 4px;
+          }
+          
+          .bank-line {
+            font-size: 7.5px;
+            margin-bottom: 2px;
+          }
+          
+          .signature-line {
+            margin-top: 50px;
+            padding-top: 5px;
+            border-top: 1px solid #000;
+            font-size: 7.5px;
+            display: inline-block;
+            width: 150px;
+          }
+          
+          .terms-section {
+            padding: 8px 4px;
+            border: 1px solid ${PRIMARY_BLUE};
+            padding: 5px;
+            font-size: 7.5px;
+            line-height: 1.3;
+            margin-bottom: 20px;
+          }
+          
+          .bold {
+            font-weight: bold;
+          }
+          
+          .keep-together {
+            page-break-inside: avoid;
           }
         </style>
       </head>
       <body>
-        <div class="frame">
-          <!-- Header -->
-          <div class="title">
-            ${
-              transaction?.type === 'proforma'
-                ? 'PROFORMA INVOICE'
-                : isGSTApplicable
-                ? 'TAX INVOICE'
-                : 'INVOICE'
-            }
-          </div>
-
-          <div class="header">
-            <div class="company-info">
-              <div class="company-name">${invoiceData.company.name.toUpperCase()}</div>
-              ${
-                invoiceData.company.gstin !== '-'
-                  ? `
-                <div class="detail-row">
-                  <div class="detail-label">GSTIN:</div>
-                  <div class="detail-value">${invoiceData.company.gstin}</div>
-                </div>
-              `
-                  : ''
-              }
-              <div class="detail-value">${invoiceData.company.address}</div>
-              ${
-                invoiceData.company.city !== '-'
-                  ? `
-                <div class="detail-value">${invoiceData.company.city}</div>
-              `
-                  : ''
-              }
-              ${
-                invoiceData.company.state !== '-'
-                  ? `
-                <div class="detail-row">
-                  <div class="detail-label">State:</div>
-                  <div class="detail-value">${invoiceData.company.state}</div>
-                </div>
-              `
-                  : ''
-              }
-              ${
-                invoiceData.company.phone !== '-'
-                  ? `
-                <div class="detail-row">
-                  <div class="detail-label">Phone:</div>
-                  <div class="detail-value">${invoiceData.company.phone}</div>
-                </div>
-              `
-                  : ''
-              }
-            </div>
-
-            <div class="meta-section">
-              <div class="meta-column">
-                <div class="meta-row">
-                  <div class="meta-label">Invoice No.</div>
-                  <div class="meta-value">${invoiceData.invoiceNumber}</div>
-                </div>
-                <div class="meta-row">
-                  <div class="meta-label">Invoice Date</div>
-                  <div class="meta-value">${invoiceData.date}</div>
-                </div>
-                <div class="meta-row">
-                  <div class="meta-label">P.O. No.</div>
-                  <div class="meta-value">${invoiceData.poNumber}</div>
-                </div>
-                <div class="meta-row">
-                  <div class="meta-label">P.O. Date</div>
-                  <div class="meta-value">${invoiceData.poDate}</div>
-                </div>
-                <div class="meta-row">
-                  <div class="meta-label">Due Date</div>
-                  <div class="meta-value">${invoiceData.date}</div>
-                </div>
-                <div class="meta-row">
-                  <div class="meta-label">E-Way No.</div>
-                  <div class="meta-value">${invoiceData.eWayNo}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Buyer/Consignee Section -->
-          <div class="buyer-consignee-section">
-            <div class="buyer-column">
-              <div class="section-title">Details of Buyer | Billed to:</div>
-              <div class="detail-row">
-                <div class="detail-label">Name:</div>
-                <div class="detail-value">${invoiceData.invoiceTo.name}</div>
-              </div>
-              <div class="detail-row">
-                <div class="detail-label">Address:</div>
-                <div class="detail-value">${
-                  invoiceData.invoiceTo.billingAddress
-                }</div>
-              </div>
-              <div class="detail-row">
-                <div class="detail-label">GSTIN:</div>
-                <div class="detail-value">${invoiceData.invoiceTo.gstin}</div>
-              </div>
-              <div class="detail-row">
-                <div class="detail-label">PAN:</div>
-                <div class="detail-value">${invoiceData.invoiceTo.pan}</div>
-              </div>
-              <div class="detail-row">
-                <div class="detail-label">Phone:</div>
-                <div class="detail-value">${invoiceData.invoiceTo.phone}</div>
-              </div>
-              <div class="detail-row">
-                <div class="detail-label">Place of Supply:</div>
-                <div class="detail-value">${invoiceData.placeOfSupply}</div>
-              </div>
-            </div>
-
-            <div class="vertical-divider"></div>
-
-            <div class="consignee-column">
-              <div class="section-title">Details of Consigned | Shipped to:</div>
-              <div class="detail-row">
-                <div class="detail-label">Name:</div>
-                <div class="detail-value">${
-                  invoiceData.shippingAddress.name
-                }</div>
-              </div>
-              <div class="detail-row">
-                <div class="detail-label">Address:</div>
-                <div class="detail-value">${
-                  invoiceData.shippingAddress.address
-                }</div>
-              </div>
-              <div class="detail-row">
-                <div class="detail-label">Country:</div>
-                <div class="detail-value">India</div>
-              </div>
-              <div class="detail-row">
-                <div class="detail-label">Phone:</div>
-                <div class="detail-value">${
-                  invoiceData.shippingAddress.contactNumber
-                }</div>
-              </div>
-              <div class="detail-row">
-                <div class="detail-label">GSTIN:</div>
-                <div class="detail-value">${invoiceData.invoiceTo.gstin}</div>
-              </div>
-              <div class="detail-row">
-                <div class="detail-label">State:</div>
-                <div class="detail-value">${
-                  invoiceData.shippingAddress.state
-                }</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Items Table -->
-          <table>
-            <thead>
-              ${renderTableHeadersHTML()}
-            </thead>
-            <tbody>
-              ${renderTableRowsHTML()}
-            </tbody>
-          </table>
-
-          <!-- Tax Summary -->
-          ${renderTaxSummaryHTML()}
-
-          <!-- Amount in Words -->
-          <div class="amount-words">
-            <strong>Total Tax in words:</strong> ${convertNumberToWords(
-              totalAmount,
-            )}
-          </div>
-
-          <!-- Footer Section -->
-          <div class="footer-section">
-            <div class="bank-section">
-              <div class="section-title">Bank Details</div>
-              ${
-                areBankDetailsAvailable
-                  ? `
-                <div class="detail-row">
-                  <div class="detail-label">Name:</div>
-                  <div class="detail-value">${bankDetails.name}</div>
-                </div>
-                <div class="detail-row">
-                  <div class="detail-label">Branch:</div>
-                  <div class="detail-value">${bankDetails.branch}</div>
-                </div>
-                <div class="detail-row">
-                  <div class="detail-label">IFSC:</div>
-                  <div class="detail-value">${bankDetails.ifsc}</div>
-                </div>
-                <div class="detail-row">
-                  <div class="detail-label">Acc. Number:</div>
-                  <div class="detail-value">${bankDetails.accNumber}</div>
-                </div>
-                ${
-                  bankDetails.upiId !== '-'
-                    ? `
-                  <div class="detail-row">
-                    <div class="detail-label">UPI ID:</div>
-                    <div class="detail-value">${bankDetails.upiId}</div>
-                  </div>
-                `
-                    : ''
-                }
-                ${
-                  bankDetails.upiName !== '-'
-                    ? `
-                  <div class="detail-row">
-                    <div class="detail-label">UPI Name:</div>
-                    <div class="detail-value">${bankDetails.upiName}</div>
-                  </div>
-                `
-                    : ''
-                }
-                ${
-                  bankDetails.upiMobile !== '-'
-                    ? `
-                  <div class="detail-row">
-                    <div class="detail-label">UPI Mobile:</div>
-                    <div class="detail-value">${bankDetails.upiMobile}</div>
-                  </div>
-                `
-                    : ''
-                }
-                ${
-                  bankDetails.qrCode
-                    ? `
-                  <div class="section-title">QR Code</div>
-                  <div class="qr-placeholder">
-                    QR Code Image
-                  </div>
-                `
-                    : ''
-                }
-              `
-                  : `
-                <div class="detail-value">No bank details available</div>
-              `
-              }
-            </div>
-
-            <div class="signature-section">
-              <div class="section-title">For ${invoiceData.company.name}</div>
-              <div class="signature-box">
-                Authorised Signatory
-              </div>
-            </div>
-          </div>
-
-          <!-- Terms and Conditions -->
-          <div class="terms-section">
-            <div class="terms-title">${termsTitle}:</div>
-            ${
-              notesItems.length > 0
-                ? notesItems
+        <div class="invoice-container">
+          ${itemPages.map((pageItems, pageIndex) => `
+            <div class="page">
+              ${generateHeaderContent(transaction, company, party, actualShippingAddress, isGSTApplicable)}
+              
+              <table class="items-table">
+                <thead>
+                  ${generateTableHeader(showIGST, showCGSTSGST)}
+                </thead>
+                <tbody>
+                  ${pageItems
                     .map(
-                      item => `
-                <div class="term-item">${isList ? '• ' : ''}${item}</div>
-              `,
+                      (item, index) => {
+                        const globalIndex = pageIndex * ITEMS_PER_PAGE + index;
+                        return `
+                    <tr>
+                      <td>${globalIndex + 1}</td>
+                      <td class="left">${item.name}</td>
+                      <td>${item.code || '-'}</td>
+                      <td>${
+                        item.itemType === 'service'
+                          ? '-'
+                          : formatQuantity(item.quantity || 0)
+                      }</td>
+                      <td>${item.unit || 'Piece'}</td>
+                      <td class="right">${formatCurrency(item.pricePerUnit || 0)}</td>
+                      <td class="right">${formatCurrency(item.taxableValue || 0)}</td>
+                      ${
+                        showIGST
+                          ? `
+                        <td>${(item.gstRate || 0).toFixed(0)}</td>
+                        <td class="right">${formatCurrency(item.igst || 0)}</td>
+                      `
+                          : showCGSTSGST
+                          ? `
+                        <td>${((item.gstRate || 0) / 2).toFixed(0)}</td>
+                        <td class="right">${formatCurrency(item.cgst || 0)}</td>
+                        <td>${((item.gstRate || 0) / 2).toFixed(0)}</td>
+                        <td class="right">${formatCurrency(item.sgst || 0)}</td>
+                      `
+                          : ''
+                      }
+                      <td class="right bold">${formatCurrency(item.total || 0)}</td>
+                    </tr>
+                  `;
+                      }
                     )
-                    .join('')
-                : '<div class="term-item">No terms and conditions specified</div>'
-            }
-          </div>
-
-          <div class="page-number">Page 1 of 1</div>
+                    .join('')}
+                </tbody>
+              </table>
+              
+              ${pageIndex === itemPages.length - 1 ? `
+                <!-- Total Row (only on last page) -->
+                <table class="items-table">
+                  <tbody>
+                    <tr class="footer-total-row">
+                      <td colspan="3" style="text-align: left; padding-left: 8px;">Total</td>
+                      <td style="text-align: center;">${totalQty}</td>
+                      <td colspan="2"></td>
+                      <td style="text-align: right;">${formatCurrency(totalTaxable)}</td>
+                      ${
+                        showIGST
+                          ? `
+                        <td></td>
+                        <td style="text-align: right;">${formatCurrency(totalIGST)}</td>
+                      `
+                          : showCGSTSGST
+                          ? `
+                        <td></td>
+                        <td style="text-align: right;">${formatCurrency(totalCGST)}</td>
+                        <td></td>
+                        <td style="text-align: right;">${formatCurrency(totalSGST)}</td>
+                      `
+                          : ''
+                      }
+                      <td style="text-align: right;">${formatCurrency(totalAmount)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                
+                <div class="amount-words keep-together">
+                  <span class="bold">Total Amount (in words):</span> ${amountInWords}
+                </div>
+                
+                ${
+                  isGSTApplicable && taxSummaryArray.length > 0
+                    ? `
+                  <div class="tax-summary keep-together">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th style="width: 80px;">HSN/SAC</th>
+                          <th style="width: 100px;">Taxable Value (Rs.)</th>
+                          <th style="width: 50px;">Rate %</th>
+                          ${
+                            showIGST
+                              ? `
+                            <th style="width: 100px;">IGST (Rs.)</th>
+                            <th style="width: 100px;">Total(Rs.)</th>
+                          `
+                              : `
+                            <th style="width: 85px;">CGST(Rs.)</th>
+                            <th style="width: 85px;">SGST(Rs.)</th>
+                            <th style="width: 85px;">Total(Rs.)</th>
+                          `
+                          }
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${taxSummaryArray
+                          .map(
+                            summary => `
+                          <tr>
+                            <td style="text-align: center;">${summary.hsn}</td>
+                            <td>${formatCurrency(summary.taxableValue)}</td>
+                            <td style="text-align: center;">${summary.rate.toFixed(2)}</td>
+                            ${
+                              showIGST
+                                ? `
+                              <td>${formatCurrency(summary.igst)}</td>
+                              <td>${formatCurrency(summary.total)}</td>
+                            `
+                                : `
+                              <td>${formatCurrency(summary.cgst)}</td>
+                              <td>${formatCurrency(summary.sgst)}</td>
+                              <td>${formatCurrency(summary.total)}</td>
+                            `
+                            }
+                          </tr>
+                        `,
+                          )
+                          .join('')}
+                        <tr style="background-color: ${LIGHT_BLUE}; font-weight: bold;">
+                          <td style="text-align: center;">Total</td>
+                          <td>${formatCurrency(totalTaxable)}</td>
+                          <td></td>
+                          ${
+                            showIGST
+                              ? `
+                            <td>${formatCurrency(totalIGST)}</td>
+                            <td>${formatCurrency(totalIGST)}</td>
+                          `
+                              : `
+                            <td>${formatCurrency(totalCGST)}</td>
+                            <td>${formatCurrency(totalSGST)}</td>
+                            <td>${formatCurrency(totalCGST + totalSGST)}</td>
+                          `
+                          }
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                `
+                    : ''
+                }
+                
+                <div class="bank-sign-section keep-together">
+                  <div class="bank-col-section">
+                    ${
+                      !shouldHideBankDetails && isBankDetailAvailable
+                        ? `
+                      <div class="section-heading">Bank Details:</div>
+                      ${
+                        bankData?.bankName
+                          ? `<div class="bank-line"><span class="bold">Bank Name:</span> ${capitalizeWords(
+                              bankData.bankName,
+                            )}</div>`
+                          : ''
+                      }
+                      ${
+                        bankData?.accountNo
+                          ? `<div class="bank-line"><span class="bold">Account No:</span> ${bankData.accountNo}</div>`
+                          : ''
+                      }
+                      ${
+                        bankData?.ifscCode
+                          ? `<div class="bank-line"><span class="bold">IFSC Code:</span> ${bankData.ifscCode}</div>`
+                          : ''
+                      }
+                      ${
+                        bankData?.branchAddress
+                          ? `<div class="bank-line"><span class="bold">Branch:</span> ${bankData.branchAddress}</div>`
+                          : ''
+                      }
+                      ${
+                        bankData?.upiDetails?.upiId
+                          ? `<div class="bank-line"><span class="bold">UPI ID:</span> ${bankData.upiDetails.upiId}</div>`
+                          : ''
+                      }
+                    `
+                        : ''
+                    }
+                  </div>
+                  
+                  <div class="sign-col">
+                    <div class="section-heading">For ${companyName}</div>
+                    <div class="signature-line">Authorised Signatory</div>
+                  </div>
+                </div>
+                
+                ${
+                  transaction?.notes
+                    ? `
+                  <div class="terms-section keep-together">
+                    <div style="margin-top: 3px;">
+                      ${renderNotesHTML(transaction.notes)}
+                    </div>
+                  </div>
+                `
+                    : ''
+                }
+              ` : ''}
+            </div>
+          `).join('')}
         </div>
       </body>
       </html>
     `;
   };
 
-  // Add PDF generation button to UI
-  const renderPDFButton = () => (
-    <View style={styles.pdfButtonContainer}>
-      <Text style={styles.pdfButton} onPress={generatePDF}>
-        Generate PDF
-      </Text>
-    </View>
-  );
-
-  return (
-    <View style={styles.container}>
-      {renderPDFButton()}
-      <ScrollView
-        style={styles.scrollView}
-        ref={scrollViewRef}
-        contentContainerStyle={styles.contentContainer}
-      >
-        {/* Frame */}
-        <View style={styles.frame}>
-          {/* Title */}
-          <Text style={styles.title}>
-            {transaction?.type === 'proforma'
-              ? 'PROFORMA INVOICE'
-              : isGSTApplicable
-              ? 'TAX INVOICE'
-              : 'INVOICE'}
-          </Text>
-
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.companyInfo}>
-              <Text style={styles.companyName}>
-                {invoiceData.company.name.toUpperCase()}
-              </Text>
-
-              {invoiceData.company.gstin !== '-' && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>GSTIN:</Text>
-                  <Text style={styles.detailValue}>
-                    {invoiceData.company.gstin}
-                  </Text>
-                </View>
-              )}
-
-              <Text style={styles.detailValue}>
-                {invoiceData.company.address}
-              </Text>
-
-              {invoiceData.company.city !== '-' && (
-                <Text style={styles.detailValue}>
-                  {invoiceData.company.city}
-                </Text>
-              )}
-
-              {invoiceData.company.state !== '-' && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>State:</Text>
-                  <Text style={styles.detailValue}>
-                    {invoiceData.company.state}
-                  </Text>
-                </View>
-              )}
-
-              {invoiceData.company.phone !== '-' && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Phone:</Text>
-                  <Text style={styles.detailValue}>
-                    {invoiceData.company.phone}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.metaSection}>
-              <View style={styles.metaColumn}>
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaLabel}>Invoice No.</Text>
-                  <Text style={styles.metaValue}>
-                    {invoiceData.invoiceNumber}
-                  </Text>
-                </View>
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaLabel}>Invoice Date</Text>
-                  <Text style={styles.metaValue}>{invoiceData.date}</Text>
-                </View>
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaLabel}>P.O. No.</Text>
-                  <Text style={styles.metaValue}>{invoiceData.poNumber}</Text>
-                </View>
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaLabel}>P.O. Date</Text>
-                  <Text style={styles.metaValue}>{invoiceData.poDate}</Text>
-                </View>
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaLabel}>Due Date</Text>
-                  <Text style={styles.metaValue}>{invoiceData.date}</Text>
-                </View>
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaLabel}>E-Way No.</Text>
-                  <Text style={styles.metaValue}>{invoiceData.eWayNo}</Text>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          {/* Buyer/Consignee Section */}
-          <View style={styles.buyerConsigneeSection}>
-            <View style={styles.buyerColumn}>
-              <Text style={styles.sectionTitle}>
-                Details of Buyer | Billed to:
-              </Text>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Name:</Text>
-                <Text style={styles.detailValue}>
-                  {invoiceData.invoiceTo.name}
-                </Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Address:</Text>
-                <Text style={[styles.detailValue, styles.addressText]}>
-                  {invoiceData.invoiceTo.billingAddress}
-                </Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>GSTIN:</Text>
-                <Text style={styles.detailValue}>
-                  {invoiceData.invoiceTo.gstin}
-                </Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>PAN:</Text>
-                <Text style={styles.detailValue}>
-                  {invoiceData.invoiceTo.pan}
-                </Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Phone:</Text>
-                <Text style={styles.detailValue}>
-                  {invoiceData.invoiceTo.phone}
-                </Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Place of Supply:</Text>
-                <Text style={styles.detailValue}>
-                  {invoiceData.placeOfSupply}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.verticalDivider} />
-
-            <View style={styles.consigneeColumn}>
-              <Text style={styles.sectionTitle}>
-                Details of Consigned | Shipped to:
-              </Text>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Name:</Text>
-                <Text style={styles.detailValue}>
-                  {invoiceData.shippingAddress.name}
-                </Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Address:</Text>
-                <Text style={[styles.detailValue, styles.addressText]}>
-                  {invoiceData.shippingAddress.address}
-                </Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Country:</Text>
-                <Text style={styles.detailValue}>India</Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Phone:</Text>
-                <Text style={styles.detailValue}>
-                  {invoiceData.shippingAddress.contactNumber}
-                </Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>GSTIN:</Text>
-                <Text style={styles.detailValue}>
-                  {invoiceData.invoiceTo.gstin}
-                </Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>State:</Text>
-                <Text style={styles.detailValue}>
-                  {invoiceData.shippingAddress.state}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Items Table */}
-          <View style={styles.table}>
-            {/* Table Header */}
-            <View style={styles.tableHeader}>
-              {renderTableHeaders().map((header, index) => (
-                <Text key={index} style={styles.tableHeaderText}>
-                  {header}
-                </Text>
-              ))}
-            </View>
-
-            {/* Table Rows */}
-            {items.map((item, index) => (
-              <View key={index} style={styles.tableRow}>
-                {renderTableRow(item, index).map((cell, cellIndex) => (
-                  <Text key={cellIndex} style={styles.tableCell}>
-                    {cell}
-                  </Text>
-                ))}
-              </View>
-            ))}
-          </View>
-
-          {/* Tax Summary */}
-          <View style={styles.taxSummary}>
-            <Text style={styles.taxSummaryTitle}>Tax Summary</Text>
-            <View style={styles.taxSummaryTable}>
-              {/* Tax summary content would go here */}
-              <Text style={styles.taxSummaryText}>
-                Total Taxable: {money(totalTaxable)}
-              </Text>
-              {showIGST && (
-                <Text style={styles.taxSummaryText}>
-                  Total IGST: {money(totalIGST)}
-                </Text>
-              )}
-              {showCGSTSGST && (
-                <>
-                  <Text style={styles.taxSummaryText}>
-                    Total CGST: {money(totalCGST)}
-                  </Text>
-                  <Text style={styles.taxSummaryText}>
-                    Total SGST: {money(totalSGST)}
-                  </Text>
-                </>
-              )}
-              <Text style={[styles.taxSummaryText, styles.finalTotal]}>
-                Grand Total: {money(totalAmount)}
-              </Text>
-            </View>
-          </View>
-
-          {/* Amount in Words */}
-          <View style={styles.amountInWords}>
-            <Text style={styles.amountLabel}>Total Tax in words:</Text>
-            <Text style={styles.amountWords}>
-              {convertNumberToWords(totalAmount)}
-            </Text>
-          </View>
-
-          {/* Footer Section */}
-          <View style={styles.footerSection}>
-            <View style={styles.bankSection}>
-              <Text style={styles.sectionTitle}>Bank Details</Text>
-
-              {areBankDetailsAvailable ? (
-                <>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Name:</Text>
-                    <Text style={styles.detailValue}>{bankDetails.name}</Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Branch:</Text>
-                    <Text style={styles.detailValue}>{bankDetails.branch}</Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>IFSC:</Text>
-                    <Text style={styles.detailValue}>{bankDetails.ifsc}</Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Acc. Number:</Text>
-                    <Text style={styles.detailValue}>
-                      {bankDetails.accNumber}
-                    </Text>
-                  </View>
-                  {bankDetails.upiId !== '-' && (
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>UPI ID:</Text>
-                      <Text style={styles.detailValue}>
-                        {bankDetails.upiId}
-                      </Text>
-                    </View>
-                  )}
-                  {bankDetails.upiName !== '-' && (
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>UPI Name:</Text>
-                      <Text style={styles.detailValue}>
-                        {bankDetails.upiName}
-                      </Text>
-                    </View>
-                  )}
-                  {bankDetails.upiMobile !== '-' && (
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>UPI Mobile:</Text>
-                      <Text style={styles.detailValue}>
-                        {bankDetails.upiMobile}
-                      </Text>
-                    </View>
-                  )}
-                  {bankDetails.qrCode && (
-                    <>
-                      <Text style={styles.sectionTitle}>QR Code</Text>
-                      <View style={styles.qrPlaceholder}>
-                        <Text style={styles.qrText}>QR Code</Text>
-                      </View>
-                    </>
-                  )}
-                </>
-              ) : (
-                <Text style={styles.detailValue}>
-                  No bank details available
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.signatureSection}>
-              <Text style={styles.signatureTitle}>
-                For {invoiceData.company.name}
-              </Text>
-              <View style={styles.signatureBox}>
-                <Text style={styles.signatureText}>Authorised Signatory</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Terms and Conditions */}
-          <View style={styles.termsSection}>
-            <Text style={styles.termsTitle}>{termsTitle}:</Text>
-            {notesItems.length > 0 ? (
-              notesItems.map((item, index) => (
-                <Text key={index} style={styles.termItem}>
-                  {isList ? '• ' : ''}
-                  {item}
-                </Text>
-              ))
-            ) : (
-              <Text style={styles.termItem}>
-                No terms and conditions specified
-              </Text>
-            )}
-          </View>
-        </View>
-      </ScrollView>
-    </View>
-  );
+  return generateHTML();
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  contentContainer: {
-    padding: 15,
-  },
-  pdfButtonContainer: {
-    padding: 10,
-    backgroundColor: PRIMARY_BLUE,
-    alignItems: 'center',
-  },
-  pdfButton: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  frame: {
-    borderWidth: 2,
-    borderColor: PRIMARY_BLUE,
-    padding: 15,
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: PRIMARY_BLUE,
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  companyInfo: {
-    flex: 1,
-  },
-  companyName: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 8,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    marginBottom: 8,
-    alignItems: 'flex-start',
-  },
-  detailLabel: {
-    fontSize: 9,
-    fontWeight: 'bold',
-    color: DARK,
-    width: 60,
-  },
-  detailValue: {
-    fontSize: 9,
-    color: DARK,
-    flex: 1,
-  },
-  addressText: {
-    flex: 1,
-    flexWrap: 'wrap',
-  },
-  metaSection: {
-    width: 200,
-  },
-  metaColumn: {
-    flex: 1,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    padding: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  metaLabel: {
-    fontSize: 9,
-    fontWeight: 'bold',
-    color: DARK,
-  },
-  metaValue: {
-    fontSize: 9,
-    color: PRIMARY_BLUE,
-    fontWeight: 'bold',
-  },
-  buyerConsigneeSection: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: BORDER,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-    marginVertical: 20,
-    paddingVertical: 10,
-  },
-  buyerColumn: {
-    flex: 1,
-    paddingRight: 10,
-  },
-  consigneeColumn: {
-    flex: 1,
-    paddingLeft: 10,
-  },
-  verticalDivider: {
-    width: 1,
-    backgroundColor: BORDER,
-    marginHorizontal: 10,
-  },
-  sectionTitle: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: DARK,
-    marginBottom: 12,
-  },
-  table: {
-    borderWidth: 1,
-    borderColor: BORDER,
-    marginBottom: 20,
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    backgroundColor: LIGHT_BLUE,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  tableHeaderText: {
-    fontSize: 7,
-    fontWeight: 'bold',
-    color: DARK,
-    flex: 1,
-    textAlign: 'center',
-  },
-  tableRow: {
-    flexDirection: 'row',
-    borderTopWidth: 0.5,
-    borderTopColor: BORDER,
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-  },
-  tableCell: {
-    fontSize: 7.5,
-    color: DARK,
-    flex: 1,
-    textAlign: 'center',
-  },
-  taxSummary: {
-    marginBottom: 20,
-  },
-  taxSummaryTitle: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: DARK,
-    marginBottom: 10,
-  },
-  taxSummaryTable: {
-    borderWidth: 1,
-    borderColor: BORDER,
-    padding: 10,
-  },
-  taxSummaryText: {
-    fontSize: 9,
-    color: DARK,
-    marginBottom: 6,
-  },
-  finalTotal: {
-    fontWeight: 'bold',
-    marginTop: 8,
-  },
-  amountInWords: {
-    marginBottom: 20,
-  },
-  amountLabel: {
-    fontSize: 9,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 4,
-  },
-  amountWords: {
-    fontSize: 8,
-    color: DARK,
-  },
-  footerSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 30,
-    borderTopWidth: 1,
-    borderTopColor: BORDER,
-    paddingTop: 20,
-  },
-  bankSection: {
-    flex: 1,
-    marginRight: 20,
-  },
-  signatureSection: {
-    width: 150,
-    alignItems: 'center',
-  },
-  signatureTitle: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 10,
-  },
-  signatureBox: {
-    width: 150,
-    height: 60,
-    borderWidth: 0.5,
-    borderColor: '#DCE0E4',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  signatureText: {
-    fontSize: 8,
-    color: '#697077',
-  },
-  qrPlaceholder: {
-    width: 80,
-    height: 80,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 0.5,
-    borderColor: '#DCE0E4',
-    marginTop: 8,
-  },
-  qrText: {
-    fontSize: 8,
-    color: '#697077',
-  },
-  termsSection: {
-    marginBottom: 20,
-  },
-  termsTitle: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 10,
-  },
-  termItem: {
-    fontSize: 8,
-    color: DARK,
-    marginBottom: 6,
-    lineHeight: 12,
-  },
-});
+// --- PDF Generation Function ---
+export const generatePdfForTemplate17 = async (
+  transaction,
+  company,
+  party,
+  serviceNameById,
+  shippingAddress,
+  bank,
+) => {
+  try {
+    const htmlContent = Template17({
+      transaction,
+      company,
+      party,
+      shippingAddress,
+      bank,
+    });
+
+    const options = {
+      html: htmlContent,
+      fileName: `invoice_${transaction.invoiceNumber || 'document'}`,
+      directory: 'Documents',
+      width: PAGE_WIDTH,
+      height: PAGE_HEIGHT,
+    };
+
+    const file = await generatePDF(options);
+    return file;
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    throw error;
+  }
+};
+
+// Utility function to use the component directly
+export const generateTemplate17HTML = props => {
+  return Template17(props);
+};
+
+export default Template17;
