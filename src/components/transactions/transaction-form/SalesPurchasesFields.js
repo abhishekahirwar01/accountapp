@@ -792,6 +792,26 @@ export const SalesPurchasesFields = props => {
           ...prev,
           [index]: (prev[index] || 0) + 1,
         }));
+      } else if (
+        type === 'purchases' &&
+        selectedProduct?.costPrice &&
+        selectedProduct.costPrice > 0
+      ) {
+        const newPrice = selectedProduct.costPrice;
+        setValue(`items.${index}.pricePerUnit`, newPrice, {
+          shouldValidate: true,
+          shouldDirty: true,
+          shouldTouch: true,
+        });
+
+        setTimeout(() => {
+          calculateLineTotals(index);
+        }, 100);
+
+        setItemRenderKeys(prev => ({
+          ...prev,
+          [index]: (prev[index] || 0) + 1,
+        }));
       } else {
         setValue(`items.${index}.pricePerUnit`, 0, { shouldValidate: true });
         calculateLineTotals(index);
@@ -1515,10 +1535,18 @@ export const SalesPurchasesFields = props => {
                 value={watch(`items.${index}.service`) || ''}
                 onChange={value => {
                   setValue(`items.${index}.service`, value);
-                  if (value && type === 'sales') {
+                  if (value) {
                     const selectedService = services.find(s => s._id === value);
-                    if (selectedService?.amount > 0) {
-                      setValue(`items.${index}.amount`, selectedService.amount);
+                    if (selectedService) {
+                      if (
+                        (type === 'sales' || type === 'purchases') &&
+                        selectedService.amount > 0
+                      ) {
+                        setValue(
+                          `items.${index}.amount`,
+                          selectedService.amount,
+                        );
+                      }
                     }
                   }
                 }}
