@@ -196,7 +196,9 @@ export default function UserSidebar() {
               isActive('CustomerDashboard') ||
               isActive('UserDashboard')
             }
-            onPress={() => navigation.navigate(dashboardScreen)}
+            onPress={() =>
+              navigation.navigate('MainTabs', { screen: 'CustomerDashboard' })
+            }
             isBottomNav={true}
             showAlways={true}
           />
@@ -206,7 +208,9 @@ export default function UserSidebar() {
             icon="swap-horizontal-outline"
             title="Transactions"
             isActive={isActive('Transactions')}
-            onPress={() => navigation.navigate('Transactions')}
+            onPress={() =>
+              navigation.navigate('MainTabs', { screen: 'Transactions' })
+            }
             isBottomNav={true}
             showAlways={true}
           />
@@ -220,7 +224,9 @@ export default function UserSidebar() {
                 icon="cube-outline"
                 title="Inventory"
                 isActive={isActive('Inventory')}
-                onPress={() => navigation.navigate('Inventory')}
+                onPress={() =>
+                  navigation.navigate('MainTabs', { screen: 'Inventory' })
+                }
                 isBottomNav={true}
                 hasPermission={userCaps?.canCreateInventory}
               />
@@ -281,7 +287,9 @@ export default function UserSidebar() {
             isActive('CustomerDashboard') ||
             isActive('UserDashboard')
           }
-          onPress={() => navigation.navigate(dashboardScreen)}
+          onPress={() =>
+            navigation.navigate('MainTabs', { screen: 'CustomerDashboard' })
+          }
           showAlways={true}
         />
 
@@ -290,7 +298,9 @@ export default function UserSidebar() {
           icon="swap-horizontal-outline"
           title="Transactions"
           isActive={isActive('Transactions')}
-          onPress={() => navigation.navigate('Transactions')}
+          onPress={() =>
+            navigation.navigate('MainTabs', { screen: 'Transactions' })
+          }
           showAlways={true}
         />
 
@@ -303,7 +313,9 @@ export default function UserSidebar() {
               icon="cube-outline"
               title="Inventory"
               isActive={isActive('Inventory')}
-              onPress={() => navigation.navigate('Inventory')}
+              onPress={() =>
+                navigation.navigate('MainTabs', { screen: 'Inventory' })
+              }
               hasPermission={userCaps?.canCreateInventory}
             />
           )
