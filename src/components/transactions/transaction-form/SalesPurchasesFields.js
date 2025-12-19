@@ -115,6 +115,17 @@ const formatCurrencyDisplay = value => {
   }
 };
 
+
+const formatGrandTotal = value => {
+  if (value === '' || value === null || value === undefined) return '0.00';
+  const num = Number(value);
+  if (isNaN(num)) return '0.00';
+  return new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
+};
+
 const FormMessage = ({ error, message }) => {
   if (!error) return null;
   return <Text style={styles.errorText}>{message || error.message}</Text>;
@@ -2415,7 +2426,7 @@ export const SalesPurchasesFields = props => {
                       <Text style={styles.totalLabel}>Subtotal</Text>
                       <TextInput
                         style={styles.totalInputField}
-                        value={formatWithCommas(watch('totalAmount'))}
+                        value={formatGrandTotal(watch('totalAmount'))}
                         editable={false}
                       />
                     </View>
@@ -2425,7 +2436,7 @@ export const SalesPurchasesFields = props => {
                         <Text style={styles.totalLabel}>GST</Text>
                         <TextInput
                           style={styles.totalInputField}
-                          value={formatWithCommas(watch('taxAmount'))}
+                          value={formatGrandTotal(watch('taxAmount'))}
                           editable={false}
                         />
                       </View>
@@ -2435,11 +2446,13 @@ export const SalesPurchasesFields = props => {
                       <Text style={styles.invoiceTotalLabel}>
                         Invoice Total{gstEnabled ? ' (GST incl.)' : ''}
                       </Text>
-                      <TextInput
-                        style={styles.invoiceTotalInput}
-                        value={formatCurrencyDisplay(watch('invoiceTotal'))}
-                        editable={false}
-                      />
+                      <View style={styles.invoiceTotalInputContainer}>
+                        <TextInput
+                          style={styles.invoiceTotalInput}
+                          value={`₹${formatGrandTotal(watch('invoiceTotal'))}`}
+                          editable={false}
+                        />
+                      </View>
                     </View>
                   </View>
                 </CustomCard>
@@ -2989,7 +3002,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  invoiceTotalInput: {
+  invoiceTotalInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     width: 150,
     height: 40,
     borderWidth: 1,
@@ -2997,9 +3012,20 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 12,
     backgroundColor: '#F9FAFB',
+  },
+  invoiceTotalCurrencySymbol: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginRight: 4,
+  },
+  invoiceTotalInput: {
+    flex: 1,
+    height: 40,
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'right',
+    color: '#111827',
   },
   errorBorder: {
     borderColor: '#DC2626',
