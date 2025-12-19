@@ -1,20 +1,40 @@
 // src/utils/roleNavigation.js
+
 export const navigateByRole = (navigation, role) => {
-  switch (role) {
+  // role normalize karein (small case)
+  const userRole = (role || '').toLowerCase();
+
+  switch (userRole) {
     case 'master':
-      navigation.replace('AdminDashboard', { role }); // pass role
+      // Pehle Parent 'MainTabs' par jayein, fir batayein ki kaunsa 'screen' dikhana hai
+      navigation.replace('MainTabs', {
+        screen: 'AdminDashboard',
+        params: { role: userRole },
+      });
       break;
+
     case 'admin':
     case 'customer':
     case 'client':
-      navigation.replace('CustomerDashboard', { role }); // pass role
+      navigation.replace('MainTabs', {
+        screen: 'CustomerDashboard',
+        params: { role: userRole },
+      });
       break;
-    case 'user': 
-      navigation.replace('UserDashboard', { role }); // pass role
+
+    case 'user':
+      navigation.replace('MainTabs', {
+        screen: 'UserDashboard',
+        params: { role: userRole },
+      });
       break;
+
     default:
-      // fallback for any unknown role
-      navigation.replace('UserDashboard', { role }); 
+      // fallback
+      navigation.replace('MainTabs', {
+        screen: 'UserDashboard',
+        params: { role: userRole },
+      });
       break;
   }
 };

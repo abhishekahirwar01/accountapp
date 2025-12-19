@@ -1,5 +1,8 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import Header from '../components/layout/Header';
+
 import GettingStartedScreen from '../screens/auth/GettingStartedScreen';
 import OTPVerificationScreen from '../screens/auth/OTPVerificationScreen';
 import AdminLoginScreen from '../screens/auth/AdminLoginScreen';
@@ -26,7 +29,100 @@ import Reports from '../screens/main/reports/Reports';
 import Ledger from '../screens/main/ledger/Ledger';
 import { CompanyForm } from '../components/companies/CompanyForm';
 import { TransactionForm } from '../components/transactions/TransactionForm';
+
 const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
+
+function MainTabNavigator() {
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        tabBarStyle: { display: 'none' },
+      }}
+    >
+      {/* --- Screens WITH Header --- */}
+      <Tab.Screen
+        name="AdminDashboard"
+        component={AdminDashboardScreen}
+        options={{ headerShown: true, header: () => <Header /> }}
+      />
+      <Tab.Screen
+        name="UserDashboard"
+        component={UserDashboardScreen}
+        options={{ headerShown: true, header: () => <Header /> }}
+      />
+      <Tab.Screen
+        name="CustomerDashboard"
+        component={CustomerDashboardScreen}
+        options={{ headerShown: true, header: () => <Header /> }}
+      />
+      <Tab.Screen
+        name="Transactions"
+        component={TransactionsScreen}
+        options={{ headerShown: true, header: () => <Header /> }}
+      />
+
+      {/* --- Screens WITHOUT Header (Lekin same Navigator mein rahengi) --- */}
+      <Tab.Screen
+        name="Inventory"
+        component={InventoryScreen}
+        options={{ headerShown: false }}
+      />
+      <Tab.Screen
+        name="Companies"
+        component={CompaniesScreen}
+        options={{ headerShown: false }}
+      />
+      <Tab.Screen
+        name="Users"
+        component={UsersScreen}
+        options={{ headerShown: false }}
+      />
+      <Tab.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{ headerShown: false }}
+      />
+      <Tab.Screen
+        name="Reports"
+        component={Reports}
+        options={{ headerShown: false }}
+      />
+      <Tab.Screen
+        name="Ledger"
+        component={Ledger}
+        options={{ headerShown: false }}
+      />
+
+      {/* Admin specific screens without header */}
+      <Tab.Screen
+        name="AdminAnalytics"
+        component={AdminAnalyticsScreen}
+        options={{ headerShown: false }}
+      />
+      <Tab.Screen
+        name="AnalyticsScreen"
+        component={AnalyticsScreen}
+        options={{ headerShown: false }}
+      />
+      <Tab.Screen
+        name="AdminCompanies"
+        component={AdminCompaniesScreen}
+        options={{ headerShown: false }}
+      />
+      {/* <Tab.Screen
+        name="AdminSettings"
+        component={AdminSettingsScreen}
+        options={{ headerShown: false }}
+      /> */}
+      <Tab.Screen
+        name="AdminClientManagement"
+        component={AdminClientManagementPage}
+        options={{ headerShown: false }}
+      />
+    </Tab.Navigator>
+  );
+}
 
 export default function AppNavigator() {
   return (
@@ -41,34 +137,13 @@ export default function AppNavigator() {
       <Stack.Screen name="UserLoginScreen" component={UserLoginScreen} />
       <Stack.Screen name="ClientLoginScreen" component={ClientLoginScreen} />
 
-      {/* Dashboards */}
-      <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+      {/* 2. Main Tab Area (Jahan Header dikhega) */}
+      <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+
+      <Stack.Screen name="AdminSettings" component={AdminSettingsScreen} />
       <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
       <Stack.Screen name="HistoryScreen" component={HistoryScreen} />
-      <Stack.Screen name="AdminSettings" component={AdminSettingsScreen} />
-      <Stack.Screen name="AdminAnalytics" component={AdminAnalyticsScreen} />
-      <Stack.Screen name="AnalyticsScreen" component={AnalyticsScreen} />
-      <Stack.Screen
-        name="AdminClientManagement"
-        component={AdminClientManagementPage}
-      />
-      <Stack.Screen name="AdminCompanies" component={AdminCompaniesScreen} />
-
-      <Stack.Screen name="UserDashboard" component={UserDashboardScreen} />
-      <Stack.Screen
-        name="CustomerDashboard"
-        component={CustomerDashboardScreen}
-      />
-      <Stack.Screen name="Transactions" component={TransactionsScreen} />
-      <Stack.Screen name="Companies" component={CompaniesScreen} />
-      <Stack.Screen name="Inventory" component={InventoryScreen} />
-      <Stack.Screen name="Users" component={UsersScreen} />
-      <Stack.Screen name="Settings" component={SettingsScreen} />
-      <Stack.Screen name="Reports" component={Reports} />
-      <Stack.Screen name="Ledger" component={Ledger} />
       <Stack.Screen name="TransactionForm" component={TransactionForm} />
-
-      {/* ProfileScreen acts as user settings for non-master users */}
       <Stack.Screen name="InvoicePreview" component={InvoicePreview} />
       <Stack.Screen name="CompanyForm" component={CompanyForm} />
     </Stack.Navigator>

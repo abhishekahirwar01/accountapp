@@ -31,8 +31,6 @@ import Pdf from 'react-native-pdf';
 import { useCompany } from '../../contexts/company-context';
 import { useToast } from '../../components/hooks/useToast';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
-import { useClientPagination } from '../../components/hooks/use-client-pagination';
-import { ClientPagination } from '../../components/transactions/transaction-form/client-pagination';
 
 // Icons
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -44,7 +42,11 @@ import DataTable from '../../components/transactions/DataTable';
 import { TransactionForm } from '../../components/transactions/TransactionForm';
 import ProformaForm from '../../components/transactions/ProformaForm';
 import InvoicePreview from '../../components/invoices/InvoicePreview';
-import { columns, useColumns } from '../../components/transactions/columns';
+import {
+  columns,
+  useColumns,
+  makeCustomFilterFn,
+} from '../../components/transactions/columns';
 import { generatePdfForTemplate1 } from '../../lib/pdf-template1';
 import {
   TableSkeleton,
@@ -139,6 +141,8 @@ const TransactionsScreen = ({ navigation }) => {
   const [defaultTransactionType, setDefaultTransactionType] = useState(null);
   const [prefillFromTransaction, setPrefillFromTransaction] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [filter, setFilter] = useState('');
+  const [visibleCount, setVisibleCount] = useState(20);
 
   // Email states
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
@@ -201,7 +205,7 @@ const TransactionsScreen = ({ navigation }) => {
   // Fetch transactions
   const fetchTransactions = useCallback(async () => {
     if (initialLoad) {
-      setIsLoading(true);
+      setIsLoading(true); // Skeleton shuru
     }
     setIsRefreshing(true);
 
@@ -256,6 +260,7 @@ const TransactionsScreen = ({ navigation }) => {
       const maybeFetch = (condition, task, fallback) =>
         condition ? task() : Promise.resolve(fallback);
 
+      // STEP 1: Pehle Transactions aur Companies dono fetch karein
       const [
         salesArray,
         purchasesArray,
@@ -263,11 +268,7 @@ const TransactionsScreen = ({ navigation }) => {
         receiptsArray,
         paymentsArray,
         journalsArray,
-        companiesArray,
-        partiesArray,
-        vendorsArray,
-        productsArray,
-        servicesArray,
+        companiesArray, // <-- Company ko bhi main promise mein le aayein
       ] = await Promise.all([
         maybeFetch(
           canSales,
@@ -343,6 +344,31 @@ const TransactionsScreen = ({ navigation }) => {
           data => parseResponse(data, ['companies', 'data']),
           'companies',
         ),
+      ]);
+
+      // Sabse pehle Companies set karein taaki "Company Setup Required" na dikhe
+      setCompanies(companiesArray);
+
+      // Baaki data set karein
+      setSales(salesArray.map(p => ({ ...p, type: 'sales' })));
+      setPurchases(purchasesArray.map(p => ({ ...p, type: 'purchases' })));
+      setProforma(proformaArray.map(p => ({ ...p, type: 'proforma' })));
+      setReceipts(receiptsArray.map(r => ({ ...r, type: 'receipt' })));
+      setPayments(paymentsArray.map(p => ({ ...p, type: 'payment' })));
+      setJournals(
+        journalsArray.map(j => ({
+          ...j,
+          description: j.narration || j.description,
+          type: 'journal',
+        })),
+      );
+
+      // Ab Loading band karein (Ab seedha UI dikhega)
+      setIsLoading(false);
+      setInitialLoad(false);
+
+      // STEP 2: Ab baki bacha hua low-priority data background mein chalne dein
+      Promise.all([
         fetchData(
           '/api/parties',
           data => parseResponse(data, ['parties', 'customers', 'data']),
@@ -363,34 +389,22 @@ const TransactionsScreen = ({ navigation }) => {
           data => parseResponse(data, ['services', 'data']),
           'services',
         ),
-      ]);
-
-      // Update state
-      setSales(salesArray.map(p => ({ ...p, type: 'sales' })));
-      setPurchases(purchasesArray.map(p => ({ ...p, type: 'purchases' })));
-      setProforma(proformaArray.map(p => ({ ...p, type: 'proforma' })));
-      setReceipts(receiptsArray.map(r => ({ ...r, type: 'receipt' })));
-      setPayments(paymentsArray.map(p => ({ ...p, type: 'payment' })));
-      setJournals(
-        journalsArray.map(j => ({
-          ...j,
-          description: j.narration || j.description,
-          type: 'journal',
-        })),
+      ]).then(
+        ([partiesArray, vendorsArray, productsArray, servicesArray]) => {
+          setParties(partiesArray);
+          setVendors(vendorsArray);
+          setProductsList(productsArray);
+          setServicesList(servicesArray);
+        },
       );
-
-      setCompanies(companiesArray);
-      setParties(partiesArray);
-      setVendors(vendorsArray);
-      setProductsList(productsArray);
-      setServicesList(servicesArray);
     } catch (error) {
+      // ... error handling
       console.error('Fetch transactions error:', error);
       toast('Failed to load transactions', 'error', error.message);
-    } finally {
       setIsLoading(false);
-      setIsRefreshing(false);
       setInitialLoad(false);
+    } finally {
+      setIsRefreshing(false);
     }
   }, [
     selectedCompanyId,
@@ -424,6 +438,11 @@ const TransactionsScreen = ({ navigation }) => {
     });
     return map;
   }, [servicesList]);
+
+  const customFilterFn = useMemo(
+    () => makeCustomFilterFn(serviceNameById),
+    [serviceNameById],
+  );
 
   // Filter data based on company
   const userCompanyIds = useMemo(() => companies.map(c => c._id), [companies]);
@@ -496,63 +515,82 @@ const TransactionsScreen = ({ navigation }) => {
     visibleJournals,
   ]);
 
-  // Client-side pagination hooks
-  const allPagination = useClientPagination({
-    data: allVisibleTransactions,
-    initialPageSize: 20,
-  });
+  const searchedAll = useMemo(() => {
+    if (!filter) return allVisibleTransactions;
+    return allVisibleTransactions.filter(item => customFilterFn(item, filter));
+  }, [filter, allVisibleTransactions, customFilterFn]);
 
-  const salesPagination = useClientPagination({
-    data: filteredSales,
-    initialPageSize: 20,
-  });
+  const searchedSales = useMemo(() => {
+    if (!filter) return visibleSales;
+    return visibleSales.filter(item => customFilterFn(item, filter));
+  }, [filter, visibleSales, customFilterFn]);
 
-  const purchasesPagination = useClientPagination({
-    data: filteredPurchases,
-    initialPageSize: 20,
-  });
+  const searchedPurchases = useMemo(() => {
+    if (!filter) return visiblePurchases;
+    return visiblePurchases.filter(item => customFilterFn(item, filter));
+  }, [filter, visiblePurchases, customFilterFn]);
 
-  const proformaPagination = useClientPagination({
-    data: filteredProforma,
-    initialPageSize: 20,
-  });
+  const searchedProforma = useMemo(() => {
+    if (!filter) return visibleProforma;
+    return visibleProforma.filter(item => customFilterFn(item, filter));
+  }, [filter, visibleProforma, customFilterFn]);
 
-  const receiptsPagination = useClientPagination({
-    data: filteredReceipts,
-    initialPageSize: 20,
-  });
+  const searchedReceipts = useMemo(() => {
+    if (!filter) return visibleReceipts;
+    return visibleReceipts.filter(item => customFilterFn(item, filter));
+  }, [filter, visibleReceipts, customFilterFn]);
 
-  const paymentsPagination = useClientPagination({
-    data: filteredPayments,
-    initialPageSize: 20,
-  });
+  const searchedPayments = useMemo(() => {
+    if (!filter) return visiblePayments;
+    return visiblePayments.filter(item => customFilterFn(item, filter));
+  }, [filter, visiblePayments, customFilterFn]);
 
-  const journalsPagination = useClientPagination({
-    data: filteredJournals,
-    initialPageSize: 20,
-  });
+  const searchedJournals = useMemo(() => {
+    if (!filter) return visibleJournals;
+    return visibleJournals.filter(item => customFilterFn(item, filter));
+  }, [filter, visibleJournals, customFilterFn]);
 
-  // Get current pagination based on active tab
-  const getCurrentPagination = () => {
+  const onFilterChange = text => {
+    setFilter(text);
+    setVisibleCount(20);
+  };
+
+  const getCurrentSearchedData = useCallback(() => {
     switch (activeTab) {
       case TABS.ALL:
-        return allPagination;
+        return searchedAll;
       case TABS.SALES:
-        return salesPagination;
+        return searchedSales;
       case TABS.PURCHASES:
-        return purchasesPagination;
+        return searchedPurchases;
       case TABS.PROFORMA:
-        return proformaPagination;
+        return searchedProforma;
       case TABS.RECEIPTS:
-        return receiptsPagination;
+        return searchedReceipts;
       case TABS.PAYMENTS:
-        return paymentsPagination;
+        return searchedPayments;
       case TABS.JOURNALS:
-        return journalsPagination;
+        return searchedJournals;
       default:
-        return allPagination;
+        return searchedAll;
     }
-  };
+  }, [
+    activeTab,
+    searchedAll,
+    searchedSales,
+    searchedPurchases,
+    searchedProforma,
+    searchedReceipts,
+    searchedPayments,
+    searchedJournals,
+  ]);
+
+  const handleLoadMore = useCallback(() => {
+    const currentData = getCurrentSearchedData();
+    if (visibleCount < currentData.length) {
+      setVisibleCount(prevCount => prevCount + 20); // Load 20 more items
+    }
+  }, [visibleCount, getCurrentSearchedData]);
 
   // Get current data based on active tab
   const getCurrentData = () => {
@@ -1234,6 +1272,7 @@ const TransactionsScreen = ({ navigation }) => {
 
   const handleTabChange = tab => {
     setActiveTab(tab);
+    setVisibleCount(20);
     setIsDropdownOpen(false);
   };
 
@@ -1353,8 +1392,9 @@ const TransactionsScreen = ({ navigation }) => {
 
   // Render content based on loading state
   const renderContent = () => {
-    const data = getCurrentData();
-    const currentPagination = getCurrentPagination();
+    const dataForTab = getCurrentData();
+    const searchedDataForTab = getCurrentSearchedData();
+    const displayData = searchedDataForTab.slice(0, visibleCount);
 
     if (isLoading && initialLoad) {
       return (
@@ -1364,7 +1404,7 @@ const TransactionsScreen = ({ navigation }) => {
       );
     }
 
-    if (data.length === 0) {
+    if (dataForTab.length === 0) {
       return (
         <View style={styles.emptyContainer}>
           <Icon name="receipt" size={80} color="#d1d5db" />
@@ -1391,8 +1431,12 @@ const TransactionsScreen = ({ navigation }) => {
       <View style={styles.tableContainer}>
         <DataTable
           columns={tableColumns}
-          data={currentPagination.paginatedData}
-          key={`${refreshTrigger}-${currentPagination.page}`}
+          data={displayData}
+          filter={filter}
+          onFilterChange={onFilterChange}
+          totalResults={searchedDataForTab.length}
+          onLoadMore={handleLoadMore}
+          key={`${refreshTrigger}-${activeTab}`}
         />
       </View>
     );
@@ -1609,8 +1653,14 @@ const TransactionsScreen = ({ navigation }) => {
   return (
     <AppLayout>
       <View style={styles.container}>
-        {companies.length === 0 && !isLoading ? (
-          renderMainContent()
+        {/* 1. Jab tak initial loading hai, sirf Skeleton dikhao */}
+        {isLoading ? (
+          <View style={styles.skeletonContainer}>
+            <LoadingSkeleton isMobile={width <= 768} />
+          </View>
+        ) : /* 2. Loading khatam hone ke baad check karo company hai ya nahi */
+        companies.length === 0 ? (
+          renderMainContent() // Yeh tabhi chalega jab sach mein 0 companies hongi
         ) : (
           <View style={styles.mainContainer}>{renderMainContent()}</View>
         )}

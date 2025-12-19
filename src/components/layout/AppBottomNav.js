@@ -163,28 +163,36 @@ export function AppSidebar() {
         icon="grid-outline"
         title="Dashboard"
         isActive={isActive('AdminDashboard')}
-        onPress={() => navigation.navigate('AdminDashboard')}
+        onPress={() =>
+          navigation.navigate('MainTabs', { screen: 'AdminDashboard' })
+        }
         isBottomNav={isMobile}
       />
       <MenuButton
         icon="people-outline"
         title="Clients"
         isActive={isActive('AdminClientManagement')}
-        onPress={() => navigation.navigate('AdminClientManagement')}
+        onPress={() =>
+          navigation.navigate('MainTabs', { screen: 'AdminClientManagement' })
+        }
         isBottomNav={isMobile}
       />
       <MenuButton
         icon="business-outline"
         title="Companies"
         isActive={isActive('AdminCompanies')}
-        onPress={() => navigation.navigate('AdminCompanies')}
+        onPress={() =>
+          navigation.navigate('MainTabs', { screen: 'AdminCompanies' })
+        }
         isBottomNav={isMobile}
       />
       <MenuButton
         icon="bar-chart-outline"
         title="Analytics"
         isActive={isActive('AdminAnalytics')}
-        onPress={() => navigation.navigate('AdminAnalytics')}
+        onPress={() =>
+          navigation.navigate('MainTabs', { screen: 'AdminAnalytics' })
+        }
         isBottomNav={isMobile}
       />
       <MenuButton
@@ -209,7 +217,9 @@ export function AppSidebar() {
           icon="grid-outline"
           title="Dashboard"
           isActive={isActive('UserDashboard') || isActive('CustomerDashboard')}
-          onPress={() => navigation.navigate('CustomerDashboard')}
+          onPress={() =>
+            navigation.navigate('MainTabs', { screen: 'CustomerDashboard' })
+          }
           isBottomNav={isMobile}
         />
 
@@ -218,7 +228,9 @@ export function AppSidebar() {
           icon="swap-horizontal-outline"
           title="Transactions"
           isActive={isActive('Transactions')}
-          onPress={() => navigation.navigate('Transactions')}
+          onPress={() =>
+            navigation.navigate('MainTabs', { screen: 'Transactions' })
+          }
           isBottomNav={isMobile}
         />
 
@@ -228,7 +240,9 @@ export function AppSidebar() {
             icon="cube-outline"
             title="Inventory"
             isActive={isActive('Inventory')}
-            onPress={() => navigation.navigate('Inventory')}
+            onPress={() =>
+              navigation.navigate('MainTabs', { screen: 'Inventory' })
+            }
             isBottomNav={isMobile}
           />
         )}
@@ -239,7 +253,9 @@ export function AppSidebar() {
             icon="business-outline"
             title="Companies"
             isActive={isActive('Companies')}
-            onPress={() => navigation.navigate('Companies')}
+            onPress={() =>
+              navigation.navigate('MainTabs', { screen: 'Companies' })
+            }
             isBottomNav={isMobile}
           />
         )}
@@ -250,7 +266,7 @@ export function AppSidebar() {
             icon="people-outline"
             title="Users"
             isActive={isActive('Users')}
-            onPress={() => navigation.navigate('Users')}
+            onPress={() => navigation.navigate('MainTabs', { screen: 'Users' })}
             isBottomNav={isMobile}
           />
         )}
@@ -283,13 +299,17 @@ export function AppSidebar() {
             <CollapsibleContent isOpen={reportsOpen}>
               <SubMenuButton
                 title="Profit & Loss"
-                isActive={isActive('Reports')} 
-                onPress={() => navigation.navigate('Reports')} 
+                isActive={isActive('Reports')}
+                onPress={() =>
+                  navigation.navigate('MainTabs', { screen: 'Reports' })
+                }
               />
               <SubMenuButton
                 title="Balance Sheet"
                 isActive={isActive('Reports')}
-                onPress={() => navigation.navigate('Reports')} 
+                onPress={() =>
+                  navigation.navigate('MainTabs', { screen: 'Reports' })
+                }
               />
             </CollapsibleContent>
           </Collapsible>
@@ -298,7 +318,9 @@ export function AppSidebar() {
             icon="document-text-outline"
             title="Reports"
             isActive={isReportsActive}
-            onPress={() => navigation.navigate('Reports')} 
+            onPress={() =>
+              navigation.navigate('MainTabs', { screen: 'Reports' })
+            }
             isBottomNav={isMobile}
           />
         )}
@@ -324,12 +346,16 @@ export function AppSidebar() {
               <SubMenuButton
                 title="Receivables"
                 isActive={isActive('Ledger')}
-                onPress={() => navigation.navigate('Ledger')}
+                onPress={() =>
+                  navigation.navigate('MainTabs', { screen: 'Ledger' })
+                }
               />
               <SubMenuButton
                 title="Payables"
-                isActive={isActive('Ledger')} 
-                onPress={() => navigation.navigate('Ledger')} 
+                isActive={isActive('Ledger')}
+                onPress={() =>
+                  navigation.navigate('MainTabs', { screen: 'Ledger' })
+                }
               />
             </CollapsibleContent>
           </Collapsible>
@@ -338,7 +364,9 @@ export function AppSidebar() {
             icon="document-outline"
             title="Ledger"
             isActive={isLedgerActive}
-            onPress={() => navigation.navigate('Ledger')} 
+            onPress={() =>
+              navigation.navigate('MainTabs', { screen: 'Ledger' })
+            }
             isBottomNav={isMobile}
           />
         )}

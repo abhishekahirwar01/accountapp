@@ -1,53 +1,50 @@
-// components/transactions/DataTable.js
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import Feather from 'react-native-vector-icons/Feather';
 import { getColumnLabel, getColumnValue } from './columns';
 
-export default function DataTable({ columns, data }) {
-  const [filter, setFilter] = useState('');
+export default function DataTable({
+  columns,
+  data,
+  filter,
+  onFilterChange,
+  totalResults,
+  onLoadMore,
+}) {
   const [sortKey, setSortKey] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
 
-  const filteredData = useMemo(() => {
-    if (!filter.trim()) return data;
+  // Debouncing for search filter
+  const [localFilter, setLocalFilter] = useState(filter);
+  useEffect(() => {
+    // If filter prop changes from parent (e.g. cleared), update local state
+    if (filter !== localFilter) {
+      setLocalFilter(filter);
+    }
+  }, [filter]);
 
-    return data.filter(item => {
-      const searchableText = Object.values(item)
-        .filter(val => typeof val === 'string')
-        .join(' ')
-        .toLowerCase();
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localFilter !== filter) {
+        onFilterChange(localFilter);
+      }
+    }, 300); // 300ms debounce delay
 
-      const partyName =
-        typeof item.party === 'object'
-          ? item.party.name || ''
-          : item.party || '';
-
-      const description = item.description || '';
-
-      const searchString = (
-        partyName +
-        ' ' +
-        description +
-        ' ' +
-        searchableText
-      ).toLowerCase();
-
-      return searchString.includes(filter.toLowerCase());
-    });
-  }, [filter, data]);
+    return () => clearTimeout(timer);
+  }, [localFilter, filter, onFilterChange]);
 
   const sortedData = useMemo(() => {
-    if (!sortKey) return filteredData;
+    if (!sortKey) return data;
 
-    return [...filteredData].sort((a, b) => {
+    return [...data].sort((a, b) => {
       const getValue = (obj, key) => {
         const val = obj[key];
 
@@ -71,7 +68,7 @@ export default function DataTable({ columns, data }) {
       if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [sortKey, sortDirection, filteredData]);
+  }, [sortKey, sortDirection, data]);
 
   const getItemKey = (item, index) => {
     if (item._id) return item._id;
@@ -92,8 +89,8 @@ export default function DataTable({ columns, data }) {
     </View>
   );
 
-  const renderItem = ({ item }) => (
-    <View style={styles.card}>
+  const renderItem = ({ item, index }) => (
+    <View key={getItemKey(item, index)} style={styles.card}>
       {columns
         .filter(col => col.id !== 'select')
         .map(column => (
@@ -117,14 +114,14 @@ export default function DataTable({ columns, data }) {
         />
         <TextInput
           placeholder="Filter by party, product, or description..."
-          value={filter}
-          onChangeText={setFilter}
+          value={localFilter}
+          onChangeText={setLocalFilter}
           style={styles.search}
           placeholderTextColor="#9ca3af"
         />
-        {filter.length > 0 && (
+        {localFilter.length > 0 && (
           <TouchableOpacity
-            onPress={() => setFilter('')}
+            onPress={() => setLocalFilter('')}
             style={styles.clearButton}
           >
             <Feather name="x" size={18} color="#6b7280" />
@@ -135,14 +132,11 @@ export default function DataTable({ columns, data }) {
       {filter.length > 0 && (
         <View style={styles.resultsCount}>
           <Text style={styles.resultsText}>
-            {sortedData.length} result{sortedData.length !== 1 ? 's' : ''} found
+            {totalResults} result{totalResults !== 1 ? 's' : ''} found
           </Text>
         </View>
       )}
 
-      {/* Render as plain list (not Virtualized) to avoid nested VirtualizedList warnings when
-              embedded inside a ScrollView. For large datasets, convert back to FlatList and
-              remove the outer ScrollView in the parent. */}
       {sortedData.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Feather name="inbox" size={64} color="#d1d5db" />
@@ -154,24 +148,30 @@ export default function DataTable({ columns, data }) {
           </Text>
         </View>
       ) : (
-        <ScrollView
-          nestedScrollEnabled={true}
+        <FlatList
+          data={sortedData}
+          renderItem={renderItem}
+          keyExtractor={getItemKey}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={true}
-        >
-          {sortedData.map((item, index) => (
-            <View key={getItemKey(item, index)} style={styles.card}>
-              {columns
-                .filter(col => col.id !== 'select')
-                .map(column => (
-                  <View key={column.id} style={styles.row}>
-                    <Text style={styles.label}>{getColumnLabel(column)}</Text>
-                    {renderRightValue(getColumnValue(column, item))}
-                  </View>
-                ))}
-            </View>
-          ))}
-        </ScrollView>
+          nestedScrollEnabled={true}
+          onEndReached={onLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={() =>
+            sortedData.length < totalResults ? (
+              <ActivityIndicator
+                size="small"
+                color="#3b82f6"
+                style={{ marginVertical: 20 }}
+              />
+            ) : null
+          }
+          // Optimization props:
+          initialNumToRender={10} // Shuruat mein sirf 10 cards render karega
+          maxToRenderPerBatch={10} // Scroll karte waqt 10-10 karke naye cards banayega
+          windowSize={5} // Sirf screen ke aas-paas ke cards memory mein rakhega
+          removeClippedSubviews={true}
+        />
       )}
     </View>
   );

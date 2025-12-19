@@ -1,8 +1,9 @@
+// components/layout/AppLayout.js
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { Host } from 'react-native-portalize';
-import Header from './Header';
+// Header yahan se hata diya gaya hai kyunki Navigator ise handle kar raha hai
 import { AppSidebar } from './AppBottomNav';
 import UserSidebar from './UserBottomNav';
 import { getCurrentUser } from '../../lib/auth';
@@ -39,22 +40,13 @@ export default function AppLayout({ children }) {
   const showAppSidebar = ['master', 'client', 'customer', 'admin'].includes(
     roleLower,
   );
-  const isDashboardScreen =
-    route.name === 'AdminDashboard' ||
-    route.name === 'UserDashboard' ||
-    route.name === 'CustomerDashboard' ||
-    route.name === 'Transactions';
 
-  // Guard for raw string/number children (the usual cause of that RN error)
+  // Helper to safely render children
   const renderChildren = child => {
     if (child === null || child === undefined) return null;
-
-    // primitive string/number
     if (typeof child === 'string' || typeof child === 'number') {
       return <Text>{child}</Text>;
     }
-
-    // array: wrap any primitive entries
     if (Array.isArray(child)) {
       return child.map((c, i) =>
         typeof c === 'string' || typeof c === 'number' ? (
@@ -66,16 +58,19 @@ export default function AppLayout({ children }) {
         ),
       );
     }
-
-    // otherwise assume it's a valid React node
     return child;
   };
 
   return (
     <Host>
       <View style={styles.container}>
-        {isDashboardScreen && <Header />}
+        {/* Yahan se {isDashboardScreen && <Header />} ko hata diya gaya hai.
+          Ab Dashboard aur Transactions screen par Header 'AppNavigator' 
+          ke Tab.Navigator se automatically dikhega bina flicker kiye.
+        */}
+
         <View style={styles.content}>{renderChildren(children)}</View>
+
         {showAppSidebar ? (
           <AppSidebar key={roleLower} />
         ) : (
