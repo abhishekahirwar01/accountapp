@@ -1632,6 +1632,15 @@ export function TransactionForm({
     }
   }
 
+  const handlePreviewClose = () => {
+    setInvoicePreviewOpen(false);
+    if (type === 'sales') {
+      if (onFormSubmit && typeof onFormSubmit === 'function') {
+        onFormSubmit();
+      }
+    }
+  };
+
   const enrichTransactionWithNames = (transaction, products, services) => {
     if (!transaction) return transaction;
 
@@ -3713,7 +3722,7 @@ export function TransactionForm({
         visible={invoicePreviewOpen}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setInvoicePreviewOpen(false)}
+        onRequestClose={handlePreviewClose}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
@@ -3721,7 +3730,7 @@ export function TransactionForm({
             <IconButton
               icon="✕"
               size={24}
-              onPress={() => setInvoicePreviewOpen(false)}
+              onPress={handlePreviewClose}
             />
           </View>
 
