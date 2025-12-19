@@ -1,4 +1,4 @@
-// pdf-templateA5_2.js - Updated with pagination
+// pdf-templateA5_2.js - Updated with proper pagination
 import React from 'react';
 import { generatePDF } from 'react-native-html-to-pdf';
 import {
@@ -22,7 +22,7 @@ const getClientName = client => {
 };
 
 // Constants
-const ITEMS_PER_PAGE = 20; // Number of items per page for A5 size
+const ITEMS_PER_PAGE = 24; // Reduced from 20 for better fit on A5
 
 // Simple HTML parser for PDF notes
 const parseHtmlToElements = (html, fontSize = 7) => {
@@ -228,7 +228,7 @@ const generateTableRows = (items, startIndex = 0, isGSTApplicable, showIGST, sho
 
       if (!isGSTApplicable || showNoTax) {
         return `
-        <tr>
+        <tr class="avoid-page-break">
           <td class="body-cell">${startIndex + index + 1}</td>
           <td class="body-cell body-left">${itemName}</td>
           <td class="body-cell">${item.code || '-'}</td>
@@ -244,7 +244,7 @@ const generateTableRows = (items, startIndex = 0, isGSTApplicable, showIGST, sho
       `;
       } else if (showIGST) {
         return `
-        <tr>
+        <tr class="avoid-page-break">
           <td class="body-cell">${startIndex + index + 1}</td>
           <td class="body-cell body-left">${itemName}</td>
           <td class="body-cell">${item.code || '-'}</td>
@@ -262,7 +262,7 @@ const generateTableRows = (items, startIndex = 0, isGSTApplicable, showIGST, sho
       `;
       } else {
         return `
-        <tr>
+        <tr class="avoid-page-break">
           <td class="body-cell">${startIndex + index + 1}</td>
           <td class="body-cell body-left">${itemName}</td>
           <td class="body-cell">${item.code || '-'}</td>
@@ -291,7 +291,7 @@ const generateTotalRow = (isGSTApplicable, showIGST, showCGSTSGST, totalTaxable,
   
   if (!isGSTApplicable) {
     return `
-      <tr class="total-row">
+      <tr class="total-row avoid-page-break">
         <td colspan="2" class="total-empty"></td>
         <td class="total-label">Total</td>
         <td class="total-value">${totalQty}</td>
@@ -302,7 +302,7 @@ const generateTotalRow = (isGSTApplicable, showIGST, showCGSTSGST, totalTaxable,
     `;
   } else if (showIGST) {
     return `
-      <tr class="total-row">
+      <tr class="total-row avoid-page-break">
         <td colspan="2" class="total-empty"></td>
         <td class="total-label">Total</td>
         <td class="total-value">${totalQty}</td>
@@ -314,7 +314,7 @@ const generateTotalRow = (isGSTApplicable, showIGST, showCGSTSGST, totalTaxable,
     `;
   } else {
     return `
-      <tr class="total-row">
+      <tr class="total-row avoid-page-break">
         <td colspan="2" class="total-empty"></td>
         <td class="total-label">Total</td>
         <td class="total-value">${totalQty}</td>
@@ -387,7 +387,7 @@ const generatePageHTML = (
   const generateTableHeaders = () => {
     if (!isGSTApplicable || showNoTax) {
       return `
-        <tr>
+        <tr class="avoid-page-break">
           <th class="header-cell" style="width: 8%;">Sr. No.</th>
           <th class="header-cell header-left" style="width: 25%;">Name of Product/Service</th>
           <th class="header-cell" style="width: 12%;">HSN/SAC</th>
@@ -399,7 +399,7 @@ const generatePageHTML = (
       `;
     } else if (showIGST) {
       return `
-        <tr>
+        <tr class="avoid-page-break">
           <th class="header-cell" rowspan="2" style="width: 6%;">Sr.<br/>No.</th>
           <th class="header-cell header-left" rowspan="2" style="width: 20%;">Name of Prod-<br/>uct/Service</th>
           <th class="header-cell" rowspan="2" style="width: 10%;">HSN/SAC</th>
@@ -409,14 +409,14 @@ const generatePageHTML = (
           <th class="header-cell" colspan="2" style="width: 18%;">IGST</th>
           <th class="header-cell" rowspan="2" style="width: 15%;">Total (Rs.)</th>
         </tr>
-        <tr>
+        <tr class="avoid-page-break">
           <th class="header-cell sub-header" style="width: 6%;">%</th>
           <th class="header-cell sub-header" style="width: 12%;">Amount<br/>(Rs.)</th>
         </tr>
       `;
     } else {
       return `
-        <tr>
+        <tr class="avoid-page-break">
           <th class="header-cell" rowspan="2" style="width: 5%;">Sr.<br/>No.</th>
           <th class="header-cell header-left" rowspan="2" style="width: 18%;">Name of<br/>Product/Service</th>
           <th class="header-cell" rowspan="2" style="width: 9%;">HSN/SAC</th>
@@ -427,7 +427,7 @@ const generatePageHTML = (
           <th class="header-cell" colspan="2" style="width: 18%;">SGST</th>
           <th class="header-cell" rowspan="2" style="width: 14%;">Total (Rs.)</th>
         </tr>
-        <tr>
+        <tr class="avoid-page-break">
           <th class="header-cell sub-header" style="width: 5%;">%</th>
           <th class="header-cell sub-header" style="width: 8%;">Amount(Rs.)</th>
           <th class="header-cell sub-header" style="width: 5%;">%</th>
@@ -677,7 +677,7 @@ const generatePageHTML = (
 
       ${isLastPage ? `
         <!-- Total in Words -->
-        <div class="total-words">
+        <div class="total-words avoid-page-break">
           TOTAL IN WORDS : ${amountInWords.toUpperCase()}
         </div>
 
@@ -828,7 +828,7 @@ const generatePageHTML = (
         ${
           formattedNotes
             ? `
-          <div class="notes-section">
+          <div class="notes-section avoid-page-break">
             ${formattedNotes}
           </div>
         `
@@ -859,10 +859,8 @@ const TemplateA5_2PDF = ({
         console.warn('No transaction data provided');
         return getFallbackData();
       }
-      
 
       const result = prepareTemplate8Data(
-        
         transaction,
         company,
         party,
@@ -937,16 +935,16 @@ const TemplateA5_2PDF = ({
 
   // Split items into pages
   const itemPages = splitItemsIntoPages(itemsWithGST, ITEMS_PER_PAGE);
-  const totalPages = itemPages.length;
+  const totalPages = Math.max(1, itemPages.length); // Ensure at least 1 page
 
   // Generate HTML content for PDF
   const generateHTML = () => {
-    let startIndex = 0;
-    const pageHTMLs = itemPages.map((pageItems, pageIndex) => {
-      const pageHTML = generatePageHTML(
-        pageItems,
-        pageIndex,
-        totalPages,
+    // If items fit on one page, use single page template
+    if (itemsWithGST.length <= ITEMS_PER_PAGE) {
+      const singlePageHTML = generatePageHTML(
+        itemsWithGST,
+        0,
+        1,
         company,
         transaction,
         party,
@@ -966,14 +964,11 @@ const TemplateA5_2PDF = ({
         bankData,
         isBankDetailAvailable,
         title,
-        startIndex,
-        pageIndex === totalPages - 1 // isLastPage
+        0,
+        true // isLastPage
       );
-      startIndex += pageItems.length;
-      return pageHTML;
-    });
-
-    return `<!DOCTYPE html>
+      
+      return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -986,7 +981,16 @@ const TemplateA5_2PDF = ({
     }
 
     @media print {
-      body { -webkit-print-color-adjust: exact; }
+      body { 
+        -webkit-print-color-adjust: exact; 
+        margin: 0;
+        padding: 0;
+      }
+      
+      .page {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
     }
     
     body {
@@ -995,7 +999,7 @@ const TemplateA5_2PDF = ({
       color: #000;
       line-height: 1.3;
       background: #fff;
-      padding-top: 5mm;
+      padding: 0;
     }
 
     .page {
@@ -1004,12 +1008,7 @@ const TemplateA5_2PDF = ({
       margin: 0 auto;
       background: white;
       position: relative;
-      page-break-after: always;
-      padding-bottom: 10mm;
-    }
-    
-    .page:last-child {
-      page-break-after: auto;
+      padding-bottom: 15mm;
     }
 
     /* Company Header */
@@ -1416,10 +1415,519 @@ const TemplateA5_2PDF = ({
       text-align: right;
       font-size: 7px;
       color: #666;
-      margin-top: 4px;
       position: absolute;
       bottom: 5mm;
       right: 5mm;
+    }
+    
+    /* Prevent page breaks */
+    .avoid-page-break {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+  </style>
+</head>
+<body>
+  ${singlePageHTML}
+</body>
+</html>`;
+    }
+    
+    // Multi-page template
+    let startIndex = 0;
+    const pageHTMLs = itemPages.map((pageItems, pageIndex) => {
+      const pageHTML = generatePageHTML(
+        pageItems,
+        pageIndex,
+        totalPages,
+        company,
+        transaction,
+        party,
+        actualShippingAddress,
+        isGSTApplicable,
+        showIGST,
+        showCGSTSGST,
+        showNoTax,
+        totalTaxable,
+        totalIGST,
+        totalCGST,
+        totalSGST,
+        totalAmount,
+        totalItems,
+        totalQty,
+        amountInWords,
+        bankData,
+        isBankDetailAvailable,
+        title,
+        startIndex,
+        pageIndex === totalPages - 1 // isLastPage
+      );
+      startIndex += pageItems.length;
+      return pageHTML;
+    });
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    @media print {
+      body { 
+        -webkit-print-color-adjust: exact; 
+        margin: 0;
+        padding: 0;
+      }
+      
+      .page {
+        page-break-after: always;
+        page-break-inside: avoid;
+      }
+      
+      .page:last-child {
+        page-break-after: auto;
+      }
+    }
+    
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 8px;
+      color: #000;
+      line-height: 1.3;
+      background: #fff;
+      padding: 0;
+    }
+
+    .page {
+      width: 148mm;
+      min-height: 210mm;
+      max-height: 210mm;
+      margin: 0 auto;
+      background: white;
+      position: relative;
+      overflow: hidden;
+      padding-bottom: 15mm;
+    }
+
+    /* Company Header */
+    .company-header {
+      margin-bottom: 3px;
+      padding-bottom: 4px;
+      border-bottom: 2px solid #0066cc;
+    }
+
+    .company-header-content {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .header-logo {
+      width: 50px;
+      height: 50px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+
+    .company-info {
+      flex: 1;
+    }
+
+    .company-name-header {
+      font-size: 12px;
+      font-weight: bold;
+      margin-bottom: 2px;
+    }
+
+    .company-address-header {
+      font-size: 7px;
+      margin-bottom: 2px;
+      line-height: 1.3;
+    }
+
+    .company-contact-header {
+      font-size: 7px;
+      margin-top: 2px;
+    }
+
+    /* GSTIN and Tax Invoice Section */
+    .tax-invoice-section {
+      border: 1px solid #0066cc;
+      margin-bottom: 0;
+      background: white;
+    }
+
+    .gstin-tax-row {
+      display: flex;
+      align-items: center;
+      padding: 3px 5px;
+    }
+
+    .gstin-part {
+      flex: 0 0 35%;
+      font-size: 7px;
+    }
+
+    .gstin-part .label {
+      font-weight: bold;
+    }
+
+    .tax-invoice-part {
+      flex: 0 0 30%;
+      text-align: center;
+    }
+
+    .tax-invoice-title {
+      font-size: 10px;
+      font-weight: bold;
+    }
+
+    .recipient-part {
+      flex: 0 0 35%;
+      text-align: right;
+    }
+
+    .recipient-text {
+      font-size: 7px;
+      font-weight: bold;
+    }
+
+    /* Info Grid - 2 Columns */
+    .info-grid {
+      display: flex;
+      border: 1px solid #0066cc;
+      border-top: none;
+      margin-bottom: 2px;
+      background: white;
+    }
+
+    .info-column {
+      border-right: 1px solid #0066cc;
+      padding: 5px;
+      vertical-align: top;
+      min-height: 180px;
+    }
+
+    .info-column:last-child {
+      border-right: none;
+    }
+
+    .left-column {
+      width: 50%;
+    }
+
+    .right-column {
+      width: 50%;
+    }
+
+    .invoice-details-full {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .invoice-details-box {
+      flex: 1;
+      margin-bottom: 0;
+    }
+
+    .qr-container {
+      text-align: center;
+      padding-top: 8px;
+      margin-top: 8px;
+    }
+
+    .qr-title {
+      font-size: 8px;
+      font-weight: bold;
+      margin-bottom: 5px;
+      color: #333;
+    }
+
+    .qr-code {
+      width: 80px;
+      height: 80px;
+      border: 1px solid #ccc;
+      background: white;
+    }
+
+    .qr-placeholder {
+      width: 80px;
+      height: 80px;
+      border: 1px solid #ccc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto;
+      font-size: 8px;
+      color: #999;
+      background: #f5f5f5;
+    }
+
+    .section-box {
+      margin-bottom: 10px;
+    }
+
+    .section-box:last-child {
+      margin-bottom: 0;
+    }
+
+    .section-title {
+      font-size: 7px;
+      font-weight: bold;
+      margin-bottom: 1px;
+      color: #000;
+    }
+
+    .info-row {
+      display: flex;
+      font-size: 7px;
+      margin-bottom: 2px;
+      line-height: 1.4;
+    }
+
+    .info-label {
+      width: 70px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .info-value {
+      flex: 1;
+      word-wrap: break-word;
+    }
+
+    /* Items Table */
+    .items-section {
+      margin-bottom: 2px;
+    }
+
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .items-table thead tr {
+      background: rgba(3, 113, 193, 0.2);
+    }
+
+    .header-cell {
+      border: 1px solid #0066cc;
+      padding: 3px 2px;
+      text-align: center;
+      font-size: 7px;
+      font-weight: bold;
+      vertical-align: middle;
+      line-height: 1.2;
+    }
+
+    .header-left {
+      text-align: left;
+      padding-left: 4px;
+    }
+
+    .sub-header {
+      font-size: 6px;
+      font-weight: normal;
+    }
+
+    .items-table tbody tr {
+      border-bottom: 1px solid #0066cc;
+      border-right: 1px solid #0066cc;
+      border-left: 1px solid #0066cc;
+    }
+
+    .body-cell {
+      border-right: 1px solid #0066cc;
+      padding: 3px 2px;
+      text-align: center;
+      font-size: 7px;
+      vertical-align: middle;
+    }
+
+    .body-cell:last-child {
+      border-right: none;
+    }
+
+    .body-left {
+      text-align: left;
+      padding-left: 4px;
+    }
+
+    .total-row {
+      background: rgba(3, 113, 193, 0.2);
+      font-weight: bold;
+    }
+
+    .total-row td {
+      padding: 4px 2px;
+      text-align: center;
+      font-size: 7px;
+      border-right: 1px solid #0066cc;
+    }
+
+    .total-row td:last-child {
+      border-right: none;
+    }
+
+    .total-empty {
+      background: transparent;
+      border-right: none !important;
+    }
+
+    .total-label {
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .total-value {
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .grand-total {
+      font-weight: bold;
+    }
+
+    /* Total in Words */
+    .total-words {
+      border: 1px solid #0066cc;  
+      padding: 7px;
+      font-size: 7px;
+      font-weight: bold;
+    }
+
+    /* Combined Bottom Section */
+    .bottom-section-combined {
+      border: 1px solid #0066cc;
+      margin-bottom: 2px;
+      background: white;
+    }
+
+    .combined-box {
+      display: flex;
+      min-height: 100px;
+    }
+
+    .bank-amount-left {
+      flex: 1;
+      padding: 8px;
+    }
+
+    .bank-amount-right {
+      flex: 1;
+      padding: 8px;
+    }
+
+    .vertical-separator {
+      width: 1px;
+      background: #0066cc;
+    }
+
+    .bank-details-simple {
+      font-size: 7px;
+    }
+
+    .bank-row-simple {
+      display: flex;
+      margin-bottom: 3px;
+      line-height: 1.4;
+    }
+
+    .bank-label-simple {
+      width: 50px;
+      font-weight: bold;
+      margin-right: 5px;
+      flex-shrink: 0;
+    }
+
+    .amount-details {
+      font-size: 7px;
+    }
+
+    .amount-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      padding-bottom: 2px;
+    }
+
+    .amount-label {
+      font-weight: normal;
+      color: #333;
+    }
+
+    .amount-value {
+      font-weight: normal;
+      text-align: right;
+      color: #333;
+    }
+
+    .amount-total {
+      background: rgba(3, 113, 193, 0.2);
+      margin: 4px -8px;
+      padding: 4px 8px;
+    }
+
+    .amount-label-total {
+      font-weight: bold;
+      color: #000;
+    }
+
+    .amount-value-total {
+      font-weight: bold;
+      text-align: right;
+      color: #000;
+    }
+
+    .signature {
+      margin-top: 8px;
+      padding-top: 4px;
+      border-top: 1px dashed #999;
+    }
+
+    .amount-label-signature {
+      font-style: italic;
+      color: #333;
+    }
+
+    .amount-value-signature {
+      font-style: italic;
+      text-align: right;
+      color: #333;
+    }
+
+    /* Notes Section */
+    .notes-section {
+      border: 1px solid #0066cc;
+      padding: 4px;
+      font-size: 7px;
+      margin-bottom: 2px;
+      line-height: 1.4;
+      background: white;
+    }
+
+    /* Page Number */
+    .page-number {
+      text-align: right;
+      font-size: 7px;
+      color: #666;
+      position: absolute;
+      bottom: 5mm;
+      right: 5mm;
+    }
+    
+    /* Prevent page breaks */
+    .avoid-page-break {
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
   </style>
 </head>

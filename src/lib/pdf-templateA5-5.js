@@ -549,19 +549,19 @@ const TemplateA5_5 = ({
             <div class="col-header-title">Details of Buyer | Billed for</div>
           </div>
           <div class="col-data-row">
-            <div class="col-label">Name</div>
+            <div class="col-label">Name:</div>
             <div class="col-value">${capitalizeWords(
               party?.name || 'N/A',
             )}</div>
           </div>
           <div class="col-data-row">
-            <div class="col-label">Address</div>
+            <div class="col-label">Address:</div>
             <div class="col-value">
               ${capitalizeWords(getBillingAddress(party)) || '-'}
             </div>
           </div>
           <div class="col-data-row">
-            <div class="col-label">Phone</div>
+            <div class="col-label">Phone:</div>
             <div class="col-value">
               ${
                 party?.contactNumber
@@ -571,15 +571,15 @@ const TemplateA5_5 = ({
             </div>
           </div>
           <div class="col-data-row">
-            <div class="col-label">GSTIN</div>
+            <div class="col-label">GSTIN:</div>
             <div class="col-value">${party?.gstin || '-'}</div>
           </div>
            <div class="col-data-row">
-            <div class="col-label">PAN</div>
+            <div class="col-label">PAN:</div>
             <div class="col-value">${party?.pan || '-'}</div>
           </div>
           <div class="col-data-row">
-            <div class="col-label">Place of Supply</div>
+            <div class="col-label">Place of Supply:</div>
             <div class="col-value">
               ${
                 shippingAddress?.state
@@ -602,24 +602,23 @@ const TemplateA5_5 = ({
             <div class="col-header-title">Details of Consigned | Shipped for</div>
           </div>
           <div class="col-data-row">
-            <div class="col-label">Name</div>
-            <div class="col-value">Office Address</div>
+            <div class="col-label">Name:</div>
+            <div class="col-value">${capitalizeWords(shippingAddress?.label || party?.name || 'N/A')}</div>
           </div>
           <div class="col-data-row">
-            <div class="col-label">Address</div>
+            <div class="col-label">Address:</div>
             <div class="col-value">
               ${capitalizeWords(
-                getShippingAddress(shippingAddress, getBillingAddress(party)) ||
-                  'Ann Naguid, Kalajpur, Muhs-Abdullah, Māori',
+                getShippingAddress(shippingAddress, getBillingAddress(party)) ,
               )}
             </div>
           </div>
           <div class="col-data-row">
-            <div class="col-label">Country</div>
-            <div class="col-value">India</div>
+            <div class="col-label">Country:</div>
+            <div class="col-value">${company?.Country}</div>
           </div>
           <div class="col-data-row">
-            <div class="col-label">Phone</div>
+            <div class="col-label">Phone:</div>
             <div class="col-value">
               ${
                 shippingAddress?.contactNumber
@@ -631,11 +630,11 @@ const TemplateA5_5 = ({
             </div>
           </div>
           <div class="col-data-row">
-            <div class="col-label">GSTIN</div>
+            <div class="col-label">GSTIN:</div>
             <div class="col-value">${party?.gstin || '-'}</div>
           </div>
           <div class="col-data-row">
-            <div class="col-label">State</div>
+            <div class="col-label">State:</div>
             <div class="col-value">
               ${
                 shippingAddress?.state
@@ -646,7 +645,7 @@ const TemplateA5_5 = ({
                   ? `${capitalizeWords(party.state)} (${
                       getStateCode(party.state) || '-'
                     })`
-                  : 'Maharashtra (27)'
+                  : ''
               }
             </div>
           </div>
@@ -655,37 +654,36 @@ const TemplateA5_5 = ({
         <!-- Column 3 - Invoice Details -->
         <div class="col-section">
           <div class="col-header">
-            <div class="col-header-title">Invoice Details</div>
+            <div class="col-header-title">Invoice Details:</div>
           </div>
           <div class="col-data-row">
-            <div class="col-label">Invoice No.</div>
+            <div class="col-label">Invoice No.:</div>
             <div class="col-value">${
-              transaction.invoiceNumber || 'AE85500022'
+              transaction.invoiceNumber || '-'
             }</div>
           </div>
           <div class="col-data-row">
-            <div class="col-label">Invoice Date</div>
+            <div class="col-label">Invoice Date:</div>
             <div class="col-value">${
-              formatDateSafe(transaction.date) || '10/11/2025'
+              formatDateSafe(transaction.date) || '-'
             }</div>
           </div>
           <div class="col-data-row">
-            <div class="col-label">Due Date</div>
+            <div class="col-label">Due Date:</div>
             <div class="col-value">${
-              formatDateSafe(transaction.dueDate) || '10/11/2025'
+              formatDateSafe(transaction.dueDate) || '-'
+              
             }</div>
           </div>
           <div class="col-data-row">
-            <div class="col-label">DC Date</div>
-            <div class="col-value">-</div>
+            <div class="col-label">P.O. No:</div>
+            <div class="col-value">${transaction.voucher || '-'}</div>
           </div>
+         
+         
           <div class="col-data-row">
-            <div class="col-label">DC No.</div>
-            <div class="col-value">-</div>
-          </div>
-          <div class="col-data-row">
-            <div class="col-label">E-Way Bill No.</div>
-            <div class="col-value">-</div>
+            <div class="col-label">E-Way Bill No.:</div>
+            <div class="col-value">${transaction.eway || '-'}</div>
           </div>
         </div>
       </div>
@@ -1041,16 +1039,16 @@ const TemplateA5_5 = ({
           .col-label {
             font-size: 7px;
             font-weight: bold;
-            width: 45%;
+            width: 40%;
             flex-shrink: 0;
           }
           
           .col-value {
             font-size: 7px;
             font-weight: normal;
-            width: 55%;
+            width: 60%;
             flex-shrink: 1;
-            text-align: right;
+            text-align: left;
           }
           
           /* Items Table Styles */
