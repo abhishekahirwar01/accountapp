@@ -777,11 +777,11 @@ const Template12 = ({
     if (gstNeedsPagination && isGSTApplicable && itemsWithGST.length > GST_ROWS_PER_PAGE) {
       const gstStartIdx = GST_ROWS_PER_PAGE;
       const gstRemaining = itemsWithGST.length - GST_ROWS_PER_PAGE;
-      const gstExtraPages = Math.ceil(gstRemaining / 20); // 20 rows per continuation page
+      const gstExtraPages = Math.ceil(gstRemaining / 32); // 20 rows per continuation page
       
       for (let i = 0; i < gstExtraPages; i++) {
-        const start = gstStartIdx + (i * 20);
-        const end = Math.min(start + 20, itemsWithGST.length);
+        const start = gstStartIdx + (i * 32);
+        const end = Math.min(start + 32, itemsWithGST.length);
         const isLastGSTPage = (i === gstExtraPages - 1);
         
         allPages.push(generateGSTContinuationPage(

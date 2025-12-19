@@ -1,4 +1,4 @@
-// pdf-templateA5-3-updated.js - Matches the provided image exactly
+// pdf-templateA5-3-updated.js - Complete fixed code for A5 with increased items per page
 import React from 'react';
 import { generatePDF } from 'react-native-html-to-pdf';
 import RNHTMLtoPDF from 'react-native-html-to-pdf';
@@ -200,6 +200,182 @@ const formatNotesHtml = notes => {
   }
 };
 
+// Extract header section to a separate function so it can be reused on every page
+const generateHeaderSection = (data) => {
+  const {
+    company,
+    client,
+    party,
+    actualShippingAddress,
+    shippingAddress,
+    transaction,
+    getCompanyValue,
+    getPartyValue,
+    getTransactionValue,
+    getStateCode,
+    getBillingAddress,
+    getShippingAddress,
+    capitalizeWords,
+    formatPhoneNumber,
+    isGSTApplicable
+  } = data;
+
+  return `
+    <!-- Top Header with Company Name -->
+    <div class="top-header">
+      <div class="company-name-large">${capitalizeWords(
+        getCompanyValue('businessName') ||
+          getCompanyValue('companyName') ||
+          'Tech Solutions Bhopal Pvt. Ltd.',
+      )}</div>
+      <div class="company-address-small">${
+        [
+          getCompanyValue('address'),
+          getCompanyValue('City'),
+          getCompanyValue('addressState'),
+          getCompanyValue('Pincode'),
+        ]
+          .filter(Boolean)
+          .join(', ') || '123, Commercial Area, Gandhi Nagar, Bhopal, Madhya Pradesh, 462036'
+      }</div>
+      <div class="company-contact-small">
+        <strong>Name :</strong> ${capitalizeWords(getClientName(client))} | 
+        <strong>Phone :</strong> ${
+          getCompanyValue('mobileNumber')
+            ? formatPhoneNumber(String(getCompanyValue('mobileNumber')))
+            : '98765-43250'
+        }
+      </div>
+    </div>
+
+    <!-- GSTIN and Invoice Title Row -->
+    <div class="title-row">
+      <div class="gstin-box">
+        <strong>GSTIN :</strong> ${getCompanyValue('gstin') || '23AABCP1234D1ZS'}
+      </div>
+      <div class="invoice-title-box">
+        <strong>${
+          getTransactionValue('type') === 'proforma'
+            ? 'PROFORMA INVOICE'
+            : isGSTApplicable
+            ? 'TAX INVOICE'
+            : 'INVOICE'
+        }</strong>
+      </div>
+      <div class="recipient-box">
+        <strong>ORIGINAL FOR RECIPIENT</strong>
+      </div>
+    </div>
+
+    <!-- Three Column Information Section -->
+    <div class="info-grid">
+      <!-- Column 1 - Buyer Details -->
+      <div class="info-box">
+        <div class="box-title">Details of Buyer | Billed to:</div>
+        <div class="info-content">
+          <div class="info-line"><strong>Name</strong><span>${capitalizeWords(
+            getPartyValue('name') || 'N/A',
+          )}</span></div>
+          <div class="info-line"><strong>Address</strong><span>${
+            capitalizeWords(getBillingAddress(party)) || 'Bhopal, Bhopal, Madhya Pradesh, 462016'
+          }</span></div>
+          <div class="info-line"><strong>Phone</strong><span>${
+            getPartyValue('contactNumber')
+              ? formatPhoneNumber(getPartyValue('contactNumber'))
+              : '98265-21255'
+          }</span></div>
+          <div class="info-line"><strong>GSTIN</strong><span>${
+            getPartyValue('gstin') || '23FFFPS1634H1ZT'
+          }</span></div>
+          <div class="info-line"><strong>PAN</strong><span>${
+            getPartyValue('pan') || '432188PIB5'
+          }</span></div>
+          <div class="info-line"><strong>Place of Supply</strong><span>${
+            shippingAddress?.state
+              ? `${capitalizeWords(shippingAddress.state)} (${
+                  getStateCode(shippingAddress.state) || '23'
+                })`
+              : getPartyValue('state')
+              ? `${capitalizeWords(getPartyValue('state'))} (${
+                  getStateCode(getPartyValue('state')) || '23'
+                })`
+              : 'Madhya Pradesh (23)'
+          }</span></div>
+        </div>
+      </div>
+
+      <!-- Column 2 - Consignee Details -->
+      <div class="info-box">
+        <div class="box-title">Details of Consigned | Shipped to:</div>
+        <div class="info-content">
+          <div class="info-line"><strong>Name</strong><span>${capitalizeWords(
+            actualShippingAddress?.label || getPartyValue('name') || 'N/A',
+          )}</span></div>
+          <div class="info-line"><strong>Address</strong><span>${capitalizeWords(
+            getShippingAddress(
+              actualShippingAddress,
+              getBillingAddress(party),
+            ),
+          )}</span></div>
+          <div class="info-line"><strong>Country</strong><span>${company?.Country}</span></div>
+          <div class="info-line"><strong>Phone</strong><span>${
+            actualShippingAddress?.contactNumber
+              ? formatPhoneNumber(String(actualShippingAddress.contactNumber))
+              : getPartyValue('contactNumber')
+              ? formatPhoneNumber(String(getPartyValue('contactNumber')))
+              : '98265-21255'
+          }</span></div>
+          <div class="info-line"><strong>GSTIN</strong><span>${
+            getPartyValue('gstin') || '23FFFPS1634H1ZT'
+          }</span></div>
+          <div class="info-line"><strong>State</strong><span>${
+            actualShippingAddress?.state
+              ? `${capitalizeWords(actualShippingAddress.state)} (${
+                  getStateCode(actualShippingAddress.state) || '23'
+                })`
+              : getPartyValue('state')
+              ? `${capitalizeWords(getPartyValue('state'))} (${
+                  getStateCode(getPartyValue('state')) || '23'
+                })`
+              : 'Madhya Pradesh (23)'
+          }</span></div>
+        </div>
+      </div>
+
+      <!-- Column 3 - Invoice Details -->
+      <div class="info-box">
+        <div class="box-title">&nbsp;</div>
+        <div class="info-content">
+          <div class="info-line"><strong>Invoice No.</strong><span>${
+            getTransactionValue('invoiceNumber') || 'INV-001'
+          }</span></div>
+          <div class="info-line"><strong>Date</strong><span>${
+            getTransactionValue('date')
+              ? new Date(getTransactionValue('date')).toLocaleDateString('en-IN')
+              : new Date().toLocaleDateString('en-IN')
+          }</span></div>
+          <div class="info-line"><strong>Invoice Date</strong><span>${
+            getTransactionValue('date')
+              ? new Date(getTransactionValue('date')).toLocaleDateString('en-IN')
+              : '31/12/2025'
+          }</span></div>
+          <div class="info-line"><strong>Due Date</strong><span>${
+            getTransactionValue('dueDate')
+              ? new Date(getTransactionValue('dueDate')).toLocaleDateString('en-IN')
+              : '-'
+          }</span></div>
+          <div class="info-line"><strong>P.O. No.</strong><span>${
+            getTransactionValue('voucher') || 'P.O/48'
+          }</span></div>
+          <div class="info-line"><strong>E-Way No.</strong><span>${
+            getTransactionValue('eway') || '-'
+          }</span></div>
+        </div>
+      </div>
+    </div>
+  `;
+};
+
 const TemplateA5_3PDF = ({
   transaction,
   company,
@@ -262,7 +438,6 @@ const TemplateA5_3PDF = ({
   const {
     totalTaxable,
     totalAmount,
-    totalItems,
     totalQty,
     itemsWithGST,
     totalCGST,
@@ -378,19 +553,19 @@ const TemplateA5_3PDF = ({
     }
   };
 
-  // Generate table rows
-  const generateTableRows = () => {
-    if (!itemsWithGST || itemsWithGST.length === 0) {
+  // Generate table rows for a specific page
+  const generatePageTableRows = (pageItems, startIndex) => {
+    if (!pageItems || pageItems.length === 0) {
       return '<tr><td colspan="11" class="no-items">No items found</td></tr>';
     }
 
     if (showIGST) {
-      return itemsWithGST
+      return pageItems
         .map((item, index) => {
           const itemName = getItemName(item);
           return `
             <tr class="item-row">
-              <td class="item-cell">${index + 1}</td>
+              <td class="item-cell">${startIndex + index + 1}</td>
               <td class="item-cell text-left">${capitalizeWords(itemName)}</td>
               <td class="item-cell">${item.code || '-'}</td>
               <td class="item-cell">${
@@ -410,12 +585,12 @@ const TemplateA5_3PDF = ({
     }
 
     if (showCGSTSGST) {
-      return itemsWithGST
+      return pageItems
         .map((item, index) => {
           const itemName = getItemName(item);
           return `
             <tr class="item-row">
-              <td class="item-cell">${index + 1}</td>
+              <td class="item-cell">${startIndex + index + 1}</td>
               <td class="item-cell text-left">${capitalizeWords(itemName)}</td>
               <td class="item-cell">${item.code || '-'}</td>
               <td class="item-cell">${
@@ -436,12 +611,12 @@ const TemplateA5_3PDF = ({
         .join('');
     }
 
-    return itemsWithGST
+    return pageItems
       .map((item, index) => {
         const itemName = getItemName(item);
         return `
           <tr class="item-row">
-            <td class="item-cell">${index + 1}</td>
+            <td class="item-cell">${startIndex + index + 1}</td>
             <td class="item-cell text-left">${capitalizeWords(itemName)}</td>
             <td class="item-cell">${item.code || '-'}</td>
             <td class="item-cell">${
@@ -597,7 +772,6 @@ const TemplateA5_3PDF = ({
 
     return `
       <div class="hsn-section">
-        
         <table class="hsn-table">
           <thead>
             ${createHsnHeaders()}
@@ -615,7 +789,192 @@ const TemplateA5_3PDF = ({
     ? formatNotesHtml(getTransactionValue('notes'))
     : '';
 
+  // Split items into pages if needed - INCREASED items per page for A5
+  const itemsPerPage = 35; 
+  const itemsCount = itemsWithGST?.length || 0;
+  const totalPages = Math.max(1, Math.ceil(itemsCount / itemsPerPage));
+
+  // Generate content for each page
+  const generatePageContent = (pageNumber) => {
+    const isFirstPage = pageNumber === 1;
+    const isLastPage = pageNumber === totalPages;
+    
+    const startIndex = (pageNumber - 1) * itemsPerPage;
+    const endIndex = Math.min(startIndex + itemsPerPage, itemsCount);
+    const pageItems = itemsWithGST?.slice(startIndex, endIndex) || [];
+
+    return `
+      <div class="page">
+        <!-- Header Section (repeats on every page) -->
+        ${generateHeaderSection({
+          company,
+          client,
+          party,
+          actualShippingAddress,
+          shippingAddress,
+          transaction,
+          getCompanyValue,
+          getPartyValue,
+          getTransactionValue,
+          getStateCode,
+          getBillingAddress,
+          getShippingAddress,
+          capitalizeWords,
+          formatPhoneNumber,
+          isGSTApplicable
+        })}
+
+        <!-- Items Table -->
+        <table class="items-table">
+          <thead>
+            ${generateTableHeaders()}
+          </thead>
+          <tbody>
+            ${generatePageTableRows(pageItems, startIndex)}
+            ${isLastPage ? generateTotalRow() : ''}
+          </tbody>
+        </table>
+
+        ${
+          isLastPage
+            ? `
+              <!-- Total in Words (only on last page) -->
+              <div class="words-section">
+                <strong>TOTAL IN WORDS :</strong> ${numberToWords(totalAmount).toUpperCase()}
+              </div>
+
+              <!-- HSN Summary (only on last page) -->
+              ${generateHsnSummary()}
+
+              <!-- Bank and Total Section (only on last page) -->
+              <div class="bottom-grid">
+                <!-- Bank Details -->
+                <div class="bank-details-box">
+                  ${
+                    getTransactionValue('type') !== 'proforma' &&
+                    isBankDetailAvailable
+                      ? `
+                    <div class="section-title">Bank Details:</div>
+                    ${
+                      bankData.bankName
+                        ? `<div class="detail-line"><strong>Name:</strong> ${capitalizeWords(bankData.bankName)}</div>`
+                        : ''
+                    }
+                    ${
+                      bankData.accountNo
+                        ? `<div class="detail-line"><strong>Acc. No:</strong> ${bankData.accountNo}</div>`
+                        : ''
+                    }
+                    ${
+                      bankData.ifscCode
+                        ? `<div class="detail-line"><strong>IFSC:</strong> ${bankData.ifscCode}</div>`
+                        : ''
+                    }
+                    ${
+                      bankData.branchAddress
+                        ? `<div class="detail-line"><strong>Branch:</strong> ${bankData.branchAddress}</div>`
+                        : ''
+                    }
+                    ${
+                      bankData?.upiDetails?.upiId
+                        ? `<div class="detail-line"><strong>UPI ID:</strong> ${bankData.upiDetails.upiId}</div>`
+                        : ''
+                    }
+                    ${
+                      bankData?.upiDetails?.upiName
+                        ? `<div class="detail-line"><strong>UPI Name:</strong> ${bankData.upiDetails.upiName}</div>`
+                        : ''
+                    }
+                    ${
+                      bankData?.upiDetails?.upiMobile
+                        ? `<div class="detail-line"><strong>UPI Mobile:</strong> ${bankData.upiDetails.upiMobile}</div>`
+                        : ''
+                    }
+                  `
+                      : '<div class="section-title">Bank Details:</div>'
+                  }
+                </div>
+
+                <!-- QR Code -->
+                <div class="qr-box">
+                  ${
+                    bankData?.qrCode
+                      ? `
+                    <div class="section-title">QR Code</div>
+                    <img src="${BASE_URL}${bankData.qrCode}" class="qr-image" />
+                  `
+                      : '<div class="section-title">QR Code</div>'
+                  }
+                </div>
+
+                <!-- Total Amounts -->
+                <div class="totals-box">
+                  <div class="total-line">
+                    <span>Taxable Amount</span>
+                    <span>${formatCurrency(totalTaxable)}</span>
+                  </div>
+                  ${
+                    isGSTApplicable
+                      ? `
+                    <div class="total-line">
+                      <span>Total Tax</span>
+                      <span>${formatCurrency(
+                        showIGST ? totalIGST : totalCGST + totalSGST,
+                      )}</span>
+                    </div>
+                  `
+                      : ''
+                  }
+                  <div class="grand-total-line">
+                    <span><strong>Total Amount After Tax</strong></span>
+                    <span><strong>${formatCurrency(totalAmount)}</strong></span>
+                  </div>
+                  <div class="signature-line">
+                    <span>For ${capitalizeWords(
+                      getCompanyValue('businessName') ||
+                        getCompanyValue('companyName') ||
+                        'Tech Solutions Bhopal Pvt. Ltd.',
+                    )}</span>
+                    <span>(E & O.E.)</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Terms and Notes (only on last page) -->
+              ${
+                formattedNotes
+                  ? `
+                <div class="notes-box">
+                  <div class="section-title">Notes/Terms:</div>
+                  <div class="notes-content">${formattedNotes}</div>
+                </div>
+              `
+                  : ''
+              }
+            `
+            : ''
+        }
+
+        <!-- Page Number (dynamic on every page) -->
+        <div class="page-footer">
+          ${pageNumber} / ${totalPages} page
+        </div>
+      </div>
+    `;
+  };
+
   const generateHTMLContent = () => {
+    // Generate all pages
+    let allPagesHTML = '';
+    for (let i = 1; i <= totalPages; i++) {
+      allPagesHTML += generatePageContent(i);
+      
+      // Add page break for all pages except the last one
+      if (i < totalPages) {
+        allPagesHTML += '<div style="page-break-before: always;"></div>';
+      }
+    }
+
     return `
       <!DOCTYPE html>
       <html>
@@ -627,290 +986,7 @@ const TemplateA5_3PDF = ({
         </style>
       </head>
       <body>
-        <div class="page">
-          <!-- Top Header with Company Name -->
-          <div class="top-header">
-            <div class="company-name-large">${capitalizeWords(
-              getCompanyValue('businessName') ||
-                getCompanyValue('companyName') ||
-                'Tech Solutions Bhopal Pvt. Ltd.',
-            )}</div>
-            <div class="company-address-small">${
-              [
-                getCompanyValue('address'),
-                getCompanyValue('City'),
-                getCompanyValue('addressState'),
-                getCompanyValue('Pincode'),
-              ]
-                .filter(Boolean)
-                .join(', ') || '123, Commercial Area, Gandhi Nagar, Bhopal, Madhya Pradesh, 462036'
-            }</div>
-            <div class="company-contact-small">
-              <strong>Name :</strong> ${capitalizeWords(getClientName(client))} | 
-              <strong>Phone :</strong> ${
-                getCompanyValue('mobileNumber')
-                  ? formatPhoneNumber(String(getCompanyValue('mobileNumber')))
-                  : '98765-43250'
-              }
-            </div>
-          </div>
-
-          <!-- GSTIN and Invoice Title Row -->
-          <div class="title-row">
-            <div class="gstin-box">
-              <strong>GSTIN :</strong> ${getCompanyValue('gstin') || '23AABCP1234D1ZS'}
-            </div>
-            <div class="invoice-title-box">
-              <strong>${
-                getTransactionValue('type') === 'proforma'
-                  ? 'PROFORMA INVOICE'
-                  : isGSTApplicable
-                  ? 'TAX INVOICE'
-                  : 'INVOICE'
-              }</strong>
-            </div>
-            <div class="recipient-box">
-              <strong>ORIGINAL FOR RECIPIENT</strong>
-            </div>
-          </div>
-
-          <!-- Three Column Information Section -->
-          <div class="info-grid">
-            <!-- Column 1 - Buyer Details -->
-            <div class="info-box">
-              <div class="box-title">Details of Buyer | Billed to:</div>
-              <div class="info-content">
-                <div class="info-line"><strong>Name</strong><span>${capitalizeWords(
-                  getPartyValue('name') || 'N/A',
-                )}</span></div>
-                <div class="info-line"><strong>Address</strong><span>${
-                  capitalizeWords(getBillingAddress(party)) || 'Bhopal, Bhopal, Madhya Pradesh, 462016'
-                }</span></div>
-                <div class="info-line"><strong>Phone</strong><span>${
-                  getPartyValue('contactNumber')
-                    ? formatPhoneNumber(getPartyValue('contactNumber'))
-                    : '98265-21255'
-                }</span></div>
-                <div class="info-line"><strong>GSTIN</strong><span>${
-                  getPartyValue('gstin') || '23FFFPS1634H1ZT'
-                }</span></div>
-                <div class="info-line"><strong>PAN</strong><span>${
-                  getPartyValue('pan') || '432188PIB5'
-                }</span></div>
-                <div class="info-line"><strong>Place of Supply</strong><span>${
-                  shippingAddress?.state
-                    ? `${capitalizeWords(shippingAddress.state)} (${
-                        getStateCode(shippingAddress.state) || '23'
-                      })`
-                    : getPartyValue('state')
-                    ? `${capitalizeWords(getPartyValue('state'))} (${
-                        getStateCode(getPartyValue('state')) || '23'
-                      })`
-                    : 'Madhya Pradesh (23)'
-                }</span></div>
-              </div>
-            </div>
-
-            <!-- Column 2 - Consignee Details -->
-            <div class="info-box">
-              <div class="box-title">Details of Consigned | Shipped to:</div>
-              <div class="info-content">
-                <div class="info-line"><strong>Name</strong><span>${capitalizeWords(
-                  actualShippingAddress?.label || getPartyValue('name') || 'N/A',
-                )}</span></div>
-                <div class="info-line"><strong>Address</strong><span>${capitalizeWords(
-                  getShippingAddress(
-                    actualShippingAddress,
-                    getBillingAddress(party),
-                  ),
-                )}</span></div>
-                <div class="info-line"><strong>Country</strong><span>India</span></div>
-                <div class="info-line"><strong>Phone</strong><span>${
-                  actualShippingAddress?.contactNumber
-                    ? formatPhoneNumber(String(actualShippingAddress.contactNumber))
-                    : getPartyValue('contactNumber')
-                    ? formatPhoneNumber(String(getPartyValue('contactNumber')))
-                    : '98265-21255'
-                }</span></div>
-                <div class="info-line"><strong>GSTIN</strong><span>${
-                  getPartyValue('gstin') || '23FFFPS1634H1ZT'
-                }</span></div>
-                <div class="info-line"><strong>State</strong><span>${
-                  actualShippingAddress?.state
-                    ? `${capitalizeWords(actualShippingAddress.state)} (${
-                        getStateCode(actualShippingAddress.state) || '23'
-                      })`
-                    : getPartyValue('state')
-                    ? `${capitalizeWords(getPartyValue('state'))} (${
-                        getStateCode(getPartyValue('state')) || '23'
-                      })`
-                    : 'Madhya Pradesh (23)'
-                }</span></div>
-              </div>
-            </div>
-
-            <!-- Column 3 - Invoice Details -->
-            <div class="info-box">
-              <div class="box-title">&nbsp;</div>
-              <div class="info-content">
-                <div class="info-line"><strong>Invoice No.</strong><span>${
-                  getTransactionValue('invoiceNumber') || 'INV-001'
-                }</span></div>
-                <div class="info-line"><strong>Date</strong><span>${
-                  getTransactionValue('date')
-                    ? new Date(getTransactionValue('date')).toLocaleDateString('en-IN')
-                    : new Date().toLocaleDateString('en-IN')
-                }</span></div>
-                <div class="info-line"><strong>Invoice Date</strong><span>${
-                  getTransactionValue('date')
-                    ? new Date(getTransactionValue('date')).toLocaleDateString('en-IN')
-                    : '31/12/2025'
-                }</span></div>
-                <div class="info-line"><strong>Due Date</strong><span>${
-                  getTransactionValue('dueDate')
-                    ? new Date(getTransactionValue('dueDate')).toLocaleDateString('en-IN')
-                    : '-'
-                }</span></div>
-                <div class="info-line"><strong>P.O. No.</strong><span>${
-                  getTransactionValue('voucher') || 'P.O/48'
-                }</span></div>
-                <div class="info-line"><strong>E-Way No.</strong><span>${
-                  getTransactionValue('eway') || '-'
-                }</span></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Items Table -->
-          <table class="items-table">
-            <thead>
-              ${generateTableHeaders()}
-            </thead>
-            <tbody>
-              ${generateTableRows()}
-              ${generateTotalRow()}
-            </tbody>
-          </table>
-
-          <!-- Total in Words -->
-          <div class="words-section">
-            <strong>TOTAL IN WORDS :</strong> ${numberToWords(totalAmount).toUpperCase()}
-          </div>
-
-          <!-- HSN Summary -->
-          ${generateHsnSummary()}
-
-          <!-- Bank and Total Section -->
-          <div class="bottom-grid">
-            <!-- Bank Details -->
-            <div class="bank-details-box">
-              ${
-                getTransactionValue('type') !== 'proforma' &&
-                isBankDetailAvailable
-                  ? `
-                <div class="section-title">Bank Details:</div>
-                ${
-                  bankData.bankName
-                    ? `<div class="detail-line"><strong>Name:</strong> ${capitalizeWords(bankData.bankName)}</div>`
-                    : ''
-                }
-                ${
-                  bankData.accountNo
-                    ? `<div class="detail-line"><strong>Acc. No:</strong> ${bankData.accountNo}</div>`
-                    : ''
-                }
-                ${
-                  bankData.ifscCode
-                    ? `<div class="detail-line"><strong>IFSC:</strong> ${bankData.ifscCode}</div>`
-                    : ''
-                }
-                ${
-                  bankData.branchAddress
-                    ? `<div class="detail-line"><strong>Branch:</strong> ${bankData.branchAddress}</div>`
-                    : ''
-                }
-                ${
-                  bankData?.upiDetails?.upiId
-                    ? `<div class="detail-line"><strong>UPI ID:</strong> ${bankData.upiDetails.upiId}</div>`
-                    : ''
-                }
-                ${
-                  bankData?.upiDetails?.upiName
-                    ? `<div class="detail-line"><strong>UPI Name:</strong> ${bankData.upiDetails.upiName}</div>`
-                    : ''
-                }
-                ${
-                  bankData?.upiDetails?.upiMobile
-                    ? `<div class="detail-line"><strong>UPI Mobile:</strong> ${bankData.upiDetails.upiMobile}</div>`
-                    : ''
-                }
-              `
-                  : '<div class="section-title">Bank Details:</div>'
-              }
-            </div>
-
-            <!-- QR Code -->
-            <div class="qr-box">
-              ${
-                bankData?.qrCode
-                  ? `
-                <div class="section-title">QR Code</div>
-                <img src="${BASE_URL}${bankData.qrCode}" class="qr-image" />
-              `
-                  : '<div class="section-title">QR Code</div>'
-              }
-            </div>
-
-            <!-- Total Amounts -->
-            <div class="totals-box">
-              <div class="total-line">
-                <span>Taxable Amount</span>
-                <span>${formatCurrency(totalTaxable)}</span>
-              </div>
-              ${
-                isGSTApplicable
-                  ? `
-                <div class="total-line">
-                  <span>Total Tax</span>
-                  <span>${formatCurrency(
-                    showIGST ? totalIGST : totalCGST + totalSGST,
-                  )}</span>
-                </div>
-              `
-                  : ''
-              }
-              <div class="grand-total-line">
-                <span><strong>Total Amount After Tax</strong></span>
-                <span><strong>${formatCurrency(totalAmount)}</strong></span>
-              </div>
-              <div class="signature-line">
-                <span>For ${capitalizeWords(
-                  getCompanyValue('businessName') ||
-                    getCompanyValue('companyName') ||
-                    'Tech Solutions Bhopal Pvt. Ltd.',
-                )}</span>
-                <span>(E & O.E.)</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Terms and Notes -->
-          ${
-            formattedNotes
-              ? `
-            <div class="notes-box">
-              <div class="section-title">Notes/Terms:</div>
-              <div class="notes-content">${formattedNotes}</div>
-            </div>
-          `
-              : ''
-          }
-
-          <!-- Page Number -->
-          <div class="page-footer">
-            1 / 1 page
-          </div>
-        </div>
+        ${allPagesHTML}
       </body>
       </html>
     `;
@@ -919,55 +995,67 @@ const TemplateA5_3PDF = ({
   return generateHTMLContent();
 };
 
-// Complete CSS matching the image layout
+// Updated CSS for proper A5 sizing and page breaks with increased items per page
 const styles = {
   css: `
     @media print {
-      body { -webkit-print-color-adjust: exact; }
+      body { 
+        -webkit-print-color-adjust: exact;
+        margin: 0;
+        padding: 0;
+      }
+      .page-break {
+        page-break-before: always;
+      }
     }
     
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
+      font-family: Arial, sans-serif;
     }
     
     body {
-      font-family: Arial, sans-serif;
-      font-size: 8px;
+      font-size: 7px;
       color: #000;
       background: #fff;
-      width: 148mm;
+      width: 148mm; /* A5 width */
       margin: 0 auto;
-      padding-top: 5mm;
+      padding: 0;
     }
     
     .page {
       width: 148mm;
-      min-height: 210mm;
+      min-height: 210mm; /* A5 height */
+      padding: 6mm 5mm;
       position: relative;
+      overflow: hidden;
     }
     
     /* Top Header */
     .top-header {
       text-align: center;
-      padding-bottom: 5px;
-      margin-bottom: 5px;
+      padding-bottom: 2px;
+      margin-bottom: 2px;
     }
     
     .company-name-large {
-      font-size: 14px;
+      font-size: 11px;
       font-weight: bold;
-      margin-bottom: 2px;
+      margin-bottom: 1px;
+      line-height: 1.2;
     }
     
     .company-address-small {
-      font-size: 7px;
-      margin-bottom: 2px;
+      font-size: 6px;
+      margin-bottom: 1px;
+      line-height: 1.2;
     }
     
     .company-contact-small {
-      font-size: 7px;
+      font-size: 6px;
+      line-height: 1.2;
     }
     
     /* Title Row */
@@ -976,9 +1064,9 @@ const styles = {
       justify-content: space-between;
       align-items: center;
       border: 1px solid #0066cc;
-      padding: 3px 3px;
-      font-size: 8px;
-      margin-bottom: 0;
+      padding: 2px 3px;
+      font-size: 6px;
+      margin-bottom: 2px;
     }
     
     .gstin-box {
@@ -989,13 +1077,13 @@ const styles = {
     .invoice-title-box {
       flex: 1;
       text-align: center;
-      font-size: 11px;
+      font-size: 8px;
     }
     
     .recipient-box {
       flex: 1;
       text-align: right;
-      font-size: 7px;
+      font-size: 5px;
     }
     
     /* Info Grid - Three Columns */
@@ -1003,7 +1091,7 @@ const styles = {
       display: flex;
       border: 1px solid #0066cc;
       border-top: none;
-      margin-bottom: 0;
+      margin-bottom: 2px;
     }
     
     .info-box {
@@ -1018,40 +1106,43 @@ const styles = {
     
     .box-title {
       background: rgba(3, 113, 193, 0.2);
-      padding: 3px 5px;
+      padding: 2px 3px;
       font-weight: bold;
       border-bottom: 1px solid #0066cc;
-      font-size: 7px;
+      font-size: 6px;
     }
     
     .info-content {
-      padding: 5px;
+      padding: 2px;
     }
     
     .info-line {
       display: flex;
-      margin-bottom: 3px;
-      line-height: 1.3;
+      margin-bottom: 1px;
+      line-height: 1.1;
+      min-height: 8px;
     }
     
     .info-line strong {
-      min-width: 75px;
+      min-width: 65px;
       flex-shrink: 0;
+      font-size: 6px;
     }
     
     .info-line span {
       flex: 1;
       word-wrap: break-word;
+      font-size: 6px;
     }
     
-    /* Items Table */
+    /* Items Table - Reduced height for more rows */
     .items-table {
       width: 100%;
       border-collapse: collapse;
       border: 1px solid #0066cc;
       border-top: none;
-      margin-bottom: 0;
-      font-size: 7px;
+      margin-bottom: 2px;
+      font-size: 6px;
     }
     
     .items-table thead {
@@ -1061,10 +1152,11 @@ const styles = {
     .header-cell {
       border: 1px solid #0066cc;
       border-top: none;
-      padding: 3px;
+      padding: 2px;
       text-align: center;
       font-weight: bold;
-      font-size: 7px;
+      font-size: 6px;
+      height: 16px;
     }
     
     .tax-header {
@@ -1074,10 +1166,10 @@ const styles = {
     .sub-header-cell {
       border: 1px solid #0066cc;
       border-top: none;
-      padding: 2px;
+      padding: 1px;
       text-align: center;
       font-weight: bold;
-      font-size: 6px;
+      font-size: 5px;
       // background: rgba(3, 113, 193, 0.2);
     }
     
@@ -1087,18 +1179,19 @@ const styles = {
     
     .item-cell {
       border: 1px solid #0066cc;
-      padding: 3px;
+      padding: 2px;
       text-align: center;
-      font-size: 7px;
+      font-size: 6px;
+      height: 14px; /* Reduced from 16px */
     }
     
     .text-left {
       text-align: left !important;
-      padding-left: 5px;
+      padding-left: 3px;
     }
     
     .no-items {
-      padding: 10px;
+      padding: 8px;
       text-align: center;
       font-style: italic;
       color: #666;
@@ -1112,68 +1205,62 @@ const styles = {
     
     .total-label-cell {
       border: 1px solid #0066cc;
-      padding: 4px;
+      padding: 2px;
       text-align: left;
-      padding-left: 10px;
+      padding-left: 5px;
       font-weight: bold;
+      font-size: 6px;
     }
     
     .total-cell {
       border: 1px solid #0066cc;
-      padding: 4px;
+      padding: 2px;
       text-align: center;
       font-weight: bold;
+      font-size: 6px;
     }
     
     .grand-total-cell {
-      // background: rgba(3, 113, 193, 0.2);
       font-weight: bold;
+      font-size: 6px;
     }
     
     /* Words Section */
     .words-section {
       border: 1px solid #0066cc;
       border-top: none;
-      padding: 5px;
-      margin-bottom: 0;
-      font-size: 7px;
+      padding: 2px;
+      margin-bottom: 2px;
+      font-size: 6px;
       text-transform: uppercase;
+      line-height: 1.2;
     }
     
     /* HSN Summary */
     .hsn-section {
       border: 1px solid #0066cc;
       border-top: none;
-      margin-bottom: 0;
+      margin-bottom: 2px;
     }
     
     .hsn-title-row {
       background: rgba(3, 113, 193, 0.2);
       border-bottom: 1px solid #0066cc;
-      padding: 3px 5px;
+      padding: 2px 3px;
     }
     
     .hsn-title {
       font-weight: bold;
-      font-size: 8px;
+      font-size: 7px;
     }
     
     .hsn-table {
       width: 100%;
       border-collapse: collapse;
+      font-size: 6px;
     }
     
     .hsn-header {
-      background: rgba(3, 113, 193, 0.2);
-      border: 1px solid #0066cc;
-      border-top: none;
-      padding: 3px;
-      text-align: center;
-      font-weight: bold;
-      font-size: 7px;
-    }
-    
-    .hsn-sub-header {
       background: rgba(3, 113, 193, 0.2);
       border: 1px solid #0066cc;
       border-top: none;
@@ -1183,17 +1270,25 @@ const styles = {
       font-size: 6px;
     }
     
+    .hsn-sub-header {
+      background: rgba(3, 113, 193, 0.2);
+      border: 1px solid #0066cc;
+      border-top: none;
+      padding: 1px;
+      text-align: center;
+      font-weight: bold;
+      font-size: 5px;
+    }
+    
     .hsn-row {
       border-bottom: 1px solid #0066cc;
     }
     
     .hsn-cell {
       border: 1px solid #0066cc;
-      // border-left:none;
-      // border-right:none;
-      padding: 3px;
+      padding: 2px;
       text-align: center;
-      font-size: 7px;
+      font-size: 6px;
     }
     
     .hsn-total-row {
@@ -1202,114 +1297,120 @@ const styles = {
     }
     
     .hsn-total-cell {
-      // border: 1px solid #000;
-      padding: 4px;
+      padding: 2px;
       text-align: center;
       font-weight: bold;
-      font-size: 7px;
+      font-size: 6px;
     }
     
-    /* Bottom Grid */
+    /* Bottom Grid - Reduced height */
     .bottom-grid {
       display: flex;
       border: 1px solid #0066cc;
       border-top: none;
-      margin-bottom: 0;
+      margin-bottom: 2px;
+      min-height: 50px;
     }
     
     .bank-details-box {
       flex: 2;
-      // border-right: 1px solid #000;
-      padding: 5px;
-      font-size: 7px;
-      margin-right:-50px;
+      padding: 2px;
+      font-size: 6px;
+      padding-right: 8px;
     }
     
     .qr-box {
-      width: 80px;
+      width: 60px;
       border-right: 1px solid #0066cc;
-      padding: 5px;
+      padding: 2px;
       text-align: center;
-      font-size: 7px; 
+      font-size: 6px; 
     }
     
     .qr-image {
-      width: 70px;
-      height: 70px;
+      width: 50px;
+      height: 50px;
       object-fit: contain;
-      margin-top: 5px;
+      margin-top: 2px;
     }
     
     .totals-box {
       flex: 1.5;
-      padding: 5px;
-      font-size: 7px;
+      padding: 2px;
+      font-size: 6px;
     }
     
     .section-title {
       font-weight: bold;
-      margin-bottom: 5px;
-      font-size: 8px;
+      margin-bottom: 2px;
+      font-size: 6px;
     }
     
     .detail-line {
-      margin-bottom: 3px;
-      line-height: 1.4;
+      margin-bottom: 1px;
+      line-height: 1.2;
+      font-size: 5px;
     }
     
     .total-line {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 3px;
-      padding: 2px 0;
+      margin-bottom: 1px;
+      padding: 1px 0;
+      font-size: 6px;
     }
     
     .grand-total-line {
       display: flex;
       justify-content: space-between;
-      padding: 5px;
-      margin: 5px -4.5px;
+      padding: 2px;
+      margin: 2px -2px;
       background: rgba(3, 113, 193, 0.2);
       border-top: 1px solid #0066cc;
       border-bottom: 1px solid #0066cc;
       font-weight: bold;
+      font-size: 6px;
     }
     
     .signature-line {
       display: flex;
       justify-content: space-between;
-      margin-top: 15px;
-      padding-top: 5px;
+      margin-top: 8px;
+      padding-top: 2px;
       border-top: 1px dashed #999;
       font-style: italic;
-      font-size: 7px;
+      font-size: 6px;
     }
     
-    /* Notes Box */
+    /* Notes Box - Reduced height */
     .notes-box {
       border: 1px solid #0066cc;
       border-top: none;
-      padding: 5px;
-      margin-bottom: 5px;
-      font-size: 7px;
+      padding: 2px;
+      margin-bottom: 3px;
+      font-size: 6px;
+      min-height: 25px;
     }
     
     .notes-content {
-      margin-top: 3px;
-      line-height: 1.4;
+      margin-top: 1px;
+      line-height: 1.2;
+      font-size: 6px;
     }
     
     /* Page Footer */
     .page-footer {
-      text-align: right;
-      font-size: 7px;
+      position: absolute;
+      bottom: 6mm;
+      right: 5mm;
+      font-size: 6px;
       color: #666;
-      margin-top: 5px;
+      text-align: right;
     }
   `,
 };
 
-// Generate PDF function
+// Generate PDF function with A5 dimensions
 export const generatePdfForTemplateA5_3 = async (
   transaction,
   company,
@@ -1341,8 +1442,8 @@ export const generatePdfForTemplateA5_3 = async (
       }_${Date.now()}`,
       directory: 'Documents',
       base64: false,
-      height: 595,
-      width: 420,
+      height: 595,  // A5 height in points (210mm)
+      width: 420,   // A5 width in points (148mm)
     };
 
     const file = await generatePDF(options);

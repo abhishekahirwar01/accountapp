@@ -28,6 +28,7 @@ import { generatePdfForTemplate5 } from '../../lib/pdf-template5';
 import { generatePdfForTemplate6 } from '../../lib/pdf-template6';
 import { generatePdfForTemplate7 } from '../../lib/pdf-template7';
 import { generatePdfForTemplate8 } from '../../lib/pdf-template8';
+import { generatePdfForTemplate9 } from '../../lib/pdf-template9';
 import { generatePdfForTemplate11 } from '../../lib/pdf-template11';
 import { generatePdfForTemplate12 } from '../../lib/pdf-template12';
 import { generatePdfForTemplate16 } from '../../lib/pdf-template16';
@@ -314,6 +315,16 @@ export default function InvoicePreview({
             break;
           case 'template8':
             pdfBlob = await generatePdfForTemplate8(
+              transaction,
+              company || null,
+              party || null,
+              serviceNameMap,
+              shippingAddress,
+              bankForTemplate,
+            );
+            break;
+             case 'template9':
+            pdfBlob = await generatePdfForTemplate9(
               transaction,
               company || null,
               party || null,
