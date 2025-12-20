@@ -425,16 +425,16 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
 
   // Column width calculations
   const COL_WIDTH_SR_NO = 30;
-  const COL_WIDTH_NAME = showIGST ? 160 : showCGSTSGST ? 145 : 200;
-  const COL_WIDTH_HSN = 50;
-  const COL_WIDTH_QTY = 45;
-  const COL_WIDTH_RATE = showIGST ? 65 : showCGSTSGST ? 55 : 70;
-  const COL_WIDTH_TAXABLE = showIGST ? 85 : showCGSTSGST ? 85 : 75;
+  const COL_WIDTH_NAME = showIGST ? 170 : showCGSTSGST ? 145 : 200;
+  const COL_WIDTH_HSN = showIGST ? 70 : showCGSTSGST ? 50 : 70;
+  const COL_WIDTH_QTY = showIGST ? 55 : showCGSTSGST ? 45 : 65;
+  const COL_WIDTH_RATE = showIGST ? 75 : showCGSTSGST ? 55 : 70;
+  const COL_WIDTH_TAXABLE = showIGST ? 95 : showCGSTSGST ? 85 : 75;
   const COL_WIDTH_GST_PCT_HALF = 45;
   const COL_WIDTH_GST_AMT_HALF = 70;
   const COL_WIDTH_IGST_PCT = 45;
-  const COL_WIDTH_IGST_AMT = 75;
-  const COL_WIDTH_TOTAL = showIGST ? 80 : showCGSTSGST ? 90 : 80;
+  const COL_WIDTH_IGST_AMT = 85;
+  const COL_WIDTH_TOTAL = showIGST ? 100 : showCGSTSGST ? 90 : 80;
 
   const getColWidths = () => {
     let widths = [
@@ -881,9 +881,9 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
     
     .notes-section {
       padding: 10px;
-      border: 1px solid ${BORDER_COLOR};
+    //   border: 1px solid ${BORDER_COLOR};
       border-radius: 4px;
-      background-color: #fffbeb;
+    //   background-color: #fffbeb;
       margin-bottom: 12px;
       font-size: 7.5px;
       line-height: 1.4;

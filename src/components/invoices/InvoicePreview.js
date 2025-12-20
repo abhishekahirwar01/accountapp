@@ -54,20 +54,21 @@ const TEMPLATES = [
   'template7',
   'template8',
   'template9',
-  'template11',
-  'template12',
-  'template16',
-  'template17',
-  'template18',
-  'template19',
-  'template20',
-  'template21',
+  // 'template11',
+  // 'template12',
+  // 'template16',
+  // 'template17',
+  // 'template18',
+  // 'template19',
+  // 'template20',
+  // 'template21',
   'templateA5',
   'templateA5_2',
   'templateA5_3',
   'templateA5_4',
   'templateA5_5',
-  'template-t3',
+  'template T3',
+  'template T3-2',
 ];
 
 export default function InvoicePreview({
@@ -253,67 +254,67 @@ export default function InvoicePreview({
               bankForTemplate,
             );
             break;
+          // case 'template2':
+          //   pdfBlob = await generatePdfForTemplate2(
+          //     transaction,
+          //     company || null,
+          //     party || null,
+          //     serviceNameMap,
+          //     shippingAddress,
+          //     bankForTemplate,
+          //   );
+            break;
+          // case 'template3':
+          //   pdfBlob = await generatePdfForTemplate3(
+          //     transaction,
+          //     company || null,
+          //     party || null,
+          //     serviceNameMap,
+          //     shippingAddress,
+          //     bankForTemplate,
+          //   );
+          //   break;
+          // case 'template4':
+          //   pdfBlob = await generatePdfForTemplate4(
+          //     transaction,
+          //     company || null,
+          //     party || null,
+          //     serviceNameMap,
+          //     shippingAddress,
+          //     bankForTemplate,
+          //   );
+          //   break;
+          // case 'template5':
+          //   pdfBlob = await generatePdfForTemplate5(
+          //     transaction,
+          //     company || null,
+          //     party || null,
+          //     serviceNameMap,
+          //     shippingAddress,
+          //     bankForTemplate,
+          //   );
+          //   break;
+          // case 'template6':
+          //   pdfBlob = await generatePdfForTemplate6(
+          //     transaction,
+          //     company || null,
+          //     party || null,
+          //     serviceNameMap,
+          //     shippingAddress,
+          //     bankForTemplate,
+          //   );
+          //   break;
+          // case 'template7':
+          //   pdfBlob = await generatePdfForTemplate7(
+          //     transaction,
+          //     company || null,
+          //     party || null,
+          //     serviceNameMap,
+          //     shippingAddress,
+          //     bankForTemplate,
+          //   );
+          //   break;
           case 'template2':
-            pdfBlob = await generatePdfForTemplate2(
-              transaction,
-              company || null,
-              party || null,
-              serviceNameMap,
-              shippingAddress,
-              bankForTemplate,
-            );
-            break;
-          case 'template3':
-            pdfBlob = await generatePdfForTemplate3(
-              transaction,
-              company || null,
-              party || null,
-              serviceNameMap,
-              shippingAddress,
-              bankForTemplate,
-            );
-            break;
-          case 'template4':
-            pdfBlob = await generatePdfForTemplate4(
-              transaction,
-              company || null,
-              party || null,
-              serviceNameMap,
-              shippingAddress,
-              bankForTemplate,
-            );
-            break;
-          case 'template5':
-            pdfBlob = await generatePdfForTemplate5(
-              transaction,
-              company || null,
-              party || null,
-              serviceNameMap,
-              shippingAddress,
-              bankForTemplate,
-            );
-            break;
-          case 'template6':
-            pdfBlob = await generatePdfForTemplate6(
-              transaction,
-              company || null,
-              party || null,
-              serviceNameMap,
-              shippingAddress,
-              bankForTemplate,
-            );
-            break;
-          case 'template7':
-            pdfBlob = await generatePdfForTemplate7(
-              transaction,
-              company || null,
-              party || null,
-              serviceNameMap,
-              shippingAddress,
-              bankForTemplate,
-            );
-            break;
-          case 'template8':
             pdfBlob = await generatePdfForTemplate8(
               transaction,
               company || null,
@@ -323,7 +324,7 @@ export default function InvoicePreview({
               bankForTemplate,
             );
             break;
-             case 'template9':
+             case 'template5':
             pdfBlob = await generatePdfForTemplate9(
               transaction,
               company || null,
@@ -333,7 +334,7 @@ export default function InvoicePreview({
               bankForTemplate,
             );
             break;
-          case 'template11':
+          case 'template3':
             pdfBlob = await generatePdfForTemplate11(
               transaction,
               company || null,
@@ -343,7 +344,7 @@ export default function InvoicePreview({
               bankForTemplate,
             );
             break;
-          case 'template12':
+          case 'template4':
             pdfBlob = await generatePdfForTemplate12(
               transaction,
               company || null,
@@ -363,7 +364,7 @@ export default function InvoicePreview({
               bankForTemplate,
             );
             break;
-          case 'template17':
+          case 'template7':
             pdfBlob = await generatePdfForTemplate17(
               transaction,
               company || null,
@@ -373,7 +374,7 @@ export default function InvoicePreview({
               bankForTemplate,
             );
             break;
-          case 'template18':
+          case 'template T3-2':
             pdfBlob = await generatePdfForTemplate18(
               transaction,
               company || null,
@@ -383,7 +384,7 @@ export default function InvoicePreview({
               bankForTemplate,
             );
             break;
-          case 'template19':
+          case 'template6':
             pdfBlob = await generatePdfForTemplate19(
               transaction,
               company || null,
@@ -393,7 +394,7 @@ export default function InvoicePreview({
               bankForTemplate,
             );
             break;
-          case 'template20':
+          case 'template8':
             pdfBlob = await generatePdfForTemplate20(
               transaction,
               company || null,
@@ -403,7 +404,7 @@ export default function InvoicePreview({
               bankForTemplate,
             );
             break;
-          case 'template21':
+          case 'template9':
             pdfBlob = await generatePdfForTemplate21(
               transaction,
               company || null,
@@ -463,7 +464,7 @@ export default function InvoicePreview({
               bankForTemplate,
             );
             break;
-          case 'template-t3':
+          case 'template T3':
             pdfBlob = await generatePdfForTemplatet3(
               transaction,
               company || null,

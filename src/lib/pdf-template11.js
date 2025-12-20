@@ -451,14 +451,14 @@ export const generatePdfForTemplate11 = async (
     if (shouldShowIGSTColumns) {
       return `<tr style="background:${COLOR.BG}">
         <th style="width:4%;border:1px solid ${COLOR.BORDER};padding:2px;text-align:center;font-size:8pt;">Sr.</th>
-        <th style="width:32%;border:1px solid ${COLOR.BORDER};padding:2px;text-align:left;font-size:8pt;">Name of Product / Service</th>
+        <th style="width:28%;border:1px solid ${COLOR.BORDER};padding:2px;text-align:left;font-size:8pt;">Name of Product / Service</th>
         <th style="width:9%;border:1px solid ${COLOR.BORDER};padding:2px;font-size:8pt;">HSN/SAC</th>
         <th style="width:7%;border:1px solid ${COLOR.BORDER};padding:2px;font-size:8pt;">Qty</th>
         <th style="width:11%;border:1px solid ${COLOR.BORDER};padding:2px;font-size:8pt;">Rate (Rs)</th>
         <th style="width:13%;border:1px solid ${COLOR.BORDER};padding:2px;font-size:8pt;">Taxable Value (Rs)</th>
-        <th style="width:8%;border:1px solid ${COLOR.BORDER};padding:2px;font-size:8pt;">IGST%</th>
+        <th style="width:6%;border:1px solid ${COLOR.BORDER};padding:2px;font-size:8pt;">IGST%</th>
         <th style="width:10%;border:1px solid ${COLOR.BORDER};padding:2px;font-size:8pt;">IGST Amt (Rs)</th>
-        <th style="width:11%;border:1px solid ${COLOR.BORDER};padding:2px;font-size:8pt;">Total (Rs)</th>
+        <th style="width:15%;border:1px solid ${COLOR.BORDER};padding:2px;font-size:8pt;">Total (Rs)</th>
       </tr>`;
     } else if (shouldShowCGSTSGSTColumns) {
       return `<tr style="background:${COLOR.BG}">
@@ -498,11 +498,11 @@ export const generatePdfForTemplate11 = async (
             <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:left;font-size:8pt;">${r.desc}</td>
             <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${r.hsn}</td>
             <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${qtyDisplay}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:right;font-size:8pt;">${money(r.rate)}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:right;font-size:8pt;">${money(r.taxable)}</td>
+            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.rate)}</td>
+            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.taxable)}</td>
             <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${(r.gstPct || 0).toFixed(2)}%</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:right;font-size:8pt;">${money(r.igst)}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:right;font-size:8pt;">${money(r.total)}</td>
+            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.igst)}</td>
+            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.total)}</td>
           </tr>`;
         } else if (shouldShowCGSTSGSTColumns) {
           const halfPct = ((r.gstPct || 0) / 2).toFixed(2);
@@ -511,13 +511,13 @@ export const generatePdfForTemplate11 = async (
             <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:left;font-size:8pt;">${r.desc}</td>
             <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${r.hsn}</td>
             <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${qtyDisplay}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:right;font-size:8pt;">${money(r.rate)}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:right;font-size:8pt;">${money(r.taxable)}</td>
+            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.rate)}</td>
+            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.taxable)}</td>
             <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${halfPct}%</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:right;font-size:8pt;">${money(r.cgst)}</td>
+            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.cgst)}</td>
             <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${halfPct}%</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:right;font-size:8pt;">${money(r.sgst)}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:right;font-size:8pt;">${money(r.total)}</td>
+            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.sgst)}</td>
+            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.total)}</td>
           </tr>`;
         }
         return `<tr>

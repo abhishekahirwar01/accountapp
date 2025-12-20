@@ -67,7 +67,7 @@ const generateHTMLContent = (transaction, company, party) => {
   const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
 
   // Bank Data Check - Added from Template 1
-  const bankData = bank || {};
+  const bankData = bank || transaction?.bank || {};
 
   // Check if any bank detail is available (used for conditional rendering)
   const isBankDetailAvailable =
@@ -832,7 +832,7 @@ const generateHTMLContent = (transaction, company, party) => {
         }
         .column {
           width: 33.3%;
-          padding: 0 4px;
+          padding: 4px 4px;
           border-left: 1px solid #0371C1;
         }
         .no-left-border {

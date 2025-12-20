@@ -18,7 +18,7 @@ import { generatePDF } from 'react-native-html-to-pdf';
 // Constants
 const PRIMARY_BLUE = '#0371C1';
 const LIGHT_BLUE_BG = 'rgba(3, 113, 193, 0.2)';
-const ITEMS_PER_PAGE = 15; // A5 में कम items दिखाएंगे
+const ITEMS_PER_PAGE = 18;
 
 // HTML Notes Rendering Function
 const renderNotesHTML = notes => {
@@ -125,7 +125,7 @@ const TemplateA5_5 = ({
     bankData?.accountNo ||
     bankData?.upiDetails?.upiId;
 
-  // Column configurations for A5
+  // Column configurations
   const colWidthsIGST = ['5%', '28%', '8%', '6%', '8%', '15%', '18%', '12%'];
   const totalColumnIndexIGST = 7;
 
@@ -170,171 +170,17 @@ const TemplateA5_5 = ({
     }
   };
 
-  // Generate HSN Summary table HTML (only for last page)
-  const generateHsnSummaryHTML = () => {
-    if (!isGSTApplicable) return '';
-
-    try {
-      const hsnSummary = getHsnSummary(itemsWithGST, showIGST, showCGSTSGST);
-      const hsnColWidths = showIGST
-        ? ['25%', '18%', '32%', '25%']
-        : showCGSTSGST
-        ? ['18%', '18%', '22%', '22%', '20%']
-        : ['38%', '31%', '31%'];
-
-      const hsnTotalColumnIndex = showIGST ? 3 : showCGSTSGST ? 4 : 2;
-
-      return `
-        <div class="hsn-tax-table">
-          <div class="hsn-tax-table-header">
-            <div class="hsn-tax-header-cell" style="width: ${
-              hsnColWidths[0]
-            }">HSN / SAC</div>
-            <div class="hsn-tax-header-cell" style="width: ${
-              hsnColWidths[1]
-            }">Taxable Value (Rs.)</div>
-            ${
-              showIGST
-                ? `
-              <div class="igst-header" style="width: ${hsnColWidths[2]}; border-right: 1px solid ${PRIMARY_BLUE};">
-                <div class="igst-main-header">IGST</div>
-                <div class="igst-sub-header">
-                  <div class="igst-sub-percentage">%</div>
-                  <div class="igst-sub-text">Amount (Rs.)</div>
-                </div>
-              </div>
-            `
-                : showCGSTSGST
-                ? `
-              <div class="igst-header" style="width: ${hsnColWidths[2]}; border-right: 1px solid ${PRIMARY_BLUE};">
-                <div class="igst-main-header">CGST</div>
-                <div class="igst-sub-header">
-                  <div class="igst-sub-percentage">%</div>
-                  <div class="igst-sub-text">Amount (Rs.)</div>
-                </div>
-              </div>
-              <div class="igst-header" style="width: ${hsnColWidths[3]}">
-                <div class="igst-main-header">SGST</div>
-                <div class="igst-sub-header">
-                  <div class="igst-sub-percentage">%</div>
-                  <div class="igst-sub-text">Amount (Rs.)</div>
-                </div>
-              </div>
-            `
-                : ''
-            }
-            <div class="hsn-tax-header-cell" style="width: ${
-              hsnColWidths[hsnTotalColumnIndex]
-            }; border-left: 1px solid ${PRIMARY_BLUE}; border-right: none;">Total</div>
-          </div>
-
-          ${hsnSummary
-            .map(
-              (hsnItem, index) => `
-            <div class="hsn-tax-table-row">
-              <div class="hsn-tax-cell" style="width: ${hsnColWidths[0]}">${
-                hsnItem.hsnCode
-              }</div>
-              <div class="hsn-tax-cell" style="width: ${
-                hsnColWidths[1]
-              }">${formatCurrency(hsnItem.taxableValue)}</div>
-              ${
-                showIGST
-                  ? `
-                <div class="igst-cell" style="width: ${hsnColWidths[2]}">
-                  <div class="igst-percent">${hsnItem.taxRate}</div>
-                  <div class="igst-amount">${formatCurrency(
-                    hsnItem.taxAmount,
-                  )}</div>
-                </div>
-              `
-                  : showCGSTSGST
-                  ? `
-                <div class="igst-cell" style="width: ${
-                  hsnColWidths[2]
-                }; border-right: 1px solid ${PRIMARY_BLUE};">
-                  <div class="igst-percent">${hsnItem.taxRate / 2}</div>
-                  <div class="igst-amount">${formatCurrency(
-                    hsnItem.cgstAmount,
-                  )}</div>
-                </div>
-                <div class="igst-cell" style="width: ${hsnColWidths[3]}">
-                  <div class="igst-percent">${hsnItem.taxRate / 2}</div>
-                  <div class="igst-amount">${formatCurrency(
-                    hsnItem.sgstAmount,
-                  )}</div>
-                </div>
-              `
-                  : ''
-              }
-              <div class="hsn-tax-cell" style="width: ${
-                hsnColWidths[hsnTotalColumnIndex]
-              }; border-left: 1px solid ${PRIMARY_BLUE}; border-right: none;">${formatCurrency(
-                hsnItem.total,
-              )}</div>
-            </div>
-          `,
-            )
-            .join('')}
-
-          <div class="hsn-tax-table-total-row">
-            <div class="hsn-tax-total-cell" style="width: ${
-              hsnColWidths[0]
-            }">Total</div>
-            <div class="hsn-tax-total-cell" style="width: ${
-              hsnColWidths[1]
-            }">${formatCurrency(totalTaxable)}</div>
-            ${
-              showIGST
-                ? `
-              <div class="hsn-tax-total-cell" style="width: ${
-                hsnColWidths[2]
-              }; border-right: 1px solid ${PRIMARY_BLUE};">${formatCurrency(
-                    totalIGST,
-                  )}</div>
-            `
-                : showCGSTSGST
-                ? `
-              <div class="hsn-tax-total-cell" style="width: ${
-                hsnColWidths[2]
-              }; border-right: 1px solid ${PRIMARY_BLUE};">${formatCurrency(
-                    totalCGST,
-                  )}</div>
-              <div class="hsn-tax-total-cell" style="width: ${
-                hsnColWidths[3]
-              }">${formatCurrency(totalSGST)}</div>
-            `
-                : ''
-            }
-            <div class="hsn-tax-total-cell" style="width: ${
-              hsnColWidths[hsnTotalColumnIndex]
-            }; border-left: 1px solid ${PRIMARY_BLUE}; border-right: none;">${formatCurrency(
-        totalAmount,
-      )}</div>
-          </div>
-        </div>
-      `;
-    } catch (error) {
-      console.error('Error generating HSN summary:', error);
-      return '';
-    }
-  };
-
   // Generate items table for each page
   const generateItemsTable = (pageItems, isLastPage, startIndex) => {
     return `
       <!-- Table Header -->
       <div class="items-table-header">
         <div class="header-cell" style="width: ${colWidths[0]}">Sr. No.</div>
-        <div class="header-cell product-cell" style="width: ${
-          colWidths[1]
-        }">Name of Product/Service</div>
+        <div class="header-cell product-cell" style="width: ${colWidths[1]}">Name of Product/Service</div>
         <div class="header-cell" style="width: ${colWidths[2]}">HSN/SAC</div>
         <div class="header-cell" style="width: ${colWidths[3]}">Qty</div>
         <div class="header-cell" style="width: ${colWidths[4]}">Rate (Rs.)</div>
-        <div class="header-cell bg-highlight" style="width: ${
-          colWidths[5]
-        }">Taxable Value (Rs.)</div>
+        <div class="header-cell bg-highlight" style="width: ${colWidths[5]}">Taxable Value (Rs.)</div>
 
         ${
           showIGST
@@ -367,9 +213,7 @@ const TemplateA5_5 = ({
             : ''
         }
 
-        <div class="header-cell bg-highlight" style="width: ${
-          colWidths[totalColumnIndex]
-        }">Total (Rs.)</div>
+        <div class="header-cell bg-highlight" style="width: ${colWidths[totalColumnIndex]}">Total (Rs.)</div>
       </div>
 
       <!-- Table Rows -->
@@ -377,28 +221,14 @@ const TemplateA5_5 = ({
         .map(
           (item, index) => `
         <div class="items-table-row">
-          <div class="table-cell" style="width: ${colWidths[0]}">${
-            startIndex + index + 1
-          }</div>
-          <div class="table-cell product-cell" style="width: ${
-            colWidths[1]
-          }">${capitalizeWords(item.name)}</div>
-          <div class="table-cell" style="width: ${colWidths[2]}">${
-            item.code || '-'
-          }</div>
+          <div class="table-cell" style="width: ${colWidths[0]}">${startIndex + index + 1}</div>
+          <div class="table-cell product-cell" style="width: ${colWidths[1]}">${capitalizeWords(item.name)}</div>
+          <div class="table-cell" style="width: ${colWidths[2]}">${item.code || '-'}</div>
           <div class="table-cell" style="width: ${colWidths[3]}">
-            ${
-              item.itemType === 'service'
-                ? '-'
-                : formatQuantity(item.quantity || 0, item.unit)
-            }
+            ${item.itemType === 'service' ? '-' : formatQuantity(item.quantity || 0, item.unit)}
           </div>
-          <div class="table-cell" style="width: ${
-            colWidths[4]
-          }">${formatCurrency(item.pricePerUnit || 0)}</div>
-          <div class="table-cell bg-highlight" style="width: ${
-            colWidths[5]
-          }">${formatCurrency(item.taxableValue)}</div>
+          <div class="table-cell" style="width: ${colWidths[4]}">${formatCurrency(item.pricePerUnit || 0)}</div>
+          <div class="table-cell bg-highlight" style="width: ${colWidths[5]}">${formatCurrency(item.taxableValue)}</div>
           
           ${
             showIGST
@@ -422,9 +252,7 @@ const TemplateA5_5 = ({
               : ''
           }
           
-          <div class="table-cell bg-highlight" style="width: ${
-            colWidths[totalColumnIndex]
-          }">${formatCurrency(item.total)}</div>
+          <div class="table-cell bg-highlight" style="width: ${colWidths[totalColumnIndex]}">${formatCurrency(item.total)}</div>
         </div>
       `,
         )
@@ -437,39 +265,25 @@ const TemplateA5_5 = ({
       <div class="items-table-total-row">
         <div class="table-cell" style="width: ${colWidths[0]}"></div>
         <div class="table-cell" style="width: ${colWidths[1]}"></div>
-        <div class="table-cell font-bold" style="width: ${
-          colWidths[2]
-        }">Total</div>
-        <div class="table-cell font-bold" style="width: ${
-          colWidths[3]
-        }">${totalQty}</div>
+        <div class="table-cell font-bold" style="width: ${colWidths[2]}">Total</div>
+        <div class="table-cell font-bold" style="width: ${colWidths[3]}">${totalQty}</div>
         <div class="table-cell" style="width: ${colWidths[4]}"></div>
-        <div class="table-cell font-bold bg-highlight" style="width: ${
-          colWidths[5]
-        }">${formatCurrency(totalTaxable)}</div>
+        <div class="table-cell font-bold bg-highlight" style="width: ${colWidths[5]}">${formatCurrency(totalTaxable)}</div>
         
         ${
           showIGST
             ? `
-          <div class="table-cell font-bold" style="width: ${
-            colWidths[6]
-          }">${formatCurrency(totalIGST)}</div>
+          <div class="table-cell font-bold" style="width: ${colWidths[6]}">${formatCurrency(totalIGST)}</div>
           `
             : showCGSTSGST
             ? `
-          <div class="table-cell font-bold" style="width: ${
-            colWidths[6]
-          }">${formatCurrency(totalCGST)}</div>
-          <div class="table-cell font-bold" style="width: ${
-            colWidths[7]
-          }">${formatCurrency(totalSGST)}</div>
+          <div class="table-cell font-bold" style="width: ${colWidths[6]}">${formatCurrency(totalCGST)}</div>
+          <div class="table-cell font-bold" style="width: ${colWidths[7]}">${formatCurrency(totalSGST)}</div>
           `
             : ''
         }
         
-        <div class="table-cell font-bold bg-highlight" style="width: ${
-          colWidths[totalColumnIndex]
-        }">${formatCurrency(totalAmount)}</div>
+        <div class="table-cell font-bold bg-highlight" style="width: ${colWidths[totalColumnIndex]}">${formatCurrency(totalAmount)}</div>
       </div>
       `
           : ''
@@ -477,10 +291,9 @@ const TemplateA5_5 = ({
     `;
   };
 
-  // Generate new header section matching the image
+  // Generate header section matching the image EXACTLY
   const generateHeaderSection = () => {
-    const companyName =
-      company?.businessName || company?.companyName || 'Ak Electronics Shop';
+    const companyName = company?.businessName || company?.companyName || 'Ak Electronics Shop';
 
     return `
       <!-- Top Company Info Section -->
@@ -488,412 +301,256 @@ const TemplateA5_5 = ({
         <div class="company-name">${capitalizeWords(companyName)}</div>
         <div class="company-address">
           ${[
-            company?.address || 'HIG B-58, Sector A, Volga Nagar, Bhopal',
-            company?.City || 'Bhopal',
-            company?.addressState || 'Madhya Pradesh',
-            company?.Country || 'India',
-            company?.Pincode || '462010',
+            company?.address,
+            company?.City,
+            company?.addressState,
+            company?.Country,
+            company?.Pincode,
           ]
             .filter(Boolean)
             .join(', ')}
         </div>
         <div class="company-contact">
-          <span class="contact-item">
-            Phone: ${
-              company?.mobileNumber
-                ? safeFormatPhoneNumber(String(company.mobileNumber))
-                : company?.Telephone
-                ? safeFormatPhoneNumber(String(company.Telephone))
-                : '+9999-8889'
-            }
-          </span>
-          <span class="contact-item">
-            E-mail: ${company?.email || 'akelectronics@gmail.com'}
-          </span>
-          <span class="contact-item">
-            Telephone: ${
-              company?.mobileNumber
-                ? safeFormatPhoneNumber(String(company.mobileNumber))
-                : company?.Telephone
-                ? safeFormatPhoneNumber(String(company.Telephone))
-                : '+8888773680'
-            }
-          </span>
+          <span class="contact-item">Phone : ${
+            company?.mobileNumber
+              ? safeFormatPhoneNumber(String(company.mobileNumber))
+              : '-'
+          }</span>
+          <span class="contact-item">E-mail : ${company?.email || '-'}</span>
+          <span class="contact-item">Telephone : ${
+            company?.Telephone
+              ? safeFormatPhoneNumber(String(company.Telephone))
+              : '-'
+          }</span>
         </div>
-      
       </div>
 
       <!-- GSTIN and Invoice Type Section -->
       <div class="gstin-invoice-section">
-        <div class="gstin-number">
-          GSTIN : ${company?.gstin || '1/ABCDE1234F225'}
-        </div>
-        <div class="invoice-type">
-          ${
-            transaction.type === 'proforma'
-              ? 'PROFORMA INVOICE'
-              : isGSTApplicable
-              ? 'TAX INVOICE'
-              : 'INVOICE'
-          }
-        </div>
-        <div class="original-recipient">ORIGINAL FOR RECIPIENT</div>
+        <div class="gstin-left">GSTIN : ${company?.gstin || '-'}</div>
+        <div class="invoice-center">${
+          transaction.type === 'proforma'
+            ? 'PROFORMA INVOICE'
+            : isGSTApplicable
+            ? 'TAX INVOICE'
+            : 'INVOICE'
+        }</div>
+        <div class="original-right">ORIGINAL FOR RECIPIENT</div>
       </div>
-      
 
       <!-- Three Columns Section -->
-      <div class="three-col-section">
+      <div class="three-col-wrapper">
         <!-- Column 1 - Details of Buyer -->
-        <div class="col-section">
-          <div class="col-header">
-            <div class="col-header-title">Details of Buyer | Billed for</div>
+        <div class="info-column">
+          <div class="column-header">Details of Buyer | Billed to:</div>
+          <div class="info-row">
+            <span class="info-label">Name:</span>
+            <span class="info-value">${capitalizeWords(party?.name || '-')}</span>
           </div>
-          <div class="col-data-row">
-            <div class="col-label">Name:</div>
-            <div class="col-value">${capitalizeWords(
-              party?.name || 'N/A',
-            )}</div>
+          <div class="info-row">
+            <span class="info-label">Address:</span>
+            <span class="info-value">${capitalizeWords(getBillingAddress(party)) || '-'}</span>
           </div>
-          <div class="col-data-row">
-            <div class="col-label">Address:</div>
-            <div class="col-value">
-              ${capitalizeWords(getBillingAddress(party)) || '-'}
-            </div>
+          <div class="info-row">
+            <span class="info-label">Phone:</span>
+            <span class="info-value">${
+              party?.contactNumber ? safeFormatPhoneNumber(party.contactNumber) : '-'
+            }</span>
           </div>
-          <div class="col-data-row">
-            <div class="col-label">Phone:</div>
-            <div class="col-value">
-              ${
-                party?.contactNumber
-                  ? safeFormatPhoneNumber(party.contactNumber)
-                  : '-'
-              }
-            </div>
+          <div class="info-row">
+            <span class="info-label">GSTIN:</span>
+            <span class="info-value">${party?.gstin || '-'}</span>
           </div>
-          <div class="col-data-row">
-            <div class="col-label">GSTIN:</div>
-            <div class="col-value">${party?.gstin || '-'}</div>
+          <div class="info-row">
+            <span class="info-label">PAN:</span>
+            <span class="info-value">${party?.pan || '-'}</span>
           </div>
-           <div class="col-data-row">
-            <div class="col-label">PAN:</div>
-            <div class="col-value">${party?.pan || '-'}</div>
-          </div>
-          <div class="col-data-row">
-            <div class="col-label">Place of Supply:</div>
-            <div class="col-value">
-              ${
-                shippingAddress?.state
-                  ? `${capitalizeWords(shippingAddress.state)} (${
-                      getStateCode(shippingAddress.state) || '-'
-                    })`
-                  : party?.state
-                  ? `${capitalizeWords(party.state)} (${
-                      getStateCode(party.state) || '-'
-                    })`
-                  : 'Maharashtra (27)'
-              }
-            </div>
+          <div class="info-row">
+            <span class="info-label">Place of Supply:</span>
+            <span class="info-value">${
+              party?.state
+                ? `${capitalizeWords(party.state)} (${getStateCode(party.state) || '-'})`
+                : '-'
+            }</span>
           </div>
         </div>
 
         <!-- Column 2 - Details of Consigned -->
-        <div class="col-section">
-          <div class="col-header">
-            <div class="col-header-title">Details of Consigned | Shipped for</div>
+        <div class="info-column">
+          <div class="column-header">Details of Consigned | Shipped to:</div>
+          <div class="info-row">
+            <span class="info-label">Name:</span>
+            <span class="info-value">${capitalizeWords(
+              shippingAddress?.label || party?.name || '-'
+            )}</span>
           </div>
-          <div class="col-data-row">
-            <div class="col-label">Name:</div>
-            <div class="col-value">${capitalizeWords(shippingAddress?.label || party?.name || 'N/A')}</div>
+          <div class="info-row">
+            <span class="info-label">Address:</span>
+            <span class="info-value">${capitalizeWords(
+              getShippingAddress(shippingAddress, getBillingAddress(party))
+            )}</span>
           </div>
-          <div class="col-data-row">
-            <div class="col-label">Address:</div>
-            <div class="col-value">
-              ${capitalizeWords(
-                getShippingAddress(shippingAddress, getBillingAddress(party)) ,
-              )}
-            </div>
+          <div class="info-row">
+            <span class="info-label">Country:</span>
+            <span class="info-value">${company?.Country || '-'}</span>
           </div>
-          <div class="col-data-row">
-            <div class="col-label">Country:</div>
-            <div class="col-value">${company?.Country}</div>
+          <div class="info-row">
+            <span class="info-label">Phone:</span>
+            <span class="info-value">${
+              shippingAddress?.contactNumber
+                ? safeFormatPhoneNumber(String(shippingAddress.contactNumber))
+                : party?.contactNumber
+                ? safeFormatPhoneNumber(String(party.contactNumber))
+                : '-'
+            }</span>
           </div>
-          <div class="col-data-row">
-            <div class="col-label">Phone:</div>
-            <div class="col-value">
-              ${
-                shippingAddress?.contactNumber
-                  ? safeFormatPhoneNumber(String(shippingAddress.contactNumber))
-                  : party?.contactNumber
-                  ? safeFormatPhoneNumber(String(party.contactNumber))
-                  : '84156-13521'
-              }
-            </div>
+          <div class="info-row">
+            <span class="info-label">GSTIN:</span>
+            <span class="info-value">${party?.gstin || '-'}</span>
           </div>
-          <div class="col-data-row">
-            <div class="col-label">GSTIN:</div>
-            <div class="col-value">${party?.gstin || '-'}</div>
-          </div>
-          <div class="col-data-row">
-            <div class="col-label">State:</div>
-            <div class="col-value">
-              ${
-                shippingAddress?.state
-                  ? `${capitalizeWords(shippingAddress.state)} (${
-                      getStateCode(shippingAddress.state) || '-'
-                    })`
-                  : party?.state
-                  ? `${capitalizeWords(party.state)} (${
-                      getStateCode(party.state) || '-'
-                    })`
-                  : ''
-              }
-            </div>
+          <div class="info-row">
+            <span class="info-label">State:</span>
+            <span class="info-value">${
+              shippingAddress?.state
+                ? `${capitalizeWords(shippingAddress.state)} (${getStateCode(shippingAddress.state) || '-'})`
+                : party?.state
+                ? `${capitalizeWords(party.state)} (${getStateCode(party.state) || '-'})`
+                : '-'
+            }</span>
           </div>
         </div>
 
         <!-- Column 3 - Invoice Details -->
-        <div class="col-section">
-          <div class="col-header">
-            <div class="col-header-title">Invoice Details:</div>
+        <div class="info-column">
+          
+          <div class="info-row">
+            <span class="info-label">Invoice No.:</span>
+            <span class="info-value">${transaction.invoiceNumber || '-'}</span>
           </div>
-          <div class="col-data-row">
-            <div class="col-label">Invoice No.:</div>
-            <div class="col-value">${
-              transaction.invoiceNumber || '-'
-            }</div>
+          <div class="info-row">
+            <span class="info-label">Invoice Date:</span>
+            <span class="info-value">${formatDateSafe(transaction.date) || '-'}</span>
           </div>
-          <div class="col-data-row">
-            <div class="col-label">Invoice Date:</div>
-            <div class="col-value">${
-              formatDateSafe(transaction.date) || '-'
-            }</div>
+          <div class="info-row">
+            <span class="info-label">Due Date:</span>
+            <span class="info-value">${formatDateSafe(transaction.dueDate) || '-'}</span>
           </div>
-          <div class="col-data-row">
-            <div class="col-label">Due Date:</div>
-            <div class="col-value">${
-              formatDateSafe(transaction.dueDate) || '-'
-              
-            }</div>
+          <div class="info-row">
+            <span class="info-label">P.O. No:</span>
+            <span class="info-value">${transaction.voucher || '-'}</span>
           </div>
-          <div class="col-data-row">
-            <div class="col-label">P.O. No:</div>
-            <div class="col-value">${transaction.voucher || '-'}</div>
-          </div>
-         
-         
-          <div class="col-data-row">
-            <div class="col-label">E-Way Bill No.:</div>
-            <div class="col-value">${transaction.eway || '-'}</div>
+          <div class="info-row">
+            <span class="info-label">E-Way Bill No.:</span>
+            <span class="info-value">${transaction.eway || '-'}</span>
           </div>
         </div>
       </div>
     `;
   };
 
-  // Generate footer section for last page
+  // Generate footer section for last page - MODIFIED LAYOUT
   const generateFooterSection = (pageNumber, totalPages) => {
-    const companyName =
-      company?.businessName || company?.companyName || 'Ak Electronics Shop';
+    const companyName = company?.businessName || company?.companyName || '-';
 
     return `
-      <!-- Bottom Sections -->
-      <div class="bottom-section">
-        <div class="left-section">
-          <div class="total-in-words">
-            Total in words : ${safeNumberToWords(totalAmount)}
-          </div>
-
-          ${isGSTApplicable ? generateHsnSummaryHTML() : ''}
+      <!-- Bottom Section - NEW LAYOUT -->
+      <div class="bottom-wrapper">
+        <!-- Total in Words (Full Width) -->
+        <div class="total-in-words-full">
+          TOTAL IN WORDS : ${safeNumberToWords(totalAmount).toUpperCase()}
         </div>
 
-        <div class="right-section">
-          <div class="total-row">
-            <div class="label">Taxable Amount</div>
-            <div class="value">${formatCurrency(totalTaxable)}</div>
-          </div>
-
-          ${
-            isGSTApplicable
-              ? `
-            <div class="total-row">
-              <div class="label">Total Tax</div>
-              <div class="value">
-                ${formatCurrency(showIGST ? totalIGST : totalCGST + totalSGST)}
-              </div>
-            </div>
-            `
-              : ''
-          }
-
-          <div class="total-row ${isGSTApplicable ? 'highlight-row' : ''}">
-            <div class="${isGSTApplicable ? 'label-bold' : 'label'}">
-              ${isGSTApplicable ? 'Total Amount After Tax' : 'Total Amount'}
-            </div>
-            <div class="${isGSTApplicable ? 'value-bold' : 'value'}">
-              ${formatCurrency(totalAmount)}
-            </div>
-          </div>
-
-          <div class="total-row">
-            <div class="label">
-              For ${capitalizeWords(companyName)}
-            </div>
-            <div class="value">(E & O.E.)</div>
-          </div>
-
-          <!-- Bank Details Section -->
-          ${
-            transaction.type !== 'proforma' && isBankDetailAvailable
-              ? `
-            <div class="bank-details">
-              <div style="font-size: 7px; font-weight: bold; margin-bottom: 3px;">Bank Details:</div>
-              <div class="bank-details-container">
-                <div class="bank-info">
-                  ${
-                    bankData?.bankName
-                      ? `
-                    <div class="bank-row">
-                      <span style="width: 50px; font-weight: bold;">Name:</span>
-                      <span>${capitalizeWords(bankData.bankName)}</span>
-                    </div>
-                    `
-                      : ''
-                  }
-                  
-                  ${
-                    bankData?.accountNo
-                      ? `
-                    <div class="bank-row">
-                      <span style="width: 50px; font-weight: bold;">Acc. No:</span>
-                      <span>${bankData.accountNo}</span>
-                    </div>
-                    `
-                      : ''
-                  }
-                  
-                  ${
-                    bankData?.ifscCode
-                      ? `
-                    <div class="bank-row">
-                      <span style="width: 50px; font-weight: bold;">IFSC:</span>
-                      <span>${bankData.ifscCode}</span>
-                    </div>
-                    `
-                      : ''
-                  }
-                  
-                  ${
-                    bankData?.branchAddress
-                      ? `
-                    <div class="bank-row">
-                      <span style="width: 50px; font-weight: bold;">Branch:</span>
-                      <span style="flex: 1;">${bankData.branchAddress}</span>
-                    </div>
-                    `
-                      : ''
-                  }
-                  
-                  ${
-                    bankData?.upiDetails?.upiId
-                      ? `
-                    <div class="bank-row">
-                      <span style="width: 50px; font-weight: bold;">UPI ID:</span>
-                      <span>${bankData.upiDetails.upiId}</span>
-                    </div>
-                    `
-                      : ''
-                  }
-
-                  ${
-                    bankData?.upiDetails?.upiName
-                      ? `
-                    <div class="bank-row">
-                      <span style="width: 50px; font-weight: bold;">UPI Name:</span>
-                      <span>${bankData.upiDetails.upiName}</span>
-                    </div>
-                    `
-                      : ''
-                  }
-
-                  ${
-                    bankData?.upiDetails?.upiMobile
-                      ? `
-                    <div class="bank-row">
-                      <span style="width: 50px; font-weight: bold;">UPI Mobile:</span>
-                      <span>${bankData.upiDetails.upiMobile}</span>
-                    </div>
-                    `
-                      : ''
-                  }
+        <!-- Two Column Layout: Bank/Terms on Left, Totals on Right -->
+        <div class="bottom-two-columns">
+          <!-- Left Side: Bank Details and Terms -->
+          <div class="left-bottom-section">
+            ${
+              transaction.type !== 'proforma' && isBankDetailAvailable
+                ? `
+              <div class="bank-details-box">
+                <div class="bank-title">Bank Details:</div>
+                <div class="bank-grid">
+                  ${bankData?.bankName ? `<div class="bank-item"><span class="bank-key">Name:</span> <span class="bank-val">${capitalizeWords(bankData.bankName)}</span></div>` : ''}
+                  ${bankData?.accountNo ? `<div class="bank-item"><span class="bank-key">Acc. No:</span> <span class="bank-val">${bankData.accountNo}</span></div>` : ''}
+                  ${bankData?.ifscCode ? `<div class="bank-item"><span class="bank-key">IFSC:</span> <span class="bank-val">${bankData.ifscCode}</span></div>` : ''}
+                  ${bankData?.branchAddress ? `<div class="bank-item"><span class="bank-key">Branch:</span> <span class="bank-val">${bankData.branchAddress}</span></div>` : ''}
+                  ${bankData?.upiDetails?.upiId ? `<div class="bank-item"><span class="bank-key">UPI ID:</span> <span class="bank-val">${bankData.upiDetails.upiId}</span></div>` : ''}
+                  ${bankData?.upiDetails?.upName ? `<div class="bank-item"><span class="bank-key">UPI Name:</span> <span class="bank-val">${bankData.upiDetails.upName}</span></div>` : ''}
+                  ${bankData?.upiDetails?.upiMobile ? `<div class="bank-item"><span class="bank-key">UPI Mobile:</span> <span class="bank-val">${bankData.upiDetails.upiMobile}</span></div>` : ''}
+                  ${bankData?.qrCode ? `<div class="bank-item"><span class="bank-key">QR Code:</span> <span class="bank-val">${bankData.qrCode}</span></div>` : ''}
                 </div>
-                
-                ${
-                  bankData?.qrCode
-                    ? `
-                  <div class="qr-container">
-                    <div style="font-size: 7px; font-weight: bold; margin-bottom: 3px;">QR Code</div>
-                    <img src="${BASE_URL}${bankData.qrCode}" class="qr-image" />
-                  </div>
-                  `
-                    : ''
-                }
               </div>
-            </div>
             `
-              : ''
-          }
+                : ''
+            }
+            
+            ${
+              transaction?.notes
+                ? `
+              <div class="terms-box-bottom">
+                <div class="terms-content">
+                  ${renderNotesHTML(transaction.notes)}
+                </div>
+              </div>
+            `
+                : ''
+            }
+          </div>
+
+          <!-- Right Side: Totals -->
+          <div class="right-bottom-section">
+            <div class="total-line">
+              <span class="total-label">Taxable Amount</span>
+              <span class="total-value">${formatCurrency(totalTaxable)}</span>
+            </div>
+            ${
+              isGSTApplicable
+                ? `
+              <div class="total-line">
+                <span class="total-label">Total Tax</span>
+                <span class="total-value">${formatCurrency(showIGST ? totalIGST : totalCGST + totalSGST)}</span>
+              </div>
+            `
+                : ''
+            }
+            <div class="total-line highlight-total">
+              <span class="total-label-bold">${isGSTApplicable ? 'Total Amount After Tax' : 'Total Amount'}</span>
+              <span class="total-value-bold">${formatCurrency(totalAmount)}</span>
+            </div>
+            <div class="total-line">
+              <span class="total-label">For ${capitalizeWords(companyName)}</span>
+              <span class="total-value">(E & O.E.)</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Terms and Conditions -->
-      ${
-        transaction?.notes
-          ? `
-      <div class="terms-box">
-        <div class="terms-content">
-          ${renderNotesHTML(transaction.notes)}
-        </div>
-      </div>
-        `
-          : ''
-      }
-
-      <!-- Page Number - Outside all borders -->
-      <div class="page-number-container">
-        Page ${pageNumber} of ${totalPages}
-      </div>
     `;
   };
 
   // Generate HTML content for PDF
   const generateHTML = () => {
-    // Generate all pages
     let startIndex = 0;
     const pagesHTML = itemPages.map((pageItems, pageIndex) => {
       const isLastPage = pageIndex === itemPages.length - 1;
       const pageNumber = pageIndex + 1;
 
       const pageHTML = `
-        <div class="page">
-          ${generateHeaderSection()}
-          
-          <!-- Items Table -->
-          <div class="table-container">
-            ${generateItemsTable(pageItems, isLastPage, startIndex)}
-          </div>
-
-          ${
-            isLastPage
-              ? `
-            ${generateFooterSection(pageNumber, totalPages)}
-          `
-              : `
-            <!-- Page Number for non-last pages -->
-            <div class="page-number-container">
-              Page ${pageNumber} of ${totalPages}
+        <div class="page-wrapper">
+          <div class="page">
+            ${generateHeaderSection()}
+            
+            <div class="table-container">
+              ${generateItemsTable(pageItems, isLastPage, startIndex)}
             </div>
-          `
-          }
+
+            ${isLastPage ? generateFooterSection(pageNumber, totalPages) : ''}
+          </div>
+          
+          <!-- Page Number Outside Box -->
+          <div class="page-number-outside">
+            ${pageNumber} / ${totalPages} page
+          </div>
         </div>
       `;
 
@@ -915,13 +572,18 @@ const TemplateA5_5 = ({
           }
           
           body {
-            font-family: Helvetica, Arial, sans-serif;
+            font-family: Arial, Helvetica, sans-serif;
             margin: 0;
-            padding: 10px;
+            padding: 8px;
             color: #000;
-            font-size: 8px;
+            font-size: 7px;
             line-height: 1.2;
             width: 595px;
+          }
+          
+          .page-wrapper {
+            position: relative;
+            margin-bottom: 15px;
           }
           
           .page {
@@ -929,150 +591,135 @@ const TemplateA5_5 = ({
             width: 100%;
             min-height: 400px;
             page-break-after: always;
-            margin-bottom: 10px;
+            border: 1.5px solid ${PRIMARY_BLUE};
           }
           
           .page:last-child {
             page-break-after: auto;
           }
           
-          /* Top Company Info Styles */
+          /* Page Number Outside Box */
+          .page-number-outside {
+            text-align: right;
+            padding: 4px 0;
+            font-size: 6px;
+            color: #000;
+          }
+          
+          /* Top Company Info */
           .top-company-info {
-            margin-bottom: 8px;
+            padding: 6px 8px;
+            border-bottom: 1.5px solid ${PRIMARY_BLUE};
           }
           
           .company-name {
-            font-size: 14px;
+            font-size: 16px;
             font-weight: bold;
             text-align: center;
             margin-bottom: 3px;
           }
           
           .company-address {
-            font-size: 9px;
+            font-size: 8px;
             text-align: center;
-            margin-bottom: 2px;
+            margin-bottom: 3px;
           }
           
           .company-contact {
-            font-size: 8px;
+            font-size: 7px;
             text-align: center;
-            margin-bottom: 4px;
           }
           
           .contact-item {
-            margin: 0 5px;
+            margin: 0 8px;
           }
           
-          .separator-line {
-            border: none;
-            border-top: 1px solid ${PRIMARY_BLUE};
-            margin: 4px 0;
-          }
-          
-          /* GSTIN and Invoice Type Section */
+          /* GSTIN Invoice Section */
           .gstin-invoice-section {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 4px;
-           border : 1.5px solid ${PRIMARY_BLUE};
-           padding: 0 4px;
-           padding-top: 2px;
-           border-bottom: none;
-           margin-bottom: -1px;
+            padding: 4px 8px;
+            border-bottom: 1.5px solid ${PRIMARY_BLUE};
           }
           
-          .gstin-number {
-            font-size: 9px;
+          .gstin-left {
+            font-size: 8px;
             font-weight: bold;
           }
           
-          .invoice-type {
+          .invoice-center {
             font-size: 12px;
             font-weight: bold;
             color: ${PRIMARY_BLUE};
           }
           
-          .original-recipient {
-            font-size: 9px;
-            font-weight: bold;
-            color: #000;
-          }
-          
-          /* Three Column Section Styles */
-          .three-col-section {
-            display: flex;
-            flex-direction: row;
-            border: 1.5px solid ${PRIMARY_BLUE};
-          }
-          
-          .col-section {
-            flex: 1;
-            padding: 4px;
-            border-left: 1px solid ${PRIMARY_BLUE};
-          }
-          
-          .col-section:first-child {
-            border-left: none;
-          }
-          
-          .col-header {
-            margin-bottom: 3px;
-          }
-          
-          .col-header-title {
+          .original-right {
             font-size: 8px;
             font-weight: bold;
-            color: ${PRIMARY_BLUE};
           }
           
-          .col-data-row {
+          /* Three Column Wrapper */
+          .three-col-wrapper {
             display: flex;
-            flex-direction: row;
-            justify-content: space-between;
-            align-items: flex-start;
-            padding: 1px 0;
-            min-height: 14px;
+            border-bottom: 1.5px solid ${PRIMARY_BLUE};
           }
           
-          .col-label {
+          .info-column {
+            flex: 1;
+            padding: 4px 6px;
+            border-right: 1.5px solid ${PRIMARY_BLUE};
+            min-height: 100px;
+          }
+          
+          .info-column:last-child {
+            border-right: none;
+          }
+          
+          .column-header {
             font-size: 7px;
             font-weight: bold;
-            width: 40%;
+            color: ${PRIMARY_BLUE};
+            margin-bottom: 4px;
+          }
+          
+          .info-row {
+            display: flex;
+            font-size: 6px;
+            margin-bottom: 2px;
+            line-height: 1.3;
+          }
+          
+          .info-label {
+            font-weight: bold;
+            min-width: 70px;
             flex-shrink: 0;
           }
           
-          .col-value {
-            font-size: 7px;
-            font-weight: normal;
-            width: 60%;
-            flex-shrink: 1;
-            text-align: left;
+          .info-value {
+            flex: 1;
           }
           
-          /* Items Table Styles */
+          /* Items Table */
           .table-container {
-            position: relative;
             width: 100%;
-            border: 1.5px solid ${PRIMARY_BLUE};
-            border-top: none;
-            margin-bottom: 0;
           }
           
           .items-table-header {
             display: flex;
-            flex-direction: row;
-            background-color: rgba(3, 113, 193, 0.2);
+            background-color: ${LIGHT_BLUE_BG};
             border-bottom: 1px solid ${PRIMARY_BLUE};
           }
           
           .header-cell {
-            padding: 2px;
+            padding: 3px 2px;
             text-align: center;
             font-size: 6px;
             font-weight: bold;
             border-right: 1px solid ${PRIMARY_BLUE};
+            display: flex;
+            align-items: center;
+            justify-content: center;
           }
           
           .header-cell:last-child {
@@ -1081,21 +728,17 @@ const TemplateA5_5 = ({
           
           .items-table-row {
             display: flex;
-            flex-direction: row;
-            align-items: flex-start;
             border-bottom: 1px solid ${PRIMARY_BLUE};
           }
           
           .items-table-total-row {
             display: flex;
-            flex-direction: row;
-            background-color: rgba(3, 113, 193, 0.2);
-            align-items: center;
-            border-top: 1px solid ${PRIMARY_BLUE};
+            background-color: ${LIGHT_BLUE_BG};
+            font-weight: bold;
           }
           
           .table-cell {
-            padding: 2px;
+            padding: 3px 2px;
             font-size: 6px;
             text-align: center;
             border-right: 1px solid ${PRIMARY_BLUE};
@@ -1111,14 +754,13 @@ const TemplateA5_5 = ({
           .product-cell {
             text-align: left;
             justify-content: flex-start;
+            padding-left: 4px;
           }
           
-          /* IGST/CGST/SGST Styles */
+          /* IGST/CGST/SGST */
           .igst-header {
             display: flex;
             flex-direction: column;
-            font-size: 6px;
-            font-weight: bold;
             border-right: 1px solid ${PRIMARY_BLUE};
           }
           
@@ -1126,21 +768,12 @@ const TemplateA5_5 = ({
             font-size: 6px;
             font-weight: bold;
             text-align: center;
-            padding: 1px;
+            padding: 2px;
           }
           
           .igst-sub-header {
             display: flex;
-            flex-direction: row;
             border-top: 1px solid ${PRIMARY_BLUE};
-          }
-          
-          .igst-sub-text {
-            font-size: 5px;
-            font-weight: bold;
-            width: 70%;
-            text-align: center;
-            padding: 1px;
           }
           
           .igst-sub-percentage {
@@ -1148,234 +781,160 @@ const TemplateA5_5 = ({
             font-weight: bold;
             width: 30%;
             text-align: center;
-            padding: 1px;
+            padding: 2px;
             border-right: 1px solid ${PRIMARY_BLUE};
+          }
+          
+          .igst-sub-text {
+            font-size: 5px;
+            font-weight: bold;
+            width: 70%;
+            text-align: center;
+            padding: 2px;
           }
           
           .igst-cell {
             display: flex;
-            flex-direction: row;
-            justify-content: center;
-            align-items: center;
-            gap: 2px;
-            text-align: center;
-            padding: 1px 0;
-            font-size: 6px;
             border-right: 1px solid ${PRIMARY_BLUE};
           }
           
           .igst-percent {
             font-size: 6px;
-            text-align: center;
-            padding: 1px;
             width: 30%;
+            text-align: center;
+            padding: 2px;
           }
           
           .igst-amount {
             font-size: 6px;
-            text-align: center;
-            padding: 1px;
             width: 70%;
-          }
-          
-          /* Bottom Section Styles */
-          .bottom-section {
-            display: flex;
-            flex-direction: row;
-            border: 1.5px solid ${PRIMARY_BLUE};
-            border-top: none;
-          }
-          
-          .left-section {
-            width: 65%;
-            padding: 4px;
-            border-right: 1px solid ${PRIMARY_BLUE};
-          }
-          
-          .right-section {
-            width: 35%;
-            padding: 4px;
-          }
-          
-          .total-in-words {
-            font-size: 6px;
-            font-weight: bold;
-            border-bottom: 1px solid ${PRIMARY_BLUE};
+            text-align: center;
             padding: 2px;
-            text-transform: uppercase;
-            margin-bottom: 4px;
           }
           
-          .total-row {
-            display: flex;
-            flex-direction: row;
-            justify-content: space-between;
-            border-bottom: 1px solid ${PRIMARY_BLUE};
-            padding: 2px;
-            margin-bottom: 2px;
+          /* Bottom Section - NEW LAYOUT */
+          .bottom-wrapper {
+            border-top: 1.5px solid ${PRIMARY_BLUE};
           }
           
-          .label {
+          .total-in-words-full {
+            padding: 4px 8px;
             font-size: 7px;
             font-weight: bold;
+            border-bottom: 1.5px solid ${PRIMARY_BLUE};
           }
           
-          .value {
-            font-size: 7px;
-            font-weight: bold;
-          }
-          
-          .label-bold {
-            font-size: 7px;
-            font-weight: bold;
-          }
-          
-          .value-bold {
-            font-size: 7px;
-            font-weight: bold;
-          }
-          
-          .highlight-row {
-            background-color: ${LIGHT_BLUE_BG};
-          }
-          
-          /* HSN Tax Table */
-          .hsn-tax-table {
-            margin-top: 4px;
-            border: 1px solid ${PRIMARY_BLUE};
-          }
-          
-          .hsn-tax-table-header {
+          .bottom-two-columns {
             display: flex;
-            flex-direction: row;
-            background-color: #f0f8ff;
-            border-bottom: 1px solid ${PRIMARY_BLUE};
+            min-height: 100px;
+            border-bottom: 1.5px solid ${PRIMARY_BLUE};
           }
           
-          .hsn-tax-header-cell {
-            padding: 1px;
-            font-size: 6px;
-            font-weight: bold;
-            border-right: 1px solid ${PRIMARY_BLUE};
-            text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-          
-          .hsn-tax-table-row {
-            display: flex;
-            flex-direction: row;
-            border-bottom: 1px solid ${PRIMARY_BLUE};
-          }
-          
-          .hsn-tax-cell {
-            padding: 1px;
-            font-size: 6px;
-            border-right: 1px solid ${PRIMARY_BLUE};
-            text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-          
-          .hsn-tax-table-total-row {
-            display: flex;
-            flex-direction: row;
-            background-color: rgba(3, 113, 193, 0.2);
-          }
-          
-          .hsn-tax-total-cell {
-            padding: 1px;
-            font-size: 6px;
-            font-weight: bold;
-            border-right: 1px solid ${PRIMARY_BLUE};
-            text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-          
-          /* Bank Details */
-          .bank-details {
-            margin-top: 4px;
-          }
-          
-          .bank-row {
-            display: flex;
-            flex-direction: row;
-            margin-bottom: 1px;
-            font-size: 6px;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-          }
-          
-          .bank-details-container {
-            display: flex;
-            flex-direction: row;
-            justify-content: space-between;
-            align-items: flex-start;
-            overflow: hidden;
-          }
-          
-          .bank-info {
+          /* Left Side: Bank + Terms */
+          .left-bottom-section {
             flex: 1;
-            overflow: hidden;
-            word-wrap: break-word;
-          }
-          
-          .qr-container {
+            padding: 6px;
+            border-right: 1.5px solid ${PRIMARY_BLUE};
             display: flex;
             flex-direction: column;
-            align-items: center;
-            margin-left: 5px;
+            gap: 8px;
           }
           
-          .qr-image {
-            width: 50px;
-            height: 50px;
-            object-fit: contain;
+          .bank-details-box {
+            font-size: 7px;
           }
           
-          /* Terms and Conditions - FIXED */
-          .terms-box {
-            border: 1.5px solid ${PRIMARY_BLUE};
-            border-top: none;
-            padding: 4px;
+          .bank-title {
+            font-size: 7px;
+            font-weight: bold;
+            margin-bottom: 3px;
+          }
+          
+          .bank-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+          }
+          
+          .bank-item {
             font-size: 6px;
-            line-height: 1.1;
-            min-height: 30px;
-            overflow: hidden;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
+            display: flex;
+          }
+          
+          .bank-key {
+            font-weight: bold;
+            min-width: 50px;
+          }
+          
+          .bank-val {
+            flex: 1;
+          }
+          
+          .terms-box-bottom {
+            font-size: 6px;
+            line-height: 1.3;
           }
           
           .terms-content {
             font-size: 6px;
-            line-height: 1.1;
-            max-width: 100%;
-            word-break: break-word;
-            overflow-wrap: break-word;
-            white-space: normal;
+            line-height: 1.3;
+            word-wrap: break-word;
           }
           
-          /* Page Number Container - Fixed positioning */
-          .page-number-container {
-            text-align: right;
+          /* Right Side: Totals */
+          .right-bottom-section {
+            width: 220px;
+            padding: 4px 0px;
+            display: flex;
+            flex-direction: column;
+          }
+          
+          .total-line {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 6px;
+            font-size: 7px;
+            border-bottom: 1px solid #ddd;
+          }
+          
+          .total-line.last-line {
+            border-bottom: none;
+          }
+          
+          .total-label, .total-value {
+            font-size: 7px;
+          }
+          
+          .highlight-total {
+            background-color: ${LIGHT_BLUE_BG};
+            font-weight: bold;
+          }
+          
+          .total-label-bold, .total-value-bold {
             font-size: 7px;
             font-weight: bold;
-            margin-top: 2px;
-            padding: 2px 4px;
-            position: relative;
-            width: 100%;
           }
           
-          /* Utility classes */
-          .text-left { text-align: left; }
-          .text-center { text-align: center; }
-          .text-right { text-align: right; }
-          .font-bold { font-weight: bold; }
-          .bg-highlight { background-color: ${LIGHT_BLUE_BG}; }
+          /* Bottom Padding Space */
+          .bottom-padding {
+            height: 15px;
+          }
+          
+          /* Page Footer - Remove border-top since page number is outside */
+          .page-footer {
+            text-align: right;
+            padding: 4px 8px;
+            font-size: 6px;
+          }
+          
+          /* Utility */
+          .bg-highlight {
+            background-color: ${LIGHT_BLUE_BG};
+          }
+          
+          .font-bold {
+            font-weight: bold;
+          }
         </style>
       </head>
       <body>
@@ -1416,8 +975,8 @@ export const generatePdfForTemplateA5_5 = async (
       html: htmlContent,
       fileName: `invoice_${transaction.invoiceNumber || 'document'}`,
       directory: 'Documents',
-      width: 595, // A5 landscape width
-      height: 420, // A5 landscape height
+      width: 595,
+      height: 420,
       base64: true,
     };
 
@@ -1438,7 +997,7 @@ export const generatePdfForTemplateA5_5 = async (
   }
 };
 
-// Utility function to use the component directly
+// Utility function
 export const generateTemplateA5_5HTML = props => {
   return TemplateA5_5(props);
 };

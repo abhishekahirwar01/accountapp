@@ -516,7 +516,7 @@ const TemplateA5_3PDF = ({
     } else if (showIGST) {
       return `
         <tr>
-          <th class="header-cell" rowspan="2" style="width: 5%;">Sr. No.</th>
+          <th class="header-cell" rowspan="2" style="width: 5%;">Sr.No.</th>
           <th class="header-cell" rowspan="2" style="width: 22%; text-align: left;">Name of Product/Service</th>
           <th class="header-cell" rowspan="2" style="width: 8%;">HSN/SAC</th>
           <th class="header-cell" rowspan="2" style="width: 6%;">Qty</th>
@@ -945,7 +945,7 @@ const TemplateA5_3PDF = ({
                 formattedNotes
                   ? `
                 <div class="notes-box">
-                  <div class="section-title">Notes/Terms:</div>
+                  
                   <div class="notes-content">${formattedNotes}</div>
                 </div>
               `
@@ -1066,7 +1066,7 @@ const styles = {
       border: 1px solid #0066cc;
       padding: 2px 3px;
       font-size: 6px;
-      margin-bottom: 2px;
+      // margin-bottom: 2px;
     }
     
     .gstin-box {
@@ -1091,7 +1091,7 @@ const styles = {
       display: flex;
       border: 1px solid #0066cc;
       border-top: none;
-      margin-bottom: 2px;
+      // margin-bottom: 2px;
     }
     
     .info-box {
@@ -1141,7 +1141,7 @@ const styles = {
       border-collapse: collapse;
       border: 1px solid #0066cc;
       border-top: none;
-      margin-bottom: 2px;
+      // margin-bottom: 2px;
       font-size: 6px;
     }
     
@@ -1230,7 +1230,7 @@ const styles = {
       border: 1px solid #0066cc;
       border-top: none;
       padding: 2px;
-      margin-bottom: 2px;
+      // margin-bottom: 2px;
       font-size: 6px;
       text-transform: uppercase;
       line-height: 1.2;
@@ -1240,7 +1240,7 @@ const styles = {
     .hsn-section {
       border: 1px solid #0066cc;
       border-top: none;
-      margin-bottom: 2px;
+      // margin-bottom: 2px;
     }
     
     .hsn-title-row {
@@ -1308,7 +1308,7 @@ const styles = {
       display: flex;
       border: 1px solid #0066cc;
       border-top: none;
-      margin-bottom: 2px;
+      // margin-bottom: 2px;
       min-height: 50px;
     }
     

@@ -49,7 +49,7 @@ const TemplateA5_4 = ({
 
   const getColWidths = () => {
     if (showIGST) {
-      return ['4%', '28%', '10%', '8%', '10%', '15%', '10%', '10%', '15%'];
+      return ['4%', '24%', '10%', '6%', '10%', '15%', '8%', '10%', '25%'];
     } else if (showCGSTSGST) {
       return ['4%', '20%', '10%', '6%', '10%', '10%', '6%', '8%', '6%', '8%', '18%'];
     } else {
@@ -273,24 +273,24 @@ const TemplateA5_4 = ({
   const generateHSNRows = () => {
     const hsnSummary = getHsnSummary(itemsWithGST, showIGST, showCGSTSGST);
     return hsnSummary.map((hsnItem) => {
-        let row = `<tr style="border-bottom: 1px solid #bfbfbf;">
-          <td style="width: 14%; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf; text-align: center;">${hsnItem.hsnCode}</td>
-          <td style="width: 18%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">${formatCurrency(hsnItem.taxableValue)}</td>`;
+        let row = `<tr style="border-bottom: 1px solid #0371C1;">
+          <td style="width: 14%; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1; text-align: center;">${hsnItem.hsnCode}</td>
+          <td style="width: 18%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${formatCurrency(hsnItem.taxableValue)}</td>`;
 
         if (showIGST) {
           row += `
-            <td style="width: 10%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">${hsnItem.taxRate}</td>
-            <td style="width: 15%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">${formatCurrency(hsnItem.taxAmount)}</td>
+            <td style="width: 10%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${hsnItem.taxRate}</td>
+            <td style="width: 15%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${formatCurrency(hsnItem.taxAmount)}</td>
             <td style="width: 25%; text-align: center; padding: 2px; font-size: 7px; font-weight: bold; border-left: 1px solid #bfbfbf;">${formatCurrency(hsnItem.total)}</td>`;
         } else if (showCGSTSGST) {
           row += `
-            <td style="width: 6%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">${(hsnItem.taxRate / 2).toFixed(2)}</td>
-            <td style="width: 18%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">${formatCurrency(hsnItem.cgstAmount)}</td>
-            <td style="width: 6%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">${(hsnItem.taxRate / 2).toFixed(2)}</td>
-            <td style="width: 18%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #bfbfbf;">${formatCurrency(hsnItem.sgstAmount)}</td>
-            <td style="width: 20%; text-align: center; padding: 2px; font-size: 7px; font-weight: bold; border-left: 1px solid #bfbfbf;">${formatCurrency(hsnItem.total)}</td>`;
+            <td style="width: 6%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${(hsnItem.taxRate / 2).toFixed(2)}</td>
+            <td style="width: 18%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${formatCurrency(hsnItem.cgstAmount)}</td>
+            <td style="width: 6%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${(hsnItem.taxRate / 2).toFixed(2)}</td>
+            <td style="width: 18%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${formatCurrency(hsnItem.sgstAmount)}</td>
+            <td style="width: 20%; text-align: center; padding: 2px; font-size: 7px; font-weight: bold; border-left: 1px solid #0371C1;">${formatCurrency(hsnItem.total)}</td>`;
         } else {
-          row += `<td style="width: 30%; text-align: center; padding: 2px; font-size: 7px; font-weight: bold; border-left: 1px solid #bfbfbf;">${formatCurrency(hsnItem.total)}</td>`;
+          row += `<td style="width: 30%; text-align: center; padding: 2px; font-size: 7px; font-weight: bold; border-left: 1px solid #0371C1;">${formatCurrency(hsnItem.total)}</td>`;
         }
 
         row += `</tr>`;
@@ -372,7 +372,7 @@ const TemplateA5_4 = ({
           <div style="margin-bottom: 10px;">
             <div class="total-row"><div class="label">Taxable Amount</div><div class="value">Rs. ${formatCurrency(totalTaxable)}</div></div>
             ${isGSTApplicable ? `<div class="total-row"><div class="label">Total Tax</div><div class="value">Rs. ${formatCurrency(showIGST ? totalIGST : totalCGST + totalSGST)}</div></div>` : ''}
-            <div class="total-row ${isGSTApplicable ? 'highlight-row' : ''}" style="padding-left: 5px; padding-right: 5px;">
+            <div class="total-row ${isGSTApplicable ? 'highlight-row' : ''}" style="padding-left: 5px; padding-right: 5px; padding-top:5px;">
               <div class="${isGSTApplicable ? 'label-bold' : 'label'}" >${isGSTApplicable ? 'Total Amount After Tax' : 'Total Amount'}</div>
               <div class="${isGSTApplicable ? 'value-bold' : 'value'}">Rs. ${formatCurrency(totalAmount)}</div>
             </div>
@@ -421,7 +421,7 @@ const TemplateA5_4 = ({
       .table-value { flex: 1; margin-left: 5px; }
       .items-table { width: 100%; border: 1px solid #0371C1; border-collapse: collapse;  }
       .items-table th, .items-table td { border: 1px solid #0371C1; padding: 4px 2px; font-size: 7px; }
-      .bottom-section { display: flex; margin-bottom: 10px; border: 1px solid #0371C1; }
+      .bottom-section { display: flex;  border: 1px solid #0371C1; }
       .left-section { flex: 2; padding-right: 10px; }
       .right-section { flex: 1; border-left: 1px solid #0371C1;  }
       .total-in-words { font-size: 8px; margin-bottom: 8px; font-weight: bold; margin-top: 5px; padding-top: 5px; }
@@ -429,7 +429,7 @@ const TemplateA5_4 = ({
       .hsn-tax-table th, .hsn-tax-table td { border: 1px solid #0371C1; padding: 2px; font-size: 7px; }
       .hsn-tax-header-cell { background-color: #0371C1; color: white; text-align: center; font-weight: bold; padding: 3px; }
       .hsn-tax-cell { text-align: center; padding: 2px; }
-      .total-row { display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 9px; padding: 6px; padding-bottom: 0; }
+      .total-row { display: flex; justify-content: space-between;  font-size: 9px; padding: 6px;  padding-bottom: 0; }
       .label { font-weight: normal; }
       .value { font-weight: normal; }
       .highlight-row { border-top: 1px solid #0371C1; border-bottom: 1px solid #0371C1; padding: 2px 0; margin: 4px 0; font-weight: bold; }
