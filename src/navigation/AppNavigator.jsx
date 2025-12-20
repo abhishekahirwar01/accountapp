@@ -33,11 +33,28 @@ import { TransactionForm } from '../components/transactions/TransactionForm';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-function MainTabNavigator() {
+function MainTabNavigator({ route }) {
+  // 1. Role extract karein jo navigation.reset se pass kiya gaya hai
+  const role = route.params?.role?.toLowerCase() || '';
+
+  // 2. Role ke basis par decide karein ki "Home" screen kaunsi hogi
+  let initialRoute = 'UserDashboard'; // Default fallback
+
+  if (role === 'master') {
+    initialRoute = 'AdminDashboard';
+  } else if (['admin', 'customer', 'client'].includes(role)) {
+    initialRoute = 'CustomerDashboard';
+  } else if (role === 'user') {
+    initialRoute = 'UserDashboard';
+  }
+
   return (
     <Tab.Navigator
+      // Sabse important points:
+      initialRouteName={initialRoute} // Yeh user ko uske dashboard par land karwayega
+      backBehavior="initialRoute" // Yeh back karne par AdminDashboard par jane se rokega
       screenOptions={{
-        tabBarStyle: { display: 'none' },
+        tabBarStyle: { display: 'none' }, // Tab bar hide rahegi
       }}
     >
       {/* --- Screens WITH Header --- */}
@@ -62,7 +79,7 @@ function MainTabNavigator() {
         options={{ headerShown: true, header: () => <Header /> }}
       />
 
-      {/* --- Screens WITHOUT Header (Lekin same Navigator mein rahengi) --- */}
+      {/* --- Screens WITHOUT Header --- */}
       <Tab.Screen
         name="Inventory"
         component={InventoryScreen}
@@ -94,7 +111,7 @@ function MainTabNavigator() {
         options={{ headerShown: false }}
       />
 
-      {/* Admin specific screens without header */}
+      {/* Admin specific screens */}
       <Tab.Screen
         name="AdminAnalytics"
         component={AdminAnalyticsScreen}
@@ -110,11 +127,6 @@ function MainTabNavigator() {
         component={AdminCompaniesScreen}
         options={{ headerShown: false }}
       />
-      {/* <Tab.Screen
-        name="AdminSettings"
-        component={AdminSettingsScreen}
-        options={{ headerShown: false }}
-      /> */}
       <Tab.Screen
         name="AdminClientManagement"
         component={AdminClientManagementPage}

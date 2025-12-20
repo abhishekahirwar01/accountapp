@@ -164,14 +164,48 @@ export default function Header() {
   };
 
   // Logout functionality
+  // const handleLogout = async () => {
+  //   try {
+  //     const userRole = await AsyncStorage.getItem('role');
+  //     const slug =
+  //       (await AsyncStorage.getItem('tenantSlug')) ||
+  //       (await AsyncStorage.getItem('slug')) ||
+  //       (await AsyncStorage.getItem('clientUsername'));
+
+  //     Alert.alert('Logout', 'Are you sure you want to logout?', [
+  //       {
+  //         text: 'Cancel',
+  //         style: 'cancel',
+  //       },
+  //       {
+  //         text: 'Logout',
+  //         style: 'destructive',
+  //         onPress: async () => {
+  //           await AsyncStorage.clear();
+
+  //           let targetRoute = 'UserLoginScreen';
+  //           if (userRole === 'customer' && slug) {
+  //             targetRoute = 'ClientLoginScreen';
+  //           } else if (userRole === 'master') {
+  //             targetRoute = 'AdminLoginScreen';
+  //           }
+
+  //           navigation.reset({
+  //             index: 0,
+  //             routes: [{ name: targetRoute }],
+  //           });
+  //         },
+  //       },
+  //     ]);
+  //   } catch (error) {
+  //     console.error('Logout error:', error);
+  //     Alert.alert('Error', 'Failed to logout');
+  //   }
+  //   setShowDropdown(false);
+  // };
+
   const handleLogout = async () => {
     try {
-      const userRole = await AsyncStorage.getItem('role');
-      const slug =
-        (await AsyncStorage.getItem('tenantSlug')) ||
-        (await AsyncStorage.getItem('slug')) ||
-        (await AsyncStorage.getItem('clientUsername'));
-
       Alert.alert('Logout', 'Are you sure you want to logout?', [
         {
           text: 'Cancel',
@@ -181,18 +215,14 @@ export default function Header() {
           text: 'Logout',
           style: 'destructive',
           onPress: async () => {
+            // 1. Storage clear karein (Sab roles ke liye common)
             await AsyncStorage.clear();
 
-            let targetRoute = 'UserLoginScreen';
-            if (userRole === 'customer' && slug) {
-              targetRoute = 'ClientLoginScreen';
-            } else if (userRole === 'master') {
-              targetRoute = 'AdminLoginScreen';
-            }
-
+            // 2. Navigation Reset karein
+            // Isse 'GettingStarted' stack ki pehli aur akeli screen ban jayegi
             navigation.reset({
               index: 0,
-              routes: [{ name: targetRoute }],
+              routes: [{ name: 'GettingStarted' }],
             });
           },
         },
@@ -203,7 +233,7 @@ export default function Header() {
     }
     setShowDropdown(false);
   };
-
+  
   // Search UI
   if (showSearch) {
     return (
