@@ -1602,36 +1602,6 @@ export function TransactionForm({
 
   useEffect(() => {}, [shippingAddresses]);
 
-  async function updateStock(token, items, action = 'decrease') {
-    try {
-      const res = await fetch(`${BASE_URL}/api/products/update-stock`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ items, action }),
-      });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Failed to update stock levels.');
-      }
-    } catch (error) {
-      console.error('Stock update failed:', error);
-
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : 'Failed to update stock levels.';
-
-      setSnackbar({
-        visible: true,
-        message: `Transaction was saved, but ${errorMessage}`,
-        type: 'error',
-      });
-    }
-  }
-
   const handlePreviewClose = () => {
     setInvoicePreviewOpen(false);
     if (type === 'sales') {
@@ -2117,57 +2087,6 @@ export function TransactionForm({
         throw new Error(
           data.message || `Failed to submit ${values.type} entry.`,
         );
-      }
-
-      if (
-        (values.type === 'sales' || values.type === 'purchases') &&
-        productLines.length
-      ) {
-        let stockUpdates = [];
-
-        if (transactionToEdit) {
-          for (const newItem of productLines) {
-            const productId = newItem.product;
-            const newQty = Number(newItem.quantity) || 0;
-            const oldQty = originalQuantities.get(productId) || 0;
-            const diff = newQty - oldQty;
-
-            if (diff !== 0) {
-              let action;
-              if (values.type === 'sales') {
-                action = diff > 0 ? 'decrease' : 'increase';
-              } else {
-                action = diff > 0 ? 'increase' : 'decrease';
-              }
-              stockUpdates.push({
-                product: productId,
-                quantity: Math.abs(diff),
-                action,
-              });
-            }
-          }
-        } else {
-          const action = values.type === 'sales' ? 'decrease' : 'increase';
-          stockUpdates = productLines.map(p => ({
-            product: p.product,
-            quantity: Number(p.quantity) || 0,
-            action,
-          }));
-        }
-
-        const decreaseItems = stockUpdates
-          .filter(u => u.action === 'decrease')
-          .map(u => ({ product: u.product, quantity: u.quantity }));
-        const increaseItems = stockUpdates
-          .filter(u => u.action === 'increase')
-          .map(u => ({ product: u.product, quantity: u.quantity }));
-
-        if (decreaseItems.length > 0) {
-          await updateStock(token, decreaseItems, 'decrease');
-        }
-        if (increaseItems.length > 0) {
-          await updateStock(token, increaseItems, 'increase');
-        }
       }
 
       if (shouldCloseForm) {
