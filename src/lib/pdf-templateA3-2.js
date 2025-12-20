@@ -400,18 +400,18 @@ const generatePageHTML = (
     } else if (showIGST) {
       return `
         <tr class="avoid-page-break">
-          <th class="header-cell" rowspan="2" style="width: 6%;">Sr.<br/>No.</th>
-          <th class="header-cell header-left" rowspan="2" style="width: 20%;">Name of Prod-<br/>uct/Service</th>
+          <th class="header-cell" rowspan="2" style="width: 6%;">Sr.No.</th>
+          <th class="header-cell header-left" rowspan="2" style="width: 20%;">Name of Product / Service</th>
           <th class="header-cell" rowspan="2" style="width: 10%;">HSN/SAC</th>
           <th class="header-cell" rowspan="2" style="width: 8%;">Qty</th>
-          <th class="header-cell" rowspan="2" style="width: 10%;">Rate<br/>(Rs.)</th>
-          <th class="header-cell" rowspan="2" style="width: 13%;">Taxable<br/>Value (Rs.)</th>
+          <th class="header-cell" rowspan="2" style="width: 10%;">Rate (Rs.)</th>
+          <th class="header-cell" rowspan="2" style="width: 14%;">Taxable Value (Rs.)</th>
           <th class="header-cell" colspan="2" style="width: 18%;">IGST</th>
           <th class="header-cell" rowspan="2" style="width: 15%;">Total (Rs.)</th>
         </tr>
         <tr class="avoid-page-break">
           <th class="header-cell sub-header" style="width: 6%;">%</th>
-          <th class="header-cell sub-header" style="width: 12%;">Amount<br/>(Rs.)</th>
+          <th class="header-cell sub-header" style="width: 12%;">Amount (Rs.)</th>
         </tr>
       `;
     } else {
@@ -458,7 +458,7 @@ const generatePageHTML = (
                 getCompanyValue('Pincode'),
               ]
                 .filter(Boolean)
-                .join(', ') || '123, Commercial Complex, MP Nagar Zone 2, Bhopal, Madhya Pradesh, India, 462011'
+                .join(', ') || '-'
             }</div>
             <div class="company-contact-header">
               <span><strong>Name :</strong> ${capitalizeWords(
@@ -469,7 +469,7 @@ const generatePageHTML = (
                   ? formatPhoneNumber(getCompanyValue('mobileNumber'))
                   : getCompanyValue('Telephone')
                   ? formatPhoneNumber(getCompanyValue('Telephone'))
-                  : '98765-43250'
+                  : '-'
               }</span>
             </div>
           </div>
@@ -1015,7 +1015,7 @@ const TemplateA5_2PDF = ({
     .company-header {
       margin-bottom: 3px;
       padding-bottom: 4px;
-      border-bottom: 2px solid #0066cc;
+      // border-bottom: 2px solid #0066cc;
     }
 
     .company-header-content {
