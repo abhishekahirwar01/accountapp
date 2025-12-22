@@ -283,7 +283,7 @@ export const ReceiptPaymentFields = props => {
                 open={companyDropdownOpen}
                 setOpen={setCompanyDropdownOpen}
                 value={value}
-                items={companyOptions}
+                items={companyOptions.filter(o => o.value)}
                 onChange={onChange}
                 placeholder="Select a company"
                 zIndex={3000}
@@ -319,6 +319,7 @@ export const ReceiptPaymentFields = props => {
                         onChange(selectedDate);
                       }
                     }}
+                    maximumDate={new Date()}
                   />
                 )}
               </>
@@ -440,7 +441,7 @@ export const ReceiptPaymentFields = props => {
                 open={paymentMethodDropdownOpen}
                 setOpen={setPaymentMethodDropdownOpen}
                 value={value}
-                items={paymentMethodReceiptOptions}
+                items={paymentMethodReceiptOptions.filter(o => o.value)}
                 onChange={onChange}
                 placeholder="Select Payment Method"
                 zIndex={1000}

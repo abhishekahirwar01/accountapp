@@ -22,11 +22,13 @@ import {
   Animated,
 } from 'react-native';
 import { Button, Dialog, Portal, Badge, Chip } from 'react-native-paper';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { City, State } from 'country-state-city';
 
 import { Combobox } from '../../ui/Combobox';
+import CustomDropdown from '../../ui/CustomDropdown';
 import { useToast } from '../../hooks/useToast';
 import { searchHSNCodes } from '../../../lib/hsnProduct';
 import { searchSACCodes } from '../../../lib/sacService';
@@ -402,11 +404,11 @@ export function FormTabs({
                 <View style={styles.grid}>
                   <View style={styles.formField}>
                     <Text style={styles.label}>Company</Text>
-                    <Combobox
-                      options={companies.map(c => ({
-                        label: c.businessName,
-                        value: c._id,
-                      }))}
+                    <CustomDropdown
+                      items={companies.map(c => ({
+                          label: c.businessName || c.name || 'Company',
+                          value: c._id,
+                        }))}
                       value={formMethods.watch('company') || ''}
                       onChange={val => formMethods.setValue('company', val)}
                       placeholder="Select a company"
@@ -434,6 +436,7 @@ export function FormTabs({
                       <Text style={styles.dateText}>
                         {formatDate(transactionDate)}
                       </Text>
+                      <Icon name="calendar" size={20} color="#6B7280" />
                     </TouchableOpacity>
                     {showDatePicker && (
                       <DateTimePicker
@@ -1670,8 +1673,10 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
     padding: 12,
     borderRadius: 6,
-    justifyContent: 'center',
     backgroundColor: 'white',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   dateText: {
     color: '#111827',

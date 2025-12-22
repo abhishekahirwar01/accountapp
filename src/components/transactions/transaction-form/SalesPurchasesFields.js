@@ -115,7 +115,6 @@ const formatCurrencyDisplay = value => {
   }
 };
 
-
 const formatGrandTotal = value => {
   if (value === '' || value === null || value === undefined) return '0.00';
   const num = Number(value);
@@ -1800,13 +1799,10 @@ export const SalesPurchasesFields = props => {
                       name="company"
                       render={({ field: { onChange, value } }) => (
                         <CustomDropdown
-                          items={[
-                            { label: 'Select a company', value: '' },
-                            ...companies.map(c => ({
+                          items={companies.map(c => ({
                               label: c.businessName || c.name || 'Company',
                               value: c._id,
-                            })),
-                          ]}
+                            }))}
                           value={value}
                           onChange={itemValue => {
                             onChange(itemValue);
@@ -1864,6 +1860,7 @@ export const SalesPurchasesFields = props => {
                                   validateField('date');
                                 }
                               }}
+                              maximumDate={new Date()}
                             />
                           )}
                         </View>
@@ -1982,13 +1979,10 @@ export const SalesPurchasesFields = props => {
                       name="paymentMethod"
                       render={({ field: { onChange, value } }) => (
                         <CustomDropdown
-                          items={[
-                            { label: 'Select Payment Method', value: '' },
-                            ...currentPaymentMethods.map(m => ({
+                          items={currentPaymentMethods.map(m => ({
                               label: m,
                               value: m,
-                            })),
-                          ]}
+                            }))}
                           value={value}
                           onChange={itemValue => {
                             onChange(itemValue);
