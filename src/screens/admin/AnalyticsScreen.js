@@ -31,6 +31,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import DashboardTab from '../../components/analytics/DashboardTab';
 import TransactionsTab from '../../components/analytics/TransactionsTab';
+import InventoryTab from '../../components/analytics/InventoryTab';
 import CompaniesTab from '../../components/analytics/CompaniesTab';
 import UsersTab from '../../components/analytics/UsersTab';
 import ProfitAndLossTab from '../../components/analytics/ProfitAndLoss';
@@ -103,6 +104,7 @@ export default function AnalyticsScreen() {
     () => [
       { key: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
       { key: 'transactions', label: 'Transactions', Icon: FileText },
+      { key: 'inventory', label: 'Inventory', Icon: Briefcase },
       { key: 'companies', label: 'Companies', Icon: Briefcase },
       { key: 'users', label: 'Users', Icon: Users },
       { key: 'reports', label: 'Reports', Icon: FileText },
@@ -296,6 +298,14 @@ export default function AnalyticsScreen() {
             companyMap={companyMap}
           />
         );
+        case 'inventory':
+        return (
+          <InventoryTab
+            selectedClient={selectedClient}
+            selectedCompanyId={selectedCompanyId}
+            companyMap={companyMap}
+          />
+        );
       case 'companies':
         return (
           <CompaniesTab
@@ -352,7 +362,9 @@ export default function AnalyticsScreen() {
             </View>
 
             <View style={styles.reportContent}>
-              {activeReport === 'profitandloss' && <ProfitAndLossTab />}
+              {activeReport === 'profitandloss' && <ProfitAndLossTab selectedClient={selectedClient}
+            selectedCompanyId={selectedCompanyId}
+            companyMap={companyMap} />}
               {activeReport === 'balancesheet' && <BalanceSheetTab />}
             </View>
           </View>
