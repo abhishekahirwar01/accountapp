@@ -758,7 +758,7 @@ export default function ClientForm({
 
       {!hideAdvanced && (
         <>
-          <View style={styles.section}>
+          {/* <View style={styles.section}>
             <Text style={styles.label}>Max Companies</Text>
             <TextInput
               style={styles.input}
@@ -776,7 +776,7 @@ export default function ClientForm({
               onChangeText={v => setMaxUsers(Number(v || 0))}
               keyboardType="numeric"
             />
-          </View>
+          </View> */}
 
           <View style={styles.sectionRow}>
             <View style={{ flex: 1 }}>
@@ -809,7 +809,7 @@ export default function ClientForm({
         }}
       >
         <View style={{ marginRight: 8 }}>
-          <Button title="Cancel" onPress={onCancel} />
+          <Text title="Cancel" onPress={onCancel} style={{ color: 'white', backgroundColor: '#007BFF', padding: 15, borderRadius: 5 , fontSize:16 , fontWeight: 'bold'}}>Cancel</Text>
         </View>
         <TouchableOpacity
           onPress={handleSubmit}

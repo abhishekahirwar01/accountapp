@@ -1,5 +1,4 @@
-// ...existing code...
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -23,7 +22,7 @@ import { BASE_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Icon names mapping
 const iconMap = {
@@ -54,6 +53,150 @@ const iconMap = {
   Infinity: 'infinity',
   Loader2: 'loading',
 };
+
+// Custom Dropdown Component using Modal
+const CustomDropdown = ({ options, selectedValue, onSelect, placeholder }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ x: 0, y: 0, width: 0 });
+  const dropdownRef = useRef(null);
+
+  const handleSelect = (value) => {
+    onSelect(value);
+    setIsOpen(false);
+  };
+
+  const handleOpenDropdown = () => {
+    dropdownRef.current?.measure((fx, fy, width, height, px, py) => {
+      setDropdownPosition({
+        x: px,
+        y: py ,
+        width: width
+      });
+      setIsOpen(true);
+    });
+  };
+
+  return (
+    <View style={dropdownStyles.container}>
+      <TouchableOpacity
+        ref={dropdownRef}
+        style={dropdownStyles.dropdownHeader}
+        onPress={handleOpenDropdown}
+        activeOpacity={0.7}
+      >
+        <Text style={dropdownStyles.selectedText} numberOfLines={1}>
+          {options.find(opt => opt.value === selectedValue)?.label || placeholder}
+        </Text>
+        <Icon 
+          name={isOpen ? "chevron-up" : "chevron-down"} 
+          size={20} 
+          color="#6b7280" 
+        />
+      </TouchableOpacity>
+
+      <Modal
+        visible={isOpen}
+        transparent
+        animationType="none"
+        onRequestClose={() => setIsOpen(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setIsOpen(false)}>
+          <View style={dropdownStyles.modalOverlay}>
+            <View style={[
+              dropdownStyles.dropdownList,
+              {
+                position: 'absolute',
+                top: dropdownPosition.y,
+                left: dropdownPosition.x,
+                width: dropdownPosition.width,
+              }
+            ]}>
+              {options.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    dropdownStyles.dropdownItem,
+                    selectedValue === option.value && dropdownStyles.dropdownItemSelected
+                  ]}
+                  onPress={() => handleSelect(option.value)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    dropdownStyles.dropdownItemText,
+                    selectedValue === option.value && dropdownStyles.dropdownItemTextSelected
+                  ]}>
+                    {option.label}
+                  </Text>
+                  {selectedValue === option.value && (
+                    <Icon name="check" size={16} color="#3b82f6" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    </View>
+  );
+};
+
+const dropdownStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  dropdownHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 12,
+    height: 44,
+  },
+  selectedText: {
+    fontSize: 14,
+    color: '#1e293b',
+    flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  dropdownList: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 10000,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  dropdownItemSelected: {
+    backgroundColor: '#eff6ff',
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: '#374151',
+  },
+  dropdownItemTextSelected: {
+    color: '#3b82f6',
+    fontWeight: '500',
+  },
+});
 
 const HistoryScreen = () => {
   const [clients, setClients] = useState([]);
@@ -595,43 +738,16 @@ const HistoryScreen = () => {
               <Icon name={iconMap.Filter} size={16} color="#6b7280" />
             </View>
             <Text style={styles.filterLabel}>Filter by:</Text>
-            <View style={styles.filterSelect}>
-              <TextInput
-                style={styles.filterInput}
-                value={
-                  statusFilter === 'all'
-                    ? 'All Clients'
-                    : statusFilter === 'active'
-                    ? 'Active'
-                    : 'Inactive'
-                }
-                editable={false}
-              />
-              <TouchableOpacity
-                style={styles.filterDropdown}
-                onPress={() => {
-                  const options = ['All Clients', 'Active', 'Inactive'];
-                  Alert.alert(
-                    'Filter Clients',
-                    'Select filter option',
-                    options.map(option => ({
-                      text: option,
-                      onPress: () => {
-                        setStatusFilter(
-                          option === 'All Clients'
-                            ? 'all'
-                            : option === 'Active'
-                            ? 'active'
-                            : 'inactive',
-                        );
-                      },
-                    })),
-                  );
-                }}
-              >
-                <Icon name="chevron-down" size={16} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
+            <CustomDropdown
+              options={[
+                { label: 'All Clients', value: 'all' },
+                { label: 'Active', value: 'active' },
+                { label: 'Inactive', value: 'inactive' },
+              ]}
+              selectedValue={statusFilter}
+              onSelect={(value) => setStatusFilter(value)}
+              placeholder="Select status"
+            />
           </View>
         </View>
 
@@ -676,7 +792,7 @@ const HistoryScreen = () => {
         )}
       </ScrollView>
 
-      {/* Client Details Modal (use RN Modal so touches are captured correctly) */}
+      {/* Client Details Modal */}
       <Modal
         visible={modalVisible && !!selectedClient}
         transparent
@@ -952,25 +1068,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#64748b',
     marginRight: 8,
-  },
-  filterSelect: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  filterInput: {
-    flex: 1,
-    height: 36,
-    paddingHorizontal: 12,
-    fontSize: 14,
-    color: '#1e293b',
-  },
-  filterDropdown: {
-    padding: 8,
+    minWidth: 60,
   },
   errorContainer: {
     flexDirection: 'row',
@@ -1179,7 +1277,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    height: SCREEN_HEIGHT * 0.85, // fixed height so inner FlatList can measure & scroll
+    height: SCREEN_HEIGHT * 0.85,
     overflow: 'hidden',
   },
   modalHeader: {
