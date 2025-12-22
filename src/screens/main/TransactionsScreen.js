@@ -1595,39 +1595,9 @@ const TransactionsScreen = ({ navigation }) => {
               {canJournal && renderTabButton(TABS.JOURNALS, 'Journals')}
             </ScrollView>
 
-            {showLeftArrow && (
-              <TouchableOpacity
-                style={[styles.arrowButton, styles.arrowLeft]}
-                onPress={() => {
-                  if (mobileTabScrollRef.current) {
-                    const target = Math.max(0, mobileScrollX - 160);
-                    mobileTabScrollRef.current.scrollTo({
-                      x: target,
-                      animated: true,
-                    });
-                  }
-                }}
-              >
-                <Feather name="chevron-left" size={20} color="#111827" />
-              </TouchableOpacity>
-            )}
+            
 
-            {showRightArrow && (
-              <TouchableOpacity
-                style={[styles.arrowButton, styles.arrowRight]}
-                onPress={() => {
-                  if (mobileTabScrollRef.current) {
-                    const target = mobileScrollX + 160;
-                    mobileTabScrollRef.current.scrollTo({
-                      x: target,
-                      animated: true,
-                    });
-                  }
-                }}
-              >
-                <Feather name="chevron-right" size={20} color="#111827" />
-              </TouchableOpacity>
-            )}
+           
           </View>
         )}
 
@@ -2308,6 +2278,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 0,
+    paddingLeft: 8,
   },
   tabButton: {
     flexDirection: 'row',
