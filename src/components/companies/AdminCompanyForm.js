@@ -22,7 +22,8 @@ import { Country, State, City } from 'country-state-city';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { BASE_URL } from '../../config';
-import * as ImagePicker from 'react-native-image-picker';
+import ImagePicker from 'react-native-image-crop-picker';
+import ImageCropper from '../ui/ImageCropper.js';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Form Schema
@@ -372,6 +373,8 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
   const [step, setStep] = useState(1);
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(company?.logo || null);
+  const [showCropper, setShowCropper] = useState(false);
+  const [tempImageSrc, setTempImageSrc] = useState('');
   const insets = useSafeAreaInsets();
 
   // Responsive screen detection
@@ -525,32 +528,23 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
     }
   }, [company, reset, countryCode]);
 
-  // Handle logo upload
-  const handleLogoUpload = () => {
-    const options = {
-      mediaType: 'photo',
-      includeBase64: false,
-      maxHeight: 800,
-      maxWidth: 800,
-      quality: 0.8,
-    };
+  // Handle logo upload (use image-crop-picker like CompanyForm)
+  const handleLogoUpload = async () => {
+    try {
+      const image = await ImagePicker.openPicker({
+        mediaType: 'photo',
+      });
 
-    ImagePicker.launchImageLibrary(options, response => {
-      if (response.didCancel) {
-        console.log('User cancelled image picker');
-      } else if (response.error) {
-        Alert.alert('Error', 'Failed to pick image');
-        console.log('ImagePicker Error: ', response.error);
-      } else if (response.assets && response.assets[0]) {
-        const asset = response.assets[0];
-        setLogoFile({
-          uri: asset.uri,
-          type: asset.type || 'image/jpeg',
-          name: asset.fileName || `logo_${Date.now()}.jpg`,
-        });
-        setLogoPreview(asset.uri);
-      }
-    });
+      if (!image || !image.path) return;
+
+      // Pass picked image to cropper (match CompanyForm flow)
+      setTempImageSrc(image.path);
+      setShowCropper(true);
+    } catch (error) {
+      if (error && error.code === 'E_PICKER_CANCELLED') return;
+      console.error('Image picker error:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
   };
 
   const onSubmit = async data => {
@@ -674,120 +668,124 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
   };
 
   // Mobile Step Indicator with ScrollView
+  // Mobile Step Indicator
   const renderMobileStepIndicator = () => (
     <View style={styles.mobileStepContainer}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.mobileStepScrollContent}
-      >
+      <View style={styles.mobileStepWrapper}>
         {steps.map((stepItem, index) => (
-          <TouchableOpacity
-            key={stepItem.number}
-            style={[
-              styles.mobileStepItem,
-              step === stepItem.number && styles.mobileStepItemActive,
-              step > stepItem.number && styles.mobileStepItemCompleted,
-            ]}
-            onPress={() => {
-              if (stepItem.number < step) {
-                setStep(stepItem.number);
-              }
-            }}
-            disabled={stepItem.number > step}
-          >
-            <View
-              style={[
-                styles.mobileStepCircle,
-                step === stepItem.number && styles.mobileStepCircleActive,
-                step > stepItem.number && styles.mobileStepCircleCompleted,
-              ]}
-            >
-              {step > stepItem.number ? (
-                <Icon name="check" size={16} color="#fff" />
-              ) : (
-                <Text
-                  style={[
-                    styles.mobileStepNumber,
-                    step === stepItem.number && styles.mobileStepNumberActive,
-                  ]}
-                >
-                  {stepItem.number}
-                </Text>
-              )}
-            </View>
-            <Text
-              style={[
-                styles.mobileStepLabel,
-                step === stepItem.number && styles.mobileStepLabelActive,
-                step > stepItem.number && styles.mobileStepLabelCompleted,
-              ]}
-              numberOfLines={2}
-            >
-              {stepItem.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </View>
-  );
-
-  // Desktop Step Indicator
-  const renderDesktopStepIndicator = () => (
-    <View style={styles.stepContainer}>
-      <View style={styles.stepContentWrapper}>
-        {steps.map((stepItem, index) => (
-          <View key={stepItem.number} style={styles.stepItem}>
+          <React.Fragment key={stepItem.number}>
             <TouchableOpacity
-              style={[
-                styles.stepCircle,
-                step === stepItem.number && styles.stepCircleActive,
-                step > stepItem.number && styles.stepCircleCompleted,
-              ]}
-              onPress={() => {
-                if (stepItem.number < step) {
-                  setStep(stepItem.number);
-                }
-              }}
+              style={styles.mobileStepItem}
+              onPress={() => stepItem.number < step && setStep(stepItem.number)}
               disabled={stepItem.number > step}
             >
-              {step > stepItem.number ? (
-                <Icon name="check" size={16} color="#fff" />
-              ) : (
-                <Text
-                  style={[
-                    styles.stepNumber,
-                    step === stepItem.number && styles.stepNumberActive,
-                  ]}
-                >
-                  {stepItem.number}
-                </Text>
+              <View
+                style={[
+                  styles.mobileStepCircle,
+                  step === stepItem.number && styles.mobileStepCircleActive,
+                  step > stepItem.number && styles.mobileStepCircleCompleted,
+                ]}
+              >
+                {step > stepItem.number ? (
+                  <Icon name="check" size={14} color="#fff" />
+                ) : (
+                  <Text
+                    style={[
+                      styles.mobileStepNumber,
+                      step === stepItem.number && styles.mobileStepNumberActive,
+                    ]}
+                  >
+                    {stepItem.number}
+                  </Text>
+                )}
+              </View>
+              <Text
+                style={[
+                  styles.mobileStepLabel,
+                  step === stepItem.number && styles.mobileStepLabelActive,
+                  step > stepItem.number && styles.mobileStepLabelCompleted,
+                ]}
+              >
+                {stepItem.label}
+              </Text>
+              {step === stepItem.number && (
+                <View style={styles.activeUnderline} />
               )}
             </TouchableOpacity>
-            <Text
-              style={[
-                styles.stepLabel,
-                step === stepItem.number && styles.stepLabelActive,
-                step > stepItem.number && styles.stepLabelCompleted,
-                stepItem.number > step && styles.stepLabelDisabled,
-              ]}
-            >
-              {stepItem.label}
-            </Text>
+
             {index < steps.length - 1 && (
               <View
                 style={[
-                  styles.stepConnector,
-                  step > stepItem.number && styles.stepConnectorActive,
+                  styles.connector,
+                  step > stepItem.number && styles.connectorActive,
                 ]}
               />
             )}
-          </View>
+          </React.Fragment>
         ))}
       </View>
     </View>
   );
 
+  // Desktop Step Indicator (Updated for same UI)
+  const renderDesktopStepIndicator = () => (
+    <View style={styles.desktopStepContainer}>
+      <View style={styles.desktopStepWrapper}>
+        {steps.map((stepItem, index) => (
+          <React.Fragment key={stepItem.number}>
+            <TouchableOpacity
+              style={styles.desktopStepItem}
+              onPress={() => stepItem.number < step && setStep(stepItem.number)}
+              disabled={stepItem.number > step}
+            >
+              <View
+                style={[
+                  styles.desktopStepCircle,
+                  step === stepItem.number && styles.desktopStepCircleActive,
+                  step > stepItem.number && styles.desktopStepCircleCompleted,
+                ]}
+              >
+                {step > stepItem.number ? (
+                  <Icon name="check" size={18} color="#fff" />
+                ) : (
+                  <Text
+                    style={[
+                      styles.desktopStepNumber,
+                      step === stepItem.number &&
+                        styles.desktopStepNumberActive,
+                    ]}
+                  >
+                    {stepItem.number}
+                  </Text>
+                )}
+              </View>
+              <Text
+                style={[
+                  styles.desktopStepLabel,
+                  step === stepItem.number && styles.desktopStepLabelActive,
+                  step > stepItem.number && styles.desktopStepLabelCompleted,
+                ]}
+              >
+                {stepItem.label}
+              </Text>
+              {step === stepItem.number && (
+                <View style={styles.activeUnderlineDesktop} />
+              )}
+            </TouchableOpacity>
+
+            {index < steps.length - 1 && (
+              <View
+                style={[
+                  styles.connectorDesktop,
+                  step > stepItem.number && styles.connectorActive,
+                ]}
+              />
+            )}
+          </React.Fragment>
+        ))}
+      </View>
+    </View>
+  );
   const renderStepIndicator = () => {
     return isMobile
       ? renderMobileStepIndicator()
@@ -1277,6 +1275,22 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
         </ScrollView>
       </View>
 
+      <ImageCropper
+        visible={showCropper}
+        onCancel={() => setShowCropper(false)}
+        image={tempImageSrc}
+        onCropComplete={croppedImage => {
+          const fileObj = {
+            uri: croppedImage.path,
+            type: croppedImage.mime || 'image/jpeg',
+            name: `logo_${Date.now()}.jpg`,
+          };
+          setLogoFile(fileObj);
+          setLogoPreview(croppedImage.path);
+          setShowCropper(false);
+        }}
+      />
+
       {/* Navigation Buttons */}
       {renderNavigationButtons()}
     </View>
@@ -1289,45 +1303,48 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
 
-  // Mobile Step Indicator Styles
-  mobileStepContainer: {
-    backgroundColor: '#f8f9fa',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    paddingVertical: 12,
+  connector: {
+    height: 2,
+    width: 40, // Mobile connector length
+    backgroundColor: '#e5e7eb',
+    marginTop: -25, // Circle center alignment
   },
-  mobileStepScrollContent: {
-    paddingHorizontal: 16,
-    gap: 12,
+  connectorDesktop: {
+    height: 2,
+    width: 100, // Desktop connector length (Longer)
+    backgroundColor: '#e5e7eb',
+    marginTop: -35,
+  },
+  connectorActive: {
+    backgroundColor: '#818cf8', // Image jaisa active color
+  },
+
+  // --- Mobile Styles ---
+  mobileStepContainer: {
+    backgroundColor: '#fff',
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  mobileStepWrapper: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   mobileStepItem: {
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    minWidth: 120,
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
-  },
-  mobileStepItemActive: {
-    backgroundColor: '#eef2ff',
-    borderColor: '#4f46e5',
-  },
-  mobileStepItemCompleted: {
-    backgroundColor: '#f0fdf4',
-    borderColor: '#10b981',
+    width: 80, // Fixed width for mobile to keep it tight
   },
   mobileStepCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1.5,
     borderColor: '#d1d5db',
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   mobileStepCircleActive: {
     borderColor: '#4f46e5',
@@ -1337,47 +1354,41 @@ const styles = StyleSheet.create({
     borderColor: '#10b981',
     backgroundColor: '#10b981',
   },
-  mobileStepNumber: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6b7280',
-  },
-  mobileStepNumberActive: {
-    color: '#fff',
-  },
+  mobileStepNumber: { fontSize: 12, fontWeight: 'bold', color: '#6b7280' },
+  mobileStepNumberActive: { color: '#fff' },
   mobileStepLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#6b7280',
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-  mobileStepLabelActive: {
-    color: '#4f46e5',
+    fontSize: 9,
     fontWeight: '600',
+    color: '#9ca3af',
+    textAlign: 'center',
   },
-  mobileStepLabelCompleted: {
-    color: '#10b981',
+  mobileStepLabelActive: { color: '#4f46e5' },
+  mobileStepLabelCompleted: { color: '#10b981' },
+  activeUnderline: {
+    height: 3,
+    width: 20,
+    backgroundColor: '#4f46e5',
+    borderRadius: 2,
+    marginTop: 4,
   },
 
-  // Desktop Step Indicator Styles
-  stepContainer: {
-    backgroundColor: '#f8f9fa',
+  // --- Desktop Styles ---
+  desktopStepContainer: {
+    backgroundColor: '#fff',
+    paddingVertical: 30,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    paddingVertical: 20,
+    borderBottomColor: '#f3f4f6',
   },
-  stepContentWrapper: {
+  desktopStepWrapper: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16,
   },
-  stepItem: {
-    flexDirection: 'row',
+  desktopStepItem: {
     alignItems: 'center',
+    width: 150, // More space for desktop
   },
-  stepCircle: {
+  desktopStepCircle: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -1386,50 +1397,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff',
+    marginBottom: 10,
   },
-  stepCircleActive: {
+  desktopStepCircleActive: {
     borderColor: '#4f46e5',
     backgroundColor: '#4f46e5',
   },
-  stepCircleCompleted: {
+  desktopStepCircleCompleted: {
     borderColor: '#10b981',
     backgroundColor: '#10b981',
   },
-  stepNumber: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6b7280',
-  },
-  stepNumberActive: {
-    color: '#fff',
-  },
-  stepLabel: {
+  desktopStepNumber: { fontSize: 16, fontWeight: 'bold', color: '#6b7280' },
+  desktopStepNumberActive: { color: '#fff' },
+  desktopStepLabel: {
     fontSize: 14,
-    color: '#6b7280',
-    marginLeft: 12,
-    marginRight: 16,
-    fontWeight: '500',
-  },
-  stepLabelActive: {
-    color: '#4f46e5',
     fontWeight: '600',
-  },
-  stepLabelCompleted: {
-    color: '#10b981',
-  },
-  stepLabelDisabled: {
     color: '#9ca3af',
+    textAlign: 'center',
   },
-  stepConnector: {
-    width: 60,
-    height: 2,
-    backgroundColor: '#d1d5db',
-    marginHorizontal: 8,
+  desktopStepLabelActive: { color: '#4f46e5' },
+  desktopStepLabelCompleted: { color: '#10b981' },
+  activeUnderlineDesktop: {
+    height: 4,
+    width: 30,
+    backgroundColor: '#4f46e5',
+    borderRadius: 2,
+    marginTop: 6,
   },
-  stepConnectorActive: {
-    backgroundColor: '#10b981',
-  },
-
   // Form Content
   formContent: {
     flex: 1,

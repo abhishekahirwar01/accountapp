@@ -298,7 +298,7 @@ export default function AnalyticsScreen() {
             companyMap={companyMap}
           />
         );
-        case 'inventory':
+      case 'inventory':
         return (
           <InventoryTab
             selectedClient={selectedClient}
@@ -362,9 +362,13 @@ export default function AnalyticsScreen() {
             </View>
 
             <View style={styles.reportContent}>
-              {activeReport === 'profitandloss' && <ProfitAndLossTab selectedClient={selectedClient}
-            selectedCompanyId={selectedCompanyId}
-            companyMap={companyMap} />}
+              {activeReport === 'profitandloss' && (
+                <ProfitAndLossTab
+                  selectedClient={selectedClient}
+                  selectedCompanyId={selectedCompanyId}
+                  companyMap={companyMap}
+                />
+              )}
               {activeReport === 'balancesheet' && <BalanceSheetTab />}
             </View>
           </View>
@@ -663,7 +667,6 @@ const styles = StyleSheet.create({
   pickerFieldHalf: {
     flex: 1,
     marginHorizontal: 6,
-    
   },
   selectionLabel: {
     fontSize: 14,

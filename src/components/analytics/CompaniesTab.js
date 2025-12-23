@@ -1,8 +1,9 @@
+'use client';
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   Alert,
   StyleSheet,
@@ -11,6 +12,7 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -21,67 +23,53 @@ import {
   Edit,
   Trash2,
   Mail,
-  PlusCircle,
+  Plus,
   X,
 } from 'lucide-react-native';
 import AdminCompanyForm from '../companies/AdminCompanyForm';
 import { BASE_URL } from '../../config';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export function CompaniesTab({ selectedClientId, selectedClient }) {
   const [companies, setCompanies] = useState([]);
   const [clients, setClients] = useState([]);
   const [isCompaniesLoading, setIsCompaniesLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState(null);
-  const [companyToDelete, setCompanyToDelete] = useState(null);
   const [showActionsMenu, setShowActionsMenu] = useState(null);
 
-  // Use refs to prevent memory leaks
   const isMountedRef = useRef(true);
   const abortControllerRef = useRef(null);
 
-  // Cleanup on unmount
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      if (abortControllerRef.current) abortControllerRef.current.abort();
     };
   }, []);
 
   const getAuthToken = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication token not found.');
-      }
+      if (!token) throw new Error('Authentication token not found.');
       return token;
     } catch (error) {
-      console.error('Error getting token:', error);
       throw new Error('Authentication token not found.');
     }
   };
 
   const fetchCompaniesAndClients = useCallback(async clientId => {
     if (!clientId || !isMountedRef.current) return;
-
-    // Abort previous request if any
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
+    if (abortControllerRef.current) abortControllerRef.current.abort();
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
 
     setIsCompaniesLoading(true);
-
     try {
       const token = await getAuthToken();
-
       const [companiesRes, clientsRes] = await Promise.all([
         fetch(`${BASE_URL}/api/companies/by-client/${clientId}`, {
           headers: {
@@ -99,35 +87,18 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
         }),
       ]);
 
-      // Check if component is still mounted
       if (!isMountedRef.current) return;
-
-      if (!companiesRes.ok || !clientsRes.ok) {
+      if (!companiesRes.ok || !clientsRes.ok)
         throw new Error('Failed to fetch data.');
-      }
 
       const companiesData = await companiesRes.json();
       const clientsData = await clientsRes.json();
 
-      // Safe state updates
-      if (isMountedRef.current) {
-        setCompanies(Array.isArray(companiesData) ? companiesData : []);
-        setClients(Array.isArray(clientsData) ? clientsData : []);
-      }
+      setCompanies(Array.isArray(companiesData) ? companiesData : []);
+      setClients(Array.isArray(clientsData) ? clientsData : []);
     } catch (error) {
-      // Ignore abort errors
-      if (error.name === 'AbortError') {
-        console.log('Request was aborted');
-        return;
-      }
-
-      console.error('Error fetching data:', error);
-      if (isMountedRef.current) {
-        Alert.alert(
-          'Failed to load data',
-          error.message || 'Something went wrong.',
-        );
-      }
+      if (error.name === 'AbortError') return;
+      Alert.alert('Error', error.message || 'Something went wrong.');
     } finally {
       if (isMountedRef.current) {
         setIsCompaniesLoading(false);
@@ -137,373 +108,230 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
   }, []);
 
   useEffect(() => {
-    if (selectedClientId) {
-      fetchCompaniesAndClients(selectedClientId);
-    } else {
-      // Reset companies if no client selected
-      setCompanies([]);
-    }
+    if (selectedClientId) fetchCompaniesAndClients(selectedClientId);
+    else setCompanies([]);
   }, [selectedClientId, fetchCompaniesAndClients]);
 
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    fetchCompaniesAndClients(selectedClientId);
-  }, [selectedClientId, fetchCompaniesAndClients]);
-
-  const handleAddNew = useCallback(() => {
-    setSelectedCompany(null);
-    setIsFormOpen(true);
-  }, []);
-
-  const handleEdit = useCallback(company => {
-    setSelectedCompany(company);
-    setIsFormOpen(true);
-    setShowActionsMenu(null);
-  }, []);
-
-  const handleDelete = useCallback(company => {
-    setCompanyToDelete(company);
-    setIsAlertOpen(true);
-    setShowActionsMenu(null);
-  }, []);
-
-  const confirmDelete = useCallback(async () => {
-    if (!companyToDelete) return;
-
-    try {
-      const token = await getAuthToken();
-      const res = await fetch(
-        `${BASE_URL}/api/companies/${companyToDelete._id}`,
-        {
+  const confirmDelete = useCallback(
+    async (companyId, businessName) => {
+      try {
+        const token = await getAuthToken();
+        const res = await fetch(`${BASE_URL}/api/companies/${companyId}`, {
           method: 'DELETE',
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
-        },
-      );
+        });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Failed to delete company.');
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.message || 'Failed to delete company.');
+        }
+
+        if (isMountedRef.current) {
+          Alert.alert('Success', `${businessName} has been deleted.`);
+          fetchCompaniesAndClients(selectedClientId);
+        }
+      } catch (error) {
+        Alert.alert('Deletion Failed', error.message);
       }
+    },
+    [selectedClientId, fetchCompaniesAndClients],
+  );
 
-      if (isMountedRef.current) {
-        Alert.alert(
-          'Company Deleted',
-          `${companyToDelete.businessName} has been successfully deleted.`,
-        );
-
-        // Refresh the companies list
-        fetchCompaniesAndClients(selectedClientId);
-      }
-    } catch (error) {
-      console.error('Error deleting company:', error);
-      if (isMountedRef.current) {
-        Alert.alert(
-          'Deletion Failed',
-          error.message || 'Something went wrong.',
-        );
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setIsAlertOpen(false);
-        setCompanyToDelete(null);
-      }
-    }
-  }, [companyToDelete, selectedClientId, fetchCompaniesAndClients]);
-
-  const onFormSubmit = useCallback(() => {
-    setIsFormOpen(false);
-    setSelectedCompany(null);
-    // Refresh the companies list after form submission
-    fetchCompaniesAndClients(selectedClientId);
-  }, [selectedClientId, fetchCompaniesAndClients]);
-
-  const closeActionsMenu = useCallback(() => {
-    if (showActionsMenu) {
+  const handleDelete = useCallback(
+    company => {
       setShowActionsMenu(null);
-    }
-  }, [showActionsMenu]);
+      Alert.alert(
+        'Are you sure?',
+        `This will permanently delete ${company.businessName}.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => confirmDelete(company._id, company.businessName),
+          },
+        ],
+      );
+    },
+    [confirmDelete],
+  );
 
-  const handleModalClose = useCallback(() => {
-    setIsFormOpen(false);
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchCompaniesAndClients(selectedClientId);
+  };
+
+  const handleAddNew = () => {
     setSelectedCompany(null);
-  }, []);
-
-  const handleAlertClose = useCallback(() => {
-    setIsAlertOpen(false);
-    setCompanyToDelete(null);
-  }, []);
-
-  // Safe data rendering functions
-  const getSafeCompanyName = company => {
-    return company?.businessName || 'Unnamed Company';
+    setIsFormOpen(true);
   };
 
-  const getSafeBusinessType = company => {
-    return company?.businessType || 'N/A';
+  const handleEdit = company => {
+    setSelectedCompany(company);
+    setIsFormOpen(true);
+    setShowActionsMenu(null);
   };
 
-  const getSafeMobileNumber = company => {
-    return company?.mobileNumber || 'N/A';
+  const onFormSubmit = () => {
+    setIsFormOpen(false);
+    fetchCompaniesAndClients(selectedClientId);
   };
 
-  const getSafeEmail = company => {
-    return company?.emailId || 'N/A';
-  };
+  const renderCompanyCard = ({ item: company }) => {
+    const isThisMenuOpen = showActionsMenu === company._id;
 
-  const getSafeRegistrationNumber = company => {
-    return company?.registrationNumber || 'N/A';
-  };
+    return (
+      <View style={[styles.companyCard, { zIndex: isThisMenuOpen ? 2000 : 1 }]}>
+        {isThisMenuOpen && (
+          <Pressable
+            style={styles.cardOverlay}
+            onPress={() => setShowActionsMenu(null)}
+          />
+        )}
 
-  const getSafeGSTIN = company => {
-    return company?.gstin || 'N/A';
-  };
-
-  const renderCompanyCard = useCallback(
-    ({ item: company }) => (
-      <View style={styles.companyCard}>
-        {/* Header Section */}
         <View style={styles.cardHeader}>
           <View style={styles.companyInfo}>
-            <Text style={styles.companyName} numberOfLines={2}>
-              {getSafeCompanyName(company)}
-            </Text>
-            <Text style={styles.businessType}>
-              {getSafeBusinessType(company)}
-            </Text>
+            <Text style={styles.companyName}>{company.businessName}</Text>
+            <Text style={styles.businessType}>{company.businessType}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.menuButton}
-            onPress={() =>
-              setShowActionsMenu(
-                showActionsMenu === company._id ? null : company._id,
-              )
-            }
-          >
-            <MoreHorizontal size={20} color="#666" />
-          </TouchableOpacity>
-        </View>
 
-        {/* Actions Menu */}
-        {showActionsMenu === company._id && (
-          <View style={styles.actionsMenu}>
+          <View style={{ zIndex: 3000 }}>
             <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => handleEdit(company)}
+              style={styles.menuButton}
+              onPress={() =>
+                setShowActionsMenu(isThisMenuOpen ? null : company._id)
+              }
             >
-              <Edit size={16} color="#3b82f6" />
-              <Text style={styles.menuText}>Edit</Text>
+              <MoreHorizontal size={22} color="#9ca3af" />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => handleDelete(company)}
-            >
-              <Trash2 size={16} color="#ef4444" />
-              <Text style={[styles.menuText, styles.deleteText]}>Delete</Text>
-            </TouchableOpacity>
-          </View>
-        )}
 
-        {/* Contact Information */}
-        <View style={styles.contactSection}>
-          <View style={styles.contactItem}>
-            <View style={styles.contactLabel}>
-              <Phone size={16} color="#666" />
-              <Text style={styles.labelText}>Phone:</Text>
-            </View>
-            <Text style={styles.contactValue} numberOfLines={1}>
-              {getSafeMobileNumber(company)}
-            </Text>
-          </View>
-
-          <View style={styles.contactItem}>
-            <View style={styles.contactLabel}>
-              <Mail size={16} color="#666" />
-              <Text style={styles.labelText}>Email:</Text>
-            </View>
-            <Text style={styles.contactValue} numberOfLines={1}>
-              {getSafeEmail(company)}
-            </Text>
+            {isThisMenuOpen && (
+              <View style={styles.localActionsMenu}>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => handleEdit(company)}
+                >
+                  <Edit size={16} color="#3b82f6" />
+                  <Text style={styles.menuText}>Edit</Text>
+                </TouchableOpacity>
+                <View style={styles.menuDivider} />
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => handleDelete(company)}
+                >
+                  <Trash2 size={16} color="#ef4444" />
+                  <Text style={[styles.menuText, { color: '#ef4444' }]}>
+                    Delete
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
 
-        {/* Identifiers */}
-        <View style={styles.identifiersSection}>
-          <View style={styles.identifierItem}>
-            <View style={styles.identifierLabel}>
-              <Hash size={16} color="#666" />
-              <Text style={styles.labelText}>Reg No:</Text>
-            </View>
+        {/* Contact Info with Labels */}
+        <View style={styles.infoSection}>
+          <View style={styles.infoRow}>
+            <Phone size={14} color="#9ca3af" />
+            <Text style={styles.label}>Phone:</Text>
+            <Text style={styles.infoValue}>
+              {company.mobileNumber || 'N/A'}
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Mail size={14} color="#9ca3af" />
+            <Text style={styles.label}>Email:</Text>
+            <Text style={styles.infoValue}>{company.emailId || 'N/A'}</Text>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        {/* Identifiers with Labels and Tags */}
+        <View style={styles.idSection}>
+          <View style={styles.idRow}>
+            <Hash size={14} color="#9ca3af" />
+            <Text style={styles.label}>Reg No:</Text>
             <View style={[styles.tag, styles.blueTag]}>
-              <Text style={styles.tagText} numberOfLines={1}>
-                {getSafeRegistrationNumber(company)}
+              <Text style={styles.tagTextBlue}>
+                {company.registrationNumber}
               </Text>
             </View>
           </View>
-
-          <View style={styles.identifierItem}>
-            <View style={styles.identifierLabel}>
-              <FileText size={16} color="#666" />
-              <Text style={styles.labelText}>GSTIN:</Text>
-            </View>
+          <View style={styles.idRow}>
+            <FileText size={14} color="#9ca3af" />
+            <Text style={styles.label}>GSTIN:</Text>
             <View style={[styles.tag, styles.greenTag]}>
-              <Text style={styles.tagText} numberOfLines={1}>
-                {getSafeGSTIN(company)}
-              </Text>
+              <Text style={styles.tagTextGreen}>{company.gstin || 'N/A'}</Text>
             </View>
           </View>
         </View>
       </View>
-    ),
-    [showActionsMenu, handleEdit, handleDelete],
-  );
-
-  const keyExtractor = useCallback(
-    item => item._id || Math.random().toString(),
-    [],
-  );
-
-  const ListEmptyComponent = useCallback(
-    () => (
-      <View style={[styles.emptyState, styles.listEmptyContainer]}>
-        {isCompaniesLoading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color="#3b82f6" />
-            <Text style={styles.loadingText}>Loading companies...</Text>
-          </View>
-        ) : (
-          <Text style={styles.emptyText}>
-            No companies found for this client.
-          </Text>
-        )}
-      </View>
-    ),
-    [isCompaniesLoading],
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
-      {/* 1. FIXED HEADER VIEW */}
       <View style={styles.fixedHeader}>
         <View style={styles.headerContent}>
           <View style={styles.headerTextContainer}>
             <Text style={styles.title}>Companies</Text>
             <Text style={styles.description}>
-              Companies managed by {selectedClient?.contactName || 'Client'}.
+              Companies managed by {selectedClient?.contactName || 'Admin'}.
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.createButton}
-            onPress={handleAddNew}
-            disabled={isCompaniesLoading}
-          >
-            <PlusCircle size={20} color="#fff" />
-            <Text style={styles.createButtonText}>Create Company</Text>
+          <TouchableOpacity style={styles.createButton} onPress={handleAddNew}>
+            <View style={styles.iconCircle}>
+              <Plus size={14} color="#0085ff" strokeWidth={3} />
+            </View>
+            <Text style={styles.createButtonText}>Create</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* 2. OVERLAY for Action Menu */}
-      {showActionsMenu && (
-        <Pressable style={styles.overlay} onPress={closeActionsMenu} />
-      )}
-
-      {/* 3. SCROLLABLE FLATLIST */}
       <FlatList
         data={companies}
         renderItem={renderCompanyCard}
-        keyExtractor={keyExtractor}
+        keyExtractor={item => item._id}
         contentContainerStyle={styles.companiesList}
+        removeClippedSubviews={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#3b82f6']}
-            tintColor="#3b82f6"
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        ListEmptyComponent={ListEmptyComponent}
-        ListFooterComponent={<View style={styles.spacer} />}
-        initialNumToRender={8}
-        maxToRenderPerBatch={10}
-        windowSize={5}
-        removeClippedSubviews={true}
-        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={() => (
+          <View style={styles.loaderContainer}>
+            {isCompaniesLoading ? (
+              <ActivityIndicator color="#0085ff" />
+            ) : (
+              <Text>No companies found.</Text>
+            )}
+          </View>
+        )}
       />
 
-      {/* Modals */}
       <Modal
         visible={isFormOpen}
         animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={handleModalClose}
+        onRequestClose={() => setIsFormOpen(false)}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <View style={styles.modalTextContainer}>
-              <Text style={styles.modalTitle}>
-                {selectedCompany ? 'Edit Company' : 'Create New Company'}
-              </Text>
-              <Text style={styles.modalDescription}>
-                {selectedCompany
-                  ? `Update the details for ${getSafeCompanyName(
-                      selectedCompany,
-                    )}.`
-                  : `Fill in the form to create a new company for ${
-                      selectedClient?.contactName || 'the client'
-                    }.`}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={handleModalClose}
-            >
-              <X size={24} color="#666" />
+            <Text style={styles.modalTitle}>
+              {selectedCompany ? 'Edit' : 'New'} Company
+            </Text>
+            <TouchableOpacity onPress={() => setIsFormOpen(false)}>
+              <X size={24} color="#000" />
             </TouchableOpacity>
           </View>
           <AdminCompanyForm
-            company={selectedCompany || undefined}
+            company={selectedCompany}
             clients={clients}
             onFormSubmit={onFormSubmit}
-            onClose={handleModalClose}
+            onClose={() => setIsFormOpen(false)}
           />
-        </View>
-      </Modal>
-
-      <Modal
-        visible={isAlertOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={handleAlertClose}
-      >
-        <View style={styles.alertOverlay}>
-          <View style={styles.alertContent}>
-            <Text style={styles.alertTitle}>Are you absolutely sure?</Text>
-            <Text style={styles.alertDescription}>
-              This action cannot be undone. This will permanently delete the
-              company and all associated data for{' '}
-              {companyToDelete
-                ? getSafeCompanyName(companyToDelete)
-                : 'this company'}
-              .
-            </Text>
-            <View style={styles.alertButtons}>
-              <TouchableOpacity
-                style={[styles.alertButton, styles.cancelButton]}
-                onPress={handleAlertClose}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.alertButton, styles.confirmButton]}
-                onPress={confirmDelete}
-              >
-                <Text style={styles.confirmButtonText}>Continue</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
         </View>
       </Modal>
     </View>
@@ -511,299 +339,124 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
+  container: { flex: 1, backgroundColor: '#fcfcfc' },
+  cardOverlay: {
+    position: 'absolute',
+    top: -SCREEN_HEIGHT,
+    left: -SCREEN_WIDTH,
+    width: SCREEN_WIDTH * 2,
+    height: SCREEN_HEIGHT * 2,
+    backgroundColor: 'transparent',
+    zIndex: 1000,
   },
   fixedHeader: {
     backgroundColor: '#fff',
-    padding: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 2,
-    zIndex: 1,
+    borderBottomColor: '#f1f5f9',
+    zIndex: 5,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
-  headerTextContainer: {
-    flex: 1,
-    marginRight: 12,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  description: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginTop: 4,
-  },
+  headerTextContainer: { flex: 1 },
+  title: { fontSize: 22, fontWeight: '800', color: '#111827' },
+  description: { fontSize: 13, color: '#9ca3af', marginTop: 2 },
   createButton: {
+    backgroundColor: '#0085ff',
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3b82f6',
+    paddingVertical: 8,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 12,
+    alignItems: 'center',
     gap: 8,
+    elevation: 2,
   },
-  createButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
+  iconCircle: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 2,
   },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'transparent',
-    zIndex: 9,
-  },
-  loaderContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  loadingText: {
-    marginTop: 12,
-    color: '#6b7280',
-    fontSize: 14,
-  },
-  companiesList: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    flexGrow: 1,
-  },
-  listEmptyContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
+  createButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  companiesList: { padding: 16 },
   companyCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+    position: 'relative',
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
     marginBottom: 12,
   },
-  companyInfo: {
-    flex: 1,
-    marginRight: 8,
-  },
-  companyName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  businessType: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  menuButton: {
-    padding: 4,
-  },
-  actionsMenu: {
-    position: 'absolute',
-    top: 40,
-    right: 8,
-    backgroundColor: '#fff',
+  companyName: { fontSize: 18, fontWeight: '700', color: '#111827' },
+  businessType: { fontSize: 14, color: '#9ca3af', marginTop: 2 },
+  menuButton: { padding: 4 },
+
+  infoSection: { gap: 10 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  label: { fontSize: 14, color: '#9ca3af', width: 65 },
+  infoValue: { fontSize: 14, fontWeight: '600', color: '#1f2937' },
+
+  divider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 16 },
+
+  idSection: { gap: 12 },
+  idRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+
+  tag: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 8,
+  },
+  blueTag: { backgroundColor: '#eff6ff' },
+  greenTag: { backgroundColor: '#f0fdf4' },
+  tagTextBlue: { fontSize: 13, fontWeight: '700', color: '#3b82f6' },
+  tagTextGreen: { fontSize: 13, fontWeight: '700', color: '#22c55e' },
+
+  localActionsMenu: {
+    position: 'absolute',
+    top: 35,
+    right: 0,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    minWidth: 120,
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-    zIndex: 10,
-    minWidth: 120,
+    zIndex: 3000,
+    elevation: 5,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
+    padding: 12,
+    gap: 10,
   },
-  menuText: {
-    fontSize: 14,
-    color: '#374151',
-  },
-  deleteText: {
-    color: '#ef4444',
-  },
-  contactSection: {
-    gap: 8,
-    marginBottom: 12,
-  },
-  contactItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  contactLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    minWidth: 80,
-  },
-  labelText: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  contactValue: {
-    fontSize: 14,
-    color: '#1f2937',
-    fontWeight: '500',
-    flex: 1,
-  },
-  identifiersSection: {
-    gap: 8,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-  },
-  identifierItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  identifierLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    minWidth: 80,
-  },
-  tag: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    flex: 1,
-  },
-  blueTag: {
-    backgroundColor: '#dbeafe',
-  },
-  greenTag: {
-    backgroundColor: '#dcfce7',
-  },
-  tagText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  spacer: {
-    height: 20,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
+  menuDivider: { height: 1, backgroundColor: '#f1f5f9' },
+  menuText: { fontSize: 14, color: '#334155', fontWeight: '500' },
+
+  modalContainer: { flex: 1, backgroundColor: '#fff' },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: '#eee',
   },
-  modalTextContainer: {
-    flex: 1,
-    marginRight: 12,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  modalDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginTop: 4,
-  },
-  closeButton: {
-    padding: 4,
-  },
-  alertOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  alertContent: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    width: '100%',
-    maxWidth: 400,
-  },
-  alertTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  alertDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  alertButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'flex-end',
-  },
-  alertButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 6,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#f3f4f6',
-  },
-  confirmButton: {
-    backgroundColor: '#ef4444',
-  },
-  cancelButtonText: {
-    color: '#374151',
-    fontWeight: '500',
-  },
-  confirmButtonText: {
-    color: '#fff',
-    fontWeight: '500',
-  },
+  modalTitle: { fontSize: 18, fontWeight: 'bold' },
+  loaderContainer: { padding: 50, alignItems: 'center' },
 });
 
 export default CompaniesTab;

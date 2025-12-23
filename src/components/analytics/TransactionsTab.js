@@ -21,6 +21,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import ExportTransaction from './ExportTransaction';
 import DataTable from '../transactions/DataTable';
 import TransactionsTable from '../transactions/TransactionsTable';
+import {
+  TableSkeleton,
+  MobileTableSkeleton,
+} from '../transactions/transaction-form/table-skeleton';
 import { issueInvoiceNumber } from '../../lib/issueInvoiceNumber';
 import { BASE_URL } from '../../config';
 
@@ -41,11 +45,19 @@ const idOf = v => {
   return v?._id || v?.$oid || v?.id || '';
 };
 
+// Skeleton Loading Component
+const LoadingSkeleton = ({ isMobile = false }) => {
+  if (isMobile) {
+    return <MobileTableSkeleton />;
+  }
+  return <TableSkeleton />;
+};
+
 // Simple cache implementation
 const apiCache = new Map();
 const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
 
-const getCachedData = (key) => {
+const getCachedData = key => {
   const cached = apiCache.get(key);
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
     return cached.data;
@@ -56,15 +68,24 @@ const getCachedData = (key) => {
 const setCachedData = (key, data) => {
   apiCache.set(key, {
     data,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   });
 };
 
-export default function TransactionsTab({
-  selectedClient,
-  selectedCompanyId,
-  companyMap,
-}) {
+const TransactionsTab = ({ selectedClient, selectedCompanyId, companyMap }) => {
+  // PERFORMANCE OPTIMIZATION STRATEGY:
+  // ================================
+  // Stage 1: Load transactions first (sales, purchases, receipts, payments, journals)
+  //          -> This is the critical user-facing data that must appear quickly
+  //          -> Users can see the data with basic information (amount, date, etc)
+  //
+  // Stage 2: Load products/services in background (after transactions show)
+  //          -> These are only needed for detailed item viewing
+  //          -> Non-blocking background fetch that won't delay initial render
+  //          -> Improves perceived performance significantly
+  //
+  // Result: User sees transactions almost immediately, products/services load quietly in background
+
   // Consolidated state management
   const [data, setData] = useState({
     sales: [],
@@ -73,7 +94,7 @@ export default function TransactionsTab({
     payments: [],
     journals: [],
     products: [],
-    services: []
+    services: [],
   });
 
   const [loadingStates, setLoadingStates] = useState({
@@ -82,12 +103,15 @@ export default function TransactionsTab({
     purchases: false,
     receipts: false,
     payments: false,
-    journals: false
+    journals: false,
   });
 
   const [progress, setProgress] = useState(0);
   const [selectedTab, setSelectedTab] = useState('all');
   const [isItemsModalOpen, setIsItemsModalOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(10); // Pagination: show 10 items initially
+  const [initialLoad, setInitialLoad] = useState(true); // Track if it's the first load
+  const [bgLoading, setBgLoading] = useState(false); // background incremental loader
   const [itemsToView, setItemsToView] = useState([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [invNoByTxId, setInvNoByTxId] = useState({});
@@ -149,34 +173,41 @@ export default function TransactionsTab({
   }, []);
 
   // Optimized API call function
-  const fetchWithCache = useCallback(async (url, label) => {
-    const cacheKey = `${url}-${selectedClient?._id}-${selectedCompanyId}`;
-    const cached = getCachedData(cacheKey);
-    
-    if (cached) {
-      console.log(`Using cached data for ${label}`);
-      return cached;
-    }
+  const fetchWithCache = useCallback(
+    async (url, label) => {
+      const cacheKey = `${url}-${selectedClient?._id}-${selectedCompanyId}`;
+      const cached = getCachedData(cacheKey);
 
-    const token = await AsyncStorage.getItem('token');
-    if (!token) throw new Error('Authentication token not found.');
+      if (cached) {
+        console.log(`Using cached data for ${label}`);
+        return cached;
+      }
 
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
 
-    if (!response.ok) {
-      const txt = await response.text().catch(() => '');
-      throw new Error(`${label} API ${response.status} ${response.statusText} – ${txt}`);
-    }
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    const result = await response.json();
-    setCachedData(cacheKey, result);
-    
-    return result;
-  }, [selectedClient?._id, selectedCompanyId]);
+      if (!response.ok) {
+        const txt = await response.text().catch(() => '');
+        throw new Error(
+          `${label} API ${response.status} ${response.statusText} – ${txt}`,
+        );
+      }
 
-  // Sequential data loading with progress
+      const result = await response.json();
+      setCachedData(cacheKey, result);
+
+      return result;
+    },
+    [selectedClient?._id, selectedCompanyId],
+  );
+
+  // Sequential data loading with progress - OPTIMIZED
+  // Stage 1: Load transactions first (visible data)
+  // Stage 2: Load products/services in background
   const loadEssentialData = useCallback(async () => {
     if (!selectedClient?._id || !isMountedRef.current) return;
 
@@ -185,48 +216,92 @@ export default function TransactionsTab({
 
     try {
       const byCompany = !!selectedCompanyId;
-      const baseParams = byCompany ? `?companyId=${selectedCompanyId}` : `/by-client/${selectedClient._id}`;
+      const baseParams = byCompany
+        ? `?companyId=${selectedCompanyId}`
+        : `/by-client/${selectedClient._id}`;
 
-      // Stage 1: Load products and services first (essential for item processing)
-      const [productsData, servicesData] = await Promise.all([
-        fetchWithCache(
-          `${BASE_URL}/api/products${byCompany ? `?companyId=${selectedCompanyId}` : ''}`,
-          'Products'
-        ),
-        fetchWithCache(
-          `${BASE_URL}/api/services${byCompany ? `?companyId=${selectedCompanyId}` : ''}`,
-          'Services'
-        )
-      ]);
+      // STAGE 1: Load transactions FIRST (high priority - user-facing data)
+      setProgress(5);
+      await loadTransactionType(
+        'sales',
+        `${BASE_URL}/api/sales${baseParams}`,
+        20,
+      );
+      await loadTransactionType(
+        'purchases',
+        `${BASE_URL}/api/purchase${baseParams}`,
+        35,
+      );
+      await loadTransactionType(
+        'receipts',
+        `${BASE_URL}/api/receipts${baseParams}`,
+        50,
+      );
+      await loadTransactionType(
+        'payments',
+        `${BASE_URL}/api/payments${baseParams}`,
+        65,
+      );
+      await loadTransactionType(
+        'journals',
+        `${BASE_URL}/api/journals${baseParams}`,
+        80,
+      );
 
       if (!isMountedRef.current) return;
 
-      const productsList = parseResponse(productsData, ['products', 'items', 'data']);
-      const servicesList = parseResponse(servicesData, ['services', 'data']);
+      // Set progress to 50 since main transactions are loaded (skeleton can disappear)
+      setProgress(50);
+      setInitialLoad(false); // Hide skeleton now
 
-      setData(prev => ({
-        ...prev,
-        products: productsList,
-        services: servicesList
-      }));
-      setProgress(30);
+      // STAGE 2: Load products and services in BACKGROUND (non-blocking)
+      // Don't await - let this run in background after transactions are shown
+      Promise.all([
+        fetchWithCache(
+          `${BASE_URL}/api/products${
+            byCompany ? `?companyId=${selectedCompanyId}` : ''
+          }`,
+          'Products',
+        ),
+        fetchWithCache(
+          `${BASE_URL}/api/services${
+            byCompany ? `?companyId=${selectedCompanyId}` : ''
+          }`,
+          'Services',
+        ),
+      ])
+        .then(([productsData, servicesData]) => {
+          if (!isMountedRef.current) return;
 
-      // Stage 2: Load transactions sequentially with progress updates
-      await loadTransactionType('sales', `${BASE_URL}/api/sales${baseParams}`, 40);
-      await loadTransactionType('purchases', `${BASE_URL}/api/purchase${baseParams}`, 50);
-      await loadTransactionType('receipts', `${BASE_URL}/api/receipts${baseParams}`, 60);
-      await loadTransactionType('payments', `${BASE_URL}/api/payments${baseParams}`, 70);
-      await loadTransactionType('journals', `${BASE_URL}/api/journals${baseParams}`, 80);
+          const productsList = parseResponse(productsData, [
+            'products',
+            'items',
+            'data',
+          ]);
+          const servicesList = parseResponse(servicesData, [
+            'services',
+            'data',
+          ]);
 
-      setProgress(100);
-
+          setData(prev => ({
+            ...prev,
+            products: productsList,
+            services: servicesList,
+          }));
+          setProgress(100);
+        })
+        .catch(error => {
+          console.warn('Background product/service loading failed:', error);
+          setProgress(100);
+        });
     } catch (error) {
-      console.error('Failed to load essential data:', error);
+      console.error('Failed to load transaction data:', error);
       if (isMountedRef.current) {
         Alert.alert(
-          'Failed to load data',
+          'Failed to load transactions',
           error instanceof Error ? error.message : 'Something went wrong.',
         );
+        setProgress(100);
       }
     } finally {
       if (isMountedRef.current) {
@@ -242,14 +317,14 @@ export default function TransactionsTab({
 
     try {
       const responseData = await fetchWithCache(url, type);
-      
+
       if (!isMountedRef.current) return;
 
       const parsedData = parseResponse(responseData, [
-        `${type}Entries`, 
-        type, 
+        `${type}Entries`,
+        type,
         'entries',
-        'data'
+        'data',
       ])
         .filter(Boolean)
         .map(item => ({
@@ -261,10 +336,9 @@ export default function TransactionsTab({
 
       setData(prev => ({
         ...prev,
-        [type]: filteredData
+        [type]: filteredData,
       }));
       setProgress(progressValue);
-
     } catch (error) {
       console.error(`Failed to load ${type}:`, error);
     } finally {
@@ -318,13 +392,15 @@ export default function TransactionsTab({
         .map(p => {
           if (!p) return null;
 
-          const productName = productNameById.get(p.product) || p.product?.name || '(product)';
+          const productName =
+            productNameById.get(p.product) || p.product?.name || '(product)';
           let hsnCode = p.hsn || p.product?.hsn || p.product?.hsnCode || '';
 
           // Fallback HSN codes
           if (!hsnCode) {
             if (productName.toLowerCase().includes('gel')) hsnCode = '330499';
-            else if (productName.toLowerCase().includes('moody')) hsnCode = '330499';
+            else if (productName.toLowerCase().includes('moody'))
+              hsnCode = '330499';
             else hsnCode = '8471';
           }
 
@@ -342,17 +418,22 @@ export default function TransactionsTab({
         })
         .filter(Boolean);
 
-      const svcArr = Array.isArray(tx.services) ? tx.services : Array.isArray(tx.service) ? tx.service : [];
+      const svcArr = Array.isArray(tx.services)
+        ? tx.services
+        : Array.isArray(tx.service)
+        ? tx.service
+        : [];
 
       const svcs = svcArr
         .map(s => {
           if (!s) return null;
 
           const id = typeof s.service === 'object' ? s.service._id : s.service;
-          const name = serviceNameById.get(String(id)) || 
-                      (typeof s.service === 'object' && s.service.serviceName) || 
-                      '(service)';
-          
+          const name =
+            serviceNameById.get(String(id)) ||
+            (typeof s.service === 'object' && s.service.serviceName) ||
+            '(service)';
+
           let sacCode = s.sac || s.service?.sac || s.service?.sacCode || '';
 
           // Fallback SAC codes
@@ -456,40 +537,156 @@ export default function TransactionsTab({
 
   // Tab content rendering with safety
   const getTabData = useCallback(() => {
+    let tabData = [];
     switch (selectedTab) {
       case 'sales':
-        return data.sales || [];
+        tabData = data.sales || [];
+        break;
       case 'purchases':
-        return data.purchases || [];
+        tabData = data.purchases || [];
+        break;
       case 'receipts':
-        return data.receipts || [];
+        tabData = data.receipts || [];
+        break;
       case 'payments':
-        return data.payments || [];
+        tabData = data.payments || [];
+        break;
       case 'journals':
-        return data.journals || [];
+        tabData = data.journals || [];
+        break;
       default:
-        return allTransactions;
+        tabData = allTransactions;
     }
-  }, [selectedTab, data, allTransactions]);
+    // Return paginated data (show visibleCount items)
+    return tabData.slice(0, visibleCount);
+  }, [selectedTab, data, allTransactions, visibleCount]);
 
-  const isLoading = Object.values(loadingStates).some(state => state);
+  // Load more handler for pagination (kept for explicit triggers)
+  const handleLoadMore = useCallback(() => {
+    let allTabData = [];
+    switch (selectedTab) {
+      case 'sales':
+        allTabData = data.sales || [];
+        break;
+      case 'purchases':
+        allTabData = data.purchases || [];
+        break;
+      case 'receipts':
+        allTabData = data.receipts || [];
+        break;
+      case 'payments':
+        allTabData = data.payments || [];
+        break;
+      case 'journals':
+        allTabData = data.journals || [];
+        break;
+      default:
+        allTabData = allTransactions;
+    }
+
+    if (visibleCount < allTabData.length) {
+      setVisibleCount(prevCount => Math.min(prevCount + 10, allTabData.length)); // Load 10 more items
+    }
+  }, [visibleCount, selectedTab, data, allTransactions]);
+
+  // Background incremental loader: when initial skeleton is hidden, keep loading more items quietly
+  useEffect(() => {
+    if (initialLoad) return; // don't run while initial skeleton is active
+
+    let cancelled = false;
+    let timer = null;
+
+    const getFullLength = () => {
+      switch (selectedTab) {
+        case 'sales':
+          return (data.sales || []).length;
+        case 'purchases':
+          return (data.purchases || []).length;
+        case 'receipts':
+          return (data.receipts || []).length;
+        case 'payments':
+          return (data.payments || []).length;
+        case 'journals':
+          return (data.journals || []).length;
+        default:
+          return allTransactions.length;
+      }
+    };
+
+    const scheduleNext = () => {
+      const fullLen = getFullLength();
+      if (cancelled) return;
+      if (visibleCount >= fullLen) return;
+
+      setBgLoading(true);
+      timer = setTimeout(() => {
+        if (cancelled || !isMountedRef.current) return;
+        setVisibleCount(prev => Math.min(prev + 10, fullLen));
+        setBgLoading(false);
+        // schedule another chunk if still more
+        timer = setTimeout(() => {
+          scheduleNext();
+        }, 600);
+      }, 700);
+    };
+
+    // Start background loading only if there are more items
+    if (visibleCount < getFullLength()) scheduleNext();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      setBgLoading(false);
+    };
+  }, [
+    initialLoad,
+    selectedTab,
+    visibleCount,
+    data.sales,
+    data.purchases,
+    data.receipts,
+    data.payments,
+    data.journals,
+    allTransactions,
+  ]);
+
+  // Show skeleton only on initial load until transactions are ready
+  const isLoading = initialLoad && progress < 50;
 
   const renderContent = () => {
+    // Show skeleton while loading transactions initially
     if (isLoading) {
       return (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading transactions... {progress}%</Text>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${progress}%` }]} />
-          </View>
+          <LoadingSkeleton isMobile={isMobile} />
         </View>
       );
     }
 
-    const tabData = getTabData();
+    const paginatedTabData = getTabData();
+    // Get full data for checking if there's more to load
+    let fullTabData = [];
+    switch (selectedTab) {
+      case 'sales':
+        fullTabData = data.sales || [];
+        break;
+      case 'purchases':
+        fullTabData = data.purchases || [];
+        break;
+      case 'receipts':
+        fullTabData = data.receipts || [];
+        break;
+      case 'payments':
+        fullTabData = data.payments || [];
+        break;
+      case 'journals':
+        fullTabData = data.journals || [];
+        break;
+      default:
+        fullTabData = allTransactions;
+    }
 
-    if (!tabData || tabData.length === 0) {
+    if (!paginatedTabData || paginatedTabData.length === 0) {
       return (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No transactions found</Text>
@@ -499,36 +696,51 @@ export default function TransactionsTab({
 
     if (isMobile) {
       return (
-        <TransactionsTable
-          data={tabData}
-          companyMap={companyMap}
-          serviceNameById={serviceNameById}
-          onPreview={onPreview}
-          onEdit={handleAction}
-          onDelete={handleAction}
-          onViewItems={handleViewItems}
-          onSendInvoice={() => {}}
-          hideActions={true}
-        />
+        <ScrollView>
+          <TransactionsTable
+            data={paginatedTabData}
+            companyMap={companyMap}
+            serviceNameById={serviceNameById}
+            onPreview={onPreview}
+            onEdit={handleAction}
+            onDelete={handleAction}
+            onViewItems={handleViewItems}
+            onSendInvoice={() => {}}
+            hideActions={true}
+          />
+          {visibleCount < fullTabData.length && (
+            <View style={styles.loadMoreContainer}>
+              <ActivityIndicator size="small" color="#007AFF" />
+            </View>
+          )}
+        </ScrollView>
       );
     }
 
     return (
-      <DataTable
-        data={tabData}
-        companyMap={companyMap}
-        serviceNameById={serviceNameById}
-        onViewItems={handleViewItems}
-        onPreview={onPreview}
-        onEdit={handleAction}
-        onDelete={handleAction}
-      />
+      <ScrollView>
+        <DataTable
+          data={paginatedTabData}
+          companyMap={companyMap}
+          serviceNameById={serviceNameById}
+          onViewItems={handleViewItems}
+          onPreview={onPreview}
+          onEdit={handleAction}
+          onDelete={handleAction}
+        />
+        {visibleCount < fullTabData.length && (
+          <View style={styles.loadMoreContainer}>
+            <ActivityIndicator size="small" color="#007AFF" />
+          </View>
+        )}
+      </ScrollView>
     );
   };
 
   const handleTabChange = useCallback(tab => {
     setSelectedTab(tab);
     setIsDropdownOpen(false);
+    setVisibleCount(10); // Reset to show 10 items for new tab
   }, []);
 
   // Tab navigation component
@@ -736,7 +948,7 @@ export default function TransactionsTab({
       <ItemsModal />
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -1029,4 +1241,21 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     fontSize: 16,
   },
+  loadMoreContainer: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  loadMoreButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+  },
+  loadMoreText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });
+
+export default TransactionsTab;

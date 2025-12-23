@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from 'react';
 import {
   View,
   Text,
@@ -9,8 +15,8 @@ import {
   Modal,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
   TextInput,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -24,22 +30,6 @@ import AppLayout from '../../components/layout/AppLayout';
 // ---------- UI COMPONENTS ----------
 const Card = ({ children, style }) => (
   <View style={[styles.card, style]}>{children}</View>
-);
-
-const Badge = ({ children, variant = 'secondary', style }) => (
-  <View
-    style={[
-      styles.badge,
-      styles[`badge${variant.charAt(0).toUpperCase() + variant.slice(1)}`],
-      style,
-    ]}
-  >
-    {typeof children === 'string' ? (
-      <Text style={styles.badgeText}>{children}</Text>
-    ) : (
-      children
-    )}
-  </View>
 );
 
 const Button = ({
@@ -153,7 +143,7 @@ export default function AdminCompaniesPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const scrollY = useRef(new Animated.Value(0)).current;
-  const HEADER_HEIGHT = 160;
+  const HEADER_HEIGHT = 145;
   const diffClamp = Animated.diffClamp(scrollY, 0, HEADER_HEIGHT);
   const headerTranslateY = diffClamp.interpolate({
     inputRange: [0, HEADER_HEIGHT],
@@ -200,6 +190,21 @@ export default function AdminCompaniesPage() {
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
+
+  // --- Optimized Search Logic ---
+  const filteredCompanies = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return companies;
+
+    return companies.filter(company => {
+      return (
+        company.businessName?.toLowerCase().includes(query) ||
+        company.email?.toLowerCase().includes(query) ||
+        company.phoneNumber?.toLowerCase().includes(query) ||
+        company.address?.toLowerCase().includes(query)
+      );
+    });
+  }, [searchQuery, companies]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -287,12 +292,11 @@ export default function AdminCompaniesPage() {
         { transform: [{ translateY: headerTranslateY }] },
       ]}
     >
-      <SafeAreaView style={styles.headerSafeArea}>
+      <SafeAreaView style={styles.headerSafeArea} edges={['top']}>
         <View style={styles.headerInner}>
-          {/* Left side with icon and text */}
           <View style={styles.headerLeft}>
             <View style={styles.iconContainer}>
-              <Icon name="office-building" size={28} color="#4f46e5" />
+              <Icon name="office-building" size={24} color="#4f46e5" />
             </View>
             <View style={styles.headerTextContent}>
               <Text style={styles.title}>Company Management</Text>
@@ -301,8 +305,6 @@ export default function AdminCompaniesPage() {
               </Text>
             </View>
           </View>
-
-          {/* Right side with button */}
           <View style={styles.headerRight}>
             <Button onPress={handleAddNew} size="sm" icon="plus">
               Create
@@ -310,7 +312,6 @@ export default function AdminCompaniesPage() {
           </View>
         </View>
 
-        {/* Search bar instead of stats */}
         <View style={styles.searchContainer}>
           <Icon
             name="magnify"
@@ -320,10 +321,12 @@ export default function AdminCompaniesPage() {
           />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search companies..."
+            placeholder="Search by name, email, or address..."
             placeholderTextColor="#9ca3af"
             value={searchQuery}
             onChangeText={setSearchQuery}
+            returnKeyType="search"
+            onSubmitEditing={Keyboard.dismiss}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity
@@ -338,46 +341,33 @@ export default function AdminCompaniesPage() {
     </Animated.View>
   );
 
-  const renderEmptyState = () => (
-    <Card style={styles.emptyStateCard}>
-      <Icon name="office-building" size={48} color="#9ca3af" />
-      <Text style={styles.emptyStateTitle}>No Companies Found</Text>
-      <Text style={styles.emptyStateDescription}>
-        Get started by creating the first company.
-      </Text>
-      <Button
-        onPress={handleAddNew}
-        style={styles.emptyStateButton}
-        icon="plus-circle"
-      >
-        Create Company
-      </Button>
-    </Card>
-  );
-
-  const renderCompanyItem = ({ item: company }) => {
-    const clientInfo = getClientInfo(company.selectedClient || company.client);
+  const renderEmptyState = () => {
+    const isSearching = searchQuery.trim().length > 0;
     return (
-      <CompanyCard
-        company={company}
-        clientName={clientInfo.name}
-        onEdit={() => handleEdit(company)}
-        onDelete={() => handleDelete(company)}
-      />
+      <Card style={styles.emptyStateCard}>
+        <Icon
+          name={isSearching ? 'magnify-close' : 'office-building'}
+          size={48}
+          color="#9ca3af"
+        />
+        <Text style={styles.emptyStateTitle}>
+          {isSearching ? 'No Matches Found' : 'No Companies Found'}
+        </Text>
+        <Text style={styles.emptyStateDescription}>
+          {isSearching
+            ? `We couldn't find any results for "${searchQuery}".`
+            : 'Get started by creating the first company.'}
+        </Text>
+        <Button
+          onPress={isSearching ? () => setSearchQuery('') : handleAddNew}
+          variant={isSearching ? 'outline' : 'default'}
+          style={styles.emptyStateButton}
+        >
+          {isSearching ? 'Clear Search' : 'Create Company'}
+        </Button>
+      </Card>
     );
   };
-
-  // Filter companies based on search query
-  const filteredCompanies = companies.filter(company => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      company.businessName?.toLowerCase().includes(query) ||
-      company.email?.toLowerCase().includes(query) ||
-      company.phoneNumber?.toLowerCase().includes(query) ||
-      company.address?.toLowerCase().includes(query)
-    );
-  });
 
   if (isLoading) {
     return (
@@ -390,28 +380,39 @@ export default function AdminCompaniesPage() {
 
   return (
     <AppLayout>
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['left', 'right']}>
         {renderAnimatedHeader()}
 
         <Animated.FlatList
           data={filteredCompanies}
-          renderItem={renderCompanyItem}
+          renderItem={({ item }) => (
+            <CompanyCard
+              company={item}
+              clientName={
+                getClientInfo(item.selectedClient || item.client).name
+              }
+              onEdit={() => handleEdit(item)}
+              onDelete={() => handleDelete(item)}
+            />
+          )}
           keyExtractor={item => item._id}
           contentContainerStyle={[
             filteredCompanies.length === 0
               ? styles.emptyListContent
               : styles.listContent,
-            { paddingTop: 120 },
+            { paddingTop: 160 }, // Adjusted for tight UI spacing
           ]}
           onScroll={Animated.event(
             [{ nativeEvent: { contentOffset: { y: scrollY } } }],
             { useNativeDriver: true },
           )}
           scrollEventThrottle={16}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={handleRefresh}
+              progressViewOffset={160}
             />
           }
           ListEmptyComponent={renderEmptyState}
@@ -449,7 +450,6 @@ export default function AdminCompaniesPage() {
 // ---------- STYLES ----------
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
-
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -457,8 +457,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   loadingText: { marginTop: 12, fontSize: 16, color: '#6b7280' },
-
-  // Header styles
   animatedHeader: {
     position: 'absolute',
     top: 0,
@@ -469,117 +467,51 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e5e7eb',
     zIndex: 10,
     elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
   },
-  headerSafeArea: {
-    backgroundColor: '#fff',
-  },
+  headerSafeArea: { backgroundColor: '#fff' },
   headerInner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 8,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
-  headerLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
+  headerLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 8,
     backgroundColor: '#eef2ff',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerTextContent: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 2,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: '#6b7280',
-    lineHeight: 18,
-  },
-  headerRight: {
-    marginLeft: 8,
-  },
-
-  // Stats section
+  headerTextContent: { flex: 1 },
+  title: { fontSize: 17, fontWeight: '700', color: '#111827' },
+  subtitle: { fontSize: 12, color: '#6b7280' },
+  headerRight: { marginLeft: 8 },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 2,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#f3f4f6',
-    backgroundColor: '#fafbfc',
-    marginBottom: -14,
   },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    height: 40,
-    fontSize: 14,
-    color: '#111827',
-    paddingVertical: 8,
-  },
-  clearButton: {
-    padding: 4,
-    marginLeft: 8,
-  },
-
+  searchIcon: { marginRight: 8 },
+  searchInput: { flex: 1, height: 40, fontSize: 14, color: '#111827' },
+  clearButton: { padding: 4 },
   emptyListContent: { flexGrow: 1, justifyContent: 'center' },
-  listContent: { paddingBottom: 20 },
-
+  listContent: { paddingBottom: 20, paddingHorizontal: 0 },
   card: {
     backgroundColor: '#fff',
     borderRadius: 12,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
-    elevation: 2,
   },
-
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 16,
-    alignSelf: 'flex-start',
-  },
-  badgeSecondary: {
-    backgroundColor: '#f3f4f6',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  badgePrimary: {
-    backgroundColor: '#eef2ff',
-    borderWidth: 1,
-    borderColor: '#c7d2fe',
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
-  },
-
   button: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -588,30 +520,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  buttonDefault: {
-    backgroundColor: '#4f46e5',
-  },
+  buttonDefault: { backgroundColor: '#4f46e5' },
   buttonOutline: {
     backgroundColor: 'transparent',
     borderWidth: 1.5,
     borderColor: '#d1d5db',
   },
-  buttonDestructive: {
-    backgroundColor: '#ef4444',
-  },
-  buttonSm: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
+  buttonDestructive: { backgroundColor: '#ef4444' },
+  buttonSm: { paddingHorizontal: 12, paddingVertical: 6 },
   buttonDisabled: { opacity: 0.5 },
   buttonIcon: { marginRight: 6 },
-  buttonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-  },
+  buttonText: { fontSize: 14, fontWeight: '600', color: '#fff' },
   buttonTextOutline: { color: '#374151' },
-
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -625,20 +545,14 @@ const styles = StyleSheet.create({
     height: '90%',
   },
   dialogHeader: {
-    padding: 24,
+    padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
-  dialogTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  dialogDescription: { fontSize: 14, color: '#6b7280', lineHeight: 20 },
-  closeButton: { position: 'absolute', top: 16, right: 16, padding: 4 },
+  dialogTitle: { fontSize: 20, fontWeight: 'bold', color: '#1f2937' },
+  dialogDescription: { fontSize: 14, color: '#6b7280', marginTop: 4 },
+  closeButton: { position: 'absolute', top: 16, right: 16 },
   dialogBody: { flex: 1 },
-
   alertDialogContent: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -646,28 +560,16 @@ const styles = StyleSheet.create({
     width: '90%',
     maxWidth: 400,
   },
-  alertDialogTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  alertDialogDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
+  alertDialogTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
+  alertDialogDescription: { fontSize: 14, color: '#6b7280', marginBottom: 24 },
   alertDialogActions: {
     flexDirection: 'row',
     gap: 12,
     justifyContent: 'flex-end',
   },
-  alertDialogButton: { minWidth: 80 },
-
   emptyStateCard: {
     alignItems: 'center',
-    padding: 48,
+    padding: 40,
     margin: 16,
     backgroundColor: '#fff',
   },
@@ -683,5 +585,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
   },
-  emptyStateButton: { paddingHorizontal: 24, paddingVertical: 12 },
+  emptyStateButton: { paddingHorizontal: 24 },
 });
