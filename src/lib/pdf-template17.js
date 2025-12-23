@@ -283,7 +283,7 @@ const Template17 = ({ transaction, company, party, shippingAddress, bank }) => {
           .page-header { margin-bottom: 10px; }
           .header-title { text-align: center; padding: 5px; font-size: 14px; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px; }
           .header-table { width: 100%; border-collapse: collapse; border: 1px solid ${PRIMARY_BLUE}; margin-bottom: 0; }
-          .company-col { width: 60%; padding: 8px 10px; vertical-align: top; border-right: 2px solid ${PRIMARY_BLUE}; }
+          .company-col { width: 60%; padding: 8px 10px; vertical-align: top; border-right: 1px solid ${PRIMARY_BLUE}; }
           .invoice-col { width: 40%; padding: 0; vertical-align: top; }
           .company-name { font-size: 12px; font-weight: bold; margin-bottom: 2px; }
           .company-line { font-size: 7.5px; margin-bottom: 1px; line-height: 1.2; }
@@ -307,17 +307,17 @@ const Template17 = ({ transaction, company, party, shippingAddress, bank }) => {
           .items-table td.right { text-align: right; padding-right: 6px; }
           .footer-total-row td { font-weight: bold; border: 1px solid ${PRIMARY_BLUE}; padding: 6px 4px; font-size: 8px; color: ${DARK_TEXT}; background-color: white; }
           .amount-words { margin: 6px 0; padding: 6px; font-size: 8px; }
-          .tax-summary { margin: 8px 0; border: 1px solid ${PRIMARY_BLUE}; }
+          .tax-summary {   }
           .tax-summary table { width: 100%; border-collapse: collapse; }
-          .tax-summary th { background-color: ${LIGHT_BLUE}; padding: 4px; font-size: 7.5px; border: 1px solid ${PRIMARY_BLUE}; font-weight: bold; }
+          .tax-summary th { background-color: ${LIGHT_BLUE}; padding: 4px; font-size: 7.5px; border: 1px solid ${PRIMARY_BLUE};  border-bottom: none; font-weight: bold; }
           .tax-summary td { padding: 3px 4px; font-size: 7.5px; border: 1px solid ${PRIMARY_BLUE}; text-align: right; }
-          .bank-sign-section { display: table; width: 100%; border: 1px solid ${PRIMARY_BLUE};  min-height: 100px; }
-          .bank-col-section { display: table-cell; width: 60%; padding: 8px 10px; vertical-align: top; border-right: 2px solid ${PRIMARY_BLUE}; }
+          .bank-sign-section { display: table; width: 100%; border: 1px solid ${PRIMARY_BLUE}; border-top:none; border-bottom:none;  min-height: 100px; }
+          .bank-col-section { display: table-cell; width: 60%; padding: 8px 10px; vertical-align: top;  border-right: 1px solid ${PRIMARY_BLUE}; }
           .sign-col { display: table-cell; width: 40%; padding: 8px 10px; vertical-align: top; text-align: right; }
           .section-heading { font-size: 8px; font-weight: bold; margin-bottom: 4px; }
           .bank-line { font-size: 7.5px; margin-bottom: 2px; }
           .signature-line { margin-top: 50px; padding-top: 5px; border-top: 1px solid #000; font-size: 7.5px; display: inline-block; width: 120px; text-align: center; }
-          .terms-section { padding: 8px 4px; border: 1px solid ${PRIMARY_BLUE}; padding: 5px; font-size: 7.5px; line-height: 1.3; margin-bottom: 20px; }
+          .terms-section { padding: 8px 15px; border: 1px solid ${PRIMARY_BLUE};  font-size: 7.5px; line-height: 1.3; margin-bottom: 20px; }
           .bold { font-weight: bold; }
           .keep-together { page-break-inside: avoid; }
         </style>

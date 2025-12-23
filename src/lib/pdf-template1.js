@@ -463,7 +463,7 @@ const generatePageHTML = (
                 </div>
                 <div class="data-row">
                   <div class="table-label">Country:</div>
-                  <div class="table-value">${company?.Country || 'India'}</div>
+                  <div class="table-value">${company?.Country }</div>
                 </div>
                 <div class="data-row">
                   <div class="table-label">Phone:</div>
@@ -669,7 +669,7 @@ const generatePageHTML = (
                     ? `
                 <div class="bank-details">
                   <div style="font-size: 9px; font-weight: bold; margin-bottom: 5px;">Bank Details:</div>
-                  <div class="bank-details-container">
+                  <div style="display: flex; flex-direction: row; gap: 60px;">
                     <div class="bank-info">
                       ${
                         bankData?.bankName
@@ -752,7 +752,7 @@ const generatePageHTML = (
                     ${
                       bankData?.qrCode
                         ? `
-                    <div class="qr-container">
+                    <div style="flex-direction: column;  margin-left: 60px;">
                       <div style="font-size: 9px; font-weight: bold; margin-bottom: 5px;">QR Code</div>
                       <img src="${BASE_URL}${bankData.qrCode}" class="qr-image" style="max-width: 100%;" />
                     </div>
@@ -1354,7 +1354,7 @@ const Template1 = ({
           
           .left-section {
             width: 65%;
-            // border-right: 1.5pt solid #0371C1; 
+            border-right: 1.5pt solid #0371C1; 
             padding: 5pt;
             display: flex;
             flex-direction: column;
@@ -1364,7 +1364,7 @@ const Template1 = ({
           
           .right-section {
             width: 35%;
-            border-left: 1.5pt solid #0371C1; 
+            // border-left: 1.5pt solid #0371C1; 
             // padding: 5pt;
             display: flex;
             flex-direction: column;
@@ -1570,7 +1570,7 @@ const Template1 = ({
           
           /* Bank Details - Left Section */
           .bank-details {
-            // margin-bottom: 5pt;
+            margin-bottom: 6pt;
           }
           
           .bank-row {
@@ -1584,11 +1584,12 @@ const Template1 = ({
           .terms-container {
             // margin-top: 5pt;
             font-size: 8pt;
-            overflow-wrap: break-word;
-            word-wrap: break-word;
-            word-break: break-word;
-            flex-grow: 1;
-            min-height: 0;
+            width: 110%;
+            
+            margin-left: -10px;
+            border-top: 1pt solid #0371C1;
+            padding-top: 5pt;
+            padding-left: 15pt;
           }
           
           .terms-content {

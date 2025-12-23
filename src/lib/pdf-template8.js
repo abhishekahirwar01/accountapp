@@ -75,7 +75,7 @@ const Template8 = ({
   // Column widths
   const getColWidths = () => {
     if (!isGSTApplicable) {
-      return ['4%', '25%', '10%', '10%', '8%', '15%', '28%'];
+      return ['4%', '26%', '14%', '14%', '8%', '15%', '25%'];
     } else if (showIGST) {
       return ['4%', '20%', '8%', '10%', '8%', '12%', '8%', '12%', '18%'];
     } else {
@@ -121,22 +121,22 @@ const Template8 = ({
 
   // Render HTML notes
   const renderNotesHTML = notes => {
-    if (!notes) return '';
-    try {
-      return notes
-        .replace(/\n/g, '<br>')
-        .replace(/<br\s*\/?>/gi, '<br>')
-        .replace(/<p>/gi, '<div style="margin-bottom: 8px;">')
-        .replace(/<\/p>/gi, '</div>')
-        .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
-        .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>')
-        .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
-        .replace(/<ul>/gi, '<ul style="padding-left: 15px;">')
-        .replace(/<li>/gi, '<li style="margin-bottom: 4px;">');
-    } catch (error) {
-      return notes.replace(/\n/g, '<br>');
-    }
-  };
+  if (!notes) return '';
+  try {
+    return notes
+      .replace(/\n/g, '<br>')
+      .replace(/<br\s*\/?>/gi, '<br>')
+      .replace(/<p>/gi, '<div style="margin-bottom: 8px;">')
+      .replace(/<\/p>/gi, '</div>')
+      .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
+      .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>')
+      .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
+      .replace(/<ul>/gi, '<ul style="padding-left: 15px;">')
+      .replace(/<li>/gi, '<li style="margin-bottom: 4px;">');
+  } catch (error) {
+    return notes.replace(/\n/g, '<br>');
+  }
+};
 
   // Generate Header HTML (repeatable)
   const generateHeaderHTML = () => {

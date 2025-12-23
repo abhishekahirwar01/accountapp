@@ -35,6 +35,24 @@ const getClientName = client => {
   return client.companyName || client.contactName || 'Client Name';
 };
 
+const renderNotesHTML = notes => {
+  if (!notes) return '';
+  try {
+    return notes
+      .replace(/\n/g, '<br>')
+      .replace(/<br\s*\/?>/gi, '<br>')
+      .replace(/<p>/gi, '<div style="margin-bottom: 8px;">')
+      .replace(/<\/p>/gi, '</div>')
+      .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
+      .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>')
+      .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
+      .replace(/<ul>/gi, '<ul style="padding-left: 15px;">')
+      .replace(/<li>/gi, '<li style="margin-bottom: 4px;">');
+  } catch (error) {
+    return notes.replace(/\n/g, '<br>');
+  }
+};
+
 /**
  * Generate HTML content for the PDF
  */
@@ -587,7 +605,7 @@ const generateHTMLContent = (transaction, company, party) => {
           </div>
 
           <!-- Items Table - Main Content -->
-          <div class="table-container" border-bottom: none;">
+          <div class="table-container" ">
             <table>
               <thead>
                 ${generateTableHeader()}
@@ -672,7 +690,7 @@ const generateHTMLContent = (transaction, company, party) => {
               ? `
             <div class="terms-box">
               <div class="term-line bold-text"></div>
-              <div class="term-line">${transaction.notes}</div>
+              <div class="term-line">${renderNotesHTML(transaction.notes)}</div>
             </div>
           `
               : ''
@@ -783,7 +801,7 @@ const generateHTMLContent = (transaction, company, party) => {
           color: #000;
         }
         .main-section {
-          border: 1.5px solid #0371C1;
+          border: 1px solid #0371C1;
           padding: 0;
           margin-top: 10px;
         }
@@ -791,7 +809,7 @@ const generateHTMLContent = (transaction, company, party) => {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          border: 1.5px solid #0371C1;
+          // border: 1.5px solid #0371C1;
         }
         .gst-row {
           padding: 3px;
@@ -826,9 +844,10 @@ const generateHTMLContent = (transaction, company, party) => {
         }
         .three-col-section {
           display: flex;
-          border-bottom: 1.5px solid #0371C1;
-          border-left: 1.5px solid #0371C1;
-          border-right: 1.5px solid #0371C1;
+          // border-bottom: 1.5px solid #0371C1;
+          // border-left: 1.5px solid #0371C1;
+          // border-right: 1.5px solid #0371C1;
+           border-top: 1.5px solid #0371C1;
         }
         .column {
           width: 33.3%;
@@ -882,9 +901,9 @@ const generateHTMLContent = (transaction, company, party) => {
         }
         .bottom-section {
           display: flex;
-          border-top: 1px solid #0371C1;
-          border-left: 1.5px solid #0371C1;
-          border-right: 1.5px solid #0371C1;
+          // border-top: 1px solid #0371C1;
+          // border-left: 1.5px solid #0371C1;
+          // border-right: 1.5px solid #0371C1;
           border-bottom: 1.5px solid #0371C1;
           font-size: 7px;
         }
@@ -929,10 +948,7 @@ const generateHTMLContent = (transaction, company, party) => {
           background-color: #EAF4FF;
         }
         .terms-box {
-          padding: 8px 8px 0 18px;
-          border-left: 1.5px solid #0371C1;
-          border-right: 1.5px solid #0371C1;
-          margin-bottom: -12px;
+        margin-left: -20px;
         }
         .term-line {
           font-size: 10px;
