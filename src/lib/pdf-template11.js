@@ -76,42 +76,24 @@ const getBankDetailsFallback = () => ({
   city: 'N/A',
 });
 
-const parseHtmlNotes = html => {
-  if (!html) return '';
-  let cleanedHtml = html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '');
-  cleanedHtml = cleanedHtml
-    .replace(/<br\s*\/?>/gi, '<br/>')
-    .replace(/<p[^>]*>/gi, '<br/>')
-    .replace(/<\/p>/gi, '<br/>')
-    .replace(/<div[^>]*>/gi, '<br/>')
-    .replace(/<\/div>/gi, '<br/>')
-    .replace(/<ul[^>]*>/gi, '<br/>')
-    .replace(/<li[^>]*>/gi, '• ')
-    .replace(/<\/li>/gi, '<br/>')
-    .replace(/<\/ul>/gi, '<br/>')
-    .replace(/<ol[^>]*>/gi, '<br/>')
-    .replace(/<\/ol>/gi, '<br/>')
-    .replace(/<h[1-6][^>]*>/gi, '<br/><strong>')
-    .replace(/<\/h[1-6]>/gi, '</strong><br/>')
-    .replace(/<strong[^>]*>/gi, '<strong>')
-    .replace(/<\/strong>/gi, '</strong>')
-    .replace(/<b[^>]*>/gi, '<strong>')
-    .replace(/<\/b>/gi, '</strong>')
-    .replace(/<em[^>]*>/gi, '<em>')
-    .replace(/<\/em>/gi, '</em>')
-    .replace(/<i[^>]*>/gi, '<em>')
-    .replace(/<\/i>/gi, '</em>');
-  cleanedHtml = cleanedHtml
-    .replace(/<[^>]*>/g, '')
-    .replace(/\n\s*\n/g, '<br/><br/>')
-    .replace(/\n/g, '<br/>')
-    .replace(/(<br\/>\s*){3,}/g, '<br/><br/>')
-    .trim();
-  return cleanedHtml;
+ const renderNotesHTML = notes => {
+  if (!notes) return '';
+  try {
+    return notes
+      .replace(/\n/g, '<br>')
+      .replace(/<br\s*\/?>/gi, '<br>')
+      .replace(/<p>/gi, '<div style="margin-bottom: 8px;">')
+      .replace(/<\/p>/gi, '</div>')
+      .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
+      .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>')
+      .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
+      .replace(/<ul>/gi, '<ul style="padding-left: 15px;">')
+      .replace(/<li>/gi, '<li style="margin-bottom: 4px;">');
+  } catch (error) {
+    return notes.replace(/\n/g, '<br>');
+  }
 };
+
 
 const getImageBase64 = async imageUrl => {
   if (!imageUrl) return null;
@@ -147,41 +129,17 @@ export const generatePdfForTemplate11 = async (
 ) => {
   const shouldHideBankDetails = transaction.type === 'proforma';
 
-  const dynamicBankDetails = (() => {
-    if (!bank || typeof bank !== 'object') return getBankDetailsFallback();
-    const bankObj = bank;
-    const hasBankDetails =
-      bankObj.bankName ||
-      bankObj.branchName ||
-      bankObj.branchAddress ||
-      bankObj.accountNumber ||
-      bankObj.accountNo ||
-      bankObj.ifscCode ||
-      bankObj.upiDetails?.upiId ||
-      bankObj.upiId;
-    if (!hasBankDetails) return getBankDetailsFallback();
-    const accountNumber =
-      bankObj.accountNo ||
-      bankObj.accountNumber ||
-      bankObj.account_number ||
-      'N/A';
-    const upiId =
-      bankObj.upiDetails?.upiId || bankObj.upiId || bankObj.upi_id || 'N/A';
-    return {
-      name: handleUndefined(capitalizeWords(bankObj.bankName)),
-      branch: handleUndefined(
-        capitalizeWords(bankObj.branchName || bankObj.branchAddress),
-      ),
-      accNumber: handleUndefined(String(accountNumber)),
-      ifsc: handleUndefined(capitalizeWords(bankObj.ifscCode)),
-      upiId: handleUndefined(String(upiId)),
-      contactNumber: handleUndefined(bankObj.contactNumber),
-      city: handleUndefined(capitalizeWords(bankObj.city)),
-    };
-  })();
+  const bankData = bank || transaction?.bank || {};
 
-  const areBankDetailsAvailable =
-    dynamicBankDetails.name !== 'Bank Details Not Available';
+  const isBankDetailAvailable =
+    bankData?.bankName ||
+    bankData?.ifscCode ||
+    bankData?.qrCode ||
+    bankData?.branchAddress ||
+    bankData?.accountNo ||
+    bankData?.upiDetails?.upiId;
+
+
 
   const {
     totalTaxable,
@@ -317,7 +275,7 @@ export const generatePdfForTemplate11 = async (
   
   // Check if footer content will fit on last page, if not add extra page
   const hasLargeFooter = 
-    (!shouldHideBankDetails && areBankDetailsAvailable) || 
+    (!shouldHideBankDetails) || 
     (invoiceData.notes && invoiceData.notes.length > 200);
   
   // If last page has many items AND large footer, we need an extra page
@@ -387,7 +345,7 @@ export const generatePdfForTemplate11 = async (
                 invoiceData.billTo.shipping || invoiceData.billTo.billing || '-'
               }</div>
               <div class="info-row"><span class="label">Country:</span> ${capitalizeWords(
-                shippingAddress?.country || party?.country || 'India',
+                shippingAddress?.country || party?.country ,
               )}</div>
               <div class="info-row"><span class="label">Phone:</span> ${
                 shippingAddress?.contactNumber
@@ -477,12 +435,12 @@ export const generatePdfForTemplate11 = async (
     }
     return `<tr style="background:${COLOR.BG}">
       <th style="width:4%;border:1px solid ${COLOR.BORDER};padding:2px;text-align:center;font-size:8pt;">Sr.</th>
-      <th style="width:42%;border:1px solid ${COLOR.BORDER};padding:2px;text-align:left;font-size:8pt;">Name of Product / Service</th>
+      <th style="width:28%;border:1px solid ${COLOR.BORDER};padding:2px;text-align:left;font-size:8pt;">Name of Product / Service</th>
       <th style="width:10%;border:1px solid ${COLOR.BORDER};padding:2px;font-size:8pt;">HSN/SAC</th>
       <th style="width:9%;border:1px solid ${COLOR.BORDER};padding:2px;font-size:8pt;">Qty</th>
-      <th style="width:14%;border:1px solid ${COLOR.BORDER};padding:2px;font-size:8pt;">Rate (Rs)</th>
-      <th style="width:18%;border:1px solid ${COLOR.BORDER};padding:2px;font-size:8pt;">Taxable Value (Rs)</th>
-      <th style="width:18%;border:1px solid ${COLOR.BORDER};padding:2px;font-size:8pt;">Total (Rs)</th>
+      <th style="width:14%;border:1px solid ${COLOR.BORDER};padding:2px;text-align:center;font-size:8pt;">Rate (Rs)</th>
+      <th style="width:18%;border:1px solid ${COLOR.BORDER};padding:2px;text-align:center;font-size:8pt;">Taxable Value (Rs)</th>
+      <th style="width:18%;border:1px solid ${COLOR.BORDER};padding:2px;text-align:center;font-size:8pt;">Total (Rs)</th>
     </tr>`;
   };
 
@@ -525,9 +483,9 @@ export const generatePdfForTemplate11 = async (
           <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:left;font-size:8pt;">${r.desc}</td>
           <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${r.hsn}</td>
           <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${qtyDisplay}</td>
-          <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:right;font-size:8pt;">${money(r.rate)}</td>
-          <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:right;font-size:8pt;">${money(r.taxable)}</td>
-          <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:right;font-size:8pt;">${money(r.total)}</td>
+          <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.rate)}</td>
+          <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.taxable)}</td>
+          <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.total)}</td>
         </tr>`;
       })
       .join('');
@@ -537,26 +495,26 @@ export const generatePdfForTemplate11 = async (
     if (shouldShowIGSTColumns) {
       return `<tr style="font-weight:bold;background:#f8f9fa;">
         <td colspan="5" style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:left;">Total</td>
-        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:right;">${money(totalTaxableValue)}</td>
+        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(totalTaxableValue)}</td>
         <td style="border:1px solid ${COLOR.BORDER};padding:4px;"></td>
-        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:right;">${money(sumIGST)}</td>
-        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:right;">${money(invoiceTotalAmount)}</td>
+        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(sumIGST)}</td>
+        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(invoiceTotalAmount)}</td>
       </tr>`;
     } else if (shouldShowCGSTSGSTColumns) {
       return `<tr style="font-weight:bold;background:#f8f9fa;">
         <td colspan="5" style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:left;">Total</td>
-        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:right;">${money(totalTaxableValue)}</td>
+        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(totalTaxableValue)}</td>
         <td style="border:1px solid ${COLOR.BORDER};padding:4px;"></td>
-        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:right;">${money(sumCGST)}</td>
+        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(sumCGST)}</td>
         <td style="border:1px solid ${COLOR.BORDER};padding:4px;"></td>
-        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:right;">${money(sumSGST)}</td>
-        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:right;">${money(invoiceTotalAmount)}</td>
+        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(sumSGST)}</td>
+        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(invoiceTotalAmount)}</td>
       </tr>`;
     }
     return `<tr style="font-weight:bold;background:#f8f9fa;">
       <td colspan="5" style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:left;">Total</td>
-      <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:right;">${money(totalTaxableValue)}</td>
-      <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:right;">${money(invoiceTotalAmount)}</td>
+      <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(totalTaxableValue)}</td>
+      <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(invoiceTotalAmount)}</td>
     </tr>`;
   };
 
@@ -596,40 +554,52 @@ export const generatePdfForTemplate11 = async (
             <div class="section-content">${invoiceData.totalInWords}</div>
             
             ${
-              !shouldHideBankDetails && areBankDetailsAvailable
+              !shouldHideBankDetails && isBankDetailAvailable
                 ? `
                 <div class="section-header">Bank Details</div>
                 <div class="section-content bank-details">
+                <div>
                   ${
-                    dynamicBankDetails.name
-                      ? `<div class="bank-row"><span class="label">Bank Name:</span> ${dynamicBankDetails.name}</div>`
+                    bankData.bankName
+                      ? `<div class="bank-row"><span class="label">Bank Name:</span> ${bankData.bankName}</div>`
                       : ''
                   }
                   ${
-                    dynamicBankDetails.branch
-                      ? `<div class="bank-row"><span class="label">Branch:</span> ${dynamicBankDetails.branch}</div>`
+                    bankData.branchAddress
+                      ? `<div class="bank-row"><span class="label">Branch:</span> ${bankData.branchAddress}</div>`
                       : ''
                   }
                   ${
-                    dynamicBankDetails.ifsc
-                      ? `<div class="bank-row"><span class="label">IFSC Code:</span> ${dynamicBankDetails.ifsc}</div>`
+                    bankData.ifscCode
+                      ? `<div class="bank-row"><span class="label">IFSC Code:</span> ${bankData.ifscCode}</div>`
                       : ''
                   }
                   ${
-                    dynamicBankDetails.accNumber
-                      ? `<div class="bank-row"><span class="label">A/C Number:</span> ${dynamicBankDetails.accNumber}</div>`
+                    bankData.accountNo
+                      ? `<div class="bank-row"><span class="label">A/C Number:</span> ${bankData.accountNo}</div>`
                       : ''
                   }
                   ${
-                    dynamicBankDetails.upiId
-                      ? `<div class="bank-row"><span class="label">UPI Mobile:</span> ${dynamicBankDetails.upiId}</div>`
+                    bankData.upiDetails?.upiId
+                      ? `<div class="bank-row"><span class="label">UPI Mobile:</span> ${bankData.upiDetails?.upiId}</div>`
                       : ''
                   }
                   ${
-                    qrCodeBase64
+                    bankData.upiDetails?.upiName
+                      ? `<div class="bank-row"><span class="label">UPI Mobile:</span> ${bankData.upiDetails?.upiName}</div>`
+                      : ''
+                  }
+                  ${
+                    bankData.upiDetails?.upiMobile
+                      ? `<div class="bank-row"><span class="label">UPI Mobile:</span> ${bankData.upiDetails?.upiMobile}</div>`
+                      : ''
+                  }
+                  </div>
+                  ${
+                    bankData.qrCode
                       ? `<div style="margin-top:10px;text-align:center;">
                            <div style="font-weight:bold;font-size:9pt;margin-bottom:5px;">QR Code</div>
-                           <img src="${qrCodeBase64}" style="width:70px;height:70px;object-fit:contain;" />
+                           <img src="${BASE_URL}${bankData.qrCode}" style="width:70px;height:70px;object-fit:contain;" />
                          </div>`
                       : ''
                   }
@@ -643,8 +613,8 @@ export const generatePdfForTemplate11 = async (
               invoiceData.notes
                 ? `<div class="section-header">Terms & Conditions</div>
                    <div class="section-content terms-section">
-                     <div class="terms-title">Key aspects of Terms & Conditions:</div>
-                     ${parseHtmlNotes(invoiceData.notes)}
+                     
+                     ${renderNotesHTML(invoiceData.notes)}
                    </div>`
                 : ''
             }
@@ -916,6 +886,9 @@ export const generatePdfForTemplate11 = async (
     .bank-details {
       font-size: 8pt;
       line-height: 1.3;
+      flex-direction: row;
+      display: flex;
+      gap: 100px;
     }
     
     .bank-row {
@@ -962,6 +935,7 @@ export const generatePdfForTemplate11 = async (
       padding: 6px;
       font-size: 7pt;
       line-height: 1.2;
+      margin-left: 10px;
     }
     
     .terms-title {

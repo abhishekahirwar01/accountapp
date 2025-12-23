@@ -24,188 +24,27 @@ const getClientName = client => {
 // Constants
 const ITEMS_PER_PAGE = 24; // Reduced from 20 for better fit on A5
 
-// Simple HTML parser for PDF notes
-const parseHtmlToElements = (html, fontSize = 7) => {
-  try {
-    const elements = [];
-    let currentHtml = html;
-    
-    currentHtml = currentHtml.replace(/<br\s*\/?>/gi, '{{BR}}');
-    currentHtml = currentHtml.replace(/<p>/gi, '{{P_START}}');
-    currentHtml = currentHtml.replace(/<\/p>/gi, '{{P_END}}');
-    currentHtml = currentHtml.replace(/<strong>/gi, '{{B_START}}');
-    currentHtml = currentHtml.replace(/<\/strong>/gi, '{{B_END}}');
-    currentHtml = currentHtml.replace(/<b>/gi, '{{B_START}}');
-    currentHtml = currentHtml.replace(/<\/b>/gi, '{{B_END}}');
-    currentHtml = currentHtml.replace(/<em>/gi, '{{I_START}}');
-    currentHtml = currentHtml.replace(/<\/em>/gi, '{{I_END}}');
-    currentHtml = currentHtml.replace(/<i>/gi, '{{I_START}}');
-    currentHtml = currentHtml.replace(/<\/i>/gi, '{{I_END}}');
-    currentHtml = currentHtml.replace(/<u>/gi, '{{U_START}}');
-    currentHtml = currentHtml.replace(/<\/u>/gi, '{{U_END}}');
-    currentHtml = currentHtml.replace(/<li>/gi, '{{LI_START}}');
-    currentHtml = currentHtml.replace(/<\/li>/gi, '{{LI_END}}');
-    currentHtml = currentHtml.replace(/<ul>/gi, '{{UL_START}}');
-    currentHtml = currentHtml.replace(/<\/ul>/gi, '{{UL_END}}');
-    currentHtml = currentHtml.replace(/<\/?([a-z][a-z0-9]*)[^>]*>/gi, '');
-    
-    const tokens = currentHtml.split(/({{[A-Z_]+}})/);
-    
-    let inParagraph = false;
-    let inBold = false;
-    let inItalic = false;
-    let inUnderline = false;
-    let inListItem = false;
-    let inList = false;
-    let currentText = '';
-    
-    tokens.forEach(token => {
-      if (!token.trim() && token !== '{{BR}}') return;
-      
-      switch (token) {
-        case '{{BR}}':
-          if (currentText) {
-            elements.push(createElement(currentText, inParagraph, inBold, inItalic, inUnderline, inListItem));
-            currentText = '';
-          }
-          elements.push({ type: 'lineBreak' });
-          break;
-        case '{{P_START}}':
-          inParagraph = true;
-          break;
-        case '{{P_END}}':
-          if (currentText) {
-            elements.push(createElement(currentText, inParagraph, inBold, inItalic, inUnderline, inListItem));
-            currentText = '';
-          }
-          inParagraph = false;
-          break;
-        case '{{B_START}}':
-          inBold = true;
-          break;
-        case '{{B_END}}':
-          if (currentText) {
-            elements.push(createElement(currentText, inParagraph, inBold, inItalic, inUnderline, inListItem));
-            currentText = '';
-          }
-          inBold = false;
-          break;
-        case '{{I_START}}':
-          inItalic = true;
-          break;
-        case '{{I_END}}':
-          if (currentText) {
-            elements.push(createElement(currentText, inParagraph, inBold, inItalic, inUnderline, inListItem));
-            currentText = '';
-          }
-          inItalic = false;
-          break;
-        case '{{U_START}}':
-          inUnderline = true;
-          break;
-        case '{{U_END}}':
-          if (currentText) {
-            elements.push(createElement(currentText, inParagraph, inBold, inItalic, inUnderline, inListItem));
-            currentText = '';
-          }
-          inUnderline = false;
-          break;
-        case '{{LI_START}}':
-          inListItem = true;
-          break;
-        case '{{LI_END}}':
-          if (currentText) {
-            elements.push({ type: 'listItem', content: currentText.trim() });
-            currentText = '';
-          }
-          inListItem = false;
-          break;
-        case '{{UL_START}}':
-          inList = true;
-          break;
-        case '{{UL_END}}':
-          inList = false;
-          break;
-        default:
-          currentText += token;
-      }
-    });
-    
-    if (currentText) {
-      elements.push(createElement(currentText, inParagraph, inBold, inItalic, inUnderline, inListItem));
-    }
-    
-    function createElement(text, isParagraph, isBold, isItalic, isUnderline, isListItem) {
-      const trimmedText = text.trim();
-      if (!trimmedText) return null;
-      
-      if (isListItem) {
-        return { type: 'listItem', content: trimmedText };
-      } else if (isBold) {
-        return { type: 'bold', content: trimmedText };
-      } else if (isItalic) {
-        return { type: 'italic', content: trimmedText };
-      } else if (isUnderline) {
-        return { type: 'underline', content: trimmedText };
-      } else if (isParagraph) {
-        return { type: 'paragraph', content: trimmedText };
-      } else {
-        return { type: 'text', content: trimmedText };
-      }
-    }
-    
-    return elements.filter(el => el && (el.content || el.type === 'lineBreak'));
-  } catch (error) {
-    console.error('Error in simple HTML parser:', error);
-    return [{ type: 'text', content: html }];
-  }
-};
-
-// Enhanced HTML notes formatting
-const formatNotesHtml = notes => {
+const renderNotesHTML = notes => {
   if (!notes) return '';
-
   try {
-    const parsedElements = parseHtmlToElements(notes, 7);
-
-    let htmlContent = '';
-    parsedElements.forEach((element, index) => {
-      switch (element.type) {
-        case 'text':
-          htmlContent += `<span style="font-size: 7px; color: #333; line-height: 1.4;">${element.content}</span>`;
-          break;
-        case 'paragraph':
-          htmlContent += `<div style="margin-bottom: 3px; font-size: 7px; color: #333; line-height: 1.4;">${element.content}</div>`;
-          break;
-        case 'bold':
-          htmlContent += `<strong style="font-size: 7px; color: #333; font-weight: bold;">${element.content}</strong>`;
-          break;
-        case 'italic':
-          htmlContent += `<em style="font-size: 7px; color: #333; font-style: italic;">${element.content}</em>`;
-          break;
-        case 'underline':
-          htmlContent += `<u style="font-size: 7px; color: #333; text-decoration: underline;">${element.content}</u>`;
-          break;
-        case 'lineBreak':
-          htmlContent += '<br>';
-          break;
-        case 'listItem':
-          htmlContent += `<div style="margin-bottom: 2px; font-size: 7px; color: #333; padding-left: 8px;">• ${element.content}</div>`;
-          break;
-        default:
-          htmlContent += `<span style="font-size: 7px; color: #333;">${element.content}</span>`;
-      }
-    });
-
-    return htmlContent;
-  } catch (error) {
-    console.error('Error parsing notes HTML:', error);
     return notes
+      .replace(/\n/g, '<br>')
       .replace(/<br\s*\/?>/gi, '<br>')
-      .replace(/<p>/gi, '<div style="margin-bottom: 3px; font-size: 7px; color: #333; line-height: 1.4;">')
-      .replace(/<\/p>/gi, '</div>');
+      .replace(/<p>/gi, '<div style="margin-bottom: 8px;">')
+      .replace(/<\/p>/gi, '</div>')
+      .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
+      .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>')
+      .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
+      .replace(/<ul>/gi, '<ul style="padding-left: 15px;">')
+      .replace(/<li>/gi, '<li style="margin-bottom: 4px;">');
+  } catch (error) {
+    return notes.replace(/\n/g, '<br>');
   }
 };
+
+
+
+
 
 // Split items into pages
 const splitItemsIntoPages = (items, itemsPerPage = ITEMS_PER_PAGE) => {
@@ -356,7 +195,7 @@ const generatePageHTML = (
   isLastPage = false
 ) => {
   const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
-  const formattedNotes = transaction?.notes ? formatNotesHtml(transaction.notes) : '';
+ 
   
   // Helper functions
   const getCompanyValue = (key, defaultValue = '') => {
@@ -826,10 +665,10 @@ const generatePageHTML = (
 
         <!-- Notes Section -->
         ${
-          formattedNotes
+           transaction?.notes
             ? `
           <div class="notes-section avoid-page-break">
-            ${formattedNotes}
+            ${renderNotesHTML(transaction.notes)}
           </div>
         `
             : ''
@@ -1408,6 +1247,7 @@ const TemplateA5_2PDF = ({
       margin-bottom: 2px;
       line-height: 1.4;
       background: white;
+      padding-left: 15px;
     }
 
     /* Page Number */

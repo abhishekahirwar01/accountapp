@@ -476,79 +476,88 @@ export default function InventoryScreen() {
     }
   };
 
-  const renderProductCard = (item, index) => {
-    const absoluteIndex = (productCurrentPage - 1) * ITEMS_PER_PAGE + index;
-    return (
-      <View style={styles.card} key={item._id}>
-        <View style={styles.cardHeader}>
-          <View style={styles.productInfo}>
-            <View style={styles.productIcon}>
-              <Icon name="inventory" size={20} color="#007AFF" />
-            </View>
-            <View style={styles.productDetails}>
-              <Text style={styles.productName}>
-                {item.name?.charAt(0).toUpperCase() + item.name?.slice(1)}
-              </Text>
-              {/* <Text style={styles.companyName}>
-                {typeof item.company === 'object' && item.company
-                  ? item.company.businessName
-                  : '-'}
-              </Text> */}
-              <Text style={styles.createdDate}>
-                Created:{' '}
-                {item.createdAt
-                  ? new Date(item.createdAt).toLocaleDateString()
-                  : '—'}
-              </Text>
-            </View>
+ const renderProductCard = (item, index) => {
+  const absoluteIndex = (productCurrentPage - 1) * ITEMS_PER_PAGE + index;
+  return (
+    <View style={styles.card} key={item._id}>
+      <View style={styles.cardHeader}>
+        <View style={styles.productInfo}>
+          <View style={styles.productIcon}>
+            <Icon name="inventory" size={20} color="#007AFF" />
           </View>
-
-          <View style={styles.priceSection}>
-            <View style={styles.priceItem}>
-              <Text style={styles.priceLabel}>Cost Price</Text>
-              <Text style={styles.priceValue}>
-                {item.costPrice ? formatCurrencyINR(item.costPrice) : '-'}
-              </Text>
-            </View>
-            <View style={styles.priceItem}>
-              <Text style={styles.priceLabel}>Selling Price</Text>
-              <Text style={styles.priceValue}>
-                {item.sellingPrice ? formatCurrencyINR(item.sellingPrice) : '-'}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.stockSection}>
-          <Text style={styles.stockLabel}>Stock</Text>
-          <View style={styles.stockInfo}>
-            <Text
-              style={[
-                styles.stockValue,
-                (item.stocks ?? 0) > 10
-                  ? styles.stockHigh
-                  : (item.stocks ?? 0) > 0
-                  ? styles.stockMedium
-                  : styles.stockLow,
-              ]}
-            >
-              {item.stocks ?? 0}
+          <View style={styles.productDetails}>
+            <Text style={styles.productName}>
+              {item.name?.charAt(0).toUpperCase() + item.name?.slice(1)}
             </Text>
-            <Text style={styles.unit}>{item.unit ?? 'Piece'}</Text>
+            <Text style={styles.companyName}>
+              {typeof item.company === 'object' && item.company
+                ? item.company.businessName
+                : '-'}
+            </Text>
           </View>
-          {(item.stocks ?? 0) <= 10 && (item.stocks ?? 0) > 0 && (
-            <Text style={styles.lowStockWarning}>Low stock</Text>
-          )}
         </View>
 
-        {item.hsn && (
-          <View style={styles.hsnSection}>
-            <Text style={styles.hsnLabel}>HSN</Text>
-            <Text style={styles.hsnValue}>{item.hsn}</Text>
+        <View style={styles.priceSection}>
+          <View style={styles.priceItem}>
+            <Text style={styles.priceLabel}>Cost Price</Text>
+            <Text style={styles.priceValue}>
+              {item.costPrice ? formatCurrencyINR(item.costPrice) : '-'}
+            </Text>
           </View>
-        )}
+          <View style={styles.priceItem}>
+            <Text style={styles.priceLabel}>Selling Price</Text>
+            <Text style={styles.priceValue}>
+              {item.sellingPrice ? formatCurrencyINR(item.sellingPrice) : '-'}
+            </Text>
+          </View>
+        </View>
+      </View>
 
-        <View style={styles.cardActions}>
+      <View style={styles.stockSection}>
+        <Text style={styles.stockLabel}>Stock</Text>
+        <View style={styles.stockInfo}>
+          <Text
+            style={[
+              styles.stockValue,
+              (item.stocks ?? 0) > 10
+                ? styles.stockHigh
+                : (item.stocks ?? 0) > 0
+                ? styles.stockMedium
+                : styles.stockLow,
+            ]}
+          >
+            {item.stocks ?? 0}
+          </Text>
+          <Text style={styles.unit}>{item.unit ?? 'Piece'}</Text>
+        </View>
+        {(item.stocks ?? 0) <= 10 && (item.stocks ?? 0) > 0 && (
+          <Text style={styles.lowStockWarning}>Low stock</Text>
+        )}
+      </View>
+
+      {item.hsn && (
+        <View style={styles.hsnSection}>
+          <Text style={styles.hsnLabel}>HSN</Text>
+          <Text style={styles.hsnValue}>{item.hsn}</Text>
+        </View>
+      )}
+
+      <View style={styles.cardActions}>
+        {/* Date moved here, aligned to left */}
+        <View style={styles.dateContainer}>
+          <Text style={styles.createdDate}>
+            {item.createdAt
+              ? new Date(item.createdAt).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })
+              : '—'}
+          </Text>
+        </View>
+
+        {/* Action buttons aligned to right */}
+        <View style={styles.actionButtonsContainer}>
           <TouchableOpacity
             style={[styles.actionButton, styles.editButton]}
             onPress={() => openEditProduct(item)}
@@ -569,44 +578,54 @@ export default function InventoryScreen() {
           </TouchableOpacity>
         </View>
       </View>
-    );
-  };
+    </View>
+  );
+};
 
-  const renderServiceCard = item => {
-    return (
-      <View style={styles.card} key={item._id}>
-        <View style={styles.cardHeader}>
-          <View style={styles.serviceInfo}>
-            <View style={[styles.serviceIcon, { backgroundColor: '#EC4899' }]}>
-              <Icon name="build" size={20} color="white" />
-            </View>
-            <View style={styles.serviceDetails}>
-              <Text style={styles.serviceName}>{item.serviceName}</Text>
-              <Text style={styles.createdDate}>
-                Created:{' '}
-                {item.createdAt
-                  ? new Date(item.createdAt).toLocaleDateString()
-                  : '—'}
-              </Text>
-            </View>
+ const renderServiceCard = item => {
+  return (
+    <View style={styles.card} key={item._id}>
+      <View style={styles.cardHeader}>
+        <View style={styles.serviceInfo}>
+          <View style={[styles.serviceIcon, { backgroundColor: '#EC4899' }]}>
+            <Icon name="build" size={20} color="white" />
           </View>
-
-          <View style={styles.amountSection}>
-            <Text style={styles.amountLabel}>Amount</Text>
-            <Text style={styles.amountValue}>
-              {formatCurrencyINR(item.amount)}
-            </Text>
+          <View style={styles.serviceDetails}>
+            <Text style={styles.serviceName}>{item.serviceName}</Text>
           </View>
         </View>
 
-        {item.sac && (
-          <View style={styles.sacSection}>
-            <Text style={styles.sacLabel}>SAC</Text>
-            <Text style={styles.sacValue}>{item.sac}</Text>
-          </View>
-        )}
+        <View style={styles.amountSection}>
+          <Text style={styles.amountLabel}>Amount</Text>
+          <Text style={styles.amountValue}>
+            {formatCurrencyINR(item.amount)}
+          </Text>
+        </View>
+      </View>
 
-        <View style={styles.cardActions}>
+      {item.sac && (
+        <View style={styles.sacSection}>
+          <Text style={styles.sacLabel}>SAC</Text>
+          <Text style={styles.sacValue}>{item.sac}</Text>
+        </View>
+      )}
+
+      <View style={styles.cardActions}>
+        {/* Date moved here, aligned to left */}
+        <View style={styles.dateContainer}>
+          <Text style={styles.createdDate}>
+            {item.createdAt
+              ? new Date(item.createdAt).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })
+              : '—'}
+          </Text>
+        </View>
+
+        {/* Action buttons aligned to right */}
+        <View style={styles.actionButtonsContainer}>
           <TouchableOpacity
             style={[styles.actionButton, styles.editButton]}
             onPress={() => openEditService(item)}
@@ -627,9 +646,9 @@ export default function InventoryScreen() {
           </TouchableOpacity>
         </View>
       </View>
-    );
-  };
-
+    </View>
+  );
+};
   const renderHeader = () => (
     <View>
       {/* Header */}
@@ -1196,6 +1215,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
   },
+  actionButtonsContainer: {
+  flexDirection: 'row',
+  gap: 8,
+},
   priceSection: {
     alignItems: 'flex-end',
   },
@@ -1316,13 +1339,17 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   cardActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    paddingTop: 12,
-  },
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  borderTopWidth: 1,
+  borderTopColor: '#f0f0f0',
+  paddingTop: 12,
+  marginTop: 8,
+},
+dateContainer: {
+  flex: 1,
+},
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',

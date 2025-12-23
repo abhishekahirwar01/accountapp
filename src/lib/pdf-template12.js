@@ -27,6 +27,25 @@ const splitItemsIntoPages = (items, itemsPerPage = ITEMS_PER_PAGE) => {
   return pages;
 };
 
+ const renderNotesHTML = notes => {
+  if (!notes) return '';
+  try {
+    return notes
+      .replace(/\n/g, '<br>')
+      .replace(/<br\s*\/?>/gi, '<br>')
+      .replace(/<p>/gi, '<div style="margin-bottom: 8px;">')
+      .replace(/<\/p>/gi, '</div>')
+      .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
+      .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>')
+      .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
+      .replace(/<ul>/gi, '<ul style="padding-left: 15px;">')
+      .replace(/<li>/gi, '<li style="margin-bottom: 4px;">');
+  } catch (error) {
+    return notes.replace(/\n/g, '<br>');
+  }
+};
+
+
 // --- Main Template Component ---
 const Template12 = ({
   transaction,
@@ -217,7 +236,7 @@ const Template12 = ({
           
           <div class="detail-row">
             <div class="detail-label">Country:</div>
-            <div class="detail-value">${company?.Country || 'India'}</div>
+            <div class="detail-value">${company?.Country }</div>
           </div>
           
           <div class="detail-row">
@@ -736,7 +755,7 @@ const Template12 = ({
         <!-- Notes Section -->
         ${transaction?.notes ? `
           <div class="notes-section">
-            ${transaction.notes.replace(/\n/g, '<br>')}
+            ${renderNotesHTML(transaction.notes)}
           </div>
         ` : ''}
         `
@@ -1123,6 +1142,8 @@ const Template12 = ({
             display: flex;
             justify-content: space-between;
             margin-top: 15px;
+            border-top: 1px solid #2583C6;
+            padding-top: 10px;
           }
           
           .bank-details-column {
@@ -1137,7 +1158,7 @@ const Template12 = ({
           
           .signature-column {
             flex: 1;
-            text-align: left;
+            text-align: center;
             margin-left:80px;
             margin-top:20px;
           }
@@ -1160,11 +1181,12 @@ const Template12 = ({
           
           /* Notes section */
           .notes-section {
-            margin-top: 20px;
+            // margin-top: 8px;
             border-top: 1px solid #2583C6;
             padding-top: 10px;
             font-size: 9px;
             line-height: 1.4;
+            padding-left:10px;
           }
           
           /* Page number - Dynamic */
