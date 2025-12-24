@@ -23,35 +23,18 @@ const ITEMS_PER_PAGE = 18;
 // HTML Notes Rendering Function
 const renderNotesHTML = notes => {
   if (!notes) return '';
-
   try {
-    let formattedNotes = notes
+    return notes
       .replace(/\n/g, '<br>')
       .replace(/<br\s*\/?>/gi, '<br>')
-      .replace(/<p>/gi, '<div style="margin-bottom: 4px;">')
+      .replace(/<p>/gi, '<div style="margin-bottom: 8px;">')
       .replace(/<\/p>/gi, '</div>')
-      .replace(
-        /<b>(.*?)<\/b>/gi,
-        '<strong style="font-weight: bold;">$1</strong>',
-      )
-      .replace(
-        /<strong>(.*?)<\/strong>/gi,
-        '<strong style="font-weight: bold;">$1</strong>',
-      )
-      .replace(/<i>(.*?)<\/i>/gi, '<em style="font-style: italic;">$1</em>')
-      .replace(
-        /<u>(.*?)<\/u>/gi,
-        '<span style="text-decoration: underline;">$1</span>',
-      )
-      .replace(/<ul>/gi, '<div style="padding-left: 10px;">')
-      .replace(/<\/ul>/gi, '</div>')
-      .replace(/<li>/gi, '<div style="margin-bottom: 2px;">• ')
-      .replace(/<\/li>/gi, '</div>')
-      .trim();
-
-    return formattedNotes;
+      .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
+      .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>')
+      .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
+      .replace(/<ul>/gi, '<ul style="padding-left: 15px;">')
+      .replace(/<li>/gi, '<li style="margin-bottom: 4px;">');
   } catch (error) {
-    console.error('Error rendering notes HTML:', error);
     return notes.replace(/\n/g, '<br>');
   }
 };
@@ -114,7 +97,7 @@ const TemplateA5_5 = ({
   } = prepareTemplate8Data(transaction, company, party, shippingAddress);
 
   const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
-  const bankData = bank || {};
+  const bankData = bank || transaction?.bank || {};
 
   // Check if any bank detail is available
   const isBankDetailAvailable =
@@ -469,15 +452,19 @@ const TemplateA5_5 = ({
                 ? `
               <div class="bank-details-box">
                 <div class="bank-title">Bank Details:</div>
-                <div class="bank-grid">
+                <div style="display: flex; flex-deirection: row;">
+                  <div>
                   ${bankData?.bankName ? `<div class="bank-item"><span class="bank-key">Name:</span> <span class="bank-val">${capitalizeWords(bankData.bankName)}</span></div>` : ''}
                   ${bankData?.accountNo ? `<div class="bank-item"><span class="bank-key">Acc. No:</span> <span class="bank-val">${bankData.accountNo}</span></div>` : ''}
                   ${bankData?.ifscCode ? `<div class="bank-item"><span class="bank-key">IFSC:</span> <span class="bank-val">${bankData.ifscCode}</span></div>` : ''}
                   ${bankData?.branchAddress ? `<div class="bank-item"><span class="bank-key">Branch:</span> <span class="bank-val">${bankData.branchAddress}</span></div>` : ''}
                   ${bankData?.upiDetails?.upiId ? `<div class="bank-item"><span class="bank-key">UPI ID:</span> <span class="bank-val">${bankData.upiDetails.upiId}</span></div>` : ''}
-                  ${bankData?.upiDetails?.upName ? `<div class="bank-item"><span class="bank-key">UPI Name:</span> <span class="bank-val">${bankData.upiDetails.upName}</span></div>` : ''}
+                  ${bankData?.upiDetails?.upiName ? `<div class="bank-item"><span class="bank-key">UPI Name:</span> <span class="bank-val">${bankData.upiDetails.upiName}</span></div>` : ''}
                   ${bankData?.upiDetails?.upiMobile ? `<div class="bank-item"><span class="bank-key">UPI Mobile:</span> <span class="bank-val">${bankData.upiDetails.upiMobile}</span></div>` : ''}
-                  ${bankData?.qrCode ? `<div class="bank-item"><span class="bank-key">QR Code:</span> <span class="bank-val">${bankData.qrCode}</span></div>` : ''}
+                  </div>
+
+                
+
                 </div>
               </div>
             `
@@ -873,6 +860,11 @@ const TemplateA5_5 = ({
           .terms-box-bottom {
             font-size: 6px;
             line-height: 1.3;
+            padding-left: 15px;
+            padding-top: 8px;
+            border-top: 1px solid #0371C1;
+            width: 103.8%;
+            margin-left: -6px;
           }
           
           .terms-content {

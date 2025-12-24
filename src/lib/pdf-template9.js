@@ -425,16 +425,16 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
 
   // Column width calculations
   const COL_WIDTH_SR_NO = 30;
-  const COL_WIDTH_NAME = showIGST ? 170 : showCGSTSGST ? 145 : 200;
-  const COL_WIDTH_HSN = showIGST ? 70 : showCGSTSGST ? 50 : 70;
-  const COL_WIDTH_QTY = showIGST ? 55 : showCGSTSGST ? 45 : 65;
-  const COL_WIDTH_RATE = showIGST ? 75 : showCGSTSGST ? 55 : 70;
-  const COL_WIDTH_TAXABLE = showIGST ? 95 : showCGSTSGST ? 85 : 75;
+  const COL_WIDTH_NAME = showIGST ? 170 : showCGSTSGST ? 145 : 220;
+  const COL_WIDTH_HSN = showIGST ? 70 : showCGSTSGST ? 50 : 80;
+  const COL_WIDTH_QTY = showIGST ? 55 : showCGSTSGST ? 45 : 75;
+  const COL_WIDTH_RATE = showIGST ? 75 : showCGSTSGST ? 55 : 85;
+  const COL_WIDTH_TAXABLE = showIGST ? 95 : showCGSTSGST ? 85 : 100;
   const COL_WIDTH_GST_PCT_HALF = 45;
   const COL_WIDTH_GST_AMT_HALF = 70;
   const COL_WIDTH_IGST_PCT = 45;
   const COL_WIDTH_IGST_AMT = 85;
-  const COL_WIDTH_TOTAL = showIGST ? 100 : showCGSTSGST ? 90 : 80;
+  const COL_WIDTH_TOTAL = showIGST ? 100 : showCGSTSGST ? 90 : 130;
 
   const getColWidths = () => {
     let widths = [
@@ -815,9 +815,9 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
       display: flex;
       justify-content: space-between;
       gap: 15px;
-      margin-bottom: 12px;
-      border-top: 1px solid ${BORDER_COLOR};
-      padding-top: 10px;
+      // margin-bottom: 8px;
+      border-top: 1px solid ${TABLE_HEADER_BG};
+      // padding-top: 10px;
     }
     
     .bank-details {
@@ -829,7 +829,7 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
     }
     
     .section-header {
-      font-size: 9px;
+      font-size: 8px;
       font-weight: bold;
       margin-bottom: 6px;
       color: ${PRIMARY_COLOR};
@@ -862,7 +862,7 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
       font-size: 8px;
       font-weight: bold;
       text-align: center;
-      margin-bottom: 10px;
+      // margin-bottom: 10px;
     }
     
     .signature-space {
@@ -881,12 +881,13 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
     
     .notes-section {
       padding: 10px;
-    //   border: 1px solid ${BORDER_COLOR};
-      border-radius: 4px;
+      border-top: 1px solid ${TABLE_HEADER_BG};
+      // border-radius: 4px;
     //   background-color: #fffbeb;
       margin-bottom: 12px;
       font-size: 7.5px;
       line-height: 1.4;
+      padding-left: 15px;
     }
     
     .page-footer {

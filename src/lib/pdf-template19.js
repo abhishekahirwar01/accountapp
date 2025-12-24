@@ -63,13 +63,16 @@ const renderNotesHTML = notes => {
   if (!notes) return '';
   try {
     return notes
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
       .replace(/\n/g, '<br>')
       .replace(/<br\s*\/?>/gi, '<br>')
-      .replace(/<[^>]+>/g, '');
+      .replace(/<p>/gi, '<div style="margin-bottom: 8px;">')
+      .replace(/<\/p>/gi, '</div>')
+      .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
+      .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>')
+      .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
+      .replace(/<ul>/gi, '<ul style="padding-left: 15px;">')
+      .replace(/<li>/gi, '<li style="margin-bottom: 4px;">');
   } catch (error) {
-    console.error('Error rendering notes HTML:', error);
     return notes.replace(/\n/g, '<br>');
   }
 };
@@ -192,12 +195,12 @@ const generatePageHTML = (
       <div class="page-header">
         <div class="title">${escapeHtml(title)}</div>
         <div class="company-name">${escapeHtml(invoiceData.company.name)}</div>
-        ${invoiceData.company.gstin !== '-' ? `<div class="company-details"><span class="label">GSTIN: </span>${escapeHtml(invoiceData.company.gstin)}</div>` : ''}
+       <div class="company-details"><span class="label">GSTIN: </span>${escapeHtml(invoiceData.company.gstin)}</div>
         <div class="company-details">${escapeHtml(invoiceData.company.address)}</div>
-        ${invoiceData.company.city !== '-' && invoiceData.company.city !== '' ? `<div class="company-details">${escapeHtml(invoiceData.company.city)}</div>` : ''}
+         <div class="company-details">${escapeHtml(invoiceData.company.city)}</div>
         ${invoiceData.company.pan !== '-' ? `<div class="company-details"><span class="label">PAN: </span>${escapeHtml(invoiceData.company.pan)}</div>` : ''}
-        ${invoiceData.company.phone !== '-' ? `<div class="company-details"><span class="label">Phone: </span>${safeFormatPhoneNumber(invoiceData.company.phone)}</div>` : ''}
-        ${invoiceData.company.state !== '-' ? `<div class="company-details"><span class="label">State: </span>${escapeHtml(invoiceData.company.state)}</div>` : ''}
+        <div class="company-details"><span class="label">Phone: </span>${safeFormatPhoneNumber(invoiceData.company.phone)}</div>
+        <div class="company-details"><span class="label">State: </span>${escapeHtml(invoiceData.company.state)}</div>
         <div class="separator"></div>
         
         <!-- Customer and Meta Block -->
@@ -207,8 +210,8 @@ const generatePageHTML = (
             <div class="customer-name">${escapeHtml(invoiceData.invoiceTo.name)}</div>
             <div class="address">${escapeHtml(invoiceData.invoiceTo.billingAddress)}</div>
             <div class="address"><span class="label">Phone No: </span>${safeFormatPhoneNumber(party?.contactNumber || party?.phone || party?.mobileNumber || '-')}</div>
-            ${invoiceData.invoiceTo.gstin !== '-' ? `<div class="address"><span class="label">GSTIN: </span>${escapeHtml(invoiceData.invoiceTo.gstin)}</div>` : ''}
-            ${invoiceData.invoiceTo.pan !== '-' ? `<div class="address"><span class="label">PAN: </span>${escapeHtml(invoiceData.invoiceTo.pan)}</div>` : ''}
+            <div class="address"><span class="label">GSTIN: </span>${escapeHtml(invoiceData.invoiceTo.gstin)}</div>
+            <div class="address"><span class="label">PAN: </span>${escapeHtml(invoiceData.invoiceTo.pan)}</div>
             <div class="address"><span class="label">Place of Supply: </span>${escapeHtml(placeOfSupply)}</div>
             
             <div class="section-title" style="margin-top: 12px;">Details of Consignee | Shipped to :</div>
@@ -216,7 +219,7 @@ const generatePageHTML = (
             <div class="address">${escapeHtml(invoiceData.shippingAddress.address)}</div>
             <div class="address"><span class="label">Phone No: </span>${safeFormatPhoneNumber(shippingPhone)}</div>
             <div class="address"><span class="label">GSTIN: </span>${escapeHtml(shippingGSTIN)}</div>
-            ${invoiceData.shippingAddress.state !== '-' ? `<div class="address"><span class="label">State: </span>${escapeHtml(invoiceData.shippingAddress.state)}</div>` : ''}
+            <div class="address"><span class="label">State: </span>${escapeHtml(invoiceData.shippingAddress.state)}</div>
           </div>
           
           <div class="meta-details">
@@ -280,9 +283,14 @@ const generatePageHTML = (
           <div class="bank-title">Bank Details:</div>
           ${bank ? `
             ${bank.bankName ? `<div class="bank-text">Bank Name: ${escapeHtml(bank.bankName)}</div>` : ''}
+             ${bank.accountNumber || bank.accountNo ? `<div class="bank-text">Acc. Number: ${escapeHtml(bank.accountNumber || bank.accountNo || '-')}</div>` : ''}
+              ${bank.ifscCode ? `<div class="bank-text">IFSC: ${escapeHtml(bank.ifscCode)}</div>` : ''}
             ${bank.branchName || bank.branchAddress ? `<div class="bank-text">Branch: ${escapeHtml(bank.branchName || bank.branchAddress || '-')}</div>` : ''}
-            ${bank.ifscCode ? `<div class="bank-text">IFSC: ${escapeHtml(bank.ifscCode)}</div>` : ''}
-            ${bank.accountNumber || bank.accountNo ? `<div class="bank-text">Acc. Number: ${escapeHtml(bank.accountNumber || bank.accountNo || '-')}</div>` : ''}
+            ${bank?.upiDetails?.upiId? `<div class="bank-text">UPI ID: ${escapeHtml(bank.upiDetails.upiId)}</div>` : ''}
+            ${bank?.upiDetails?.upiName? `<div class="bank-text">UPI Name: ${escapeHtml(bank.upiDetails.upiName)}</div>` : ''}
+            ${bank?.upiDetails?.upiMobile? `<div class="bank-text">UPI Mobile: ${escapeHtml(bank.upiDetails.upiMobile)}</div>` : ''}
+           
+           
           ` : `<div class="bank-text">No bank details available</div>`}
         </div>
         
@@ -686,7 +694,7 @@ const Template19 = ({
     }
     
     .amount-in-words {
-      margin: 20px 0 15px 0;
+      margin: 20px 0 5px 0;
       clear: both;
       page-break-inside: avoid;
     }
@@ -700,13 +708,13 @@ const Template19 = ({
     .amount-words {
       font-size: 8px;
       line-height: 1.2;
-      padding: 5px;
-      border: 0.5px solid ${BORDER};
-      background-color: #f9f9f9;
+      // padding: 5px;
+      // border: 0.5px solid ${BORDER};
+      // background-color: #f9f9f9;
     }
     
     .footer {
-      margin-top: 20px;
+      // margin-top: 20px;
       display: flex;
       justify-content: space-between;
       page-break-inside: avoid;
@@ -741,8 +749,11 @@ const Template19 = ({
     }
     
     .terms {
-      margin-top: 30px;
+      margin-top: 8px;
       page-break-inside: avoid;
+      border-top: 1px solid ${BLUE};
+      padding-top: 10px;
+      padding-left: 10px;
     }
     
     .terms-title {

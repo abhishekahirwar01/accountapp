@@ -18,6 +18,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { State, City } from 'country-state-city';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL as baseURL } from '../../config';
+import CustomDropdown from '../../components/ui/CustomDropdown';
+
 
 const gstRegistrationTypes = [
   'Regular',
@@ -88,7 +90,7 @@ const formSchema = z
     }
   });
 
-// Searchable Picker Component
+// Searchable Picker Component (for state and city)
 export const SearchablePicker = ({
   visible,
   onClose,
@@ -172,6 +174,15 @@ export function CustomerForm({
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [stateCode]);
 
+  const gstTypeOptions = useMemo(
+    () =>
+      gstRegistrationTypes.map(type => ({
+        value: type,
+        label: type,
+      })),
+    [],
+  );
+
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -254,16 +265,19 @@ export function CustomerForm({
   };
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
     >
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={true}
         keyboardShouldPersistTaps="handled"
+        bounces={true}
       >
-        {/* Header Section - Yeh bhi scroll hoga */}
+        {/* Header Section */}
         {!hideHeader && (
           <View style={styles.header}>
             <Text style={styles.headerTitle}>
@@ -464,41 +478,24 @@ export function CustomerForm({
             )}
           />
 
-          {/* GST Registration Type */}
+          {/* GST Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>GST Details</Text>
+
+            {/* GST Registration Type Dropdown */}
             <Controller
               control={form.control}
               name="gstRegistrationType"
               render={({ field }) => (
                 <View style={styles.field}>
-                  <Text style={styles.label}>GST Registration Type</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.optionScroll}
-                  >
-                    {gstRegistrationTypes.map(type => (
-                      <TouchableOpacity
-                        key={type}
-                        onPress={() => field.onChange(type)}
-                        style={[
-                          styles.optionButton,
-                          field.value === type && styles.optionSelected,
-                        ]}
-                      >
-                        <Text
-                          style={
-                            field.value === type
-                              ? styles.optionTextSelected
-                              : styles.optionText
-                          }
-                        >
-                          {type}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                  <Text style={styles.label}>GST Registration Type *</Text>
+                  <CustomDropdown
+                    items={gstTypeOptions}
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="Select GST Registration Type"
+                    style={styles.customDropdown}
+                  />
                 </View>
               )}
             />
@@ -567,16 +564,42 @@ export function CustomerForm({
               control={form.control}
               name="isTDSApplicable"
               render={({ field }) => (
-                <View style={styles.fieldRow}>
+                <View style={styles.field}>
                   <Text style={styles.label}>TDS Applicable?</Text>
-                  <TouchableOpacity
-                    onPress={() => field.onChange(!field.value)}
-                    style={[styles.switch, field.value && styles.switchActive]}
-                  >
-                    <Text style={styles.switchText}>
-                      {field.value ? 'Yes' : 'No'}
-                    </Text>
-                  </TouchableOpacity>
+                  <View style={styles.switchContainer}>
+                    <TouchableOpacity
+                      onPress={() => field.onChange(true)}
+                      style={[
+                        styles.switchButton,
+                        field.value === true && styles.switchActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.switchButtonText,
+                          field.value === true && styles.switchActiveText,
+                        ]}
+                      >
+                        Yes
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => field.onChange(false)}
+                      style={[
+                        styles.switchButton,
+                        field.value === false && styles.switchInactive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.switchButtonText,
+                          field.value === false && styles.switchInactiveText,
+                        ]}
+                      >
+                        No
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               )}
             />
@@ -640,16 +663,20 @@ export function CustomerForm({
           </TouchableOpacity>
 
           {/* Extra space for better scrolling */}
-          <View style={styles.bottomSpace} />
+          
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  scrollView: {
+    flex: 1,
+  },
   scrollContainer: {
     flexGrow: 1,
+    paddingBottom: 30,
   },
   header: {
     backgroundColor: '#fff',
@@ -728,59 +755,55 @@ const styles = StyleSheet.create({
   dropdownText: {
     fontSize: 16,
     color: '#999',
+    flex: 1,
   },
   dropdownTextSelected: {
     fontSize: 16,
     color: '#333',
+    flex: 1,
   },
   dropdownArrow: {
     color: '#666',
     fontSize: 12,
+    marginLeft: 8,
+  },
+  customDropdown: {
+    marginBottom: 0,
   },
   error: {
     color: '#ff3b30',
     fontSize: 14,
     marginTop: 5,
   },
-  optionScroll: {
-    marginHorizontal: -5,
-    marginBottom: 10,
-  },
-  optionButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+  switchContainer: {
+    flexDirection: 'row',
     borderWidth: 1,
     borderColor: '#ddd',
-    marginRight: 8,
-    marginBottom: 8,
+    borderRadius: 8,
+    overflow: 'hidden',
   },
-  optionSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
-  optionText: {
-    color: '#333',
-    fontSize: 14,
-  },
-  optionTextSelected: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  switch: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#ddd',
+  switchButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
   },
   switchActive: {
     backgroundColor: '#007AFF',
   },
-  switchText: {
-    color: 'white',
-    fontWeight: '500',
+  switchInactive: {
+    backgroundColor: '#dc2626',
+  },
+  switchButtonText: {
     fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+  },
+  switchActiveText: {
+    color: '#fff',
+  },
+  switchInactiveText: {
+    color: '#fff',
   },
   tdsContainer: {
     borderWidth: 1,
@@ -806,9 +829,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  bottomSpace: {
-    height: 50,
-  },
+  
   // Modal Styles
   modalContainer: {
     flex: 1,

@@ -384,7 +384,10 @@ const TemplateA5_4 = ({
           
           ${transaction.type !== 'proforma' && isBankDetailAvailable && !shouldHideBankDetails ? `
             <div class="bank-details">
+            
               <div class="bold mb-2">Bank Details:</div>
+              <div style="flex-direction: row; display: flex; ">
+              <div>
               ${bankData.bankName ? `<div class="bank-row"><div class="bank-label">Name:</div><div>${capitalizeWords(bankData.bankName)}</div></div>` : ''}
               ${bankData.branchAddress ? `<div class="bank-row"><div class="bank-label">Branch:</div><div>${bankData.branchAddress}</div></div>` : ''}
               ${bankData.accountNo ? `<div class="bank-row"><div class="bank-label">Acc. No:</div><div>${bankData.accountNo}</div></div>` : ''}
@@ -392,7 +395,11 @@ const TemplateA5_4 = ({
               ${bankData.upiDetails?.upiId ? `<div class="bank-row"><div class="bank-label">UPI ID:</div><div>${bankData.upiDetails.upiId}</div></div>` : ''}
               ${bankData.upiDetails?.upiName ? `<div class="bank-row"><div class="bank-label">UPI Name:</div><div>${bankData.upiDetails.upiName}</div></div>` : ''}
               ${bankData.upiDetails?.upiMobile ? `<div class="bank-row"><div class="bank-label">UPI Mobile:</div><div>${bankData.upiDetails.upiMobile}</div></div>` : ''}
-              ${bankData.qrCode ? `<div style="text-align: center; margin-top: 5px;"><div class="bold mb-2">QR Code</div><img src="${BASE_URL}${bankData.qrCode}" class="qr-code" /></div>` : ''}
+              </div>
+              <div style="margin-left: auto; margin-right: 5px; margin-top: -10px;">
+              ${bankData.qrCode ? `<div style="text-align: center; "><div class="bold ">QR Code</div><img src="${BASE_URL}${bankData.qrCode}" class="qr-code" /></div>` : ''}
+              </div>
+              </div>
             </div>
           ` : ''}
         </div>
@@ -439,7 +446,7 @@ const TemplateA5_4 = ({
       .bank-row { display: flex; margin-bottom: 1px; }
       .bank-label { width: 60px; font-weight: bold; flex-shrink: 0; }
       .qr-code { width: 70px; height: 70px; object-fit: contain; }
-      .terms-box { border: 1px solid #0371C1; border-top: none; padding: 5px; font-size: 7px; line-height: 1.2; margin-bottom: 10px; }
+      .terms-box { border: 1px solid #0371C1; border-top: none; padding: 5px; font-size: 7px; line-height: 1.2; margin-bottom: 10px; padding-left: 15px; }
       .page-number { position: absolute;  margin-top: 20px; right: 10px; font-size: 7px; text-align: right; }
       .bold { font-weight: bold; }
       .mb-2 { margin-bottom: 2px; }

@@ -1053,37 +1053,7 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
       overflow-wrap: break-word;
     }
     
-    .terms-content strong {
-      font-weight: bold;
-    }
-    
-    .terms-content em {
-      font-style: italic;
-    }
-    
-    .terms-content u {
-      text-decoration: underline;
-    }
-    
-    .terms-content div {
-      margin-bottom: 6px;
-    }
-    
-    .terms-content br {
-      display: block;
-      content: "";
-      margin-bottom: 4px;
-    }
-    
-    .terms-content ul {
-      padding-left: 15px;
-      margin-bottom: 8px;
-    }
-    
-    .terms-content li {
-      margin-bottom: 4px;
-      list-style-type: disc;
-    }
+   
     
     .page-number {
       position: absolute;
