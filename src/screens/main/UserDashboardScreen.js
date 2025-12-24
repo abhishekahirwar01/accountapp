@@ -328,14 +328,14 @@ export default function UserDashboardScreen({ navigation, route }) {
 
           {companies.length > 0 && (
             <View style={styles.headerActions}>
-              <TouchableOpacity
+              {/* <TouchableOpacity
                 onPress={handleSettingsPress}
                 style={[styles.btn, styles.btnOutline]}
                 activeOpacity={0.85}
               >
                 <Settings size={16} style={{ marginRight: 8 }} />
                 <Text>Settings</Text>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
 
               {isAdmin && (
                 <TouchableOpacity
