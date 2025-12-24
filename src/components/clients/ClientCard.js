@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useNavigation } from '@react-navigation/native';
@@ -12,6 +12,7 @@ import {
   Edit,
   Trash2,
 } from 'lucide-react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useToast } from '../hooks/useToast';
 import { BASE_URL } from '../../config';
 
@@ -21,6 +22,7 @@ export default function ClientCard({
   onDelete,
   copyToClipboard,
 }) {
+  const [copied, setCopied] = useState(false);
   const { toast } = useToast();
   const navigation = useNavigation();
 
@@ -48,6 +50,9 @@ export default function ClientCard({
     const url = getAppLoginUrl(client.slug);
     try {
       await Clipboard.setString(url);
+      // show temporary UI feedback like in HistoryScreen
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
       toast({
         title: 'Copied',
         description: 'Login URL copied to clipboard!',
@@ -131,8 +136,14 @@ export default function ClientCard({
                 style={styles.copyButton}
                 onPress={handleCopyUrl}
               >
-                <Copy size={14} color="#666" />
-                <Text style={styles.copyText}>Copy</Text>
+                <Icon
+                  name={copied ? 'check' : 'content-copy'}
+                  size={14}
+                  color="#666"
+                />
+                <Text style={styles.copyText}>
+                  {copied ? 'Copied' : 'Copy'}
+                </Text>
               </TouchableOpacity>
             ) : (
               <Text style={styles.notSet}>Not set</Text>

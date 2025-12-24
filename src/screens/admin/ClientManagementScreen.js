@@ -544,12 +544,12 @@ export default function ClientManagementPage() {
               </TouchableOpacity>
             )}
           </View>
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={styles.clearButton}
             onPress={handleClearFilters}
           >
             <Text style={styles.clearButtonText}>Clear</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
       </SafeAreaView>
     </Animated.View>
