@@ -55,6 +55,7 @@ export function VendorSettings() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [openDropdownId, setOpenDropdownId] = useState(null);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -68,7 +69,6 @@ export function VendorSettings() {
   const canCreateVendors = !!userCaps?.canCreateVendors || isCustomer;
 
   useEffect(() => {
-    // Get role from AsyncStorage
     const getRole = async () => {
       try {
         const storedRole = await AsyncStorage.getItem('role');
@@ -146,11 +146,13 @@ export function VendorSettings() {
   const handleOpenForm = (vendor = null) => {
     setSelectedVendor(vendor);
     setIsFormOpen(true);
+    setOpenDropdownId(null);
   };
 
   const handleOpenDeleteDialog = vendor => {
     setVendorToDelete(vendor);
     setIsAlertOpen(true);
+    setOpenDropdownId(null);
   };
 
   const handleFormSuccess = () => {
@@ -196,13 +198,15 @@ export function VendorSettings() {
     }
   };
 
-  // Excel Import Functions
+  const toggleDropdown = (vendorId) => {
+    setOpenDropdownId(openDropdownId === vendorId ? null : vendorId);
+  };
+
   const handleImportClick = () => {
     setIsImportDialogOpen(true);
   };
 
   const pickFileForImport = async () => {
-    // Resolve pick function dynamically to support multiple export shapes
     let pickFn = null;
 
     if (DocumentPicker) {
@@ -287,7 +291,6 @@ export function VendorSettings() {
         err?.code === 'DOCUMENT_PICKER_CANCELED' ||
         /cancel/i.test(String(msg))
       ) {
-        // user cancelled - ignore
         return;
       }
 
@@ -309,7 +312,6 @@ export function VendorSettings() {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
 
-      // Create FormData for upload
       const formData = new FormData();
       formData.append('file', {
         uri: file.uri,
@@ -350,7 +352,6 @@ export function VendorSettings() {
         text2: description,
       });
 
-      // Fallback alert in case Toast is not visible
       try {
         if (data.importedCount > 0) {
           Alert.alert('Import Completed', description);
@@ -362,8 +363,6 @@ export function VendorSettings() {
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
 
-      // If server returned a file-format instruction like "Please upload a CSV file",
-      // show a friendly, actionable message to the user instead of the raw server text.
       if (
         /csv/i.test(errMsg) &&
         /(please upload|upload a|only support|invalid file)/i.test(errMsg)
@@ -390,7 +389,6 @@ export function VendorSettings() {
   };
 
   const downloadTemplate = () => {
-    // Define CSV headers
     const headers = [
       'Vendor Name',
       'Contact Number',
@@ -405,7 +403,6 @@ export function VendorSettings() {
       'TDS Section',
     ];
 
-    // Define sample data rows
     const sampleRows = [
       [
         'ABC Suppliers',
@@ -448,11 +445,9 @@ export function VendorSettings() {
       ],
     ];
 
-    // Build CSV content with proper formatting
     const buildCSVRow = row => {
       return row
         .map(field => {
-          // Escape fields that contain commas, quotes, or newlines
           if (
             field.includes(',') ||
             field.includes('"') ||
@@ -468,15 +463,12 @@ export function VendorSettings() {
     let csvContent = buildCSVRow(headers) + '\r\n';
     csvContent += sampleRows.map(buildCSVRow).join('\r\n');
 
-    // Create Excel workbook using xlsx library
     const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Vendor Template');
 
-    // Generate Excel file
     const excelBuffer = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
 
-    // Save to device
     const filePath = `${RNFS.DownloadDirectoryPath}/vendor_import_template.xlsx`;
 
     RNFS.writeFile(filePath, excelBuffer, 'base64')
@@ -506,13 +498,11 @@ export function VendorSettings() {
       });
   };
 
-  // Pagination Logic
   const indexOfLastVendor = currentPage * vendorsPerPage;
   const indexOfFirstVendor = indexOfLastVendor - vendorsPerPage;
   const currentVendors = vendors.slice(indexOfFirstVendor, indexOfLastVendor);
   const totalPages = Math.ceil(vendors.length / vendorsPerPage);
 
-  // Loading state
   if (isLoadingCompanies) {
     return (
       <SafeAreaView style={styles.container}>
@@ -567,7 +557,6 @@ export function VendorSettings() {
           </View>
         ) : (
           <View style={styles.contentContainer}>
-            {/* Header */}
             <View style={styles.header}>
               <View style={styles.headerText}>
                 <Text style={styles.title}>Manage Vendors</Text>
@@ -575,29 +564,8 @@ export function VendorSettings() {
                   A list of all your vendors and suppliers.
                 </Text>
               </View>
-
-              {canCreateVendors && (
-                <View style={styles.headerButtons}>
-                  <TouchableOpacity
-                    style={styles.primaryButton}
-                    onPress={() => handleOpenForm()}
-                  >
-                    <PlusCircle size={20} color="#fff" />
-                    <Text style={styles.buttonText}>Add Vendor</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.outlineButton}
-                    onPress={handleImportClick}
-                  >
-                    <Upload size={20} color="#3b82f6" />
-                    <Text style={styles.outlineButtonText}>Import Vendors</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
             </View>
 
-            {/* Main Content */}
             {isLoading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#3b82f6" />
@@ -613,11 +581,9 @@ export function VendorSettings() {
               </View>
             ) : vendors.length > 0 && canShowVendors ? (
               <>
-                {/* Vendor List */}
                 <View style={styles.vendorList}>
                   {currentVendors.map(vendor => (
                     <View key={vendor._id} style={styles.vendorCard}>
-                      {/* Vendor Header */}
                       <View style={styles.vendorHeader}>
                         <View style={styles.vendorInfo}>
                           <Text style={styles.vendorName}>
@@ -652,29 +618,38 @@ export function VendorSettings() {
                           </View>
                         </View>
 
-                        {/* Actions Menu */}
-                        <TouchableOpacity
-                          style={styles.menuButton}
-                          onPress={() => {
-                            Alert.alert('Actions', 'Choose an action', [
-                              {
-                                text: 'Edit',
-                                onPress: () => handleOpenForm(vendor),
-                              },
-                              {
-                                text: 'Delete',
-                                onPress: () => handleOpenDeleteDialog(vendor),
-                                style: 'destructive',
-                              },
-                              { text: 'Cancel', style: 'cancel' },
-                            ]);
-                          }}
-                        >
-                          <MoreHorizontal size={20} color="#6b7280" />
-                        </TouchableOpacity>
+                        <View style={styles.dropdownContainer}>
+                          <TouchableOpacity
+                            style={styles.menuButton}
+                            onPress={() => toggleDropdown(vendor._id)}
+                          >
+                            <MoreHorizontal size={20} color="#6b7280" />
+                          </TouchableOpacity>
+
+                          {openDropdownId === vendor._id && (
+                            <View style={styles.dropdown}>
+                              <TouchableOpacity
+                                style={styles.dropdownItem}
+                                onPress={() => handleOpenForm(vendor)}
+                              >
+                                <Edit size={16} color="#3b82f6" />
+                                <Text style={styles.dropdownItemText}>Edit</Text>
+                              </TouchableOpacity>
+                              <View style={styles.dropdownDivider} />
+                              <TouchableOpacity
+                                style={[styles.dropdownItem, styles.dropdownItemDanger]}
+                                onPress={() => handleOpenDeleteDialog(vendor)}
+                              >
+                                <Trash2 size={16} color="#ef4444" />
+                                <Text style={[styles.dropdownItemText, styles.dropdownItemTextDanger]}>
+                                  Delete
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </View>
                       </View>
 
-                      {/* Contact Info */}
                       {(vendor.contactNumber || vendor.email) && (
                         <View style={styles.contactSection}>
                           {vendor.contactNumber && (
@@ -696,7 +671,6 @@ export function VendorSettings() {
                         </View>
                       )}
 
-                      {/* Address */}
                       {(vendor.address || vendor.city || vendor.state) && (
                         <View style={styles.addressSection}>
                           <MapPin size={16} color="#10b981" />
@@ -717,7 +691,6 @@ export function VendorSettings() {
                         </View>
                       )}
 
-                      {/* Tax Information */}
                       {(vendor.gstin || vendor.pan) && (
                         <View style={styles.taxSection}>
                           <Text style={styles.sectionTitle}>
@@ -742,7 +715,6 @@ export function VendorSettings() {
                         </View>
                       )}
 
-                      {/* TDS Section */}
                       {vendor.isTDSApplicable && vendor.tdsSection && (
                         <View style={styles.tdsSection}>
                           <Percent size={16} color="#10b981" />
@@ -755,7 +727,6 @@ export function VendorSettings() {
                   ))}
                 </View>
 
-                {/* Pagination */}
                 {totalPages > 1 && (
                   <View style={styles.pagination}>
                     <TouchableOpacity
@@ -857,7 +828,6 @@ export function VendorSettings() {
         )}
       </ScrollView>
 
-      {/* Vendor Form Modal */}
       <Modal
         visible={isFormOpen}
         animationType="slide"
@@ -866,7 +836,7 @@ export function VendorSettings() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
+            {/* <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {selectedVendor ? 'Edit Vendor' : 'Create New Vendor'}
               </Text>
@@ -875,19 +845,18 @@ export function VendorSettings() {
                   ? 'Update the details for this vendor.'
                   : 'Fill in the form to add a new vendor.'}
               </Text>
-            </View>
+            </View> */}
             <ScrollView style={styles.modalContent}>
               <VendorForm
                 vendor={selectedVendor || undefined}
                 onSuccess={handleFormSuccess}
-                onCancel={() => setIsFormOpen(false)}
+                onCancel={() => setIsFormOpen(false)} 
               />
             </ScrollView>
           </View>
         </View>
       </Modal>
 
-      {/* Import Dialog Modal */}
       <Modal
         visible={isImportDialogOpen}
         animationType="fade"
@@ -937,7 +906,6 @@ export function VendorSettings() {
         </View>
       </Modal>
 
-      {/* Delete Confirmation Alert */}
       <Modal visible={isAlertOpen} animationType="fade" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.alertModalContainer}>
@@ -1074,10 +1042,11 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   header: {
-    marginBottom: 24,
+    textAlign: 'center',
   },
   headerText: {
     marginBottom: 16,
+    textAlign: 'center',
   },
   title: {
     fontSize: 24,
@@ -1089,11 +1058,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     lineHeight: 20,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
   },
   primaryButton: {
     flexDirection: 'row',
@@ -1210,8 +1174,49 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '500',
   },
+  dropdownContainer: {
+    position: 'relative',
+  },
   menuButton: {
     padding: 4,
+  },
+  dropdown: {
+    position: 'absolute',
+    top: 32,
+    right: 0,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    minWidth: 140,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 1000,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: '#1f2937',
+    fontWeight: '500',
+  },
+  dropdownItemDanger: {
+    backgroundColor: '#fef2f2',
+  },
+  dropdownItemTextDanger: {
+    color: '#ef4444',
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
   },
   contactSection: {
     gap: 8,
@@ -1419,10 +1424,6 @@ const styles = StyleSheet.create({
     color: '#4b5563',
     marginTop: 8,
     marginBottom: 4,
-  },
-  importBoxSubtext: {
-    fontSize: 12,
-    color: '#9ca3af',
   },
   templateButton: {
     flexDirection: 'row',

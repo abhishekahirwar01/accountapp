@@ -18,6 +18,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { State, City } from 'country-state-city';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from '../../config';
+import CustomDropdown from '../../components/ui/CustomDropdown'; // Import the custom dropdown
 
 // --- Toast Modal Component ---
 const ToastModal = ({ visible, type, title, message, onClose }) => {
@@ -518,39 +519,25 @@ export function VendorForm({
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>GST Details</Text>
 
-              {/* GST Registration Type */}
+              {/* GST Registration Type - UPDATED WITH CUSTOM DROPDOWN */}
               <Controller
                 control={control}
                 name="gstRegistrationType"
-                render={({ field }) => (
+                render={({ field, fieldState }) => (
                   <View style={styles.field}>
                     <Text style={styles.label}>GST Registration Type</Text>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      style={styles.optionScroll}
-                    >
-                      {gstRegistrationTypes.map(type => (
-                        <TouchableOpacity
-                          key={type}
-                          onPress={() => field.onChange(type)}
-                          style={[
-                            styles.optionButton,
-                            field.value === type && styles.optionSelected,
-                          ]}
-                        >
-                          <Text
-                            style={
-                              field.value === type
-                                ? styles.optionTextSelected
-                                : styles.optionText
-                            }
-                          >
-                            {type}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
+                    <CustomDropdown
+                      items={gstRegistrationTypes.map(type => ({
+                        value: type,
+                        label: type
+                      }))}
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Select registration type"
+                    />
+                    {fieldState.error && (
+                      <Text style={styles.error}>{fieldState.error.message}</Text>
+                    )}
                   </View>
                 )}
               />
@@ -619,70 +606,102 @@ export function VendorForm({
             </View>
 
             {/* TDS Section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>TDS Details</Text>
+            {/* TDS Section */}
+<View style={styles.section}>
+  <Text style={styles.sectionTitle}>TDS Details</Text>
 
-              {/* TDS Applicable */}
-              <Controller
-                control={control}
-                name="isTDSApplicable"
-                render={({ field }) => (
-                  <View style={styles.fieldRow}>
-                    <Text style={styles.label}>TDS Applicable?</Text>
-                    <TouchableOpacity
-                      onPress={() => field.onChange(!field.value)}
-                      style={[
-                        styles.switch,
-                        field.value && styles.switchActive,
-                      ]}
-                    >
-                      <Text style={styles.switchText}>
-                        {field.value ? 'Yes' : 'No'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              />
+  {/* TDS Applicable */}
+  <View style={styles.field}>
+    <Text style={styles.label}>TDS Applicable?</Text>
+    <View style={styles.tdsOptionsContainer}>
+      <Controller
+        control={control}
+        name="isTDSApplicable"
+        render={({ field }) => (
+          <>
+            <TouchableOpacity
+              onPress={() => field.onChange(true)}
+              style={[
+                styles.tdsOption,
+                field.value === true && styles.tdsOptionSelected,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tdsOptionText,
+                  field.value === true && styles.tdsOptionTextSelected,
+                ]}
+              >
+                Yes
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => field.onChange(false)}
+              style={[
+                styles.tdsOption,
+                field.value === false && styles.tdsOptionSelected,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tdsOptionText,
+                  field.value === false && styles.tdsOptionTextSelected,
+                ]}
+              >
+                No
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
+      />
+    </View>
+  </View>
 
-              {/* TDS Details (Conditional) */}
-              {isTDSApplicable && (
-                <View style={styles.tdsContainer}>
-                  <Controller
-                    control={control}
-                    name="tdsRate"
-                    render={({ field }) => (
-                      <View style={styles.field}>
-                        <Text style={styles.label}>TDS Rate (%)</Text>
-                        <TextInput
-                          style={styles.input}
-                          placeholder="10"
-                          keyboardType="numeric"
-                          value={String(field.value || '')}
-                          onChangeText={val =>
-                            field.onChange(val ? Number(val) : '')
-                          }
-                        />
-                      </View>
-                    )}
-                  />
-                  <Controller
-                    control={control}
-                    name="tdsSection"
-                    render={({ field }) => (
-                      <View style={styles.field}>
-                        <Text style={styles.label}>TDS Section</Text>
-                        <TextInput
-                          style={styles.input}
-                          placeholder="194J"
-                          value={field.value}
-                          onChangeText={field.onChange}
-                        />
-                      </View>
-                    )}
-                  />
-                </View>
-              )}
-            </View>
+  {/* TDS Details (Conditional) */}
+  {isTDSApplicable && (
+    <View style={styles.tdsDetailsContainer}>
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Controller
+            control={control}
+            name="tdsRate"
+            render={({ field }) => (
+              <View style={styles.field}>
+                <Text style={styles.label}>TDS Rate (%)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="10"
+                  keyboardType="numeric"
+                  value={String(field.value || '')}
+                  onChangeText={val =>
+                    field.onChange(val ? Number(val) : '')
+                  }
+                />
+              </View>
+            )}
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Controller
+            control={control}
+            name="tdsSection"
+            render={({ field }) => (
+              <View style={styles.field}>
+                <Text style={styles.label}>TDS Section</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="194J"
+                  value={field.value}
+                  onChangeText={field.onChange}
+                />
+              </View>
+            )}
+          />
+        </View>
+      </View>
+    </View>
+  )}
+</View>
 
             {/* Submit Button */}
             <TouchableOpacity
@@ -703,7 +722,7 @@ export function VendorForm({
             </TouchableOpacity>
 
             {/* Extra space for better scrolling */}
-            <View style={styles.bottomSpace} />
+            
           </View>
         </ScrollView>
       </View>
@@ -806,6 +825,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 5,
   },
+  // Remove the old option styles since we're not using horizontal scroll anymore
   optionScroll: {
     marginHorizontal: -5,
     marginBottom: 10,
@@ -859,7 +879,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 20,
+    // marginTop: 20,
     marginBottom: 10,
   },
   submitButtonDisabled: {
@@ -870,9 +890,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  bottomSpace: {
-    height: 50,
-  },
+ 
   // Toast Styles
   toastOverlay: {
     flex: 1,
@@ -955,5 +973,39 @@ const styles = StyleSheet.create({
     padding: 20,
     color: '#999',
     fontSize: 16,
+  },
+  tdsOptionsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+   tdsOption: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  tdsOptionSelected: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  tdsOptionText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+  tdsOptionTextSelected: {
+    color: '#fff',
+  },
+  tdsDetailsContainer: {
+    borderWidth: 1,
+    borderColor: '#eee',
+    borderRadius: 8,
+    padding: 16,
+    backgroundColor: '#fff',
+    marginTop: 10,
   },
 });

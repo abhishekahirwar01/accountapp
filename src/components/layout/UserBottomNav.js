@@ -4,11 +4,9 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Modal,
   ActivityIndicator,
   ScrollView,
   Dimensions,
-  Pressable,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -19,62 +17,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const { width } = Dimensions.get('window');
 const isMobile = width < 768;
 
-// More Menu Component
-const MoreMenu = ({ visible, onClose, navigation, onLogout }) => (
-  <Modal
-    visible={visible}
-    transparent
-    animationType="slide"
-    onRequestClose={onClose}
-  >
-    <Pressable style={styles.modalOverlay} onPress={onClose}>
-      <View style={styles.modalContent}>
-        <TouchableOpacity
-          style={styles.modalButton}
-          onPress={() => {
-            onClose();
-            navigation.navigate('Profile');
-          }}
-        >
-          <Ionicons name="person-outline" size={20} color="#333" />
-          <Text style={styles.modalButtonText}>View Profile</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.modalButton}
-          onPress={() => {
-            onClose();
-            navigation.navigate('Settings');
-          }}
-        >
-          <Ionicons name="settings-outline" size={20} color="#333" />
-          <Text style={styles.modalButtonText}>Settings</Text>
-        </TouchableOpacity>
-
-        <View style={styles.modalDivider} />
-
-        <TouchableOpacity
-          style={[styles.modalButton, styles.logoutModalButton]}
-          onPress={() => {
-            onClose();
-            onLogout();
-          }}
-        >
-          <Ionicons name="log-out-outline" size={20} color="#dc3545" />
-          <Text style={[styles.modalButtonText, styles.logoutModalText]}>
-            Logout
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </Pressable>
-  </Modal>
-);
-
 export default function UserSidebar() {
   const navigation = useNavigation();
   const route = useRoute();
   const [currentUser, setCurrentUser] = useState(null);
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const {
     permissions: userCaps,
     isLoading,
@@ -233,26 +179,16 @@ export default function UserSidebar() {
             )
           )}
 
-          {/* More Menu - Always visible */}
-          <TouchableOpacity
-            style={styles.bottomNavButton}
-            onPress={() => setShowMoreMenu(true)}
-          >
-            <View style={styles.bottomNavButtonContent}>
-              <Ionicons
-                name="ellipsis-horizontal-outline"
-                size={26}
-                color="#6c757d"
-              />
-              <Text style={styles.bottomNavText}>More</Text>
-            </View>
-          </TouchableOpacity>
-
-          <MoreMenu
-            visible={showMoreMenu}
-            onClose={() => setShowMoreMenu(false)}
-            navigation={navigation}
-            onLogout={handleLogout}
+          {/* Settings - Direct settings button */}
+          <MenuButton
+            icon="settings-outline"
+            title="Settings"
+            isActive={isActive('Settings')}
+            onPress={() =>
+              navigation.navigate('ProfileScreen')
+            }
+            isBottomNav={true}
+            showAlways={true}
           />
 
           {/* Loading State */}
@@ -320,6 +256,17 @@ export default function UserSidebar() {
             />
           )
         )}
+
+        {/* Settings - Added to sidebar for desktop */}
+        <MenuButton
+          icon="settings-outline"
+          title="Settings"
+          isActive={isActive('Settings')}
+          onPress={() =>
+            navigation.navigate('MainTabs', { screen: 'ProfileScreen' })
+          }
+          showAlways={true}
+        />
 
         {/* Loading State */}
         {isLoading && <LoadingState />}
@@ -432,30 +379,6 @@ const styles = StyleSheet.create({
     padding: 8,
     flex: 1,
   },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 8,
-    marginBottom: 70,
-  },
-  modalButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    gap: 12,
-  },
-  modalButtonText: { fontSize: 16, color: '#333' },
-  modalDivider: { height: 1, backgroundColor: '#e9ecef', marginVertical: 8 },
-  logoutModalButton: { marginTop: 4 },
-  logoutModalText: { color: '#dc3545' },
 
   loadingContainer: {
     flexDirection: 'row',
