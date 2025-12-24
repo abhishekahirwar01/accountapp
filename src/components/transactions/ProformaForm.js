@@ -22,6 +22,7 @@ import CustomDropdown from '../../components/ui/CustomDropdown';
 
 import { Combobox } from '../../components/ui/Combobox';
 import QuillEditor from '../../components/ui/QuillEditor';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 // Context
 import { useCompany } from '../../contexts/company-context.js';
@@ -36,15 +37,8 @@ import ServiceForm from '../../components/services/ServiceForm.js';
 import { BASE_URL } from '../../config.js';
 import { sanitizeInput } from '../utils/sanitize.js';
 
-// Search Components
-import {
-  HSNSearchInput,
-  SACSearchInput,
-} from './transaction-form/transactionForm-parts.js';
-import {
-  handleHSNSelect,
-  handleSACSelect,
-} from './transaction-form/transaction-utils.js';
+import hsnData from '../../data/HSN.json';
+import sacData from '../../data/SAC.json';
 
 const getCompanyGSTIN = c => {
   const x = c;
@@ -90,6 +84,8 @@ const PRODUCT_DEFAULT = {
   gstPercentage: STANDARD_GST,
   lineTax: 0,
   lineTotal: 0,
+  hsn: '',
+  sac: '',
 };
 
 const itemSchema = z
@@ -106,6 +102,8 @@ const itemSchema = z
     gstPercentage: z.coerce.number().min(0).max(100).optional(),
     lineTax: z.coerce.number().min(0).optional(),
     lineTotal: z.coerce.number().min(0).optional(),
+    hsn: z.string().optional(),
+    sac: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.itemType === 'product') {
@@ -228,6 +226,23 @@ export default function ProformaForm({
   const [shippingAddresses, setShippingAddresses] = useState([]);
   const [lastEditedField, setLastEditedField] = useState({});
 
+  const [hsnOptions, setHsnOptions] = useState([]);
+  const [sacOptions, setSacOptions] = useState([]);
+
+  useEffect(() => {
+    const hsn = hsnData.map(item => ({
+      label: `${item.HSN_CD} - ${item.HSN_Description}`,
+      value: item.HSN_CD.toString(),
+    }));
+    setHsnOptions(hsn);
+
+    const sac = sacData.map(item => ({
+      label: `${item.SAC_CD} - ${item.SAC_Description}`,
+      value: item.SAC_CD.toString(),
+    }));
+    setSacOptions(sac);
+  }, []);
+
   // Date picker states
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showDueDatePicker, setShowDueDatePicker] = useState(false);
@@ -305,7 +320,12 @@ export default function ProformaForm({
 
   // Populate form with transactionToEdit data
   useEffect(() => {
-    if (transactionToEdit && transactionToEdit.type === 'proforma') {
+    if (
+      transactionToEdit &&
+      transactionToEdit.type === 'proforma' &&
+      products.length > 0 &&
+      services.length > 0
+    ) {
       const tx = transactionToEdit;
 
       // Build items from products and services
@@ -314,6 +334,9 @@ export default function ProformaForm({
       // Add products
       if (tx.products && Array.isArray(tx.products)) {
         tx.products.forEach(prod => {
+          const productData = products.find(
+            p => p._id === (prod.product?._id || prod.product),
+          );
           items.push({
             itemType: 'product',
             product: prod.product?._id || prod.product,
@@ -326,6 +349,7 @@ export default function ProformaForm({
             lineTax: prod.lineTax || 0,
             lineTotal: prod.lineTotal || prod.amount || 0,
             description: prod.description || '',
+            hsn: productData?.hsn || '',
           });
         });
       }
@@ -333,6 +357,9 @@ export default function ProformaForm({
       // Add services
       if (tx.services && Array.isArray(tx.services)) {
         tx.services.forEach(svc => {
+          const serviceData = services.find(
+            s => s._id === (svc.service?._id || svc.service),
+          );
           items.push({
             itemType: 'service',
             service: svc.service?._id || svc.service,
@@ -341,6 +368,7 @@ export default function ProformaForm({
             lineTax: svc.lineTax || 0,
             lineTotal: svc.lineTotal || svc.amount || 0,
             description: svc.description || '',
+            sac: serviceData?.sac || '',
           });
         });
       }
@@ -400,7 +428,7 @@ export default function ProformaForm({
               },
       });
     }
-  }, [transactionToEdit, form, selectedCompanyId]);
+  }, [transactionToEdit, form, selectedCompanyId, products, services]);
 
   // GST calculation effect
   useEffect(() => {
@@ -706,6 +734,7 @@ export default function ProformaForm({
             gstPercentage: gstEnabled ? Number(i.gstPercentage ?? 18) : 0,
             lineTax: gstEnabled ? Number(i.lineTax ?? 0) : 0,
             lineTotal: gstEnabled ? Number(i.lineTotal ?? i.amount) : i.amount,
+            hsn: i.hsn,
           })) ?? [];
 
       const serviceLines =
@@ -718,6 +747,7 @@ export default function ProformaForm({
             gstPercentage: gstEnabled ? Number(i.gstPercentage ?? 18) : 0,
             lineTax: gstEnabled ? Number(i.lineTax ?? 0) : 0,
             lineTotal: gstEnabled ? Number(i.lineTotal ?? i.amount) : i.amount,
+            sac: i.sac,
           })) ?? [];
 
       const uiSubTotal = Number(values.totalAmount ?? 0);
@@ -793,6 +823,76 @@ export default function ProformaForm({
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleHsnChange = (hsnCodeValue, index) => {
+    form.setValue(`items.${index}.hsn`, hsnCodeValue, {
+      shouldValidate: true,
+    });
+
+    const productId = form.watch(`items.${index}.product`);
+    if (productId) {
+      // Fire-and-forget update to the backend
+      updateProductHsn(productId, hsnCodeValue);
+    }
+  };
+
+  const handleSacChange = (sacCodeValue, index) => {
+    form.setValue(`items.${index}.sac`, sacCodeValue, {
+      shouldValidate: true,
+    });
+
+    const serviceId = form.watch(`items.${index}.service`);
+    if (serviceId) {
+      // Fire-and-forget update to the backend
+      updateServiceSac(serviceId, sacCodeValue);
+    }
+  };
+
+  const updateProductHsn = async (productId, hsn) => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      await fetch(`${BASE_URL}/api/products/${productId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ hsn }),
+      });
+      // Also update local state for consistency
+      setProducts(prev =>
+        prev.map(p => (p._id === productId ? { ...p, hsn } : p)),
+      );
+    } catch (error) {
+      console.error('Failed to update product HSN in background:', error);
+      // Optional: show a non-intrusive error
+    }
+  };
+
+  const updateServiceSac = async (serviceId, sac) => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      await fetch(`${BASE_URL}/api/services/${serviceId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ sac }),
+      });
+      // Also update local state for consistency
+      setServices(prev =>
+        prev.map(s => (s._id === serviceId ? { ...s, sac } : s)),
+      );
+    } catch (error) {
+      console.error('Failed to update service SAC in background:', error);
+      // Optional: show a non-intrusive error
     }
   };
 
@@ -933,29 +1033,6 @@ export default function ProformaForm({
         </View>
 
         <View style={styles.itemContent}>
-          {/* Item Type Selection */}
-          <View style={styles.formRow}>
-            <View style={styles.formField}>
-              <Text style={styles.label}>Item Type</Text>
-              <CustomDropdown
-                items={[
-                  { label: 'Product', value: 'product' },
-                  { label: 'Service', value: 'service' },
-                ]}
-                value={itemType}
-                onChange={val => {
-                  form.setValue(`items.${index}.itemType`, val);
-                  if (val === 'product') {
-                    form.setValue(`items.${index}.quantity`, 1);
-                    form.setValue(`items.${index}.pricePerUnit`, 0);
-                  }
-                }}
-                placeholder="Select item type"
-                style={styles.dropdown}
-              />
-            </View>
-          </View>
-
           {itemType === 'product' && (
             <>
               {/* Product Selection */}
@@ -971,15 +1048,23 @@ export default function ProformaForm({
                         const selectedProduct = products.find(
                           p => p._id === value,
                         );
-                        if (selectedProduct?.sellingPrice) {
-                          form.setValue(
-                            `items.${index}.pricePerUnit`,
-                            selectedProduct.sellingPrice,
-                          );
-                          setLastEditedField(prev => ({
-                            ...prev,
-                            [index]: 'pricePerUnit',
-                          }));
+                        if (selectedProduct) {
+                          if (selectedProduct.sellingPrice) {
+                            form.setValue(
+                              `items.${index}.pricePerUnit`,
+                              selectedProduct.sellingPrice,
+                            );
+                            setLastEditedField(prev => ({
+                              ...prev,
+                              [index]: 'pricePerUnit',
+                            }));
+                          }
+                          if (selectedProduct.hsn) {
+                            form.setValue(
+                              `items.${index}.hsn`,
+                              selectedProduct.hsn,
+                            );
+                          }
                         }
                       }
                     }}
@@ -1152,6 +1237,99 @@ export default function ProformaForm({
                   />
                 </View>
               </View>
+
+              {/* HSN/SAC Code */}
+              <View style={styles.formRow}>
+                <View style={styles.formField}>
+                  <Text style={styles.label}>HSN Code</Text>
+                  <CustomDropdown
+                    items={hsnOptions}
+                    value={form.watch(`items.${index}.hsn`) || ''}
+                    onChange={hsnCodeValue => {
+                      handleHsnChange(hsnCodeValue, index);
+                    }}
+                    placeholder="Search HSN..."
+                  />
+                </View>
+              </View>
+
+              {/* GST Section */}
+              {gstEnabled && (
+                <>
+                  <View style={styles.formRow}>
+                    <View style={styles.formField}>
+                      <Text style={styles.label}>GST %</Text>
+                      <CustomDropdown
+                        items={GST_OPTIONS}
+                        value={
+                          form
+                            .watch(`items.${index}.gstPercentage`)
+                            ?.toString() || '18'
+                        }
+                        onChange={val => {
+                          form.setValue(
+                            `items.${index}.gstPercentage`,
+                            Number(val),
+                          );
+                        }}
+                        placeholder="Select GST %"
+                        style={styles.dropdown}
+                      />
+                    </View>
+
+                    <View style={styles.formField}>
+                      <Text style={styles.label}>Tax</Text>
+                      <Controller
+                        control={form.control}
+                        name={`items.${index}.lineTax`}
+                        render={({ field }) => (
+                          <TextInput
+                            style={[styles.input, styles.readOnlyInput]}
+                            value={field.value?.toFixed(2)}
+                            editable={false}
+                            placeholder="0.00"
+                          />
+                        )}
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.formRow}>
+                    <View style={styles.formField}>
+                      <Text style={styles.label}>Total</Text>
+                      <Controller
+                        control={form.control}
+                        name={`items.${index}.lineTotal`}
+                        render={({ field, fieldState }) => (
+                          <>
+                            <TextInput
+                              style={[
+                                styles.input,
+                                fieldState.error && styles.inputError,
+                              ]}
+                              value={field.value?.toString()}
+                              onChangeText={text => {
+                                const value = text === '' ? '' : Number(text);
+                                field.onChange(value);
+                                setLastEditedField(prev => ({
+                                  ...prev,
+                                  [index]: 'lineTotal',
+                                }));
+                              }}
+                              placeholder="0.00"
+                              keyboardType="numeric"
+                            />
+                            {fieldState.error && (
+                              <Text style={styles.errorText}>
+                                {fieldState.error.message}
+                              </Text>
+                            )}
+                          </>
+                        )}
+                      />
+                    </View>
+                  </View>
+                </>
+              )}
             </>
           )}
 
@@ -1170,15 +1348,23 @@ export default function ProformaForm({
                         const selectedService = services.find(
                           s => s._id === value,
                         );
-                        if (selectedService?.amount) {
-                          form.setValue(
-                            `items.${index}.amount`,
-                            selectedService.amount,
-                          );
-                          setLastEditedField(prev => ({
-                            ...prev,
-                            [index]: 'amount',
-                          }));
+                        if (selectedService) {
+                          if (selectedService.amount) {
+                            form.setValue(
+                              `items.${index}.amount`,
+                              selectedService.amount,
+                            );
+                            setLastEditedField(prev => ({
+                              ...prev,
+                              [index]: 'amount',
+                            }));
+                          }
+                          if (selectedService.sac) {
+                            form.setValue(
+                              `items.${index}.sac`,
+                              selectedService.sac,
+                            );
+                          }
                         }
                       }
                     }}
@@ -1250,103 +1436,101 @@ export default function ProformaForm({
                   />
                 </View>
               </View>
+
+              {/* HSN/SAC Code */}
+              <View style={styles.formRow}>
+                <View style={styles.formField}>
+                  <Text style={styles.label}>SAC Code</Text>
+                  <CustomDropdown
+                    items={sacOptions}
+                    value={form.watch(`items.${index}.sac`) || ''}
+                    onChange={sacCodeValue => {
+                      handleSacChange(sacCodeValue, index);
+                    }}
+                    placeholder="Search SAC..."
+                  />
+                </View>
+              </View>
+
+              {/* GST Section */}
+              {gstEnabled && (
+                <>
+                  <View style={styles.formRow}>
+                    <View style={styles.formField}>
+                      <Text style={styles.label}>GST %</Text>
+                      <CustomDropdown
+                        items={GST_OPTIONS}
+                        value={
+                          form
+                            .watch(`items.${index}.gstPercentage`)
+                            ?.toString() || '18'
+                        }
+                        onChange={val => {
+                          form.setValue(
+                            `items.${index}.gstPercentage`,
+                            Number(val),
+                          );
+                        }}
+                        placeholder="Select GST %"
+                        style={styles.dropdown}
+                      />
+                    </View>
+
+                    <View style={styles.formField}>
+                      <Text style={styles.label}>Tax</Text>
+                      <Controller
+                        control={form.control}
+                        name={`items.${index}.lineTax`}
+                        render={({ field }) => (
+                          <TextInput
+                            style={[styles.input, styles.readOnlyInput]}
+                            value={field.value?.toFixed(2)}
+                            editable={false}
+                            placeholder="0.00"
+                          />
+                        )}
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.formRow}>
+                    <View style={styles.formField}>
+                      <Text style={styles.label}>Total</Text>
+                      <Controller
+                        control={form.control}
+                        name={`items.${index}.lineTotal`}
+                        render={({ field, fieldState }) => (
+                          <>
+                            <TextInput
+                              style={[
+                                styles.input,
+                                fieldState.error && styles.inputError,
+                              ]}
+                              value={field.value?.toString()}
+                              onChangeText={text => {
+                                const value = text === '' ? '' : Number(text);
+                                field.onChange(value);
+                                setLastEditedField(prev => ({
+                                  ...prev,
+                                  [index]: 'lineTotal',
+                                }));
+                              }}
+                              placeholder="0.00"
+                              keyboardType="numeric"
+                            />
+                            {fieldState.error && (
+                              <Text style={styles.errorText}>
+                                {fieldState.error.message}
+                              </Text>
+                            )}
+                          </>
+                        )}
+                      />
+                    </View>
+                  </View>
+                </>
+              )}
             </>
           )}
-
-          {/* GST Section */}
-          {gstEnabled && (
-            <View style={styles.formRow}>
-              <View style={styles.formField}>
-                <Text style={styles.label}>GST %</Text>
-                <CustomDropdown
-                  items={GST_OPTIONS}
-                  value={
-                    form.watch(`items.${index}.gstPercentage`)?.toString() ||
-                    '18'
-                  }
-                  onChange={val => {
-                    form.setValue(`items.${index}.gstPercentage`, Number(val));
-                  }}
-                  placeholder="Select GST %"
-                  style={styles.dropdown}
-                />
-              </View>
-
-              <View style={styles.formField}>
-                <Text style={styles.label}>Tax</Text>
-                <Controller
-                  control={form.control}
-                  name={`items.${index}.lineTax`}
-                  render={({ field }) => (
-                    <TextInput
-                      style={[styles.input, styles.readOnlyInput]}
-                      value={field.value?.toFixed(2)}
-                      editable={false}
-                      placeholder="0.00"
-                    />
-                  )}
-                />
-              </View>
-
-              <View style={styles.formField}>
-                <Text style={styles.label}>Total</Text>
-                <Controller
-                  control={form.control}
-                  name={`items.${index}.lineTotal`}
-                  render={({ field, fieldState }) => (
-                    <>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          fieldState.error && styles.inputError,
-                        ]}
-                        value={field.value?.toString()}
-                        onChangeText={text => {
-                          const value = text === '' ? '' : Number(text);
-                          field.onChange(value);
-                          setLastEditedField(prev => ({
-                            ...prev,
-                            [index]: 'lineTotal',
-                          }));
-                        }}
-                        placeholder="0.00"
-                        keyboardType="numeric"
-                      />
-                      {fieldState.error && (
-                        <Text style={styles.errorText}>
-                          {fieldState.error.message}
-                        </Text>
-                      )}
-                    </>
-                  )}
-                />
-              </View>
-            </View>
-          )}
-
-          {/* HSN/SAC Code */}
-          <View style={styles.formRow}>
-            <View style={styles.formField}>
-              <Text style={styles.label}>
-                {itemType === 'product' ? 'HSN Code' : 'SAC Code'}
-              </Text>
-              {itemType === 'product' ? (
-                <HSNSearchInput
-                  onSelect={hsnCode => {
-                    handleHSNSelect(hsnCode, index, form);
-                  }}
-                  placeholder="Search HSN..."
-                />
-              ) : (
-                <SACSearchInput
-                  onSelect={sacCode => {
-                    handleSACSelect(sacCode, index, form);
-                  }}
-                  placeholder="Search SAC..."
-                />
-              )}
-            </View>
-          </View>
         </View>
       </View>
     );
@@ -1397,12 +1581,14 @@ export default function ProformaForm({
                     ? form.watch('date').toLocaleDateString()
                     : 'Select date'}
                 </Text>
+                <Icon name="calendar" size={20} color="#6B7280" />
               </TouchableOpacity>
               {showDatePicker && (
                 <DateTimePicker
                   value={form.watch('date') || new Date()}
                   mode="date"
                   display="default"
+                  maximumDate={new Date()}
                   onChange={(event, selectedDate) => {
                     setShowDatePicker(false);
                     if (selectedDate) {
@@ -1414,7 +1600,7 @@ export default function ProformaForm({
             </View>
 
             <View style={styles.formField}>
-              <Text style={styles.label}>Due Date</Text>
+              <Text style={styles.label}>Due Date (Optional)</Text>
               <TouchableOpacity
                 style={styles.dateButton}
                 onPress={() => setShowDueDatePicker(true)}
@@ -1424,6 +1610,7 @@ export default function ProformaForm({
                     ? form.watch('dueDate').toLocaleDateString()
                     : 'Select date'}
                 </Text>
+                <Icon name="calendar" size={20} color="#6B7280" />
               </TouchableOpacity>
               {showDueDatePicker && (
                 <DateTimePicker
@@ -1811,7 +1998,9 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 4,
     padding: 12,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     minHeight: 44,
   },
   dateButtonText: {
