@@ -8,50 +8,36 @@ import {
   Alert,
   StyleSheet,
   ActivityIndicator,
+  Modal,
+  Pressable,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BASE_URL } from '../../config';
+import { BASE_URL } from '../../config'; // Base URL yahan se aayega
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
-// Helper functions
-const isObjectId = s => !!s && /^[a-f0-9]{24}$/i.test(s);
-
-const coerceRoleName = r => {
-  if (!r) return null;
-  if (typeof r === 'string') return r.toLowerCase();
-  if (typeof r === 'object') {
-    const o = r;
-    const n = (o.name || o.label || '').toLowerCase();
-    return n || null;
-  }
-  return null;
-};
+/* ----------------------------- Helpers ---------------------------- */
+const isObjectId = s => typeof s === 'string' && /^[a-f0-9]{24}$/i.test(s);
 
 const mapExistingRoleToForm = (r, roles) => {
-  const n = coerceRoleName(r);
-  if (n) {
-    if (n === 'admin' || n === 'manager' || n === 'client') return 'admin';
-    if (n === 'user') return 'user';
-  }
-
-  if (typeof r === 'string' && isObjectId(r)) {
-    const found = roles.find(x => x._id === r);
-    if (found) return found.name;
-  }
-
-  if (r && typeof r === 'object' && '_id' in r) {
-    const id = r._id;
-    const found = roles.find(x => x._id === id);
-    if (found) return found.name;
-  }
-
-  return 'user';
+  const getName = obj => (obj?.name || obj?.label || '').toLowerCase();
+  const n = typeof r === 'string' ? r.toLowerCase() : getName(r);
+  if (['admin', 'manager', 'client'].includes(n)) return 'admin';
+  if (n === 'user') return 'user';
+  const id = typeof r === 'string' ? r : r?._id;
+  const found = roles.find(x => x._id === id);
+  return found ? found.name : 'user';
 };
 
+const DEFAULT_ROLES = [
+  { _id: 'admin', name: 'admin' }, // Backend IDs ke according update karein
+  { _id: 'user', name: 'user' },
+];
+
 export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
-  const [roles, setRoles] = useState([]);
-  const [rolesLoading, setRolesLoading] = useState(true);
+  const [roles] = useState(DEFAULT_ROLES);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
 
   const [formData, setFormData] = useState({
     userName: '',
@@ -64,64 +50,6 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
     roleId: '',
   });
 
-  const [selectedCompanyIds, setSelectedCompanyIds] = useState([]);
-
-  // Fetch roles from API
-  const fetchRoles = async () => {
-    try {
-      setRolesLoading(true);
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication token not found');
-      }
-
-      const response = await fetch(`${BASE_URL}/api/roles`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch roles: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      // Handle different response formats
-      const rolesData = Array.isArray(data)
-        ? data
-        : data?.data || data?.roles || [];
-
-      if (rolesData.length === 0) {
-        // Fallback to default roles if API returns empty
-        setRoles([
-          { _id: 'admin', name: 'admin' },
-          { _id: 'user', name: 'user' },
-        ]);
-      } else {
-        setRoles(rolesData);
-      }
-    } catch (error) {
-      console.error('Error fetching roles:', error);
-      Alert.alert('Error', 'Failed to load roles. Using default roles.', [
-        { text: 'OK' },
-      ]);
-      // Fallback to default roles
-      setRoles([
-        { _id: 'admin', name: 'admin' },
-        { _id: 'user', name: 'user' },
-      ]);
-    } finally {
-      setRolesLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchRoles();
-  }, []);
-
-  // Initialize form data when user prop changes
   useEffect(() => {
     if (user) {
       setFormData({
@@ -131,372 +59,278 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
         contactNumber: user.contactNumber || '',
         email: user.email || '',
         address: user.address || '',
-        companies: [],
+        companies: Array.isArray(user.companies)
+          ? user.companies
+              .map(c => (typeof c === 'string' ? c : c?._id))
+              .filter(Boolean)
+          : [],
         roleId: '',
       });
-
-      // Set selected companies
-      const companyIds = Array.isArray(user.companies)
-        ? user.companies
-            .map(c => (typeof c === 'string' ? c : c?._id))
-            .filter(Boolean)
-        : [];
-      setSelectedCompanyIds(companyIds);
-    } else {
-      // Reset form for new user
-      setFormData({
-        userName: '',
-        userId: '',
-        password: '',
-        contactNumber: '',
-        email: '',
-        address: '',
-        companies: [],
-        roleId: '',
-      });
-      setSelectedCompanyIds([]);
     }
   }, [user]);
 
-  // Set default role when roles are loaded
   useEffect(() => {
-    if (roles.length === 0) return;
-
     if (!user) {
-      // creating → default to "user"
       const def = roles.find(r => r.name === 'user') || roles[0];
-      if (def) {
-        setFormData(prev => ({ ...prev, roleId: def._id }));
-      }
+      setFormData(prev => ({ ...prev, roleId: def?._id }));
     } else {
-      // editing → correctly map existing role to "admin" | "user"
       const coerced = mapExistingRoleToForm(user.role, roles);
       const match = roles.find(r => r.name === coerced);
-      if (match) {
-        setFormData(prev => ({ ...prev, roleId: match._id }));
-      }
+      if (match) setFormData(prev => ({ ...prev, roleId: match._id }));
     }
   }, [roles, user]);
 
- const handleSubmit = async () => {
-  // Validation
-  if (!formData.userName.trim()) {
-    Alert.alert('Error', 'Please enter user name');
-    return;
-  }
-
-  if (!user && !formData.userId.trim()) {
-    Alert.alert('Error', 'Please enter user ID');
-    return;
-  }
-
-  if (!user && !formData.password.trim()) {
-    Alert.alert('Error', 'Please enter password');
-    return;
-  }
-
-  if (!formData.roleId) {
-    Alert.alert('Error', 'Please select a role');
-    return;
-  }
-
-  const selectedRole = roles.find(r => r._id === formData.roleId);
-  if (!selectedRole) {
-    Alert.alert('Error', 'Please select a valid role');
-    return;
-  }
-
-  setIsSubmitting(true);
-
-  try {
-    // Build payload
-    const payload = {
-      userName: formData.userName.trim(),
-      contactNumber: formData.contactNumber.trim(),
-      email: formData.email?.trim() || ' ',
-      address: formData.address.trim(),
-      companies: selectedCompanyIds,
-    };
-
-    // Creation vs update
-    if (!user) {
-      payload.userId = formData.userId.trim();
-    }
-
-    // Only send password if user typed one (for new users or password change)
-    if (formData.password?.trim()) {
-      payload.password = formData.password.trim();
-    }
-
-    // Send role using whichever your backend accepts
-    const looksLikeObjectId = /^[a-f0-9]{24}$/i.test(selectedRole._id);
-    if (looksLikeObjectId) {
-      payload.roleId = selectedRole._id;
-    } else {
-      payload.roleName = selectedRole.name;
-    }
-
-    // Get auth token
-    const token = await AsyncStorage.getItem('token');
-    if (!token) {
-      throw new Error('Authentication token not found');
-    }
-
-    let response;
-    if (user) {
-      // Update existing user
-      response = await fetch(`${BASE_URL}/api/users/${user._id}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-    } else {
-      // Create new user
-      response = await fetch(`${BASE_URL}/api/users`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-    }
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.message || `Failed to ${user ? 'update' : 'create'} user`,
-      );
-    }
-
-    // Success! Call onSave and onCancel
-    onSave(payload);
-    onCancel();
-    
-  } catch (error) {
-    console.error('Error saving user:', error);
-    Alert.alert(
-      'Error',
-      error.message || `Failed to ${user ? 'update' : 'create'} user`,
-      [{ text: 'OK' }],
-    );
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-
-  const handleCompanySelect = companyId => {
-    setSelectedCompanyIds(prev => {
-      if (prev.includes(companyId)) {
-        return prev.filter(id => id !== companyId);
-      } else {
-        return [...prev, companyId];
-      }
-    });
+  const handleToggleCompany = id => {
+    setFormData(prev => ({
+      ...prev,
+      companies: prev.companies.includes(id)
+        ? prev.companies.filter(c => c !== id)
+        : [...prev.companies, id],
+    }));
   };
 
-  const selectedCompanies = allCompanies.filter(c =>
-    selectedCompanyIds.includes(c._id),
+  // --- ACTUAL WORKING SUBMIT LOGIC WITH BASE_URL ---
+  const handleSubmit = () => {
+    if (!formData.userName || (!user && !formData.password)) {
+      Alert.alert('Validation Error', 'Please fill required fields.');
+      return;
+    }
+
+    // Web ki tarah roleId ya roleName decide karna
+    const selectedRole = roles.find(r => r._id === formData.roleId);
+    const payload = {
+      userName: formData.userName,
+      contactNumber: formData.contactNumber,
+      email: formData.email?.trim(),
+      address: formData.address,
+      companies: formData.companies,
+      roleId: isObjectId(selectedRole?._id) ? selectedRole._id : undefined,
+      roleName: !isObjectId(selectedRole?._id)
+        ? selectedRole?.name
+        : undefined,
+    };
+
+    if (!user) payload.userId = formData.userId;
+    if (formData.password) payload.password = formData.password;
+
+    onSave(payload);
+  };
+
+  const filteredCompanies = allCompanies.filter(c =>
+    c.businessName.toLowerCase().includes(companySearch.toLowerCase()),
   );
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
       <View style={styles.form}>
-        {/* Row: User Name + User ID */}
-        <View style={styles.row}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>User Name *</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.userName}
-              onChangeText={text =>
-                setFormData({ ...formData, userName: text })
-              }
-              placeholder="Enter user name"
-            />
-          </View>
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>User ID {!user && '*'}</Text>
-            <TextInput
-              style={[styles.input, user && styles.disabledInput]}
-              value={formData.userId}
-              onChangeText={text => setFormData({ ...formData, userId: text })}
-              placeholder="Enter user ID"
-              editable={!user}
-            />
-          </View>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>User Name *</Text>
+          <TextInput
+            style={styles.input}
+            value={formData.userName}
+            onChangeText={t => setFormData({ ...formData, userName: t })}
+            placeholder="e.g. John Doe"
+          />
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>User ID</Text>
+          <TextInput
+            style={[styles.input, user && styles.disabledInput]}
+            value={formData.userId}
+            editable={!user}
+            onChangeText={t => setFormData({ ...formData, userId: t })}
+            placeholder="Unique User ID"
+          />
         </View>
 
         {!user && (
-          <View style={styles.inputContainer}>
+          <View style={styles.fieldGroup}>
             <Text style={styles.label}>Password *</Text>
             <TextInput
               style={styles.input}
-              value={formData.password}
-              onChangeText={text =>
-                setFormData({ ...formData, password: text })
-              }
-              placeholder="Enter password"
               secureTextEntry
+              value={formData.password}
+              onChangeText={t => setFormData({ ...formData, password: t })}
+              placeholder="Enter Password"
             />
           </View>
         )}
 
-        {/* Contact Number */}
-        <View style={styles.inputContainer}>
+        <View style={styles.fieldGroup}>
           <Text style={styles.label}>Contact Number</Text>
           <TextInput
             style={styles.input}
-            value={formData.contactNumber}
-            onChangeText={text =>
-              setFormData({ ...formData, contactNumber: text })
-            }
-            placeholder="Enter contact number"
             keyboardType="phone-pad"
+            value={formData.contactNumber}
+            onChangeText={t => setFormData({ ...formData, contactNumber: t })}
+            placeholder="9876543210"
           />
         </View>
 
-        {/* Email */}
-        <View style={styles.inputContainer}>
+        <View style={styles.fieldGroup}>
           <Text style={styles.label}>Email</Text>
           <TextInput
             style={styles.input}
-            value={formData.email}
-            onChangeText={text => setFormData({ ...formData, email: text })}
-            placeholder="Enter email"
-            keyboardType="email-address"
             autoCapitalize="none"
+            value={formData.email}
+            onChangeText={t => setFormData({ ...formData, email: t })}
+            placeholder="user@example.com"
           />
         </View>
 
-        {/* Address */}
-        <View style={styles.inputContainer}>
+        <View style={styles.fieldGroup}>
           <Text style={styles.label}>Address</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
-            value={formData.address}
-            onChangeText={text => setFormData({ ...formData, address: text })}
-            placeholder="Enter address"
             multiline
-            numberOfLines={3}
-            textAlignVertical="top"
+            numberOfLines={2}
+            value={formData.address}
+            onChangeText={t => setFormData({ ...formData, address: t })}
+            placeholder="Full Address"
           />
         </View>
 
-        {/* Role selector */}
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Role *</Text>
-          {rolesLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#3b82f6" />
-              <Text style={styles.loadingText}>Loading roles...</Text>
-            </View>
-          ) : roles.length === 0 ? (
-            <Text style={styles.errorText}>No roles available</Text>
-          ) : (
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={formData.roleId}
-                onValueChange={value =>
-                  setFormData({ ...formData, roleId: value })
-                }
-                style={styles.picker}
-              >
-                <Picker.Item label="Select a role" value="" />
-                {roles.map(r => (
-                  <Picker.Item
-                    key={r._id}
-                    label={r.name.charAt(0).toUpperCase() + r.name.slice(1)}
-                    value={r._id}
-                  />
-                ))}
-              </Picker>
-            </View>
-          )}
-        </View>
-
-        {/* Companies multi-select */}
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Companies</Text>
-          <Text style={styles.helperText}>
-            Select companies this user should have access to
-          </Text>
-
-          <View style={styles.companiesContainer}>
-            {allCompanies.map(company => (
-              <TouchableOpacity
-                key={company._id}
+        {/* Role Selection */}
+        <Text style={styles.label}>Role *</Text>
+        <View style={styles.radioGroup}>
+          {roles.map(r => (
+            <TouchableOpacity
+              key={r._id}
+              style={styles.roleItem}
+              onPress={() => setFormData({ ...formData, roleId: r._id })}
+            >
+              <View
                 style={[
-                  styles.companyItem,
-                  selectedCompanyIds.includes(company._id) &&
-                    styles.selectedCompanyItem,
+                  styles.radioCircle,
+                  formData.roleId === r._id && styles.radioSelected,
                 ]}
-                onPress={() => handleCompanySelect(company._id)}
               >
-                <Text
-                  style={[
-                    styles.companyText,
-                    selectedCompanyIds.includes(company._id) &&
-                      styles.selectedCompanyText,
-                  ]}
-                >
-                  {company.businessName}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Selected companies badges */}
-          {selectedCompanies.length > 0 && (
-            <View style={styles.selectedCompanies}>
-              <Text style={styles.selectedCompaniesLabel}>
-                Selected Companies:
-              </Text>
-              <View style={styles.badgesContainer}>
-                {selectedCompanies.map(company => (
-                  <View key={company._id} style={styles.badge}>
-                    <Text style={styles.badgeText}>{company.businessName}</Text>
-                    <TouchableOpacity
-                      onPress={() => handleCompanySelect(company._id)}
-                      style={styles.removeButton}
-                    >
-                      <Text style={styles.removeButtonText}>×</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
+                {formData.roleId === r._id && (
+                  <View style={styles.radioInner} />
+                )}
               </View>
-            </View>
-          )}
+              <Text style={styles.radioText}>{r.name}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        {/* Required fields note */}
-        <View style={styles.requiredNote}>
-          <Text style={styles.requiredText}>* Required fields</Text>
-        </View>
-
-        {/* Buttons */}
-        <View style={styles.buttonsContainer}>
+        {/* Companies Dropdown */}
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Companies Access</Text>
           <TouchableOpacity
-            style={[styles.cancelButton, isSubmitting && styles.disabledButton]}
-            onPress={onCancel}
-            disabled={isSubmitting}
+            style={styles.dropdownTrigger}
+            onPress={() => setShowCompanyModal(true)}
           >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
+            <Text style={styles.triggerText}>Select companies...</Text>
+            <Icon name="chevron-down" size={20} color="#15803d" />
+          </TouchableOpacity>
+
+          {/* Badges UI */}
+          <View style={styles.badgeContainer}>
+            {formData.companies.map(id => {
+              const comp = allCompanies.find(c => c._id === id);
+              return comp ? (
+                <View key={id} style={styles.badge}>
+                  <Text style={styles.badgeText} numberOfLines={1}>
+                    {comp.businessName}
+                  </Text>
+                  <TouchableOpacity onPress={() => handleToggleCompany(id)}>
+                    <Icon
+                      name="close-circle"
+                      size={16}
+                      color="#1d4ed8"
+                      style={{ marginLeft: 5 }}
+                    />
+                  </TouchableOpacity>
+                </View>
+              ) : null;
+            })}
+          </View>
+        </View>
+
+        {/* Overlay Modal for Companies */}
+        <Modal visible={showCompanyModal} transparent animationType="fade">
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => setShowCompanyModal(false)}
+          >
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Choose Companies</Text>
+                <TouchableOpacity onPress={() => setShowCompanyModal(false)}>
+                  <Icon name="close" size={24} color="#666" />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.searchContainer}>
+                <Icon name="magnify" size={20} color="#94a3b8" />
+                <TextInput
+                  placeholder="Search..."
+                  style={styles.searchBar}
+                  value={companySearch}
+                  onChangeText={setCompanySearch}
+                />
+              </View>
+              <ScrollView
+                style={{ maxHeight: 300 }}
+                keyboardShouldPersistTaps="handled"
+              >
+                {filteredCompanies.map(c => {
+                  const isSelected = formData.companies.includes(c._id);
+                  return (
+                    <TouchableOpacity
+                      key={c._id}
+                      style={[
+                        styles.option,
+                        isSelected && styles.optionSelected,
+                      ]}
+                      onPress={() => handleToggleCompany(c._id)}
+                    >
+                      <Icon
+                        name={
+                          isSelected
+                            ? 'checkbox-marked-circle'
+                            : 'circle-outline'
+                        }
+                        size={22}
+                        color={isSelected ? '#22c55e' : '#cbd5e1'}
+                      />
+                      <Text
+                        style={[
+                          styles.optionText,
+                          isSelected && styles.optionTextActive,
+                        ]}
+                      >
+                        {c.businessName}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              <TouchableOpacity
+                style={styles.doneBtn}
+                onPress={() => setShowCompanyModal(false)}
+              >
+                <Text style={styles.doneBtnText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
+
+        {/* Action Buttons */}
+        <View style={styles.footer}>
+          <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
+            <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.submitButton, isSubmitting && styles.disabledButton]}
+            style={[styles.saveBtn, isSubmitting && { opacity: 0.7 }]}
             onPress={handleSubmit}
             disabled={isSubmitting}
           >
             {isSubmitting ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitButtonText}>
-                {user ? 'Update' : 'Create'}
-              </Text>
+              <Text style={styles.saveText}>{user ? 'Update' : 'Create'}</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -506,197 +340,143 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  form: {
-    padding: 16,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  inputContainer: {
-    marginBottom: 20,
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
+  form: { padding: 20 },
+  fieldGroup: { marginBottom: 18 },
   label: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#475569',
     marginBottom: 6,
-    color: '#374151',
-  },
-  helperText: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 12,
-    fontStyle: 'italic',
+    textTransform: 'uppercase',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: '#e2e8f0',
     borderRadius: 8,
     padding: 12,
-    fontSize: 16,
-    backgroundColor: '#fff',
+    fontSize: 15,
+    backgroundColor: '#f8fafc',
+    color: '#1e293b',
   },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  disabledInput: {
-    backgroundColor: '#f3f4f6',
-    color: '#9ca3af',
-  },
-  loadingContainer: {
-    flexDirection: 'row',
+  textArea: { minHeight: 60, textAlignVertical: 'top' },
+  disabledInput: { backgroundColor: '#f1f5f9', color: '#94a3b8' },
+  radioGroup: { flexDirection: 'row', gap: 20, marginBottom: 25, marginTop: 4 },
+  roleItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  radioCircle: {
+    height: 20,
+    width: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#cbd5e1',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
   },
-  loadingText: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  errorText: {
-    fontSize: 14,
-    color: '#ef4444',
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  picker: {
-    height: 50,
-  },
-  companiesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
-  },
-  companyItem: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 20,
-    backgroundColor: '#f9fafb',
-  },
-  selectedCompanyItem: {
+  radioSelected: { borderColor: '#3b82f6' },
+  radioInner: {
+    height: 10,
+    width: 10,
+    borderRadius: 5,
     backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
   },
-  companyText: {
-    fontSize: 14,
-    color: '#374151',
-  },
-  selectedCompanyText: {
-    color: '#fff',
-    fontWeight: '500',
-  },
-  selectedCompanies: {
-    marginTop: 12,
+  radioText: { fontSize: 15, color: '#334155', textTransform: 'capitalize' },
+  dropdownTrigger: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 12,
-    backgroundColor: '#f9fafb',
-    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#22c55e',
+    borderRadius: 8,
+    backgroundColor: '#f0fdf4',
   },
-  selectedCompaniesLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 8,
-    color: '#374151',
-  },
-  badgesContainer: {
+  triggerText: { color: '#15803d', fontWeight: '600' },
+  badgeContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
+    marginTop: 12,
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#e5e7eb',
-    paddingHorizontal: 12,
+    backgroundColor: '#dbeafe',
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 16,
-    gap: 6,
+    borderRadius: 6,
   },
   badgeText: {
-    fontSize: 14,
-    color: '#374151',
-  },
-  removeButton: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#9ca3af',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  removeButtonText: {
-    color: '#fff',
     fontSize: 12,
-    fontWeight: 'bold',
-    lineHeight: 14,
+    color: '#1d4ed8',
+    fontWeight: '600',
+    maxWidth: 150,
   },
-  requiredNote: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: '#fef3f2',
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#ef4444',
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 20,
   },
-  requiredText: {
-    fontSize: 14,
-    color: '#ef4444',
-    fontWeight: '500',
-  },
-  buttonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    marginTop: 24,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-  },
-  cancelButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
+  modalContent: {
     backgroundColor: '#fff',
-    minWidth: 80,
+    borderRadius: 16,
+    padding: 20,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 15,
     alignItems: 'center',
   },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  submitButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1e293b' },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
     borderRadius: 8,
+    paddingHorizontal: 10,
+    marginBottom: 10,
+  },
+  searchBar: { flex: 1, padding: 8, fontSize: 14 },
+  option: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    gap: 10,
+  },
+  optionSelected: { backgroundColor: '#f0fdf4' },
+  optionText: { fontSize: 15, color: '#475569' },
+  optionTextActive: { color: '#15803d', fontWeight: '700' },
+  doneBtn: {
     backgroundColor: '#3b82f6',
+    padding: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 15,
+  },
+  doneBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 30,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    paddingTop: 20,
+  },
+  cancelBtn: { padding: 12 },
+  cancelText: { color: '#64748b', fontWeight: '600' },
+  saveBtn: {
+    backgroundColor: '#2563eb',
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderRadius: 10,
     minWidth: 100,
     alignItems: 'center',
   },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#fff',
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
+  saveText: { color: '#fff', fontWeight: 'bold' },
 });
 
 export default UserForm;

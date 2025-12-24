@@ -1,385 +1,219 @@
 import React, { useState, useMemo } from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  ScrollView, 
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
   StyleSheet,
-  useWindowDimensions
+  useWindowDimensions,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
-// Import your dialogs
-import ManageUserPermissionsDialog from "./UserPermissions"
-import ResetPasswordDialog from "./ResetPasswordDialog";
+// UI Dialogs
+import ManageUserPermissionsDialog from './UserPermissions';
+import ResetPasswordDialog from './ResetPasswordDialog';
 
-/* ----------------------------- Helpers & Types ---------------------------- */
+/* ----------------------------- Helpers ---------------------------- */
 
-const isObjectId = (s) => typeof s === "string" && /^[a-f0-9]{24}$/i.test(s);
+const isObjectId = s => typeof s === 'string' && /^[a-f0-9]{24}$/i.test(s);
 
-const isRoleObject = (r) => !!r && typeof r === "object" && "_id" in r;
-
-const companyIdOf = (c) => typeof c === "string" ? c : c?._id;
+const companyIdOf = c => (typeof c === 'string' ? c : c?._id);
 
 const getRoleLabel = (role, map) => {
-  if (!role) return "—";
-  if (typeof role === "string") {
+  if (!role) return '—';
+  if (typeof role === 'string') {
     return isObjectId(role) ? map.get(role) ?? role : role;
   }
-  return map.get(role._id) ?? role.label ?? role.name ?? "—";
+  return map.get(role._id) ?? role.label ?? role.name ?? '—';
 };
 
-const getSafeUserId = (u) => {
+const getSafeUserId = u => {
   if (!u) return null;
-  const id = (typeof u._id === "string" && u._id) || (typeof u.userId === "string" && u.userId) || null;
-  return id;
+  return u._id || u.userId || null;
 };
 
 /* -------------------------------- Component -------------------------------- */
 
 const TabValue = {
-  ALL: "all",
-  ADMIN: "admin"
+  ALL: 'all',
+  ADMIN: 'admin',
 };
 
-// React Native Vector Icons
-const EditIcon = () => <Icon name="pencil" size={16} color="#374151" />;
-const TrashIcon = () => <Icon name="trash-can-outline" size={16} color="#dc2626" />;
-const MapPinIcon = () => <Icon name="map-marker-outline" size={16} color="#6b7280" />;
-const PhoneIcon = () => <Icon name="phone" size={16} color="#10b981" />;
-const UserIcon = () => <Icon name="account" size={16} color="#3b82f6" />;
-const BuildingIcon = () => <Icon name="office-building" size={16} color="#4b5563" />;
-const MailIcon = () => <Icon name="email-outline" size={16} color="#8b5cf6" />;
-const ShieldCheckIcon = () => <Icon name="shield-check" size={16} color="#059669" />;
-const UserCogIcon = () => <Icon name="account-cog" size={16} color="#7c3aed" />;
-const KeyRoundIcon = () => <Icon name="key" size={16} color="#d97706" />;
-const ShieldIcon = () => <Icon name="shield-account" size={16} color="#7c3aed" />;
-
-export function UserTable({
-  users,
-  onEdit,
-  onDelete,
-  companyMap,
-  roleMap,
-}) {
+export function UserTable({ users, onEdit, onDelete, companyMap, roleMap }) {
   const { width } = useWindowDimensions();
   const rMap = roleMap ?? new Map();
+
   const [permUser, setPermUser] = useState(null);
   const [tab, setTab] = useState(TabValue.ALL);
   const [resetUser, setResetUser] = useState(null);
   const resetId = getSafeUserId(resetUser);
 
-  // Check if screen is large enough for full table
+  // Responsive logic: Web ki tarah 1024px+ par hi full table dikhayenge
   const isLargeScreen = width >= 1024;
 
   const adminCount = useMemo(
     () =>
-      users.filter(
-        (u) => getRoleLabel(u.role, rMap).toLowerCase() === "admin"
-      ).length,
-    [users, rMap]
+      users.filter(u => getRoleLabel(u.role, rMap).toLowerCase() === 'admin')
+        .length,
+    [users, rMap],
   );
 
   const filtered = useMemo(() => {
     if (tab === TabValue.ADMIN) {
       return users.filter(
-        (u) => getRoleLabel(u.role, rMap).toLowerCase() === "admin"
+        u => getRoleLabel(u.role, rMap).toLowerCase() === 'admin',
       );
     }
     return users;
   }, [users, tab, rMap]);
 
-  const RoleIcon = ({ label }) => {
+  const RoleIcon = ({ label, size = 16 }) => {
     const r = label.toLowerCase();
-    if (r === "admin") return <ShieldCheckIcon />;
-    if (r === "user") return <UserCogIcon />;
-    return <UserIcon />;
-  };
-
-  const StatusBadge = ({ status }) => (
-    <View style={[
-      styles.statusBadge,
-      status === "Active" ? styles.statusActive : styles.statusInactive
-    ]}>
-      <View style={[
-        styles.statusDot,
-        status === "Active" ? styles.statusDotActive : styles.statusDotInactive
-      ]} />
-      <Text style={[
-        styles.statusText,
-        status === "Active" ? styles.statusTextActive : styles.statusTextInactive
-      ]}>
-        {status}
-      </Text>
-    </View>
-  );
-
-  const RoleBadge = ({ role }) => {
-    const roleLabel = getRoleLabel(role, rMap);
-    return (
-      <View style={styles.roleBadge}>
-        <RoleIcon label={roleLabel} />
-        <Text style={styles.roleText} numberOfLines={1}>
-          {roleLabel}
-        </Text>
-      </View>
-    );
+    let name = 'account';
+    let color = '#3b82f6';
+    if (r === 'admin') {
+      name = 'shield-check';
+      color = '#059669';
+    } else if (r === 'user') {
+      name = 'account-cog';
+      color = '#7c3aed';
+    }
+    return <Icon name={name} size={size} color={color} />;
   };
 
   const ActionButtons = ({ user }) => (
-    <View style={styles.actionButtons}>
-      <TouchableOpacity 
-        style={[styles.actionButton, styles.editButton]} 
+    <View style={styles.actionRow}>
+      <TouchableOpacity
+        style={[styles.actionBtn, styles.editBtn]}
         onPress={() => onEdit(user)}
       >
-        <EditIcon />
+        <Icon name="pencil" size={18} color="#374151" />
       </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={[styles.actionButton, styles.permButton]} 
+
+      <TouchableOpacity
+        style={[styles.actionBtn, styles.permBtn]}
         onPress={() => setPermUser(user)}
       >
-        <ShieldIcon />
+        <Icon name="shield-account" size={18} color="#7c3aed" />
       </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={[styles.actionButton, styles.resetButton]} 
+
+      <TouchableOpacity
+        style={[styles.actionBtn, styles.keyBtn]}
         onPress={() => setResetUser(user)}
         disabled={!getSafeUserId(user)}
       >
-        <KeyRoundIcon />
+        <Icon name="key-variant" size={18} color="#d97706" />
       </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={[styles.actionButton, styles.deleteButton]} 
+
+      <TouchableOpacity
+        style={[styles.actionBtn, styles.deleteBtn]}
         onPress={() => onDelete(user)}
       >
-        <TrashIcon />
+        <Icon name="trash-can-outline" size={18} color="#dc2626" />
       </TouchableOpacity>
     </View>
   );
 
-  // Full Table for Large Screens
+  // Full Desktop-style Table
   const renderFullTable = () => (
-    <View style={styles.table}>
-      {/* Table Header */}
+    <View style={styles.tableCard}>
       <View style={styles.tableHeader}>
-        <View style={[styles.tableHeaderCell, styles.userHeader]}>
-          <Text style={styles.tableHeaderText}>User</Text>
-        </View>
-        <View style={[styles.tableHeaderCell, styles.roleHeader]}>
-          <Text style={styles.tableHeaderText}>Role</Text>
-        </View>
-        <View style={[styles.tableHeaderCell, styles.contactHeader]}>
-          <Text style={styles.tableHeaderText}>Contact</Text>
-        </View>
-        <View style={[styles.tableHeaderCell, styles.addressHeader]}>
-          <Text style={styles.tableHeaderText}>Address</Text>
-        </View>
-        <View style={[styles.tableHeaderCell, styles.companiesHeader]}>
-          <Text style={styles.tableHeaderText}>Companies</Text>
-        </View>
-        <View style={[styles.tableHeaderCell, styles.actionsHeader]}>
-          <Text style={styles.tableHeaderText}>Actions</Text>
-        </View>
+        <Text style={[styles.headerText, { flex: 2 }]}>User</Text>
+        <Text style={[styles.headerText, { flex: 1.5 }]}>Role</Text>
+        <Text style={[styles.headerText, { flex: 2 }]}>Contact</Text>
+        <Text style={[styles.headerText, { flex: 2 }]}>Companies</Text>
+        <Text style={[styles.headerText, { flex: 1.5, textAlign: 'right' }]}>
+          Actions
+        </Text>
       </View>
-
-      {/* Table Body */}
-      <View style={styles.tableBody}>
-        {filtered.map((user, index) => {
-          const roleLabel = getRoleLabel(user.role, rMap);
-          
-          return (
-            <View 
-              key={user._id} 
-              style={[
-                styles.tableRow,
-                index % 2 === 0 ? styles.evenRow : styles.oddRow
-              ]}
-            >
-              {/* User Cell */}
-              <View style={[styles.tableCell, styles.userCell]}>
-                <View style={styles.userInfo}>
-                  <View style={styles.userAvatar}>
-                    <UserIcon />
-                  </View>
-                  <View style={styles.userDetails}>
-                    <Text style={styles.userName}>{user.userName}</Text>
-                    <Text style={styles.userId}>ID: {user.userId}</Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Role Cell */}
-              <View style={[styles.tableCell, styles.roleCell]}>
-                <View style={styles.roleInfo}>
-                  <View style={styles.roleIcon}>
-                    <RoleIcon label={roleLabel} />
-                  </View>
-                  <Text style={styles.roleLabel}>{roleLabel}</Text>
-                </View>
-              </View>
-
-              {/* Contact Cell */}
-              <View style={[styles.tableCell, styles.contactCell]}>
-                <View style={styles.contactInfo}>
-                  {user.contactNumber && (
-                    <View style={styles.contactItem}>
-                      <View style={[styles.contactIcon, styles.phoneIcon]}>
-                        <PhoneIcon />
-                      </View>
-                      <Text style={styles.contactText}>{user.contactNumber}</Text>
-                    </View>
-                  )}
-                  {user.email && (
-                    <View style={styles.contactItem}>
-                      <View style={[styles.contactIcon, styles.mailIcon]}>
-                        <MailIcon />
-                      </View>
-                      <Text style={styles.contactEmail}>{user.email}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-
-              {/* Address Cell */}
-              <View style={[styles.tableCell, styles.addressCell]}>
-                {user.address ? (
-                  <View style={styles.addressInfo}>
-                    <View style={[styles.contactIcon, styles.mapIcon]}>
-                      <MapPinIcon />
-                    </View>
-                    <Text style={styles.addressText} numberOfLines={2}>
-                      {user.address}
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={styles.noDataText}>—</Text>
-                )}
-              </View>
-
-              {/* Companies Cell */}
-              <View style={[styles.tableCell, styles.companiesCell]}>
-                <View style={styles.companiesContainer}>
-                  {user.companies && user.companies.length > 0 ? (
-                    user.companies.map((c) => {
-                      const id = companyIdOf(c);
-                      const companyName = companyMap.get(id);
-                      return companyName ? (
-                        <View key={id} style={styles.companyBadge}>
-                          <BuildingIcon />
-                          <Text style={styles.companyText} numberOfLines={1}>
-                            {companyName}
-                          </Text>
-                        </View>
-                      ) : null;
-                    })
-                  ) : (
-                    <Text style={styles.noCompaniesText}>No companies assigned</Text>
-                  )}
-                </View>
-              </View>
-
-              {/* Actions Cell */}
-              <View style={[styles.tableCell, styles.actionsCell]}>
-                <ActionButtons user={user} />
-              </View>
+      {filtered.map((user, index) => {
+        const roleLabel = getRoleLabel(user.role, rMap);
+        return (
+          <View
+            key={user._id}
+            style={[styles.tableRow, index % 2 !== 0 && styles.evenRow]}
+          >
+            <View style={{ flex: 2 }}>
+              <Text style={styles.userName}>{user.userName}</Text>
+              <Text style={styles.userId}>ID: {user.userId}</Text>
             </View>
-          );
-        })}
-      </View>
+            <View
+              style={{
+                flex: 1.5,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              <RoleIcon label={roleLabel} />
+              <Text style={styles.roleLabel}>{roleLabel}</Text>
+            </View>
+            <View style={{ flex: 2 }}>
+              <Text style={styles.contactText}>
+                {user.contactNumber || '—'}
+              </Text>
+              <Text style={styles.emailText} numberOfLines={1}>
+                {user.email}
+              </Text>
+            </View>
+            <View
+              style={{
+                flex: 2,
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 4,
+              }}
+            >
+              {user.companies?.map(c => (
+                <View key={companyIdOf(c)} style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {companyMap.get(companyIdOf(c))}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            <View style={{ flex: 1.5, alignItems: 'flex-end' }}>
+              <ActionButtons user={user} />
+            </View>
+          </View>
+        );
+      })}
     </View>
   );
 
-  // Compact Table for Mobile
+  // Mobile-style Compact Cards
   const renderCompactTable = () => (
-    <View style={styles.compactTable}>
-      {filtered.map((user) => {
+    <View style={{ padding: 16 }}>
+      {filtered.map(user => {
         const roleLabel = getRoleLabel(user.role, rMap);
-        
         return (
           <View key={user._id} style={styles.compactCard}>
-            {/* Header */}
             <View style={styles.compactHeader}>
-              <View style={styles.compactUserInfo}>
-                <View style={styles.userAvatar}>
-                  <UserIcon />
-                </View>
-                <View style={styles.compactUserDetails}>
-                  <Text style={styles.compactUserName}>{user.userName}</Text>
-                  <Text style={styles.compactUserId}>ID: {user.userId}</Text>
-                </View>
+              <View>
+                <Text style={styles.userName}>{user.userName}</Text>
+                <Text style={styles.userId}>ID: {user.userId}</Text>
               </View>
-              <View style={styles.compactBadges}>
-                <RoleBadge role={user.role} />
-                {user.status && <StatusBadge status={user.status} />}
+              <View style={styles.roleTag}>
+                <RoleIcon label={roleLabel} size={14} />
+                <Text style={styles.roleTagText}>{roleLabel}</Text>
               </View>
             </View>
 
-            {/* Contact Info */}
-            <View style={styles.compactContact}>
-              {user.contactNumber && (
-                <View style={styles.contactItem}>
-                  <View style={[styles.contactIcon, styles.phoneIcon]}>
-                    <PhoneIcon />
-                  </View>
-                  <Text style={styles.contactText}>{user.contactNumber}</Text>
-                </View>
-              )}
-              {user.email && (
-                <View style={styles.contactItem}>
-                  <View style={[styles.contactIcon, styles.mailIcon]}>
-                    <MailIcon />
-                  </View>
-                  <Text style={styles.contactEmail}>{user.email}</Text>
-                </View>
-              )}
-            </View>
-
-            {/* Address */}
-            {user.address && (
-              <View style={styles.compactAddress}>
-                <View style={[styles.contactIcon, styles.mapIcon]}>
-                  <MapPinIcon />
-                </View>
-                <Text style={styles.addressText} numberOfLines={2}>
-                  {user.address}
+            <View style={styles.compactInfo}>
+              <View style={styles.infoLine}>
+                <Icon name="phone" size={14} color="#64748b" />
+                <Text style={styles.infoText}>
+                  {user.contactNumber || 'No phone'}
                 </Text>
               </View>
-            )}
-
-            {/* Companies */}
-            <View style={styles.compactCompanies}>
-              <Text style={styles.companiesTitle}>Companies</Text>
-              <View style={styles.companiesContainer}>
-                {user.companies && user.companies.length > 0 ? (
-                  user.companies.slice(0, 2).map((c) => {
-                    const id = companyIdOf(c);
-                    const companyName = companyMap.get(id);
-                    return companyName ? (
-                      <View key={id} style={styles.companyBadge}>
-                        <BuildingIcon />
-                        <Text style={styles.companyText} numberOfLines={1}>
-                          {companyName}
-                        </Text>
-                      </View>
-                    ) : null;
-                  })
-                ) : (
-                  <Text style={styles.noCompaniesText}>No companies assigned</Text>
-                )}
-                {user.companies && user.companies.length > 2 && (
-                  <View style={styles.companyBadge}>
-                    <Text style={styles.companyText}>
-                      +{user.companies.length - 2}
-                    </Text>
-                  </View>
-                )}
+              <View style={styles.infoLine}>
+                <Icon name="email" size={14} color="#64748b" />
+                <Text style={styles.infoText}>{user.email}</Text>
               </View>
             </View>
 
-            {/* Actions */}
-            <View style={styles.compactActions}>
+            <View style={styles.compactFooter}>
               <ActionButtons user={user} />
             </View>
           </View>
@@ -390,32 +224,37 @@ export function UserTable({
 
   return (
     <View style={styles.container}>
-      {/* Tabs - Next.js style */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity 
-          style={[styles.tab, tab === TabValue.ALL && styles.activeTab]} 
+      {/* Tabs - Web Parity */}
+      <View style={styles.tabWrapper}>
+        <TouchableOpacity
           onPress={() => setTab(TabValue.ALL)}
+          style={[styles.tab, tab === TabValue.ALL && styles.activeTab]}
         >
-          <Text style={[styles.tabText, tab === TabValue.ALL && styles.activeTabText]}>
-            All Users ({users.length})
+          <Text
+            style={[
+              styles.tabText,
+              tab === TabValue.ALL && styles.activeTabText,
+            ]}
+          >
+            All ({users.length})
           </Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.tab, tab === TabValue.ADMIN && styles.activeTab]} 
+        <TouchableOpacity
           onPress={() => setTab(TabValue.ADMIN)}
+          style={[styles.tab, tab === TabValue.ADMIN && styles.activeTab]}
         >
-          <Text style={[styles.tabText, tab === TabValue.ADMIN && styles.activeTabText]}>
+          <Text
+            style={[
+              styles.tabText,
+              tab === TabValue.ADMIN && styles.activeTabText,
+            ]}
+          >
             Admins ({adminCount})
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Table */}
-      <ScrollView 
-        style={styles.tableContainer}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView showsVerticalScrollIndicator={false}>
         {isLargeScreen ? renderFullTable() : renderCompactTable()}
       </ScrollView>
 
@@ -428,7 +267,7 @@ export function UserTable({
         />
       )}
 
-      {resetUser && resetId != null && (
+      {resetUser && resetId && (
         <ResetPasswordDialog
           open={true}
           onClose={() => setResetUser(null)}
@@ -441,320 +280,71 @@ export function UserTable({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
-  tabContainer: {
+  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  tabWrapper: {
     flexDirection: 'row',
-    marginBottom: 20,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: '#e2e8f0',
     borderRadius: 8,
     padding: 4,
-    marginHorizontal: 16,
+    margin: 16,
   },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  activeTab: {
-    backgroundColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  tabText: {
-    fontSize: 14,
-    color: '#6b7280',
-    fontWeight: '500',
-  },
-  activeTabText: {
-    color: '#000',
-    fontWeight: '600',
-  },
-  tableContainer: {
-    flex: 1,
-  },
+  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 6 },
+  activeTab: { backgroundColor: '#fff', elevation: 2 },
+  tabText: { fontSize: 13, color: '#64748b', fontWeight: '500' },
+  activeTabText: { color: '#0f172a', fontWeight: '600' },
 
-  // Full Table Styles
-  table: {
-    flex: 1,
+  // Table Styles
+  tableCard: {
     marginHorizontal: 16,
-    backgroundColor: 'white',
+    backgroundColor: '#fff',
     borderRadius: 12,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#f8f9fa',
-    borderBottomWidth: 2,
-    borderBottomColor: '#e5e7eb',
-    paddingVertical: 16,
+    backgroundColor: '#f1f5f9',
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
   },
-  tableHeaderCell: {
-    paddingHorizontal: 12,
-    justifyContent: 'center',
-  },
-  tableHeaderText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  userHeader: { width: '20%' },
-  roleHeader: { width: '15%' },
-  contactHeader: { width: '20%' },
-  addressHeader: { width: '20%' },
-  companiesHeader: { width: '15%' },
-  actionsHeader: { width: '10%' },
-  tableBody: {
-    flex: 1,
+  headerText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    textTransform: 'uppercase',
   },
   tableRow: {
     flexDirection: 'row',
-    minHeight: 80,
+    padding: 14,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: '#f1f5f9',
   },
-  evenRow: {
-    backgroundColor: '#fafbfc',
-  },
-  oddRow: {
-    backgroundColor: 'white',
-  },
-  tableCell: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  userCell: { width: '20%' },
-  roleCell: { width: '15%' },
-  contactCell: { width: '20%' },
-  addressCell: { width: '20%' },
-  companiesCell: { width: '15%' },
-  actionsCell: { width: '10%' },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  userAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  userDetails: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 2,
-  },
-  userId: {
-    fontSize: 12,
-    color: '#6b7280',
-  },
-  roleInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  roleIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  roleLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  contactInfo: {
-    gap: 6,
-  },
-  contactItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  contactIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  phoneIcon: {
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-  },
-  mailIcon: {
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-  },
-  mapIcon: {
-    backgroundColor: 'rgba(107, 114, 128, 0.1)',
-  },
-  contactText: {
-    fontSize: 12,
-    color: '#374151',
-    flex: 1,
-  },
-  contactEmail: {
-    fontSize: 11,
-    color: '#6b7280',
-    flex: 1,
-  },
-  addressInfo: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  addressText: {
-    fontSize: 12,
-    color: '#6b7280',
-    flex: 1,
-    lineHeight: 16,
-  },
-  companiesContainer: {
-    gap: 4,
-  },
-  companyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+  evenRow: { backgroundColor: '#f8fafc' },
+  userName: { fontSize: 15, fontWeight: 'bold', color: '#1e293b' },
+  userId: { fontSize: 11, color: '#64748b' },
+  roleLabel: { fontSize: 13, color: '#334155', fontWeight: '500' },
+  contactText: { fontSize: 13, color: '#1e293b' },
+  emailText: { fontSize: 11, color: '#64748b' },
+  badge: {
+    backgroundColor: '#dbeafe',
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    gap: 4,
-    alignSelf: 'flex-start',
+    paddingVertical: 3,
+    borderRadius: 5,
   },
-  companyText: {
-    fontSize: 11,
-    color: '#3b82f6',
-    fontWeight: '500',
-  },
-  noDataText: {
-    fontSize: 12,
-    color: '#9ca3af',
-    fontStyle: 'italic',
-  },
-  noCompaniesText: {
-    fontSize: 11,
-    color: '#9ca3af',
-    fontStyle: 'italic',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 4,
-    justifyContent: 'flex-end',
-  },
-  actionButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: 'white',
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minWidth: 36,
-    minHeight: 36,
-  },
-  editButton: {
-    borderColor: '#d1d5db',
-  },
-  permButton: {
-    borderColor: '#d1d5db',
-  },
-  resetButton: {
-    borderColor: '#d1d5db',
-  },
-  deleteButton: {
-    backgroundColor: '#fef2f2',
-    borderColor: '#fecaca',
-  },
-  roleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  roleText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#3b82f6',
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-    alignSelf: 'flex-start',
-  },
-  statusActive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-  },
-  statusInactive: {
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statusDotActive: {
-    backgroundColor: '#10b981',
-  },
-  statusDotInactive: {
-    backgroundColor: '#f59e0b',
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  statusTextActive: {
-    color: '#10b981',
-  },
-  statusTextInactive: {
-    color: '#f59e0b',
-  },
+  badgeText: { fontSize: 10, color: '#1d4ed8', fontWeight: '600' },
 
-  // Compact Table Styles
-  compactTable: {
-    paddingHorizontal: 16,
-    gap: 12,
-  },
+  // Compact Card Styles
   compactCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#e2e8f0',
+    elevation: 2,
   },
   compactHeader: {
     flexDirection: 'row',
@@ -762,51 +352,39 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 12,
   },
-  compactUserInfo: {
+  roleTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    gap: 8,
+    gap: 4,
+    backgroundColor: '#f1f5f9',
+    padding: 5,
+    borderRadius: 6,
   },
-  compactUserDetails: {
-    flex: 1,
-  },
-  compactUserName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 2,
-  },
-  compactUserId: {
-    fontSize: 12,
-    color: '#6b7280',
-  },
-  compactBadges: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  compactContact: {
-    gap: 8,
-    marginBottom: 12,
-  },
-  compactAddress: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginBottom: 12,
-  },
-  compactCompanies: {
-    marginBottom: 12,
-  },
-  companiesTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-    color: '#374151',
-  },
-  compactActions: {
+  roleTagText: { fontSize: 11, fontWeight: '700', color: '#475569' },
+  compactInfo: { gap: 8, marginBottom: 12 },
+  infoLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  infoText: { fontSize: 13, color: '#475569' },
+  compactFooter: {
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: '#f1f5f9',
     paddingTop: 12,
   },
+
+  // Action Buttons
+  actionRow: { flexDirection: 'row', gap: 8 },
+  actionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderAppearance: 'outline',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  editBtn: { borderColor: '#e2e8f0' },
+  permBtn: { borderColor: '#e2e8f0' },
+  keyBtn: { borderColor: '#e2e8f0' },
+  deleteBtn: { backgroundColor: '#fef2f2', borderColor: '#fee2e2' },
 });

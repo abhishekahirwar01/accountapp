@@ -47,6 +47,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // Import icons
 import Icon from 'react-native-vector-icons/Feather';
 
+// Manual Base64 Decode (React Native alternative for atob)
+const base64Decode = str => {
+  const chars =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  let output = '';
+  str = String(str).replace(/=+$/, '');
+  for (let bc = 0, bs, buffer, idx = 0; (buffer = str.charAt(idx++)); ) {
+    buffer = chars.indexOf(buffer);
+    if (buffer === -1) continue;
+    bs = bc % 4 ? bs * 64 + buffer : buffer;
+    if (bc++ % 4) output += String.fromCharCode(255 & (bs >> ((-2 * bc) & 6)));
+  }
+  return output;
+};
+
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [companies, setCompanies] = useState([]);
@@ -108,11 +123,13 @@ export default function UsersPage() {
       const usersData = await usersRes.json();
       const companiesData = await companiesRes.json();
 
-      // Decode token
-      const payload = JSON.parse(atob(token.split('.')[1]));
+      // --- WEB PARITY LOGIC FIXED ---
+      // Token decode karke current admin ka userId nikal lo (RN base64Decode used)
+      const base64Url = token.split('.')[1];
+      const payload = JSON.parse(base64Decode(base64Url));
       const currentUserId = payload.userId || payload.id || payload._id;
 
-      // Filter out current admin user
+      // filter: apna khud ka record hata do (sirf agar role = admin hai)
       let filteredUsers = usersData;
       if (payload.role === 'admin') {
         filteredUsers = usersData.filter(u => u._id !== currentUserId);
@@ -147,7 +164,7 @@ export default function UsersPage() {
 
   // In UsersScreen.js, update the handleSave function:
 
-  const handleSave = async formData => {
+  const handleSave = async formDataFromForm => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
@@ -163,10 +180,11 @@ export default function UsersPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(formDataFromForm),
       });
 
       const data = await res.json();
+
       if (!res.ok) {
         throw new Error(
           data.message ||
@@ -174,14 +192,17 @@ export default function UsersPage() {
         );
       }
 
+      // Success Alert
       toast({
         title: `User ${selectedUser ? 'updated' : 'created'} successfully`,
       });
 
-      // Refresh data
-      fetchUsersAndCompanies();
+      // --- YE HAI MAIN FIX ---
+      // User save hone ke baad, wapis server se list fetch karni hogi
+      // await ka use karein taaki data aane tak loading state handle ho
+      await fetchUsersAndCompanies();
 
-      // Automatically close the form
+      // Jab data fetch ho jaye, tabhi form band karein
       handleCloseForm();
     } catch (error) {
       toast({
@@ -239,7 +260,7 @@ export default function UsersPage() {
       <AppLayout>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.fullscreenLoader}>
-            <ActivityIndicator size="large" color="#666" />
+            <ActivityIndicator size="large" color="#2563eb" />
             <Text style={styles.loadingText}>Loading Users...</Text>
           </View>
         </SafeAreaView>
@@ -299,6 +320,7 @@ export default function UsersPage() {
               </View>
               <View style={styles.headerActions}>
                 <View style={styles.viewToggle}>
+                  {/* Web ki tarah Toggle Logic add ki (commented UI touch nahi ki) */}
                   {/* <Button
                 variant={viewMode === 'card' ? 'primary' : 'ghost'}
                 size="sm"
@@ -549,7 +571,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#1e40af',
-    // marginBottom: 4,
   },
   urlValue: {
     fontSize: 12,
@@ -563,18 +584,6 @@ const styles = StyleSheet.create({
     marginTop: 0,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#a2b5ddff',
-  },
-
-  // Header styles
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    marginTop: 6,
-    paddingLeft: 10,
-    paddingRight: 10,
   },
 
   // Header styles
@@ -609,8 +618,6 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   addUser: {
-    backgroundColor: '#ccddebff',
-    color: '#fff',
     fontWeight: '500',
   },
 
