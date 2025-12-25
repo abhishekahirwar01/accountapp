@@ -483,13 +483,13 @@ export const SalesPurchasesFields = props => {
             });
             setIsBankAutoSelected(true);
 
-            // Show toast notification for auto-selection
+            // Toast removed as per user request
             if (filteredBanks.length > 1) {
-              Toast.show({
-                type: 'info',
-                text1: 'Bank Auto-Selected',
-                text2: 'First bank selected - you can change it',
-              });
+              // Toast.show({
+              //   type: 'info',
+              //   text1: 'Bank Auto-Selected',
+              //   text2: 'First bank selected - you can change it',
+              // });
             }
           }
         } else if (
