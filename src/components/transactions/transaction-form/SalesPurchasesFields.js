@@ -1396,104 +1396,120 @@ export const SalesPurchasesFields = props => {
               </View>
 
               <View style={[styles.inputContainer, styles.pairItem]}>
-                <Text style={styles.inputLabel}>GST %</Text>
-                {customGstInputs[index] ? (
-                  <View style={styles.customGstContainer}>
-                    <TextInput
-                      style={[
-                        styles.textInput,
-                        { flex: 1 },
-                        errors?.items?.[index]?.gstPercentage
-                          ? styles.errorBorder
-                          : {},
-                      ]}
-                      value={
-                        watch(`items.${index}.gstPercentage`)?.toString() || ''
-                      }
-                      onChangeText={text => {
-                        const val = text === '' ? '' : Number(text);
-                        if (val === '' || (val >= 0 && val <= 100)) {
-                          setValue(`items.${index}.gstPercentage`, val);
+                {gstEnabled && (
+                  <>
+                    <Text style={styles.inputLabel}>GST %</Text>
+                    {customGstInputs[index] ? (
+                      <View style={styles.customGstContainer}>
+                        <TextInput
+                          style={[
+                            styles.textInput,
+                            { flex: 1 },
+                            errors?.items?.[index]?.gstPercentage
+                              ? styles.errorBorder
+                              : {},
+                          ]}
+                          value={
+                            watch(`items.${index}.gstPercentage`)?.toString() ||
+                            ''
+                          }
+                          onChangeText={text => {
+                            const val = text === '' ? '' : Number(text);
+                            if (val === '' || (val >= 0 && val <= 100)) {
+                              setValue(`items.${index}.gstPercentage`, val);
+                            }
+                          }}
+                          keyboardType="decimal-pad"
+                          placeholder="Enter %"
+                        />
+                        <TouchableOpacity
+                          style={styles.iconButton}
+                          onPress={() => {
+                            setCustomGstInputs(prev => ({
+                              ...prev,
+                              [index]: false,
+                            }));
+                            setValue(`items.${index}.gstPercentage`, 18);
+                          }}
+                        >
+                          <Icon name={IconMap.X} size={16} color="#6B7280" />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <CustomDropdown
+                        items={GST_OPTIONS.map(opt => ({
+                          label: opt.label,
+                          value: opt.value,
+                        }))}
+                        value={
+                          watch(`items.${index}.gstPercentage`)?.toString() ||
+                          '18'
                         }
-                      }}
-                      keyboardType="decimal-pad"
-                      placeholder="Enter %"
+                        onChange={value =>
+                          handleGstPercentageChange(value, index)
+                        }
+                        placeholder="Select GST %"
+                        // style={[
+                        //   styles.picker,
+                        //   errors?.items?.[index]?.gstPercentage
+                        //     ? styles.errorBorder
+                        //     : {},
+                        // ]}
+                      />
+                    )}
+                    <FormMessage
+                      error={errors?.items?.[index]?.gstPercentage}
                     />
-                    <TouchableOpacity
-                      style={styles.iconButton}
-                      onPress={() => {
-                        setCustomGstInputs(prev => ({
-                          ...prev,
-                          [index]: false,
-                        }));
-                        setValue(`items.${index}.gstPercentage`, 18);
-                      }}
-                    >
-                      <Icon name={IconMap.X} size={16} color="#6B7280" />
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <CustomDropdown
-                    items={GST_OPTIONS.map(opt => ({
-                      label: opt.label,
-                      value: opt.value,
-                    }))}
-                    value={
-                      watch(`items.${index}.gstPercentage`)?.toString() || '18'
-                    }
-                    onChange={value => handleGstPercentageChange(value, index)}
-                    placeholder="Select GST %"
-                    // style={[
-                    //   styles.picker,
-                    //   errors?.items?.[index]?.gstPercentage
-                    //     ? styles.errorBorder
-                    //     : {},
-                    // ]}
-                  />
+                  </>
                 )}
-                <FormMessage error={errors?.items?.[index]?.gstPercentage} />
               </View>
             </View>
 
-            <View style={styles.pairRow}>
-              <View style={[styles.inputContainer, styles.pairItem]}>
-                <Text style={styles.inputLabel}>Tax</Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    styles.rightAlignedInput,
-                    errors?.items?.[index]?.lineTax ? styles.errorBorder : {},
-                  ]}
-                  value={formatWithCommas(watch(`items.${index}.lineTax`))}
-                  onChangeText={text =>
-                    handleAmountChange(text, index, 'lineTax')
-                  }
-                  keyboardType="decimal-pad"
-                  placeholder="0.00"
-                />
-                <FormMessage error={errors?.items?.[index]?.lineTax} />
-              </View>
+            {gstEnabled && (
+              <View style={styles.pairRow}>
+                <View style={[styles.inputContainer, styles.pairItem]}>
+                  <Text style={styles.inputLabel}>Tax</Text>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      styles.rightAlignedInput,
+                      errors?.items?.[index]?.lineTax ? styles.errorBorder : {},
+                    ]}
+                    value={formatWithCommas(watch(`items.${index}.lineTax`))}
+                    onChangeText={text =>
+                      handleAmountChange(text, index, 'lineTax')
+                    }
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                  />
+                  <FormMessage error={errors?.items?.[index]?.lineTax} />
+                </View>
 
-              <View style={[styles.inputContainer, styles.pairItem]}>
-                <Text style={styles.inputLabel}>Total</Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    styles.rightAlignedInput,
-                    styles.totalInput,
-                    errors?.items?.[index]?.lineTotal ? styles.errorBorder : {},
-                  ]}
-                  ref={ref => registerFieldRef(`items.${index}.lineTotal`, ref)}
-                  value={formatWithCommas(watch(`items.${index}.lineTotal`))}
-                  onChangeText={text =>
-                    handleAmountChange(text, index, 'lineTotal')
-                  }
-                  keyboardType="decimal-pad"
-                  placeholder="0.00"
-                />
-                <FormMessage error={errors?.items?.[index]?.lineTotal} />
+                <View style={[styles.inputContainer, styles.pairItem]}>
+                  <Text style={styles.inputLabel}>Total</Text>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      styles.rightAlignedInput,
+                      styles.totalInput,
+                      errors?.items?.[index]?.lineTotal
+                        ? styles.errorBorder
+                        : {},
+                    ]}
+                    ref={ref =>
+                      registerFieldRef(`items.${index}.lineTotal`, ref)
+                    }
+                    value={formatWithCommas(watch(`items.${index}.lineTotal`))}
+                    onChangeText={text =>
+                      handleAmountChange(text, index, 'lineTotal')
+                    }
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                  />
+                  <FormMessage error={errors?.items?.[index]?.lineTotal} />
+                </View>
               </View>
-            </View>
+            )}
           </View>
         </View>
       </CustomCard>
@@ -1721,44 +1737,48 @@ export const SalesPurchasesFields = props => {
               </View>
             </View>
 
-            <View style={styles.pairRow}>
-              <View style={[styles.inputContainer, styles.pairItem]}>
-                <Text style={styles.inputLabel}>Tax</Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    styles.rightAlignedInput,
-                    errors?.items?.[index]?.lineTax ? styles.errorBorder : {},
-                  ]}
-                  value={formatWithCommas(watch(`items.${index}.lineTax`))}
-                  onChangeText={text =>
-                    handleAmountChange(text, index, 'lineTax')
-                  }
-                  keyboardType="decimal-pad"
-                  placeholder="0.00"
-                />
-                <FormMessage error={errors?.items?.[index]?.lineTax} />
-              </View>
+            {gstEnabled && (
+              <View style={styles.pairRow}>
+                <View style={[styles.inputContainer, styles.pairItem]}>
+                  <Text style={styles.inputLabel}>Tax</Text>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      styles.rightAlignedInput,
+                      errors?.items?.[index]?.lineTax ? styles.errorBorder : {},
+                    ]}
+                    value={formatWithCommas(watch(`items.${index}.lineTax`))}
+                    onChangeText={text =>
+                      handleAmountChange(text, index, 'lineTax')
+                    }
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                  />
+                  <FormMessage error={errors?.items?.[index]?.lineTax} />
+                </View>
 
-              <View style={[styles.inputContainer, styles.pairItem]}>
-                <Text style={styles.inputLabel}>Total</Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    styles.rightAlignedInput,
-                    styles.serviceTotalInput,
-                    errors?.items?.[index]?.lineTotal ? styles.errorBorder : {},
-                  ]}
-                  value={formatWithCommas(watch(`items.${index}.lineTotal`))}
-                  onChangeText={text =>
-                    handleAmountChange(text, index, 'lineTotal')
-                  }
-                  keyboardType="decimal-pad"
-                  placeholder="0.00"
-                />
-                <FormMessage error={errors?.items?.[index]?.lineTotal} />
+                <View style={[styles.inputContainer, styles.pairItem]}>
+                  <Text style={styles.inputLabel}>Total</Text>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      styles.rightAlignedInput,
+                      styles.serviceTotalInput,
+                      errors?.items?.[index]?.lineTotal
+                        ? styles.errorBorder
+                        : {},
+                    ]}
+                    value={formatWithCommas(watch(`items.${index}.lineTotal`))}
+                    onChangeText={text =>
+                      handleAmountChange(text, index, 'lineTotal')
+                    }
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                  />
+                  <FormMessage error={errors?.items?.[index]?.lineTotal} />
+                </View>
               </View>
-            </View>
+            )}
           </View>
         </View>
       </CustomCard>
@@ -1800,9 +1820,9 @@ export const SalesPurchasesFields = props => {
                       render={({ field: { onChange, value } }) => (
                         <CustomDropdown
                           items={companies.map(c => ({
-                              label: c.businessName || c.name || 'Company',
-                              value: c._id,
-                            }))}
+                            label: c.businessName || c.name || 'Company',
+                            value: c._id,
+                          }))}
                           value={value}
                           onChange={itemValue => {
                             onChange(itemValue);
@@ -1980,9 +2000,9 @@ export const SalesPurchasesFields = props => {
                       render={({ field: { onChange, value } }) => (
                         <CustomDropdown
                           items={currentPaymentMethods.map(m => ({
-                              label: m,
-                              value: m,
-                            }))}
+                            label: m,
+                            value: m,
+                          }))}
                           value={value}
                           onChange={itemValue => {
                             onChange(itemValue);
