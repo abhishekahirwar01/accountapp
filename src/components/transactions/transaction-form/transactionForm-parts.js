@@ -406,9 +406,9 @@ export function FormTabs({
                     <Text style={styles.label}>Company</Text>
                     <CustomDropdown
                       items={companies.map(c => ({
-                          label: c.businessName || c.name || 'Company',
-                          value: c._id,
-                        }))}
+                        label: c.businessName || c.name || 'Company',
+                        value: c._id,
+                      }))}
                       value={formMethods.watch('company') || ''}
                       onChange={val => formMethods.setValue('company', val)}
                       placeholder="Select a company"
@@ -1361,11 +1361,13 @@ export function HSNSearchInput({ onSelect, placeholder, value, onChange }) {
 
       {showSuggestions && suggestions.length > 0 && (
         <View style={styles.suggestionBox}>
-          <FlatList
-            data={suggestions}
-            keyExtractor={item => item.code}
-            renderItem={({ item }) => (
+          <ScrollView
+            nestedScrollEnabled={true}
+            keyboardShouldPersistTaps="always"
+          >
+            {suggestions.map(item => (
               <TouchableOpacity
+                key={item.code}
                 onPress={() => handleSelect(item)}
                 style={styles.suggestionItem}
               >
@@ -1377,9 +1379,8 @@ export function HSNSearchInput({ onSelect, placeholder, value, onChange }) {
                   {item.description}
                 </Text>
               </TouchableOpacity>
-            )}
-            nestedScrollEnabled={false}
-          />
+            ))}
+          </ScrollView>
         </View>
       )}
 
@@ -1516,11 +1517,13 @@ export function SACSearchInput({ onSelect, placeholder, value, onChange }) {
 
       {showSuggestions && suggestions.length > 0 && (
         <View style={styles.suggestionBox}>
-          <FlatList
-            data={suggestions}
-            keyExtractor={item => item.code}
-            renderItem={({ item }) => (
+          <ScrollView
+            nestedScrollEnabled={true}
+            keyboardShouldPersistTaps="always"
+          >
+            {suggestions.map(item => (
               <TouchableOpacity
+                key={item.code}
                 onPress={() => handleSelect(item)}
                 style={styles.suggestionItem}
               >
@@ -1532,9 +1535,8 @@ export function SACSearchInput({ onSelect, placeholder, value, onChange }) {
                   {item.description}
                 </Text>
               </TouchableOpacity>
-            )}
-            nestedScrollEnabled={false}
-          />
+            ))}
+          </ScrollView>
         </View>
       )}
 

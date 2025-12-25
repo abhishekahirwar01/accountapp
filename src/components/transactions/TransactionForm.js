@@ -1820,6 +1820,8 @@ export function TransactionForm({
   };
 
   async function onSubmit(values, shouldCloseForm = true) {
+    console.log('gstEnabled:', gstEnabled);
+    console.log('Submitting values:', JSON.stringify(values, null, 2));
     const isValid = await form.trigger();
 
     if (!isValid) {
@@ -2072,6 +2074,7 @@ export function TransactionForm({
         delete payload.totalAmount;
       }
 
+      console.log('Final Payload:', JSON.stringify(payload, null, 2));
       const res = await fetch(`${BASE_URL}${endpoint}`, {
         method,
         headers: {
@@ -2084,6 +2087,7 @@ export function TransactionForm({
       const data = await res.json();
 
       if (!res.ok) {
+        console.log('API Error Data:', data);
         throw new Error(
           data.message || `Failed to submit ${values.type} entry.`,
         );
@@ -3646,11 +3650,7 @@ export function TransactionForm({
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text variant="headlineSmall">Invoice Preview</Text>
-            <IconButton
-              icon="✕"
-              size={24}
-              onPress={handlePreviewClose}
-            />
+            <IconButton icon="✕" size={24} onPress={handlePreviewClose} />
           </View>
 
           <InvoiceTemplateRenderer invoiceData={generatedInvoice} />
