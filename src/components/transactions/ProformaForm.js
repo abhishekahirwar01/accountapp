@@ -1064,6 +1064,8 @@ export default function ProformaForm({
                               `items.${index}.hsn`,
                               selectedProduct.hsn,
                             );
+                          } else {
+                            form.setValue(`items.${index}.hsn`, '');
                           }
                         }
                       }
@@ -1364,6 +1366,8 @@ export default function ProformaForm({
                               `items.${index}.sac`,
                               selectedService.sac,
                             );
+                          } else {
+                            form.setValue(`items.${index}.sac`, '');
                           }
                         }
                       }

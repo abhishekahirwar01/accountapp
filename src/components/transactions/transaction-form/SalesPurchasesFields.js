@@ -21,8 +21,6 @@ import QuillEditor from '../../ui/QuillEditor';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 // Picker replaced by CustomDropdown for consistent UI
-import { HSNSearchInput, SACSearchInput } from './transactionForm-parts';
-import { handleHSNSelect, handleSACSelect } from './transaction-utils';
 import { BASE_URL } from '../../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -271,6 +269,10 @@ export const SalesPurchasesFields = props => {
     setCreatingServiceForIndex,
     setNewEntityName,
     transactionToEdit,
+    hsnOptions,
+    sacOptions,
+    handleHsnChange,
+    handleSacChange,
   } = props;
 
   const {
@@ -772,69 +774,75 @@ export const SalesPurchasesFields = props => {
 
   const handleProductSelection = (value, index) => {
     setValue(`items.${index}.product`, value, { shouldValidate: true });
+    const selectedProduct = value ? products.find(p => p._id === value) : null;
+
+    // Set HSN or clear it
+    setValue(`items.${index}.hsn`, selectedProduct?.hsn || '', {
+      shouldValidate: true,
+    });
 
     if (value && typeof value === 'string') {
-      const selectedProduct = products.find(p => p._id === value);
+      if (selectedProduct) {
+        if (selectedProduct.unit) {
+          setValue(`items.${index}.unitType`, selectedProduct.unit, {
+            shouldValidate: true,
+          });
+        }
 
-      if (selectedProduct?.unit) {
-        setValue(`items.${index}.unitType`, selectedProduct.unit, {
-          shouldValidate: true,
-        });
-      }
+        if (
+          type === 'sales' &&
+          selectedProduct.sellingPrice &&
+          selectedProduct.sellingPrice > 0
+        ) {
+          const newPrice = selectedProduct.sellingPrice;
+          setValue(`items.${index}.pricePerUnit`, newPrice, {
+            shouldValidate: true,
+            shouldDirty: true,
+            shouldTouch: true,
+          });
 
-      if (
-        type === 'sales' &&
-        selectedProduct?.sellingPrice &&
-        selectedProduct.sellingPrice > 0
-      ) {
-        const newPrice = selectedProduct.sellingPrice;
-        setValue(`items.${index}.pricePerUnit`, newPrice, {
-          shouldValidate: true,
-          shouldDirty: true,
-          shouldTouch: true,
-        });
+          setTimeout(() => {
+            calculateLineTotals(index);
+          }, 100);
 
-        setTimeout(() => {
+          setItemRenderKeys(prev => ({
+            ...prev,
+            [index]: (prev[index] || 0) + 1,
+          }));
+        } else if (
+          type === 'purchases' &&
+          selectedProduct.costPrice &&
+          selectedProduct.costPrice > 0
+        ) {
+          const newPrice = selectedProduct.costPrice;
+          setValue(`items.${index}.pricePerUnit`, newPrice, {
+            shouldValidate: true,
+            shouldDirty: true,
+            shouldTouch: true,
+          });
+
+          setTimeout(() => {
+            calculateLineTotals(index);
+          }, 100);
+
+          setItemRenderKeys(prev => ({
+            ...prev,
+            [index]: (prev[index] || 0) + 1,
+          }));
+        } else {
+          setValue(`items.${index}.pricePerUnit`, 0, { shouldValidate: true });
           calculateLineTotals(index);
-        }, 100);
+          setItemRenderKeys(prev => ({
+            ...prev,
+            [index]: (prev[index] || 0) + 1,
+          }));
+        }
 
-        setItemRenderKeys(prev => ({
-          ...prev,
-          [index]: (prev[index] || 0) + 1,
-        }));
-      } else if (
-        type === 'purchases' &&
-        selectedProduct?.costPrice &&
-        selectedProduct.costPrice > 0
-      ) {
-        const newPrice = selectedProduct.costPrice;
-        setValue(`items.${index}.pricePerUnit`, newPrice, {
-          shouldValidate: true,
-          shouldDirty: true,
-          shouldTouch: true,
-        });
-
-        setTimeout(() => {
-          calculateLineTotals(index);
-        }, 100);
-
-        setItemRenderKeys(prev => ({
-          ...prev,
-          [index]: (prev[index] || 0) + 1,
-        }));
-      } else {
-        setValue(`items.${index}.pricePerUnit`, 0, { shouldValidate: true });
-        calculateLineTotals(index);
-        setItemRenderKeys(prev => ({
-          ...prev,
-          [index]: (prev[index] || 0) + 1,
-        }));
-      }
-
-      // Validate stock when product is selected
-      const currentQuantity = watch(`items.${index}.quantity`) || 0;
-      if (currentQuantity > 0) {
-        handleStockValidation(value, currentQuantity, index);
+        // Validate stock when product is selected
+        const currentQuantity = watch(`items.${index}.quantity`) || 0;
+        if (currentQuantity > 0) {
+          handleStockValidation(value, currentQuantity, index);
+        }
       }
     }
   };
@@ -1376,22 +1384,14 @@ export const SalesPurchasesFields = props => {
             <View style={styles.pairRow}>
               <View style={[styles.inputContainer, styles.pairItem]}>
                 <Text style={styles.inputLabel}>HSN Code</Text>
-                {selectedProduct?.hsn ? (
-                  <View style={styles.readOnlyContainer}>
-                    <Text style={styles.readOnlyText}>
-                      {selectedProduct.hsn}
-                    </Text>
-                  </View>
-                ) : (
-                  <HSNSearchInput
-                    onSelect={hsnCode => {
-                      handleHSNSelect(hsnCode, index, form, value =>
-                        setValue(`items.${index}.hsn`, value),
-                      );
+                 <CustomDropdown
+                    items={hsnOptions}
+                    value={watch(`items.${index}.hsn`) || ''}
+                    onChange={hsnCodeValue => {
+                      handleHsnChange(hsnCodeValue, index);
                     }}
                     placeholder="Search HSN..."
                   />
-                )}
                 <FormMessage error={errors?.items?.[index]?.hsn} />
               </View>
 
@@ -1561,18 +1561,27 @@ export const SalesPurchasesFields = props => {
                 value={watch(`items.${index}.service`) || ''}
                 onChange={value => {
                   setValue(`items.${index}.service`, value);
-                  if (value) {
-                    const selectedService = services.find(s => s._id === value);
-                    if (selectedService) {
-                      if (
-                        (type === 'sales' || type === 'purchases') &&
-                        selectedService.amount > 0
-                      ) {
-                        setValue(
-                          `items.${index}.amount`,
-                          selectedService.amount,
-                        );
-                      }
+                  const selectedService = value
+                    ? services.find(s => s._id === value)
+                    : null;
+
+                  setValue(
+                    `items.${index}.sac`,
+                    selectedService?.sac || '',
+                    {
+                      shouldValidate: true,
+                    },
+                  );
+
+                  if (selectedService) {
+                    if (
+                      (type === 'sales' || type === 'purchases') &&
+                      selectedService.amount > 0
+                    ) {
+                      setValue(
+                        `items.${index}.amount`,
+                        selectedService.amount,
+                      );
                     }
                   }
                 }}
@@ -1648,22 +1657,14 @@ export const SalesPurchasesFields = props => {
             <View style={styles.pairRow}>
               <View style={[styles.inputContainer, styles.pairItem]}>
                 <Text style={styles.inputLabel}>SAC Code</Text>
-                {selectedService?.sac ? (
-                  <View style={styles.readOnlyContainer}>
-                    <Text style={styles.readOnlyText}>
-                      {selectedService.sac}
-                    </Text>
-                  </View>
-                ) : (
-                  <SACSearchInput
-                    onSelect={sacCode => {
-                      handleSACSelect(sacCode, index, form, value =>
-                        setValue(`items.${index}.sac`, value),
-                      );
+                 <CustomDropdown
+                    items={sacOptions}
+                    value={watch(`items.${index}.sac`) || ''}
+                    onChange={sacCodeValue => {
+                      handleSacChange(sacCodeValue, index);
                     }}
                     placeholder="Search SAC..."
                   />
-                )}
                 <FormMessage error={errors?.items?.[index]?.sac} />
               </View>
 
