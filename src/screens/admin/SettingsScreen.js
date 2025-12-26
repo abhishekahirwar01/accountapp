@@ -21,6 +21,7 @@ import ClientForm from '../../components/clients/ClientForm';
 import { BASE_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppLayout from '../../components/layout/AppLayout';
+import { useNavigation } from '@react-navigation/native';
 
 export default function SettingsPage() {
   const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
@@ -36,6 +37,16 @@ export default function SettingsPage() {
   });
   const [loading, setLoading] = useState(false);
   const [userData, setUserData] = useState(null);
+
+  const navigation = useNavigation();
+
+  const handleBack = () => {
+    try {
+      if (navigation && typeof navigation.canGoBack === 'function') {
+        if (navigation.canGoBack()) navigation.goBack();
+      }
+    } catch (e) {}
+  };
 
   // Load user data from AsyncStorage on component mount
   useEffect(() => {
@@ -366,11 +377,19 @@ export default function SettingsPage() {
     switch (item.type) {
       case 'header':
         return (
-          <View style={styles.header}>
-            <Text style={styles.title}>Settings</Text>
-            <Text style={styles.subtitle}>
-              Manage your account and system preferences
-            </Text>
+          <View style={styles.headerRow}>
+            
+            <View style={styles.headerTextWrap}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' , }}>
+                <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+              <Icon name="arrow-left" size={24} color="#666" />
+            </TouchableOpacity>
+              <Text style={styles.title}>Settings</Text>
+              </View>
+              <Text style={styles.subtitle}>
+                Manage your account and system preferences
+              </Text>
+            </View>
           </View>
         );
       case 'profile':
@@ -475,11 +494,29 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 2,
   },
   subtitle: {
     fontSize: 16,
     color: '#666',
+  },
+  headerRow: {
+    marginBottom: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerTextWrap: {
+    flex: 1,
+  },
+  backButton: {
+    marginRight: 10,
+   
+   
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 40,
+    minWidth: 10,
   },
   card: {
     marginBottom: 16,

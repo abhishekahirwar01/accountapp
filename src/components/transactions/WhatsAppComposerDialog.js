@@ -1310,15 +1310,41 @@ export default function WhatsAppComposerDialog({
         const { Linking, Platform } = await import('react-native');
 
         const encodedMessage = encodeURIComponent(finalMessage);
-        const whatsappUrl = `whatsapp://send?phone=${finalNumber}&text=${encodedMessage}`;
-        const whatsappWebUrl = `https://web.whatsapp.com/send?phone=${finalNumber}&text=${encodedMessage}`;
+        const appUrl = `whatsapp://send?phone=${finalNumber}&text=${encodedMessage}`;
+        const iosTextOnlyUrl = `whatsapp://send?text=${encodedMessage}`;
+        const webLink = `https://wa.me/${finalNumber}?text=${encodedMessage}`;
 
-        const canOpen = await Linking.canOpenURL(whatsappUrl);
-
-        if (canOpen) {
-          await Linking.openURL(whatsappUrl);
-        } else {
-          await Linking.openURL(whatsappWebUrl);
+        // Try native app URL first, then platform-specific fallbacks, then wa.me web link
+        try {
+          if (Platform.OS === 'android') {
+            // Android: try whatsapp:// then intent:// (more robust on some devices)
+            const canOpen = await Linking.canOpenURL(appUrl);
+            if (canOpen) {
+              await Linking.openURL(appUrl);
+            } else {
+              const intentUrl = `intent://send?phone=${finalNumber}&text=${encodedMessage}#Intent;package=com.whatsapp;scheme=whatsapp;end`;
+              try {
+                await Linking.openURL(intentUrl);
+              } catch (e) {
+                await Linking.openURL(webLink);
+              }
+            }
+          } else {
+            // iOS: phone param can be unreliable; try text-only scheme, then wa.me
+            const canOpenTextOnly = await Linking.canOpenURL(iosTextOnlyUrl);
+            if (canOpenTextOnly) {
+              await Linking.openURL(iosTextOnlyUrl);
+            } else {
+              await Linking.openURL(webLink);
+            }
+          }
+        } catch (e) {
+          console.warn('WhatsApp open fallback failed, opening web link', e);
+          try {
+            await Linking.openURL(webLink);
+          } catch (err) {
+            console.error('Failed to open wa.me link', err);
+          }
         }
         setTimeout(() => onClose && onClose(), 1500);
       }
@@ -1353,13 +1379,22 @@ export default function WhatsAppComposerDialog({
     const finalMessage = messageContent || '';
 
     const encodedMessage = encodeURIComponent(finalMessage);
-    const whatsappUrl = `whatsapp://send?phone=${finalNumber}&text=${encodedMessage}`;
+    const appUrl = `whatsapp://send?phone=${finalNumber}&text=${encodedMessage}`;
+    const iosTextOnlyUrl = `whatsapp://send?text=${encodedMessage}`;
+    const webLink = `https://wa.me/${finalNumber}?text=${encodedMessage}`;
 
-    Linking.openURL(whatsappUrl).catch(() => {
-      // Fallback to web
-      const webUrl = `https://web.whatsapp.com/send?phone=${finalNumber}&text=${encodedMessage}`;
-      Linking.openURL(webUrl).catch(() => {});
-    });
+    // Try to open WhatsApp app first, then fallbacks
+    Linking.canOpenURL(appUrl)
+      .then(can => {
+        if (can) return Linking.openURL(appUrl);
+        if (Platform.OS === 'ios') return Linking.canOpenURL(iosTextOnlyUrl).then(c => (c ? Linking.openURL(iosTextOnlyUrl) : Linking.openURL(webLink)));
+        // Android try intent then wa.me
+        const intentUrl = `intent://send?phone=${finalNumber}&text=${encodedMessage}#Intent;package=com.whatsapp;scheme=whatsapp;end`;
+        return Linking.openURL(intentUrl).catch(() => Linking.openURL(webLink));
+      })
+      .catch(() => {
+        Linking.openURL(webLink).catch(() => {});
+      });
 
     Alert.alert('WhatsApp Opening', 'Opening WhatsApp.');
     onClose && onClose();

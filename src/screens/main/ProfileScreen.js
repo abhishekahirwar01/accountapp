@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
   RefreshControl,
   Platform,
+  BackHandler, // Added BackHandler for Android hardware back button
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -34,6 +35,7 @@ import {
   CheckCircle,
   XCircle,
   Mail,
+  ArrowLeft, // Added back arrow icon
 } from 'lucide-react-native';
 
 import { BASE_URL } from '../../config';
@@ -50,6 +52,11 @@ import ServiceSettings from '../../components/settings/ServiceSettings';
 import BankSettings from '../../components/settings/BankSettings';
 import TemplateSettings from '../../components/settings/TemplateSettings';
 import { EmailSendingConsent } from '../../components/settings/EmailSendingConsent';
+
+// Add these navigation imports based on your setup
+// If using React Navigation v5/6:
+// import { useNavigation } from '@react-navigation/native';
+// If using a different navigation solution, import accordingly
 
 const PermissionsTab = React.memo(() => {
   const { permissions } = usePermissions();
@@ -421,9 +428,12 @@ const UserPermissionsTab = React.memo(() => {
 
 UserPermissionsTab.displayName = 'UserPermissionsTab';
 
-export default function ProfilePage() {
+export default function ProfilePage({ navigation }) { // Added navigation prop
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
+
+  // Alternative: If you're using React Navigation hooks
+  // const navigation = useNavigation();
 
   const {
     permissions,
@@ -440,8 +450,31 @@ export default function ProfilePage() {
   const [selectedTab, setSelectedTab] = useState('profile');
   const [refreshing, setRefreshing] = useState(false);
 
+  // Back button handler (works with navigation prop)
+  const handleBackPress = useCallback(() => {
+    try {
+      if (navigation && typeof navigation.canGoBack === 'function') {
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+          return true;
+        }
+      }
+    } catch (e) {}
+    return false;
+  }, [navigation]);
+
   useEffect(() => {
     loadCurrentUser();
+    
+    // Handle Android hardware back button
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      handleBackPress
+    );
+
+    return () => {
+      backHandler.remove();
+    };
   }, []);
 
   const loadCurrentUser = async () => {
@@ -596,6 +629,8 @@ export default function ProfilePage() {
   const isInitialLoading =
     !currentUser || (isMember && (permissionsLoading || userCapsLoading));
 
+  
+
   if (isInitialLoading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -624,9 +659,23 @@ export default function ProfilePage() {
         }
       >
         <View style={styles.contentContainer}>
+          {/* Header with Back Button */}
           <View style={styles.headerContainer}>
             <View style={styles.headerTextContainer}>
-              <Text style={styles.headerTitle}>Settings</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' , }}>
+              <TouchableOpacity 
+              style={styles.backButton}
+              onPress={handleBackPress}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <ArrowLeft size={24} color="#3b82f6"/>
+              
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Settings</Text>
+
+            </View>
+              
               <Text style={styles.headerSubtitle}>
                 Manage your account, preferences, and business entities.
               </Text>
@@ -712,12 +761,32 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     marginBottom: 24,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  backButton: {
+    marginRight: 12,
+    // marginTop: 4,
+    // padding: 8,
+    // borderRadius: 8,
+   
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 40,
+    minWidth: 10,
+  },
+  backButtonText: {
+    marginLeft: 4,
+    color: '#3b82f6',
+    fontSize: 14,
+    fontWeight: '500',
   },
   headerTextContainer: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#1f2937',
     marginBottom: 8,
