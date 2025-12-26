@@ -52,8 +52,8 @@ import {
   handlePartyChange,
 } from './transaction-form/transaction-utils';
 import { formSchema, useTransactionForm } from './transaction-form/schemas';
-import { HSNCode } from '@/lib/hsnProduct';
-import { SACCode } from '@/lib/sacService';
+import hsnData from '../../data/HSN.json';
+import sacData from '../../data/SAC.json';
 
 import { generatePdfByTemplate } from './transaction-form/invoice-handler';
 import {
@@ -411,6 +411,8 @@ export function TransactionForm({
   const [indiaStates, setIndiaStates] = useState([]);
   const [shippingStateCode, setShippingStateCode] = useState(null);
   const [shippingCityOptions, setShippingCityOptions] = useState([]);
+  const [hsnOptions, setHsnOptions] = useState([]);
+  const [sacOptions, setSacOptions] = useState([]);
 
   // Dropdown states
   const [partyDropdownOpen, setPartyDropdownOpen] = useState(false);
@@ -430,6 +432,7 @@ export function TransactionForm({
   const paymentMethods = [
     'Cash',
     'Credit',
+
     'UPI',
     'Bank Transfer',
     'Cheque',
@@ -444,6 +447,20 @@ export function TransactionForm({
     scrollViewRef,
   );
 
+  useEffect(() => {
+    const hsn = hsnData.map(item => ({
+      label: `${item.HSN_CD} - ${item.HSN_Description}`,
+      value: item.HSN_CD.toString(),
+    }));
+    setHsnOptions(hsn);
+
+    const sac = sacData.map(item => ({
+      label: `${item.SAC_CD} - ${item.SAC_Description}`,
+      value: item.SAC_CD.toString(),
+    }));
+    setSacOptions(sac);
+  }, []);
+  
   useEffect(() => {
     const loadStates = async () => {
       try {
@@ -1816,6 +1833,74 @@ export function TransactionForm({
       console.error('🔴 pdfInstanceToBase64 FAILED:', err);
       console.error('🔴 Error stack:', err.stack);
       throw err;
+    }
+  };
+  const updateProductHsn = async (productId, hsn) => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      await fetch(`${BASE_URL}/api/products/${productId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ hsn }),
+      });
+      // Also update local state for consistency
+      setProducts(prev =>
+        prev.map(p => (p._id === productId ? { ...p, hsn } : p)),
+      );
+    } catch (error) {
+      console.error('Failed to update product HSN in background:', error);
+      // Optional: show a non-intrusive error
+    }
+  };
+
+  const updateServiceSac = async (serviceId, sac) => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
+
+      await fetch(`${BASE_URL}/api/services/${serviceId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ sac }),
+      });
+      // Also update local state for consistency
+      setServices(prev =>
+        prev.map(s => (s._id === serviceId ? { ...s, sac } : s)),
+      );
+    } catch (error) {
+      console.error('Failed to update service SAC in background:', error);
+      // Optional: show a non-intrusive error
+    }
+  };
+  const handleHsnChange = (hsnCodeValue, index) => {
+    form.setValue(`items.${index}.hsn`, hsnCodeValue, {
+      shouldValidate: true,
+    });
+
+    const productId = form.watch(`items.${index}.product`);
+    if (productId) {
+      // Fire-and-forget update to the backend
+      updateProductHsn(productId, hsnCodeValue);
+    }
+  };
+
+  const handleSacChange = (sacCodeValue, index) => {
+    form.setValue(`items.${index}.sac`, sacCodeValue, {
+      shouldValidate: true,
+    });
+
+    const serviceId = form.watch(`items.${index}.service`);
+    if (serviceId) {
+      // Fire-and-forget update to the backend
+      updateServiceSac(serviceId, sacCodeValue);
     }
   };
 
@@ -3309,6 +3394,10 @@ export function TransactionForm({
             setCreatingServiceForIndex,
             setNewEntityName,
             transactionToEdit,
+            hsnOptions,
+            sacOptions,
+            handleHsnChange,
+            handleSacChange,
             // Dropdown props
             partyDropdownOpen,
             setPartyDropdownOpen,
