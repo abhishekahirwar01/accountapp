@@ -34,7 +34,6 @@ const UpdateWalkthrough = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [visible, setVisible] = useState(false);
 
-  // Helper function to get user ID from token or user data
   const getUserIdFromToken = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -47,7 +46,7 @@ const UpdateWalkthrough = () => {
             return user._id || user.id;
           }
         } catch (error) {
-          console.error('Error parsing user data:', error);
+          // Error parsing user data
         }
       }
 
@@ -57,16 +56,13 @@ const UpdateWalkthrough = () => {
         const payload = JSON.parse(atob(token.split('.')[1]));
         return payload.id || payload._id || payload.userId;
       } catch (error) {
-        console.error('Error decoding token:', error);
         return null;
       }
     } catch (error) {
-      console.error('Error getting user ID:', error);
       return null;
     }
   };
 
-  // Fetch notifications for clients
   const fetchNotifications = async () => {
     try {
       setIsLoading(true);
@@ -74,30 +70,19 @@ const UpdateWalkthrough = () => {
       const userData = await AsyncStorage.getItem('user');
 
       if (!token || !userData) {
-        console.log('No token or user data');
         return;
       }
 
       const user = JSON.parse(userData);
-      console.log('User role:', user.role);
 
-      // Only show for non-master users (clients)
       if (user.role === 'master') {
-        console.log('User is master, not showing notifications');
         return;
       }
 
       const userId = await getUserIdFromToken();
-      console.log('User ID:', userId);
       if (!userId) {
-        console.log('No user ID found');
         return;
       }
-
-      console.log(
-        'Fetching from:',
-        `${baseURL}/api/update-notifications/user/${userId}`,
-      );
 
       const response = await axios.get(
         `${baseURL}/api/update-notifications/user/${userId}`,
@@ -107,9 +92,7 @@ const UpdateWalkthrough = () => {
       );
 
       const updateNotifications = response.data.notifications || [];
-      console.log('Fetched update notifications:', updateNotifications.length);
 
-      // Filter out notifications that are in grace period
       const completedNotificationsJSON = await AsyncStorage.getItem(
         'completedNotifications',
       );
@@ -127,22 +110,13 @@ const UpdateWalkthrough = () => {
         return true;
       });
 
-      console.log('Filtered notifications:', filteredNotifications);
-      if (filteredNotifications.length > 0) {
-        console.log(
-          'Features in first notification:',
-          filteredNotifications[0]?.features,
-        );
-      }
-
       setNotifications(filteredNotifications);
 
-      // Show badge if there are notifications
       if (filteredNotifications.length > 0) {
         setVisible(true);
       }
     } catch (error) {
-      console.error('Error fetching update notifications:', error);
+      // Error fetching notifications
     } finally {
       setIsLoading(false);
     }
@@ -151,7 +125,6 @@ const UpdateWalkthrough = () => {
   useEffect(() => {
     fetchNotifications();
 
-    // Set up auto-dismissal check every hour
     const autoDismissInterval = setInterval(() => {
       checkAndAutoDismissNotifications();
     }, 60 * 60 * 1000);
@@ -159,7 +132,6 @@ const UpdateWalkthrough = () => {
     return () => clearInterval(autoDismissInterval);
   }, []);
 
-  // Function to check and auto-dismiss old notifications
   const checkAndAutoDismissNotifications = async () => {
     try {
       const completedNotificationsJSON = await AsyncStorage.getItem(
@@ -186,9 +158,6 @@ const UpdateWalkthrough = () => {
                 { userId: userId },
                 { headers: { Authorization: `Bearer ${token}` } },
               );
-              console.log(
-                `Auto-dismissed update notification ${notificationId} after 36 hours`,
-              );
             }
 
             delete completedNotifications[notificationId];
@@ -199,25 +168,17 @@ const UpdateWalkthrough = () => {
 
             fetchNotifications();
           } catch (error) {
-            console.error(
-              `Error auto-dismissing notification ${notificationId}:`,
-              error,
-            );
+            // Error auto-dismissing notification
           }
         }
       }
     } catch (error) {
-      console.error('Error in auto-dismiss check:', error);
+      // Error in auto-dismiss check
     }
   };
 
-  // Mark notification as dismissed with delay
   const markAsReadWithDelay = async notificationId => {
     try {
-      console.log(
-        `Notification ${notificationId} completed - will auto-dismiss in 36 hours`,
-      );
-
       const completedNotificationsJSON = await AsyncStorage.getItem(
         'completedNotifications',
       );
@@ -237,11 +198,10 @@ const UpdateWalkthrough = () => {
       setNotifications(prev => prev.filter(n => n._id !== notificationId));
       setVisible(notifications.length > 1);
     } catch (error) {
-      console.error('Error marking notification as dismissed:', error);
+      // Error marking notification as dismissed
     }
   };
 
-  // Get all features from all notifications for the walkthrough
   const allFeatures = notifications.flatMap(notification =>
     notification.features.map(feature => ({
       ...feature,
@@ -253,7 +213,6 @@ const UpdateWalkthrough = () => {
   const totalSteps = allFeatures.length;
   const currentFeature = allFeatures[currentStep];
 
-  // Helper function to render markdown-style text
   const renderMarkdown = text => {
     const lines = text.split('\n');
 
@@ -295,8 +254,6 @@ const UpdateWalkthrough = () => {
 
   const handleTryItNow = () => {
     if (currentFeature) {
-      // In React Native, navigate to the appropriate screen
-      // You'll need to map your section URLs to screen names
       const screenMap = {
         '/dashboard': 'Dashboard',
         '/companies': 'Companies',
@@ -326,10 +283,6 @@ const UpdateWalkthrough = () => {
       for (const notification of notifications) {
         try {
           if (!notification._id) {
-            console.error(
-              'Notification _id is undefined or null:',
-              notification,
-            );
             continue;
           }
 
@@ -363,10 +316,7 @@ const UpdateWalkthrough = () => {
             );
           }
         } catch (error) {
-          console.error(
-            `Error dismissing notification ${notification._id}:`,
-            error,
-          );
+          // Error dismissing notification
         }
       }
 
@@ -375,7 +325,7 @@ const UpdateWalkthrough = () => {
       setVisible(false);
       fetchNotifications();
     } catch (error) {
-      console.error('Error completing walkthrough:', error);
+      // Error completing walkthrough
     }
   };
 
@@ -384,7 +334,6 @@ const UpdateWalkthrough = () => {
     setCurrentStep(0);
   };
 
-  // Don't show anything for master admins or if no notifications
   if (notifications.length === 0) {
     return null;
   }
@@ -393,7 +342,6 @@ const UpdateWalkthrough = () => {
 
   return (
     <View>
-      {/* New Badge */}
       {visible && (
         <TouchableOpacity
           onPress={() => setIsOpen(true)}
@@ -406,7 +354,6 @@ const UpdateWalkthrough = () => {
         </TouchableOpacity>
       )}
 
-      {/* Walkthrough Modal */}
       <Modal
         visible={isOpen}
         animationType="slide"
@@ -416,7 +363,6 @@ const UpdateWalkthrough = () => {
         <View style={styles.modalContainer}>
           <StatusBar backgroundColor="#fff" barStyle="dark-content" />
 
-          {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerTop}>
               <Text style={styles.title}>
@@ -439,7 +385,6 @@ const UpdateWalkthrough = () => {
             </View>
           </View>
 
-          {/* Content */}
           <ScrollView
             style={styles.content}
             showsVerticalScrollIndicator={false}
@@ -465,16 +410,6 @@ const UpdateWalkthrough = () => {
                     {renderMarkdown(currentFeature.description)}
                   </View>
 
-                  {/* {currentFeature.gifUrl && (
-                    <View style={styles.imageContainer}>
-                      <Image
-                        source={{ uri: currentFeature.gifUrl }}
-                        style={styles.featureImage}
-                        resizeMode="contain"
-                      />
-                    </View>
-                  )} */}
-
                   <View style={styles.tipContainer}>
                     <Text style={styles.tipText}>
                       💡 <Text style={styles.tipBold}>Pro tip:</Text> Try this
@@ -490,7 +425,6 @@ const UpdateWalkthrough = () => {
             )}
           </ScrollView>
 
-          {/* Footer */}
           <View style={styles.footer}>
             <Button
               mode="outlined"
@@ -555,7 +489,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'linear-gradient(90deg, #007AFF, #5856D6)',
-    backgroundColor: '#007AFF', // Fallback for gradient
+    backgroundColor: '#007AFF',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,

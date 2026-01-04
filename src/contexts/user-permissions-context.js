@@ -11,10 +11,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { jwtDecode } from 'jwt-decode';
 import { BASE_URL } from '../config';
 
+/** * Web code ke saath sync kiya gaya:
+ * canCreateProducts, canShowCustomers, canShowVendors add kiye gaye hain.
+ */
 const ALL_ALLOWED = {
   canCreateInventory: true,
   canCreateCustomers: true,
   canCreateVendors: true,
+  canCreateProducts: true,
   canCreateCompanies: true,
   canUpdateCompanies: true,
   canSendInvoiceEmail: true,
@@ -24,6 +28,8 @@ const ALL_ALLOWED = {
   canCreateJournalEntries: true,
   canCreateReceiptEntries: true,
   canCreatePaymentEntries: true,
+  canShowCustomers: true,
+  canShowVendors: true,
 };
 
 const UserPermissionsContext = createContext();
@@ -55,7 +61,6 @@ export function UserPermissionsProvider({ children }) {
     try {
       const token = await AsyncStorage.getItem('token');
 
-      // Skip fetch completely if user is logged out
       if (!token) {
         setPermissions(null);
         setRole(null);
@@ -67,19 +72,23 @@ export function UserPermissionsProvider({ children }) {
       const currentRole = getRoleFromToken(token);
       setRole(currentRole);
 
-      // Non-user roles shortcut
-      if (
-        currentRole &&
-        currentRole !== 'user' &&
-        currentRole !== 'admin' &&
-        currentRole !== 'manager'
-      ) {
+      // Web logic sync: Agar role special roles mein nahi hai, toh bypass karein
+      // Hum sirf 'user', 'client', aur 'customer' ke liye API hit karte hain
+      const restrictedRoles = ['user', 'client', 'customer'];
+      if (currentRole && !restrictedRoles.includes(currentRole)) {
         setPermissions(ALL_ALLOWED);
         setIsLoading(false);
         return;
       }
 
-      const res = await fetch(`${BASE_URL}/api/user-permissions/me/effective`, {
+      // Dynamic API Selection (Web ke logic ki tarah)
+      const isClientOrCustomer =
+        currentRole === 'client' || currentRole === 'customer';
+      const apiUrl = isClientOrCustomer
+        ? `${BASE_URL}/api/clients/my/permissions`
+        : `${BASE_URL}/api/user-permissions/me/effective`;
+
+      const res = await fetch(apiUrl, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -92,30 +101,31 @@ export function UserPermissionsProvider({ children }) {
 
       const data = await res.json();
 
+      // Permissions mapping with Default Values (?? true logic)
       setPermissions({
         canCreateInventory: data.canCreateInventory,
         canCreateCustomers: data.canCreateCustomers,
         canCreateVendors: data.canCreateVendors,
+        canCreateProducts: data.canCreateProducts, // New
         canCreateCompanies: data.canCreateCompanies,
         canUpdateCompanies: data.canUpdateCompanies,
         canSendInvoiceEmail: data.canSendInvoiceEmail,
         canSendInvoiceWhatsapp: data.canSendInvoiceWhatsapp,
-        canCreateSaleEntries: data.canCreateSaleEntries,
-        canCreatePurchaseEntries: data.canCreatePurchaseEntries,
-        canCreateJournalEntries: data.canCreateJournalEntries,
-        canCreateReceiptEntries: data.canCreateReceiptEntries,
-        canCreatePaymentEntries: data.canCreatePaymentEntries,
+        canCreateSaleEntries: data.canCreateSaleEntries ?? true,
+        canCreatePurchaseEntries: data.canCreatePurchaseEntries ?? true,
+        canCreateJournalEntries: data.canCreateJournalEntries ?? true,
+        canCreateReceiptEntries: data.canCreateReceiptEntries ?? true,
+        canCreatePaymentEntries: data.canCreatePaymentEntries ?? true,
+        canShowCustomers: data.canShowCustomers ?? true, // New
+        canShowVendors: data.canShowVendors ?? true, // New
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Unknown error';
-
-      // Only show modal if user is logged in
       if (await AsyncStorage.getItem('token')) {
         setError(msg);
         setShowModal(true);
       }
-
-      // Fallback permissions to avoid app crash
+      // App crash na ho isliye fallback
       setPermissions(ALL_ALLOWED);
     } finally {
       setIsLoading(false);
@@ -128,8 +138,10 @@ export function UserPermissionsProvider({ children }) {
 
   const isAllowed = useCallback(
     key => {
-      if (role && role !== 'user' && role !== 'admin' && role !== 'manager')
-        return true;
+      // Admin/Manager/Master bypass logic
+      const restrictedRoles = ['user', 'client', 'customer'];
+      if (role && !restrictedRoles.includes(role)) return true;
+
       return Boolean(permissions?.[key]);
     },
     [role, permissions],

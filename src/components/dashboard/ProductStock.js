@@ -4,7 +4,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Modal,
   RefreshControl,
   Dimensions,
   FlatList,
@@ -29,6 +28,13 @@ import ProductTableRow from './ProductTableRow';
 import ProductMobileCard from './ProductMobileCard';
 import { BASE_URL } from '../../config';
 import { useToast } from '../hooks/useToast';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '../ui/Dialog';
 
 const { width } = Dimensions.get('window');
 const isTablet = width >= 768;
@@ -116,38 +122,6 @@ const getStockColor = stock => {
   return '#ef4444';
 };
 
-const CustomDialog = ({ visible, onDismiss, title, children, style }) => {
-  if (!visible) return null;
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onDismiss}
-    >
-      <TouchableOpacity
-        style={isTablet ? styles.modalOverlay : styles.modalOverlayMobile}
-        activeOpacity={1}
-        onPress={onDismiss}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={[styles.dialog, !isTablet && styles.dialogMobile, style]}
-        >
-          <View style={styles.dialogHeader}>
-            <Text style={styles.dialogTitle}>{title}</Text>
-            <TouchableOpacity onPress={onDismiss} style={styles.closeButton}>
-              <Icon name="close" size={24} color="#666" />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={styles.dialogContent}>{children}</ScrollView>
-        </TouchableOpacity>
-      </TouchableOpacity>
-    </Modal>
-  );
-};
-
 const CustomButton = ({
   mode = 'contained',
   onPress,
@@ -232,17 +206,17 @@ const SearchBar = ({ placeholder, value, onChangeText, style }) => {
   );
 };
 
-// ========== UPDATED TABLET BUTTONS ==========
+// ========== IMPROVED TABLET BUTTONS ==========
 const TabletActionButtons = ({ onAddProduct, onAddService }) => {
   return (
     <View style={styles.tabletButtonsContainer}>
       <TouchableOpacity
         style={styles.tabletButton}
         onPress={onAddProduct}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
       >
         <View
-          style={[styles.tabletButtonContent, { backgroundColor: '#667eea' }]}
+          style={[styles.tabletButtonContent, { backgroundColor: '#6366f1' }]}
         >
           <View style={styles.tabletButtonIconContainer}>
             <Icon name="package-variant-plus" size={22} color="#fff" />
@@ -251,17 +225,17 @@ const TabletActionButtons = ({ onAddProduct, onAddService }) => {
             <Text style={styles.tabletButtonTitle}>Add Product</Text>
             <Text style={styles.tabletButtonSubtitle}>Inventory item</Text>
           </View>
-          <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.8)" />
+          <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.9)" />
         </View>
       </TouchableOpacity>
 
       <TouchableOpacity
         style={styles.tabletButton}
         onPress={onAddService}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
       >
         <View
-          style={[styles.tabletButtonContent, { backgroundColor: '#10b981' }]}
+          style={[styles.tabletButtonContent, { backgroundColor: '#059669' }]}
         >
           <View style={styles.tabletButtonIconContainer}>
             <Icon name="server-plus" size={22} color="#fff" />
@@ -270,120 +244,20 @@ const TabletActionButtons = ({ onAddProduct, onAddService }) => {
             <Text style={styles.tabletButtonTitle}>Add Service</Text>
             <Text style={styles.tabletButtonSubtitle}>Service offering</Text>
           </View>
-          <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.8)" />
+          <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.9)" />
         </View>
       </TouchableOpacity>
     </View>
   );
 };
 
-// ========== UPDATED FAB COMPONENT ==========
-const FloatingActionButton = ({
-  fabOpen,
-  setFabOpen,
-  onAddProduct,
-  onAddService,
-}) => {
-  const rotation = React.useRef(new Animated.Value(0)).current;
-
-  React.useEffect(() => {
-    Animated.timing(rotation, {
-      toValue: fabOpen ? 1 : 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [fabOpen]);
-
-  const rotateInterpolate = rotation.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '45deg'],
-  });
-
-  return (
-    <>
-      <Animated.View
-        style={[
-          styles.fabMenu,
-          {
-            opacity: fabOpen ? 1 : 0,
-            transform: [
-              { scale: fabOpen ? 1 : 0.8 },
-              { translateY: fabOpen ? 0 : 20 },
-            ],
-          },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.fabMenuItem}
-          onPress={onAddProduct}
-          activeOpacity={0.7}
-        >
-          <View style={styles.fabMenuItemContent}>
-            <View
-              style={[
-                styles.fabMenuIconContainer,
-                { backgroundColor: '#667eea' },
-              ]}
-            >
-              <Icon name="package-variant-plus" size={22} color="#fff" />
-            </View>
-            <View style={styles.fabMenuTextContainer}>
-              <Text style={styles.fabMenuTitle}>Add Product</Text>
-              <Text style={styles.fabMenuSubtitle}>Add new inventory item</Text>
-            </View>
-          </View>
-          <Icon name="chevron-right" size={20} color="#9ca3af" />
-        </TouchableOpacity>
-
-        <View style={styles.fabMenuDivider} />
-
-        <TouchableOpacity
-          style={styles.fabMenuItem}
-          onPress={onAddService}
-          activeOpacity={0.7}
-        >
-          <View style={styles.fabMenuItemContent}>
-            <View
-              style={[
-                styles.fabMenuIconContainer,
-                { backgroundColor: '#10b981' },
-              ]}
-            >
-              <Icon name="server-plus" size={22} color="#fff" />
-            </View>
-            <View style={styles.fabMenuTextContainer}>
-              <Text style={styles.fabMenuTitle}>Add Service</Text>
-              <Text style={styles.fabMenuSubtitle}>
-                Add new service offering
-              </Text>
-            </View>
-          </View>
-          <Icon name="chevron-right" size={20} color="#9ca3af" />
-        </TouchableOpacity>
-      </Animated.View>
-
-      <TouchableOpacity
-        style={styles.fabContainer}
-        onPress={() => setFabOpen(!fabOpen)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.fabBackground}>
-          <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
-            <Icon name="plus" size={28} color="white" />
-          </Animated.View>
-        </View>
-      </TouchableOpacity>
-    </>
-  );
-};
-
-// ========== EMPTY STATE BUTTON ==========
+// ========== IMPROVED EMPTY STATE BUTTON ==========
 const EmptyStateActionButton = ({ onAddProduct }) => {
   return (
     <TouchableOpacity
       style={styles.emptyStateButton}
       onPress={onAddProduct}
-      activeOpacity={0.7}
+      activeOpacity={0.8}
     >
       <View style={styles.emptyStateButtonContent}>
         <Icon name="plus-circle" size={24} color="#fff" />
@@ -393,7 +267,29 @@ const EmptyStateActionButton = ({ onAddProduct }) => {
   );
 };
 
-const ProductStock = ({ navigation }) => {
+// ========== IMPROVED MOBILE HEADER BUTTONS ==========
+const MobileHeaderButton = ({ icon, label, color, onPress }) => {
+  return (
+    <TouchableOpacity
+      style={[styles.mobileHeaderButton, { backgroundColor: color }]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <View style={styles.mobileHeaderButtonInner}>
+        <View style={styles.mobileHeaderIconContainer}>
+          <Icon name={icon} size={18} color="#fff" />
+        </View>
+        <Text style={styles.mobileHeaderButtonText}>{label}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+const ProductStock = ({
+  navigation,
+  refetchPermissions,
+  refetchUserPermissions,
+}) => {
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -402,7 +298,6 @@ const ProductStock = ({ navigation }) => {
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [isAddServiceOpen, setIsAddServiceOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [fabOpen, setFabOpen] = useState(false);
   const [role, setRole] = useState('user');
   const [openNameDialog, setOpenNameDialog] = useState(null);
 
@@ -410,6 +305,13 @@ const ProductStock = ({ navigation }) => {
   const { permissions } = usePermissions();
   const { selectedCompanyId } = useCompany();
   const { permissions: userCaps } = useUserPermissions();
+
+  // Permission checks - accept both 'products' and 'inventory' flags
+  const canCreateProducts =
+    userCaps?.canCreateProducts ?? userCaps?.canCreateInventory ?? false;
+  const webCanCreate =
+    permissions?.canCreateProducts ?? permissions?.canCreateInventory ?? false;
+  const showCreateButtons = canCreateProducts || webCanCreate;
 
   const fetchProducts = async () => {
     setIsLoading(true);
@@ -446,7 +348,13 @@ const ProductStock = ({ navigation }) => {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchProducts();
+    Promise.all([
+      fetchProducts(),
+      refetchPermissions ? refetchPermissions() : Promise.resolve(),
+      refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
+    ]).finally(() => {
+      setRefreshing(false);
+    });
   };
 
   const handleEditClick = product => {
@@ -517,8 +425,8 @@ const ProductStock = ({ navigation }) => {
   );
 
   if (
-    !permissions?.canCreateProducts &&
-    !userCaps?.canCreateInventory &&
+    !(permissions?.canCreateProducts ?? permissions?.canCreateInventory) &&
+    !(userCaps?.canCreateProducts ?? userCaps?.canCreateInventory) &&
     (permissions?.maxInventories ?? 0) === 0
   ) {
     return null;
@@ -529,21 +437,38 @@ const ProductStock = ({ navigation }) => {
       <View style={styles.card}>
         <View style={styles.cardContent}>
           <View style={styles.header}>
-            <View>
+            <View style={styles.headerLeft}>
               <Text style={styles.title}>Product & Service Stock</Text>
               <Text style={styles.subtitle}>
                 Current inventory levels and management
               </Text>
             </View>
 
-            {(permissions?.canCreateProducts || userCaps?.canCreateInventory) &&
-              isTablet && (
-                <TabletActionButtons
-                  onAddProduct={() => setIsAddProductOpen(true)}
-                  onAddService={() => setIsAddServiceOpen(true)}
-                />
-              )}
+            {showCreateButtons && isTablet && (
+              <TabletActionButtons
+                onAddProduct={() => setIsAddProductOpen(true)}
+                onAddService={() => setIsAddServiceOpen(true)}
+              />
+            )}
           </View>
+
+          {/* IMPROVED: Header buttons for mobile (non-tablet) */}
+          {showCreateButtons && !isTablet && (
+            <View style={styles.mobileHeaderButtonsContainer}>
+              <MobileHeaderButton
+                // icon="package-variant-plus"
+                label="Add Product"
+                color="#486adaff"
+                onPress={() => setIsAddProductOpen(true)}
+              />
+              <MobileHeaderButton
+                // icon="server-plus"
+                label="Add Service"
+                color="#2b9775ff"
+                onPress={() => setIsAddServiceOpen(true)}
+              />
+            </View>
+          )}
 
           <SearchBar
             placeholder="Search products or services..."
@@ -561,7 +486,7 @@ const ProductStock = ({ navigation }) => {
           >
             {isLoading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#3b82f6" />
+                <ActivityIndicator size="large" color="#6366f1" />
                 <Text style={styles.loadingText}>Loading inventory...</Text>
               </View>
             ) : filteredProducts.length > 0 ? (
@@ -620,8 +545,7 @@ const ProductStock = ({ navigation }) => {
                     ? `No items match "${searchTerm}". Try a different search term.`
                     : 'Get started by adding your first product or service.'}
                 </Text>
-                {(permissions?.canCreateProducts ||
-                  userCaps?.canCreateInventory) && (
+                {showCreateButtons && (
                   <EmptyStateActionButton
                     onAddProduct={() => setIsAddProductOpen(true)}
                   />
@@ -645,91 +569,90 @@ const ProductStock = ({ navigation }) => {
       </View>
 
       {/* Name Dialog */}
-      <CustomDialog
-        visible={!!openNameDialog}
-        onDismiss={() => setOpenNameDialog(null)}
-        title="Product Name"
+      <Dialog
+        open={!!openNameDialog}
+        onOpenChange={() => setOpenNameDialog(null)}
       >
-        <View style={styles.nameDialogContent}>
-          <Text style={styles.nameDialogText}>
-            {capitalizeWords(openNameDialog)}
-          </Text>
-          <TouchableOpacity
-            style={styles.dialogCloseButton}
-            onPress={() => setOpenNameDialog(null)}
-          >
-            <Text style={styles.dialogCloseButtonText}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      </CustomDialog>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Product Name</DialogTitle>
+          </DialogHeader>
+          <View style={styles.nameDialogContent}>
+            <Text style={styles.nameDialogText}>
+              {capitalizeWords(openNameDialog)}
+            </Text>
+          </View>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Stock Dialog */}
-      <CustomDialog
-        visible={isEditDialogOpen}
-        onDismiss={() => setIsEditDialogOpen(false)}
-        title={
-          selectedProduct
-            ? `Update stock for ${capitalizeWords(selectedProduct.name)}`
-            : 'Update stock'
-        }
+      <Dialog
+        open={isEditDialogOpen}
+        onOpenChange={() => setIsEditDialogOpen(false)}
       >
-        <View style={styles.editDialogContent}>
-          {selectedProduct && (
-            <StockEditForm
-              product={selectedProduct}
-              onSuccess={handleUpdateSuccess}
-              onCancel={() => setIsEditDialogOpen(false)}
-            />
-          )}
-        </View>
-      </CustomDialog>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {selectedProduct
+                ? `Update stock for ${capitalizeWords(selectedProduct.name)}`
+                : 'Update stock'}
+            </DialogTitle>
+          </DialogHeader>
+          <View style={styles.editDialogContent}>
+            {selectedProduct && (
+              <StockEditForm
+                product={selectedProduct}
+                onSuccess={handleUpdateSuccess}
+                onCancel={() => setIsEditDialogOpen(false)}
+              />
+            )}
+          </View>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Product Dialog */}
-      <CustomDialog
-        visible={isAddProductOpen}
-        onDismiss={() => setIsAddProductOpen(false)}
-        title="Create New Product"
-        style={styles.productDialog}
+      <Dialog
+        open={isAddProductOpen}
+        onOpenChange={() => setIsAddProductOpen(false)}
       >
-        <View style={styles.formDialogContent}>
-          <Text style={styles.dialogDescription}>
-            Fill in the form to add a new product to your inventory.
-          </Text>
-          <ProductForm onSuccess={handleAddProductSuccess} />
-        </View>
-      </CustomDialog>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Product</DialogTitle>
+            <DialogDescription>
+              Fill in the form to add a new product to your inventory.
+            </DialogDescription>
+          </DialogHeader>
+          <View style={styles.formDialogContent}>
+            <ProductForm
+              hideHeader={true}
+              onSuccess={handleAddProductSuccess}
+              onClose={() => setIsAddProductOpen(false)}
+            />
+          </View>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Service Dialog */}
-      <CustomDialog
-        visible={isAddServiceOpen}
-        onDismiss={() => setIsAddServiceOpen(false)}
-        title="Create New Service"
-        style={styles.productDialog}
+      <Dialog
+        open={isAddServiceOpen}
+        onOpenChange={() => setIsAddServiceOpen(false)}
       >
-        <View style={styles.formDialogContent}>
-          <Text style={styles.dialogDescription}>
-            Fill in the form to add a new service to your offerings.
-          </Text>
-          <ServiceForm onSuccess={handleAddServiceSuccess} />
-        </View>
-      </CustomDialog>
-
-      {/* FAB for mobile */}
-      {(permissions?.canCreateProducts || userCaps?.canCreateInventory) &&
-        !isTablet && (
-          <FloatingActionButton
-            fabOpen={fabOpen}
-            setFabOpen={setFabOpen}
-            onAddProduct={() => {
-              setFabOpen(false);
-              setIsAddProductOpen(true);
-            }}
-            onAddService={() => {
-              setFabOpen(false);
-              setIsAddServiceOpen(true);
-            }}
-          />
-        )}
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Service</DialogTitle>
+            <DialogDescription>
+              Fill in the form to add a new service to your offerings.
+            </DialogDescription>
+          </DialogHeader>
+          <View style={styles.formDialogContent}>
+            <ServiceForm
+              hideHeader={true}
+              onSuccess={handleAddServiceSuccess}
+              onClose={() => setIsAddServiceOpen(false)}
+            />
+          </View>
+        </DialogContent>
+      </Dialog>
     </View>
   );
 };
@@ -742,16 +665,18 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
+    marginHorizontal: 16,
     marginBottom: 16,
+    marginTop: 8,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 6,
   },
   cardContent: {
     padding: 20,
@@ -759,29 +684,71 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+  headerLeft: {
+    flex: 1,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#1f2937',
-    paddingHorizontal: 5,
-    marginTop: 0,
+    marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
     color: '#6b7280',
-    marginTop: 0,
-    paddingHorizontal: 5,
+    fontWeight: '400',
   },
-  // UPDATED Tablet Buttons Styles
+  // IMPROVED: Mobile Header Buttons
+  mobileHeaderButtonsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  mobileHeaderButton: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  mobileHeaderButtonInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    gap: 10,
+  },
+  // mobileHeaderIconContainer: {
+  //   width: 28,
+  //   height: 28,
+  //   borderRadius: 16,
+  //   backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  //   alignItems: 'center',
+  //   justifyContent: 'center',
+  // },
+  mobileHeaderButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  // IMPROVED: Tablet Buttons Styles
   tabletButtonsContainer: {
     flexDirection: 'row',
     gap: 16,
   },
   tabletButton: {
-    width: 200,
+    width: 220,
     borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -789,282 +756,221 @@ const styles = StyleSheet.create({
       width: 0,
       height: 8,
     },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.15,
     shadowRadius: 12,
-    elevation: 8,
+    elevation: 10,
   },
   tabletButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: 18,
   },
   tabletButtonIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
   tabletButtonTextContainer: {
     flex: 1,
   },
   tabletButtonTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#fff',
-    marginBottom: 2,
+    marginBottom: 4,
+    letterSpacing: 0.3,
   },
   tabletButtonSubtitle: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: 'rgba(255, 255, 255, 0.95)',
     fontWeight: '400',
+    letterSpacing: 0.2,
   },
-  // UPDATED FAB Styles
-  fabContainer: {
-    position: 'absolute',
-    margin: 20,
-    right: 0,
-    bottom: 0,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  fabBackground: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 32,
-    backgroundColor: '#667eea',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fabMenu: {
-    position: 'absolute',
-    right: 20,
-    bottom: 94,
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    paddingVertical: 12,
-    width: 280,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 12,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 16,
-  },
-  fabMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  fabMenuItemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  fabMenuIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  fabMenuTextContainer: {
-    flex: 1,
-  },
-  fabMenuTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 2,
-  },
-  fabMenuSubtitle: {
-    fontSize: 13,
-    color: '#6b7280',
-    fontWeight: '400',
-  },
-  fabMenuDivider: {
-    height: 1,
-    backgroundColor: '#f3f4f6',
-    marginHorizontal: 16,
-  },
-  // UPDATED Empty State Button
+  // IMPROVED: Empty State Button
   emptyStateButton: {
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#667eea',
+    shadowColor: '#6366f1',
     shadowOffset: {
       width: 0,
       height: 6,
     },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 12,
-    elevation: 8,
-    width: 250,
-    marginTop: 16,
+    elevation: 10,
+    width: 260,
+    marginTop: 20,
   },
   emptyStateButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
+    paddingHorizontal: 28,
+    paddingVertical: 18,
     gap: 12,
-    backgroundColor: '#667eea',
+    backgroundColor: '#6366f1',
   },
   emptyStateButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#fff',
+    letterSpacing: 0.3,
   },
+  // Search Bar
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    marginBottom: 16,
-    height: 48,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+    height: 52,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 12,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
     color: '#1f2937',
-    paddingVertical: 8,
+    paddingVertical: 10,
+    fontWeight: '400',
   },
   searchBar: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   scrollView: {
     maxHeight: 600,
   },
   loadingContainer: {
     alignItems: 'center',
-    padding: 32,
+    padding: 40,
   },
   loadingText: {
-    marginTop: 8,
+    marginTop: 12,
     color: '#6b7280',
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '500',
   },
   tableContainer: {
     backgroundColor: '#fff',
-    borderRadius: 8,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    overflow: 'hidden',
   },
   tableHeader: {
     flexDirection: 'row',
-    padding: 16,
+    padding: 18,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
+    borderBottomColor: '#e5e7eb',
     backgroundColor: '#f8fafc',
   },
   tableCell: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
   },
   tableHeaderText: {
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#374151',
     fontSize: 14,
+    letterSpacing: 0.3,
   },
   mobileList: {
     gap: 12,
     paddingBottom: 220,
   },
-
   productScrollContent: {
     paddingBottom: 220,
   },
   emptyContainer: {
     alignItems: 'center',
-    padding: 32,
+    padding: 40,
   },
   emptyIcon: {
     backgroundColor: '#f3f4f6',
-    padding: 16,
-    borderRadius: 50,
-    marginBottom: 16,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 3,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#1f2937',
-    marginTop: 8,
+    marginBottom: 8,
   },
   emptyText: {
     textAlign: 'center',
-    marginTop: 8,
     color: '#6b7280',
-    fontSize: 14,
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 8,
+    maxWidth: '80%',
   },
   viewMoreButton: {
     marginTop: 24,
     borderColor: '#d1d5db',
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingVertical: 12,
   },
   viewMoreButtonText: {
     color: '#374151',
+    fontWeight: '600',
   },
   // Button styles
   customButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 10,
   },
   customButtonContained: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#6366f1',
   },
   customButtonOutlined: {
     backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#3b82f6',
+    borderWidth: 1.5,
+    borderColor: '#6366f1',
   },
   buttonDisabled: {
     opacity: 0.5,
   },
   buttonCompact: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   buttonIcon: {
-    marginRight: 4,
+    marginRight: 6,
   },
   customButtonText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   customButtonTextContained: {
     color: '#fff',
   },
   customButtonTextOutlined: {
-    color: '#3b82f6',
+    color: '#6366f1',
   },
   buttonTextDisabled: {
     color: '#9ca3af',
@@ -1073,143 +979,100 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   // Dialog styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  dialog: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    width: '100%',
-    maxHeight: '80%',
-    minHeight: 200,
-  },
-  dialogMobile: {
-    width: '100%',
-    maxWidth: '100%',
-    borderRadius: 10,
-    marginHorizontal: 0,
-    maxHeight: '100%',
-    alignSelf: 'stretch',
-  },
-  modalOverlayMobile: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    paddingTop: 20,
-    paddingHorizontal: 0,
+  dialogContent: {
+    padding: 24,
   },
   dialogHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 5,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
+    marginBottom: 16,
   },
   dialogTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#1f2937',
   },
-  closeButton: {
-    padding: 4,
-  },
-  dialogContent: {
-    padding: 0,
-  },
-  productDialog: {
-    maxHeight: '100%',
+  dialogDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 4,
   },
   // Stock Edit Form
   stockEditContainer: {
-    padding: 16,
+    padding: 24,
   },
   stockEditLabel: {
     fontSize: 16,
     color: '#374151',
-    marginBottom: 8,
+    marginBottom: 12,
+    fontWeight: '500',
   },
   stockEditInput: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#d1d5db',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     fontSize: 16,
-    marginBottom: 16,
+    marginBottom: 20,
     backgroundColor: '#fff',
+    fontWeight: '500',
   },
   stockEditButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 8,
+    gap: 12,
   },
   button: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    minWidth: 100,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    minWidth: 110,
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#6366f1',
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
   primaryButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   outlineButton: {
     backgroundColor: 'transparent',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#d1d5db',
   },
   outlineButtonText: {
     color: '#374151',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
-  // Dialog content styles
   nameDialogContent: {
-    paddingVertical: 20,
+    padding: 0,
   },
   nameDialogText: {
     fontSize: 16,
     color: '#374151',
-    marginBottom: 20,
+    marginBottom: 0,
+    lineHeight: 24,
+    fontWeight: '500',
   },
   editDialogContent: {
-    paddingVertical: 20,
+    padding: 0,
   },
   formDialogContent: {
-    paddingVertical: 20,
+    flex: 1,
+    padding: 0,
   },
-  dialogDescription: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginBottom: 16,
-    lineHeight: 24,
-    paddingLeft: 10,
-  },
-  dialogCloseButton: {
-    backgroundColor: '#3b82f6',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    alignSelf: 'flex-end',
-  },
-  dialogCloseButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
+  formDialogStyle: {
+    maxHeight: '88%',
   },
 });
 

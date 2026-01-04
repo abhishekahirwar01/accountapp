@@ -1006,7 +1006,7 @@ const TransactionActions = ({
   serviceNameById,
   parties = [],
 }) => {
-  console.log('TRANSACTION ACTIONS RENDERED:', transaction._id);
+  // console.log('TRANSACTION ACTIONS RENDERED:', transaction._id);
   const [isWhatsAppDialogOpen, setIsWhatsAppDialogOpen] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [mailSentDialogOpen, setMailSentDialogOpen] = useState(false);
@@ -1667,7 +1667,7 @@ export const columns = ({
       const companyName = companyMap?.get(companyId) || 'N/A';
       return (
         <View style={styles.companySection}>
-         <Ionicons name="business-outline" size={16} color="#666" />
+          <Ionicons name="business-outline" size={16} color="#666" />
           <Text style={styles.companyText} numberOfLines={1}>
             {companyName}
           </Text>
@@ -1941,7 +1941,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    alignSelf: 'flex-start',
+    alignSelf: 'flex-end',
   },
   badgeText: {
     fontSize: 10,
@@ -2002,38 +2002,47 @@ const styles = StyleSheet.create({
   partyInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   partyText: {
-    flex: 1,
+    alignItems: 'flex-end',
   },
   partyName: {
     fontSize: 14,
     fontWeight: '500',
     color: '#212529',
+    textAlign: 'right',
   },
   description: {
     fontSize: 12,
     color: '#6c757d',
     marginTop: 2,
+    textAlign: 'right',
   },
 
   // Company
   companySection: {
+    flexDirection: 'row-reverse',
     flexDirection: 'row',
+    justifyContent: 'flex-end',
     alignItems: 'center',
   },
   companyText: {
     fontSize: 12,
     color: '#495057',
-    marginLeft: 4,
-    flex: 1,
+    textAlign: 'right', // Text right align
+    marginRight: 4, // Left ki jagah right margin
+    flex: 0,
   },
 
   // Items
   itemsSection: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end', // Content ko right mein rakhega
+    width: '100%',
   },
+
   copyButtonWrapper: {
     position: 'relative',
   },
@@ -2043,11 +2052,11 @@ const styles = StyleSheet.create({
   itemsContainer: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   itemsAvatars: {
     flexDirection: 'row',
-    marginRight: 8,
+    marginLeft: 8,
   },
   remainingItems: {
     backgroundColor: '#e5e7eb',
@@ -2058,7 +2067,7 @@ const styles = StyleSheet.create({
     color: '#4b5563',
   },
   itemsTextContainer: {
-    flex: 1,
+    alignItems: 'flex-end',
   },
   itemsText: {
     fontSize: 12,

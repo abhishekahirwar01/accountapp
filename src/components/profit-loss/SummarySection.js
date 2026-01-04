@@ -93,66 +93,10 @@ export const SummarySection = ({ summary, status }) => {
       )}
 
       {/* Additional Summary Metrics */}
-      <View style={styles.metricsContainer}>
-        {/* Gross Profit */}
-        <View style={[styles.metricCard, styles.grossProfitCard]}>
-          <Text style={styles.metricLabel}>Gross Profit</Text>
-          <Text style={styles.grossProfitAmount}>
-            {formatCurrency(summary.grossProfit || 0)}
-          </Text>
-        </View>
-        
-        {/* Total Income */}
-        <View style={[styles.metricCard, styles.totalIncomeCard]}>
-          <Text style={styles.metricLabel}>Total Income</Text>
-          <Text style={styles.totalIncomeAmount}>
-            {formatCurrency(summary.totalIncome || 0)}
-          </Text>
-        </View>
-        
-        {/* Total Expenses */}
-        <View style={[styles.metricCard, styles.totalExpensesCard]}>
-          <Text style={styles.metricLabel}>Total Expenses</Text>
-          <Text style={styles.totalExpensesAmount}>
-            {formatCurrency(summary.totalExpenses || 0)}
-          </Text>
-        </View>
-        
-        {/* Profit Margin */}
-        <View style={[styles.metricCard, styles.profitMarginCard]}>
-          <Text style={styles.metricLabel}>Profit Margin</Text>
-          <Text style={styles.profitMarginAmount}>
-            {profitMargin}%
-          </Text>
-        </View>
-      </View>
+      
 
       {/* Financial Ratios */}
-      <View style={styles.ratiosContainer}>
-        <View style={styles.ratioItem}>
-          <Text style={styles.ratioLabel}>Expense Ratio</Text>
-          <Text style={styles.ratioValue}>
-            {expenseRatio.toFixed(1)}%
-          </Text>
-        </View>
-        
-        <View style={styles.ratioItem}>
-          <Text style={styles.ratioLabel}>Net Margin</Text>
-          <Text style={styles.ratioValue}>
-            {netMargin.toFixed(1)}%
-          </Text>
-        </View>
-        
-        <View style={styles.ratioItem}>
-          <Text style={styles.ratioLabel}>Profitability</Text>
-          <Text style={[
-            styles.ratioValue,
-            summary.isProfitable ? styles.profitableText : styles.lossText
-          ]}>
-            {summary.isProfitable ? "Profitable" : "Loss"}
-          </Text>
-        </View>
-      </View>
+      
     </View>
   );
 };
@@ -359,3 +303,4 @@ SummarySection.defaultProps = {
 };
 
 export default SummarySection;
+

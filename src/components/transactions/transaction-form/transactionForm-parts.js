@@ -559,10 +559,11 @@ export function FormTabs({
                     )}
                     multiline
                     numberOfLines={4}
-                    value={formMethods.watch('description') || ''}
-                    onChangeText={text =>
-                      formMethods.setValue('description', text)
-                    }
+                    value={formMethods.watch('description')}
+                    onChangeText={text => {
+                      formMethods.setValue('description', text);
+                      formMethods.setValue('narration', text);
+                    }}
                     placeholder="Describe the transaction..."
                     ref={ref => registerField('description', ref)}
                     blurOnSubmit={true}

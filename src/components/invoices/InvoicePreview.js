@@ -254,15 +254,15 @@ export default function InvoicePreview({
               bankForTemplate,
             );
             break;
-          // case 'template2':
-          //   pdfBlob = await generatePdfForTemplate2(
-          //     transaction,
-          //     company || null,
-          //     party || null,
-          //     serviceNameMap,
-          //     shippingAddress,
-          //     bankForTemplate,
-          //   );
+            // case 'template2':
+            //   pdfBlob = await generatePdfForTemplate2(
+            //     transaction,
+            //     company || null,
+            //     party || null,
+            //     serviceNameMap,
+            //     shippingAddress,
+            //     bankForTemplate,
+            //   );
             break;
           // case 'template3':
           //   pdfBlob = await generatePdfForTemplate3(
@@ -324,7 +324,7 @@ export default function InvoicePreview({
               bankForTemplate,
             );
             break;
-             case 'template5':
+          case 'template5':
             pdfBlob = await generatePdfForTemplate9(
               transaction,
               company || null,
@@ -593,11 +593,9 @@ export default function InvoicePreview({
         // Confirming existence in both locations (Internal/Source and Downloads/Target)
         console.log(`Download SUCCESS: File is available at both locations.`); // LOG 4
 
-        Alert.alert(
-          'Download Successful',
-          `Invoice saved to your Downloads folder:\n${downloadsFilePath}`,
-          [{ text: 'OK' }],
-        );
+        Alert.alert('Download Success', 'Your invoice has been downloaded.', [
+          { text: 'OK' },
+        ]);
       } else {
         Alert.alert(
           'Download Warning',

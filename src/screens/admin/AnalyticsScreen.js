@@ -1,4 +1,3 @@
-// ...existing code...
 import React, {
   useState,
   useMemo,
@@ -16,6 +15,8 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  RefreshControl,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
@@ -42,38 +43,35 @@ import { BASE_URL } from '../../config';
 // ...existing code...
 
 export default function AnalyticsScreen() {
-  const route = useRoute(); // Add this line
-  const preSelectedClientId = route.params?.clientId; // Add this line
+  const route = useRoute();
+  const preSelectedClientId = route.params?.clientId;
 
   const [clients, setClients] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [selectedClientId, setSelectedClientId] = useState('');
-  // keep empty string '' as "All Companies"
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [activeReport, setActiveReport] = useState('profitandloss');
   const [isClientsLoading, setIsClientsLoading] = useState(true);
   const [isCompaniesLoading, setIsCompaniesLoading] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Refs for memory leak prevention
   const isMountedRef = useRef(true);
   const abortControllerRef = useRef(null);
 
-  // ✅ ADD THIS EFFECT FOR PRE-SELECTED CLIENT
   React.useEffect(() => {
     if (preSelectedClientId && clients.length > 0) {
-      // Check if pre-selected client exists in clients list
       const clientExists = clients.some(
         c => c && c._id === preSelectedClientId,
       );
       if (clientExists) {
+        AsyncStorage.multiRemove(['profitLossCache', 'dashboardCache']);
         setSelectedClientId(preSelectedClientId);
       }
     }
   }, [clients, preSelectedClientId]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
@@ -82,6 +80,28 @@ export default function AnalyticsScreen() {
       }
     };
   }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await AsyncStorage.multiRemove([
+        'profitLossCache',
+        'dashboardCache',
+        'transactionsCache',
+        'inventoryCache'
+      ]);
+      
+      await fetchClients();
+      if (selectedClientId) {
+        await fetchCompanies(selectedClientId);
+        console.log('Data refreshed from server');
+      }
+    } catch (error) {
+      console.error('Refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [selectedClientId]);
 
   const selectedClient = useMemo(() => {
     if (!selectedClientId || !clients.length) return null;
@@ -112,7 +132,6 @@ export default function AnalyticsScreen() {
     [],
   );
 
-  // Safe data accessors
   const getSafeClientName = useCallback(client => {
     return client?.contactName || 'Unknown Client';
   }, []);
@@ -121,11 +140,9 @@ export default function AnalyticsScreen() {
     return company?.businessName || 'Unknown Company';
   }, []);
 
-  // Fetch clients on component mount
   const fetchClients = useCallback(async () => {
     if (!isMountedRef.current) return;
 
-    // Abort previous request if any
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -159,7 +176,6 @@ export default function AnalyticsScreen() {
         setClients(Array.isArray(data) ? data : []);
       }
     } catch (error) {
-      // Ignore abort errors
       if (error.name === 'AbortError') {
         console.log('Clients fetch was aborted');
         return;
@@ -184,20 +200,16 @@ export default function AnalyticsScreen() {
     fetchClients();
   }, [fetchClients]);
 
-  // Fetch companies when client is selected
   const fetchCompanies = useCallback(
     async clientId => {
       if (!clientId || !isMountedRef.current) {
-        // clear companies and keep selectedCompanyId as '' (All Companies)
         if (isMountedRef.current) {
           setCompanies([]);
-          // do NOT auto-select first company; preserve '' = All Companies
           setSelectedCompanyId('');
         }
         return;
       }
 
-      // Abort previous request if any
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
@@ -230,15 +242,11 @@ export default function AnalyticsScreen() {
 
         if (isMountedRef.current) {
           setCompanies(Array.isArray(data) ? data : []);
-          // Important: do NOT auto-select the first company here.
-          // Keep '' as "All Companies" unless selectedCompanyId was explicitly set.
-          // Only set selectedCompanyId if it's null or undefined (not empty string).
           if (selectedCompanyId === null || selectedCompanyId === undefined) {
             setSelectedCompanyId('');
           }
         }
       } catch (error) {
-        // Ignore abort errors
         if (error.name === 'AbortError') {
           console.log('Companies fetch was aborted');
           return;
@@ -257,7 +265,6 @@ export default function AnalyticsScreen() {
         }
       }
     },
-    // add selectedCompanyId as dependency so the check above is stable
     [selectedCompanyId],
   );
 
@@ -270,14 +277,14 @@ export default function AnalyticsScreen() {
     }
   }, [selectedClientId, fetchCompanies]);
 
-  const handleClientChange = useCallback(clientId => {
+  const handleClientChange = useCallback(async (clientId) => {
+    await AsyncStorage.multiRemove(['profitLossCache', 'dashboardCache']);
     setSelectedClientId(clientId);
-    // Reset company to 'All Companies'
     setSelectedCompanyId('');
   }, []);
 
-  const handleCompanyChange = useCallback(companyId => {
-    // companyId '' => All Companies
+  const handleCompanyChange = useCallback(async (companyId) => {
+    await AsyncStorage.removeItem('profitLossCache');
     setSelectedCompanyId(companyId);
   }, []);
 
@@ -420,10 +427,8 @@ export default function AnalyticsScreen() {
                 {items &&
                   items.map((item, idx) => (
                     <Picker.Item
-                      // stable key: prefer id, fallback to index-based key
                       key={item?._id ?? `opt-${idx}`}
                       label={
-                        // For client list we'll show contactName, for companies show businessName
                         item?.contactName || item?.businessName || placeholder
                       }
                       value={item?._id ?? ''}
@@ -433,8 +438,7 @@ export default function AnalyticsScreen() {
               </Picker>
               <Text style={styles.pickerDisplay} numberOfLines={1}>
                 {value && items
-                  ? // find matching item by id/value; fallback to placeholder
-                    items.find(i => i && (i._id === value || i.value === value))
+                  ? items.find(i => i && (i._id === value || i.value === value))
                       ?.contactName ||
                     items.find(i => i && (i._id === value || i.value === value))
                       ?.businessName ||
@@ -466,7 +470,6 @@ export default function AnalyticsScreen() {
 
         <View style={styles.selectionContainer}>
           <View style={styles.twoColumnSelection}>
-            {/* Select Client */}
             {renderPicker(
               selectedClientId,
               handleClientChange,
@@ -477,12 +480,10 @@ export default function AnalyticsScreen() {
               styles.pickerFieldHalf,
             )}
 
-            {/* Select Company (Visible only if a client is selected) */}
             {selectedClientId ? (
               renderPicker(
                 selectedCompanyId,
                 handleCompanyChange,
-                // explicit All Companies option with _id: '' to match empty string value
                 [{ _id: '', businessName: 'All Companies' }, ...companies],
                 'Select Company',
                 'All Companies',
@@ -556,7 +557,6 @@ export default function AnalyticsScreen() {
     [TABS, activeTab, selectedClient],
   );
 
-  // Show loading state initially
   if (isInitialLoad) {
     return (
       <SafeAreaView style={styles.container}>
@@ -569,37 +569,50 @@ export default function AnalyticsScreen() {
     );
   }
 
+  // Use FlatList instead of ScrollView to avoid nested virtualization warning
   return (
     <AppLayout>
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
-        {/* Header and Selection are fixed at the top */}
-        {renderHeaderAndSelection()}
-
-        {!selectedClient && !isClientsLoading ? (
-          <ScrollView contentContainerStyle={styles.noClientScroll}>
-            <View style={styles.noClientContainer}>
-              <Users size={48} color="#adb5bd" />
-              <Text style={styles.noClientText}>No Client Selected</Text>
-              <Text style={styles.noClientSubtext}>
-                Please select a client to view their data.
-              </Text>
-            </View>
-          </ScrollView>
-        ) : (
-          <View style={styles.tabsContainer}>
-            {renderMainTabs()}
-
-            <View style={styles.tabContentFlex}>{renderTabContent()}</View>
-          </View>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      
+      <FlatList
+        data={[{ key: 'content' }]}
+        renderItem={() => (
+          <>
+            {!selectedClient && !isClientsLoading ? (
+              <View style={styles.noClientScroll}>
+                <View style={styles.noClientContainer}>
+                  <Users size={48} color="#adb5bd" />
+                  <Text style={styles.noClientText}>No Client Selected</Text>
+                  <Text style={styles.noClientSubtext}>
+                    Please select a client to view their data.
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.tabsContainer}>
+                {renderMainTabs()}
+                <View style={styles.tabContentFlex}>{renderTabContent()}</View>
+              </View>
+            )}
+          </>
         )}
-      </SafeAreaView>
+        ListHeaderComponent={renderHeaderAndSelection}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#007bff']}
+            tintColor="#007bff"
+          />
+        }
+        keyExtractor={item => item.key}
+        showsVerticalScrollIndicator={true}
+        style={styles.container}
+      />
     </AppLayout>
   );
 }
 
-// ...existing styles...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -614,11 +627,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   noClientScroll: {
-    flexGrow: 1,
     paddingHorizontal: 16,
+    paddingVertical: 40,
+    alignItems: 'center',
   },
 
-  // --- Loading State ---
   loadingContainerFull: {
     flex: 1,
     justifyContent: 'center',
@@ -631,7 +644,6 @@ const styles = StyleSheet.create({
     color: '#6c757d',
   },
 
-  // --- Header ---
   headerContainer: {
     padding: 16,
     paddingTop: 4,
@@ -651,7 +663,6 @@ const styles = StyleSheet.create({
     color: '#6c757d',
   },
 
-  // --- Selection pickers ---
   selectionContainer: {
     marginBottom: 4,
     paddingTop: 4,
@@ -722,7 +733,6 @@ const styles = StyleSheet.create({
     color: '#6c757d',
   },
 
-  // --- No client selected message ---
   noClientContainer: {
     alignItems: 'center',
     marginTop: 40,
@@ -744,7 +754,6 @@ const styles = StyleSheet.create({
     maxWidth: '80%',
   },
 
-  // --- Main Tabs ---
   tabsWrapper: {
     backgroundColor: '#fff',
     borderBottomWidth: 1,
@@ -807,7 +816,6 @@ const styles = StyleSheet.create({
     color: '#adb5bd',
   },
 
-  // --- Reports Tabs (Nested) ---
   reportsContainer: {
     padding: 12,
     flex: 1,
@@ -841,4 +849,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-// ...existing code...

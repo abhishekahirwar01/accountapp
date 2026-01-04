@@ -106,69 +106,84 @@ export const formSchema = z
       })
       .optional(),
   })
-  .refine(
-    data => {
-      if (['sales', 'purchases', 'receipt'].includes(data.type)) {
-        return !!data.party;
+  .superRefine((data, ctx) => {
+    // Validation for party based on transaction type
+    if (['sales', 'purchases', 'receipt'].includes(data.type)) {
+      if (!data.party) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['party'],
+          message: 'This field is required for this transaction type.',
+        });
       }
-      if (data.type === 'payment' && !data.isExpense) {
-        return !!data.party;
+    } else if (data.type === 'payment' && !data.isExpense) {
+      if (!data.party) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['party'],
+          message: 'This field is required for this transaction type.',
+        });
       }
-      return true;
-    },
-    {
-      message: 'This field is required for this transaction type.',
-      path: ['party'],
-    },
-  )
-  .refine(
-    data => {
-      if (data.type === 'payment' && data.isExpense) {
-        return !!data.expense;
+    }
+
+    // Validation for expense category in payment transactions
+    if (data.type === 'payment' && data.isExpense) {
+      if (!data.expense) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['expense'],
+          message: 'This field is required for this transaction type.',
+        });
       }
-      return true;
-    },
-    {
-      message: 'This field is required for this transaction type.',
-      path: ['expense'],
-    },
-  )
-  .refine(
-    data => {
-      if (data.type === 'sales' || data.type === 'purchases') {
-        return data.items && data.items.length > 0;
+    }
+
+    // Validation for items in sales or purchases
+    if (data.type === 'sales' || data.type === 'purchases') {
+      if (!data.items || data.items.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['items'],
+          message: 'At least one item is required for a sale or purchase.',
+        });
       }
-      return true;
-    },
-    {
-      message: 'At least one item is required for a sale or purchase.',
-      path: ['items'],
-    },
-  )
-  .refine(
-    data => {
-      if (data.type === 'journal') {
-        return !!data.fromAccount && !!data.toAccount;
+    }
+
+    // Validation for journal entries
+    if (data.type === 'journal') {
+      if (!data.fromAccount) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['fromAccount'],
+          message: 'Debit account is required for journal entry',
+        });
       }
-      return true;
-    },
-    {
-      message: 'Debit and Credit accounts are required for a journal entry.',
-      path: ['fromAccount'],
-    },
-  )
-  .refine(
-    data => {
-      if (['sales', 'purchases', 'receipt', 'payment'].includes(data.type)) {
-        return !!data.paymentMethod;
+      if (!data.toAccount) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['toAccount'],
+          message: 'Credit account is required for journal entry',
+        });
       }
-      return true;
-    },
-    {
-      message: 'Payment method is required for this transaction type.',
-      path: ['paymentMethod'],
-    },
-  );
+      if (!data.totalAmount || data.totalAmount <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['totalAmount'],
+          message: 'Amount must be a positive number only',
+        });
+      }
+    }
+
+    // Validation for payment method
+    if (['sales', 'purchases', 'receipt', 'payment'].includes(data.type)) {
+      if (!data.paymentMethod) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['paymentMethod'],
+          message: 'Payment method is required for this transaction type.',
+        });
+      }
+    }
+  });
 
 // Default constant for product items
 export const PRODUCT_DEFAULT = {

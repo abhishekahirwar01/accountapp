@@ -657,7 +657,7 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
     } else {
       Alert.alert(
         'Validation Error',
-        'Please fix all errors before proceeding to the next step.',
+        'Please fill all required fields before proceeding to the next step.',
         [{ text: 'OK' }],
       );
     }

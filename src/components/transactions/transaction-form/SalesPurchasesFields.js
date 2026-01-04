@@ -17,6 +17,8 @@ import Toast from 'react-native-toast-message';
 import { formatCurrency } from '../../../lib/pdf-utils';
 import { Combobox } from '../../ui/Combobox';
 import CustomDropdown from '../../ui/CustomDropdown';
+import HsnSacDropdown from '../../ui/HsnSacDropdown';
+
 import QuillEditor from '../../ui/QuillEditor';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -273,7 +275,21 @@ export const SalesPurchasesFields = props => {
     sacOptions,
     handleHsnChange,
     handleSacChange,
+    canCreateInventory,
+    canCreateProducts,
+    canCreateCustomer,
+    canCreateVendor,
   } = props;
+
+  useEffect(() => {}, [
+    canCreateInventory,
+    canCreateProducts,
+    canCreateCustomer,
+    canCreateVendor,
+    serviceCreatable,
+    partyCreatable,
+    transactionToEdit,
+  ]);
 
   const {
     formState: { errors, dirtyFields },
@@ -474,9 +490,6 @@ export const SalesPurchasesFields = props => {
           // Only auto-select if no bank is currently selected
           if (!currentBankValue) {
             const firstBankId = filteredBanks[0]._id;
-            console.log(
-              `🔍 Auto-selecting bank: ${firstBankId} (${filteredBanks.length} banks available)`,
-            );
 
             setSelectedBank(firstBankId);
             setValue('bank', firstBankId, {
@@ -1256,8 +1269,16 @@ export const SalesPurchasesFields = props => {
                   }
                   searchPlaceholder="Search products..."
                   noResultsText="No product found."
-                  creatable
+                  creatable={canCreateProducts}
                   onCreate={async name => {
+                    if (!canCreateProducts) {
+                      Toast.show({
+                        type: 'error',
+                        text1: 'Permission denied',
+                        text2: "You don't have permission to create products.",
+                      });
+                      return '';
+                    }
                     setCreatingProductForIndex(index);
                     handleTriggerCreateProduct(name);
                     return '';
@@ -1384,14 +1405,14 @@ export const SalesPurchasesFields = props => {
             <View style={styles.pairRow}>
               <View style={[styles.inputContainer, styles.pairItem]}>
                 <Text style={styles.inputLabel}>HSN Code</Text>
-                 <CustomDropdown
-                    items={hsnOptions}
-                    value={watch(`items.${index}.hsn`) || ''}
-                    onChange={hsnCodeValue => {
-                      handleHsnChange(hsnCodeValue, index);
-                    }}
-                    placeholder="Search HSN..."
-                  />
+                <HsnSacDropdown
+                  items={hsnOptions}
+                  value={watch(`items.${index}.hsn`) || ''}
+                  onChange={hsnCodeValue => {
+                    handleHsnChange(hsnCodeValue, index);
+                  }}
+                  placeholder="Search HSN..."
+                />
                 <FormMessage error={errors?.items?.[index]?.hsn} />
               </View>
 
@@ -1565,23 +1586,16 @@ export const SalesPurchasesFields = props => {
                     ? services.find(s => s._id === value)
                     : null;
 
-                  setValue(
-                    `items.${index}.sac`,
-                    selectedService?.sac || '',
-                    {
-                      shouldValidate: true,
-                    },
-                  );
+                  setValue(`items.${index}.sac`, selectedService?.sac || '', {
+                    shouldValidate: true,
+                  });
 
                   if (selectedService) {
                     if (
                       (type === 'sales' || type === 'purchases') &&
                       selectedService.amount > 0
                     ) {
-                      setValue(
-                        `items.${index}.amount`,
-                        selectedService.amount,
-                      );
+                      setValue(`items.${index}.amount`, selectedService.amount);
                     }
                   }
                 }}
@@ -1657,14 +1671,14 @@ export const SalesPurchasesFields = props => {
             <View style={styles.pairRow}>
               <View style={[styles.inputContainer, styles.pairItem]}>
                 <Text style={styles.inputLabel}>SAC Code</Text>
-                 <CustomDropdown
-                    items={sacOptions}
-                    value={watch(`items.${index}.sac`) || ''}
-                    onChange={sacCodeValue => {
-                      handleSacChange(sacCodeValue, index);
-                    }}
-                    placeholder="Search SAC..."
-                  />
+                <HsnSacDropdown
+                  items={sacOptions}
+                  value={watch(`items.${index}.sac`) || ''}
+                  onChange={sacCodeValue => {
+                    handleSacChange(sacCodeValue, index);
+                  }}
+                  placeholder="Search SAC..."
+                />
                 <FormMessage error={errors?.items?.[index]?.sac} />
               </View>
 

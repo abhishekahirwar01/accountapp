@@ -9,6 +9,8 @@ import {
   TouchableOpacity,
   Dimensions,
   Modal,
+  FlatList,
+  RefreshControl,
 } from 'react-native';
 import {
   IndianRupee,
@@ -28,6 +30,7 @@ import { TransactionForm } from '../../components/transactions/TransactionForm';
 import { useCompany } from '../../contexts/company-context';
 import UpdateWalkthrough from '../../components/notifications/UpdateWalkthrough';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
+import { usePermissions } from '../../contexts/permission-context'; // Import permission context
 import { BASE_URL } from '../../config';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -68,7 +71,8 @@ const getAmount = (type, row) => {
 export default function UserDashboardScreen({ navigation, route }) {
   // --- State & Hooks
   const { selectedCompanyId } = useCompany();
-  const { permissions: userCaps, isAllowed } = useUserPermissions();
+  const { permissions: userCaps, isAllowed, refetch: refetchUserPermissions } = useUserPermissions();
+  const { permissions, refetch: refetchPermissions } = usePermissions(); // Get permission refetch
 
   const [isLoading, setIsLoading] = useState(true);
   const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
@@ -76,6 +80,7 @@ export default function UserDashboardScreen({ navigation, route }) {
   const [companies, setCompanies] = useState([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [serviceNameById, setServiceNameById] = useState(new Map());
+  const [refreshing, setRefreshing] = useState(false);
 
   // Read role from AsyncStorage
   const [role, setRole] = useState('user');
@@ -226,6 +231,18 @@ export default function UserDashboardScreen({ navigation, route }) {
     fetchCompanyDashboard();
   }, [selectedCompanyId, fetchCompanyDashboard]);
 
+  // Add refresh function that also fetches permissions
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    Promise.all([
+      fetchCompanyDashboard(),
+      refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
+      refetchPermissions ? refetchPermissions() : Promise.resolve(),
+    ]).finally(() => {
+      setRefreshing(false);
+    });
+  }, [fetchCompanyDashboard, refetchUserPermissions, refetchPermissions]);
+
   const handleTransactionFormSubmit = () => {
     setIsTransactionFormOpen(false);
     fetchCompanyDashboard();
@@ -286,7 +303,80 @@ export default function UserDashboardScreen({ navigation, route }) {
     </View>
   );
 
-  // --- Render Content
+  // --- List Header Component
+  const renderHeader = () => (
+    <View>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerText}>
+          <Text style={styles.title}>User Dashboard</Text>
+          <Text style={styles.subtitle}>
+            {selectedCompany
+              ? `An overview of ${selectedCompany.businessName}.`
+              : 'An overview across your accessible companies.'}
+          </Text>
+        </View>
+
+        {companies.length > 0 && (
+          <View style={styles.headerActions}>
+            {/* <TouchableOpacity
+              onPress={handleSettingsPress}
+              style={[styles.btn, styles.btnOutline]}
+              activeOpacity={0.85}
+            >
+              <Settings size={16} style={{ marginRight: 8 }} />
+              <Text>Settings</Text>
+            </TouchableOpacity> */}
+
+            {isAdmin && (
+              <TouchableOpacity
+                onPress={handleTransactionPress}
+                style={[styles.btn, styles.btnSolid]}
+                activeOpacity={0.85}
+              >
+                <PlusCircle
+                  size={16}
+                  style={{ marginRight: 8 }}
+                  color="#fff"
+                />
+                <Text style={{ color: 'white' }}>New Transaction</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </View>
+
+      {/* KPI Cards */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginBottom: 24 }}
+      >
+        {kpis.map(k => (
+          <KPICard
+            key={k.key}
+            title={k.title}
+            value={k.value}
+            Icon={k.icon}
+            description={k.description}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+
+  // --- List Content Component
+  const renderContent = () => (
+    <View style={styles.contentGrid}>
+      <ProductStock />
+      <RecentTransactions
+        transactions={recentTransactions}
+        serviceNameById={serviceNameById}
+      />
+    </View>
+  );
+
+  // --- Render Loading
   if (isLoading) {
     return (
       <AppLayout>
@@ -298,6 +388,7 @@ export default function UserDashboardScreen({ navigation, route }) {
     );
   }
 
+  // --- Render Empty State
   if (companies.length === 0) {
     return (
       <AppLayout>
@@ -312,75 +403,25 @@ export default function UserDashboardScreen({ navigation, route }) {
     );
   }
 
+  // --- Main Render with FlatList
   return (
     <AppLayout>
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.title}>User Dashboard</Text>
-            <Text style={styles.subtitle}>
-              {selectedCompany
-                ? `An overview of ${selectedCompany.businessName}.`
-                : 'An overview across your accessible companies.'}
-            </Text>
-          </View>
-
-          {companies.length > 0 && (
-            <View style={styles.headerActions}>
-              {/* <TouchableOpacity
-                onPress={handleSettingsPress}
-                style={[styles.btn, styles.btnOutline]}
-                activeOpacity={0.85}
-              >
-                <Settings size={16} style={{ marginRight: 8 }} />
-                <Text>Settings</Text>
-              </TouchableOpacity> */}
-
-              {isAdmin && (
-                <TouchableOpacity
-                  onPress={handleTransactionPress}
-                  style={[styles.btn, styles.btnSolid]}
-                  activeOpacity={0.85}
-                >
-                  <PlusCircle
-                    size={16}
-                    style={{ marginRight: 8 }}
-                    color="#fff"
-                  />
-                  <Text style={{ color: 'white' }}>New Transaction</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-        </View>
-
-        {/* KPI Cards */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginBottom: 24 }}
-        >
-          {kpis.map(k => (
-            <KPICard
-              key={k.key}
-              title={k.title}
-              value={k.value}
-              Icon={k.icon}
-              description={k.description}
-            />
-          ))}
-        </ScrollView>
-
-        {/* Product Stock & Recent Transactions */}
-        <View style={styles.contentGrid}>
-          <ProductStock />
-          <RecentTransactions
-            transactions={recentTransactions}
-            serviceNameById={serviceNameById}
+      <FlatList
+        data={[]} // We don't need actual data since we're using ListHeaderComponent
+        renderItem={null}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#0f62fe']}
+            tintColor="#0f62fe"
           />
-        </View>
-      </ScrollView>
+        }
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      />
 
       {/* Transaction Modal */}
       <Modal
@@ -420,21 +461,11 @@ export default function UserDashboardScreen({ navigation, route }) {
   );
 }
 
-// --- KPI Card Component
-const KPICard = ({ title, value, Icon, description }) => (
-  <View style={[styles.kpiCard, { width: SCREEN_WIDTH * 0.6 }]}>
-    <View style={styles.cardHeader}>
-      <Text style={styles.cardTitle}>{title}</Text>
-      <Icon size={18} color="#666" />
-    </View>
-    <View style={styles.cardContent}>
-      <Text style={styles.cardValue}>{value}</Text>
-      {description && <Text style={styles.cardDescription}>{description}</Text>}
-    </View>
-  </View>
-);
-
 const styles = StyleSheet.create({
+  contentContainer: {
+    padding: 16,
+    flexGrow: 1,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',

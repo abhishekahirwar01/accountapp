@@ -7,7 +7,6 @@ import {
   Image,
   StyleSheet,
   useWindowDimensions,
-  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
@@ -79,6 +78,9 @@ export function UserCard({ users, onEdit, onDelete, companyMap, roleMap }) {
 
   const renderUserItem = user => {
     const roleLabel = getRoleLabel(user.role, rMap);
+    // WEB PARITY LOGIC: Check if user is an admin
+    const isAdmin = roleLabel.toLowerCase() === 'admin';
+
     const initials = (user.userName || 'NN').substring(0, 2).toUpperCase();
     const isActive = user.status === 'Active';
 
@@ -87,7 +89,7 @@ export function UserCard({ users, onEdit, onDelete, companyMap, roleMap }) {
         key={user._id}
         style={[styles.card, isLargeScreen && styles.gridCard]}
       >
-        {/* Card Header (Web styling: Gradient-like muted background) */}
+        {/* Card Header */}
         <View style={styles.cardHeader}>
           <View style={styles.avatarContainer}>
             {user.avatar ? (
@@ -111,7 +113,7 @@ export function UserCard({ users, onEdit, onDelete, companyMap, roleMap }) {
             </View>
             <Text style={styles.userId}>ID: {user.userId}</Text>
 
-            {/* Status Indicator (Web parity) */}
+            {/* Status Indicator */}
             <View style={styles.statusRow}>
               <View
                 style={[
@@ -192,21 +194,28 @@ export function UserCard({ users, onEdit, onDelete, companyMap, roleMap }) {
           </View>
         </View>
 
-        {/* Action Buttons Footer (Full Web Parity) */}
+        {/* Action Buttons Footer */}
         <View style={styles.footer}>
           <View style={styles.actionGroup}>
+            {/* 1. EDIT BUTTON: Available for all */}
             <TouchableOpacity
               style={styles.iconBtn}
               onPress={() => onEdit(user)}
             >
               <Icon name="pencil" size={18} color="#374151" />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={() => setPermUser(user)}
-            >
-              <Icon name="account-cog" size={18} color="#7c3aed" />
-            </TouchableOpacity>
+
+            {/* 2. MANAGE PERMISSIONS: Hidden for Admins */}
+            {!isAdmin && (
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={() => setPermUser(user)}
+              >
+                <Icon name="account-cog" size={18} color="#7c3aed" />
+              </TouchableOpacity>
+            )}
+
+            {/* 3. RESET PASSWORD: Available for all */}
             <TouchableOpacity
               style={[styles.iconBtn, !getSafeUserId(user) && { opacity: 0.5 }]}
               onPress={() => setResetUser(user)}
@@ -215,6 +224,8 @@ export function UserCard({ users, onEdit, onDelete, companyMap, roleMap }) {
               <Icon name="key-variant" size={18} color="#d97706" />
             </TouchableOpacity>
           </View>
+
+          {/* 4. DELETE BUTTON: Available for all */}
           <TouchableOpacity
             style={[styles.iconBtn, styles.deleteBtn]}
             onPress={() => onDelete(user)}

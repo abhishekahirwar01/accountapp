@@ -30,6 +30,7 @@ import RNFS from 'react-native-fs';
 import Pdf from 'react-native-pdf';
 import { useCompany } from '../../contexts/company-context';
 import { useToast } from '../../components/hooks/useToast';
+import { usePermissions } from '../../contexts/permission-context';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
 
 // Icons
@@ -154,7 +155,13 @@ const TransactionsScreen = ({ navigation }) => {
   // Hooks
   const { selectedCompanyId } = useCompany();
   const { toast } = useToast();
-  const { permissions: userCaps, role } = useUserPermissions();
+  const {
+    permissions: userCaps,
+    role,
+    refetch: refetchUserPermissions,
+  } = useUserPermissions();
+  const { permissions: clientPermissions, refetch: refetchClientPermissions } =
+    usePermissions();
 
   const isSuper = role === 'master' || role === 'client';
 
@@ -389,14 +396,12 @@ const TransactionsScreen = ({ navigation }) => {
           data => parseResponse(data, ['services', 'data']),
           'services',
         ),
-      ]).then(
-        ([partiesArray, vendorsArray, productsArray, servicesArray]) => {
-          setParties(partiesArray);
-          setVendors(vendorsArray);
-          setProductsList(productsArray);
-          setServicesList(servicesArray);
-        },
-      );
+      ]).then(([partiesArray, vendorsArray, productsArray, servicesArray]) => {
+        setParties(partiesArray);
+        setVendors(vendorsArray);
+        setProductsList(productsArray);
+        setServicesList(servicesArray);
+      });
     } catch (error) {
       // ... error handling
       console.error('Fetch transactions error:', error);
@@ -1437,17 +1442,30 @@ const TransactionsScreen = ({ navigation }) => {
           totalResults={searchedDataForTab.length}
           onLoadMore={handleLoadMore}
           key={`${refreshTrigger}-${activeTab}`}
+          refreshing={isRefreshing}
+          onRefresh={onRefresh}
         />
       </View>
     );
   };
 
-  // Handle refresh
-  const onRefresh = async () => {
+  // Handle refresh (also refresh permissions)
+  const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await fetchTransactions();
-    setIsRefreshing(false);
-  };
+    try {
+      await Promise.all([
+        fetchTransactions(),
+        refetchClientPermissions
+          ? refetchClientPermissions()
+          : Promise.resolve(),
+        refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
+      ]);
+    } catch (error) {
+      console.error('Refresh error:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [fetchTransactions, refetchClientPermissions, refetchUserPermissions]);
 
   // Main render function for content
   const renderMainContent = () => {
@@ -1594,10 +1612,6 @@ const TransactionsScreen = ({ navigation }) => {
               {canPayment && renderTabButton(TABS.PAYMENTS, 'Payments')}
               {canJournal && renderTabButton(TABS.JOURNALS, 'Journals')}
             </ScrollView>
-
-            
-
-           
           </View>
         )}
 

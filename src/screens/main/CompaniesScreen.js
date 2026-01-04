@@ -27,6 +27,7 @@ import {
   X,
 } from 'lucide-react-native';
 import { usePermissions } from '../../contexts/permission-context';
+import { useUserPermissions } from '../../contexts/user-permissions-context';
 import { BASE_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppLayout from '../../components/layout/AppLayout';
@@ -41,7 +42,8 @@ const CompaniesScreen = () => {
   const [showMenu, setShowMenu] = useState(null);
   const [clients, setClients] = useState([]);
 
-  const { permissions } = usePermissions();
+  const { permissions, refetch, isLoading: isLoadingPerms } = usePermissions();
+  const { refetch: refetchUserPermissions } = useUserPermissions(); // Ye line add karein
 
   // Fetch companies from API
   const fetchCompanies = useCallback(async () => {
@@ -109,8 +111,18 @@ const CompaniesScreen = () => {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchCompanies();
-  }, [fetchCompanies]);
+    
+    // Saare data ko ek saath refresh karein
+    Promise.all([
+      fetchCompanies(),
+      fetchClients(),
+      // Ye niche waali lines hi Bottom Navbar ko refresh trigger deti hain
+      refetch ? refetch() : Promise.resolve(),
+      refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
+    ]).finally(() => {
+      setRefreshing(false);
+    });
+  }, [fetchCompanies, fetchClients, refetch, refetchUserPermissions]);
 
   const handleAddNew = () => {
     setSelectedCompany(null);
@@ -348,7 +360,7 @@ const CompaniesScreen = () => {
   );
 
   // Loading State
-  if (isLoading) {
+  if (isLoading || isLoadingPerms) { // isLoadingPerms add kiya
     return (
       <AppLayout>
         <SafeAreaView style={styles.safeArea}>
@@ -363,7 +375,7 @@ const CompaniesScreen = () => {
 
   return (
     <AppLayout>
-      <SafeAreaView style={styles.safeArea}>
+      {/* <SafeAreaView style={styles.safeArea}> */}
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
@@ -428,7 +440,7 @@ const CompaniesScreen = () => {
             </View>
           </Modal>
         </View>
-      </SafeAreaView>
+      {/* </SafeAreaView> */}
     </AppLayout>
   );
 };

@@ -12,6 +12,7 @@ import {
   Platform,
   StyleSheet,
 } from 'react-native';
+import { X } from 'lucide-react-native';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, Controller } from 'react-hook-form';
@@ -199,6 +200,9 @@ export function VendorForm({
   initialName,
   onSuccess,
   hideHeader = false,
+  headerTitle,
+  headerSubtitle,
+  onClose,
 }) {
   const { toast, toastConfig, hideToast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -323,16 +327,19 @@ export function VendorForm({
           keyboardShouldPersistTaps="handled"
         >
           {/* Header Section */}
-          {!hideHeader && (
-            <View style={styles.header}>
-              <Text style={styles.headerTitle}>
-                {vendor ? 'Edit Vendor' : 'Create New Vendor'}
-              </Text>
-              <Text style={styles.headerSubtitle}>
-                {vendor
-                  ? 'Update vendor details'
-                  : 'Add new vendor to your records'}
-              </Text>
+          {!hideHeader && headerTitle && (
+            <View style={styles.headerWrapper}>
+              <View style={styles.header}>
+                <Text style={styles.headerTitle}>{headerTitle}</Text>
+                {headerSubtitle && (
+                  <Text style={styles.headerSubtitle}>{headerSubtitle}</Text>
+                )}
+              </View>
+              {onClose && (
+                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                  <X size={24} color="black" />
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -529,14 +536,16 @@ export function VendorForm({
                     <CustomDropdown
                       items={gstRegistrationTypes.map(type => ({
                         value: type,
-                        label: type
+                        label: type,
                       }))}
                       value={field.value}
                       onChange={field.onChange}
                       placeholder="Select registration type"
                     />
                     {fieldState.error && (
-                      <Text style={styles.error}>{fieldState.error.message}</Text>
+                      <Text style={styles.error}>
+                        {fieldState.error.message}
+                      </Text>
                     )}
                   </View>
                 )}
@@ -607,101 +616,103 @@ export function VendorForm({
 
             {/* TDS Section */}
             {/* TDS Section */}
-<View style={styles.section}>
-  <Text style={styles.sectionTitle}>TDS Details</Text>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>TDS Details</Text>
 
-  {/* TDS Applicable */}
-  <View style={styles.field}>
-    <Text style={styles.label}>TDS Applicable?</Text>
-    <View style={styles.tdsOptionsContainer}>
-      <Controller
-        control={control}
-        name="isTDSApplicable"
-        render={({ field }) => (
-          <>
-            <TouchableOpacity
-              onPress={() => field.onChange(true)}
-              style={[
-                styles.tdsOption,
-                field.value === true && styles.tdsOptionSelected,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.tdsOptionText,
-                  field.value === true && styles.tdsOptionTextSelected,
-                ]}
-              >
-                Yes
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => field.onChange(false)}
-              style={[
-                styles.tdsOption,
-                field.value === false && styles.tdsOptionSelected,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.tdsOptionText,
-                  field.value === false && styles.tdsOptionTextSelected,
-                ]}
-              >
-                No
-              </Text>
-            </TouchableOpacity>
-          </>
-        )}
-      />
-    </View>
-  </View>
+              {/* TDS Applicable */}
+              <View style={styles.field}>
+                <Text style={styles.label}>TDS Applicable?</Text>
+                <View style={styles.tdsOptionsContainer}>
+                  <Controller
+                    control={control}
+                    name="isTDSApplicable"
+                    render={({ field }) => (
+                      <>
+                        <TouchableOpacity
+                          onPress={() => field.onChange(true)}
+                          style={[
+                            styles.tdsOption,
+                            field.value === true && styles.tdsOptionSelected,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.tdsOptionText,
+                              field.value === true &&
+                                styles.tdsOptionTextSelected,
+                            ]}
+                          >
+                            Yes
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => field.onChange(false)}
+                          style={[
+                            styles.tdsOption,
+                            field.value === false && styles.tdsOptionSelected,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.tdsOptionText,
+                              field.value === false &&
+                                styles.tdsOptionTextSelected,
+                            ]}
+                          >
+                            No
+                          </Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  />
+                </View>
+              </View>
 
-  {/* TDS Details (Conditional) */}
-  {isTDSApplicable && (
-    <View style={styles.tdsDetailsContainer}>
-      <View style={{ flexDirection: 'row', gap: 12 }}>
-        <View style={{ flex: 1 }}>
-          <Controller
-            control={control}
-            name="tdsRate"
-            render={({ field }) => (
-              <View style={styles.field}>
-                <Text style={styles.label}>TDS Rate (%)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="10"
-                  keyboardType="numeric"
-                  value={String(field.value || '')}
-                  onChangeText={val =>
-                    field.onChange(val ? Number(val) : '')
-                  }
-                />
-              </View>
-            )}
-          />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Controller
-            control={control}
-            name="tdsSection"
-            render={({ field }) => (
-              <View style={styles.field}>
-                <Text style={styles.label}>TDS Section</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="194J"
-                  value={field.value}
-                  onChangeText={field.onChange}
-                />
-              </View>
-            )}
-          />
-        </View>
-      </View>
-    </View>
-  )}
-</View>
+              {/* TDS Details (Conditional) */}
+              {isTDSApplicable && (
+                <View style={styles.tdsDetailsContainer}>
+                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                    <View style={{ flex: 1 }}>
+                      <Controller
+                        control={control}
+                        name="tdsRate"
+                        render={({ field }) => (
+                          <View style={styles.field}>
+                            <Text style={styles.label}>TDS Rate (%)</Text>
+                            <TextInput
+                              style={styles.input}
+                              placeholder="10"
+                              keyboardType="numeric"
+                              value={String(field.value || '')}
+                              onChangeText={val =>
+                                field.onChange(val ? Number(val) : '')
+                              }
+                            />
+                          </View>
+                        )}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Controller
+                        control={control}
+                        name="tdsSection"
+                        render={({ field }) => (
+                          <View style={styles.field}>
+                            <Text style={styles.label}>TDS Section</Text>
+                            <TextInput
+                              style={styles.input}
+                              placeholder="194J"
+                              value={field.value}
+                              onChangeText={field.onChange}
+                            />
+                          </View>
+                        )}
+                      />
+                    </View>
+                  </View>
+                </View>
+              )}
+            </View>
 
             {/* Submit Button */}
             <TouchableOpacity
@@ -722,7 +733,6 @@ export function VendorForm({
             </TouchableOpacity>
 
             {/* Extra space for better scrolling */}
-            
           </View>
         </ScrollView>
       </View>
@@ -734,11 +744,17 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
   },
-  header: {
+  headerWrapper: {
     backgroundColor: '#fff',
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  header: {
+    flex: 1,
   },
   headerTitle: {
     fontSize: 24,
@@ -746,12 +762,16 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 4,
   },
+  closeButton: {
+    padding: 4,
+    marginLeft: 16,
+  },
   headerSubtitle: {
     fontSize: 16,
     color: '#666',
   },
   formContainer: {
-    padding: 20,
+    // padding: 20,
   },
   section: {
     marginBottom: 25,
@@ -890,7 +910,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
- 
+
   // Toast Styles
   toastOverlay: {
     flex: 1,
@@ -979,7 +999,7 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 8,
   },
-   tdsOption: {
+  tdsOption: {
     flex: 1,
     borderWidth: 1,
     borderColor: '#ddd',

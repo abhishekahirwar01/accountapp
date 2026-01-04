@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   Modal,
   useWindowDimensions,
+  RefreshControl, // Added this import
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -23,6 +24,7 @@ import {
   PlusCircle,
   Package,
   X,
+  RefreshCw,
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -30,6 +32,8 @@ import { useNavigation } from '@react-navigation/native';
 // Assuming context and custom components are adapted for React Native
 import { useCompany } from '../../contexts/company-context';
 import { useSupport } from '../../contexts/support-context';
+import { usePermissions } from '../../contexts/permission-context';
+import { useUserPermissions } from '../../contexts/user-permissions-context';
 
 // Custom components - these must be re-written for React Native
 import { KpiCards } from '../../components/dashboard/KPICard';
@@ -171,11 +175,15 @@ export default function DashboardPage() {
   const { toggleSupport } = useSupport();
   const { selectedCompanyId } = useCompany();
   const { width } = useWindowDimensions();
+  const { permissions, refetch: refetchPermissions } = usePermissions();
+  const { permissions: userCaps, refetch: refetchUserPermissions } =
+    useUserPermissions();
   const [dashboardData, setDashboardData] = useState(null);
   const [companies, setCompanies] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
   const [isProformaFormOpen, setIsProformaFormOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const selectedCompany = useMemo(
     () =>
@@ -190,81 +198,115 @@ export default function DashboardPage() {
   }, []);
 
   // Optimized data fetching with request batching
-  const fetchDashboardData = useCallback(async () => {
-    setIsLoading(true);
+  const fetchDashboardData = useCallback(
+    async (forceRefresh = false) => {
+      setIsLoading(true);
 
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('Authentication token not found.');
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) throw new Error('Authentication token not found.');
 
-      // Check cache first for immediate response
-      const cached = await AsyncStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        setDashboardData(parsed);
+        // Check cache first for immediate response (unless force refresh)
+        if (!forceRefresh) {
+          const cached = await AsyncStorage.getItem(CACHE_KEY);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            setDashboardData(parsed);
+          }
+        }
+
+        const queryParam = selectedCompanyId
+          ? `?companyId=${selectedCompanyId}`
+          : '';
+
+        // Batch critical API calls first
+        const [salesRes, purchasesRes, companiesRes] = await Promise.all([
+          fetch(`${baseURL}/api/sales${queryParam}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${baseURL}/api/purchase${queryParam}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${baseURL}/api/companies/my`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        const [rawSales, rawPurchases, companiesData] = await Promise.all([
+          salesRes.json(),
+          purchasesRes.json(),
+          companiesRes.json(),
+        ]);
+
+        // Process critical data first
+        const salesArr = toArray(rawSales);
+        const purchasesArr = toArray(rawPurchases);
+
+        const totalSales = salesArr.reduce(
+          (acc, row) => acc + getAmount('sales', row),
+          0,
+        );
+        const totalPurchases = purchasesArr.reduce(
+          (acc, row) => acc + getAmount('purchases', row),
+          0,
+        );
+        const companiesCount = companiesData?.length || 0;
+
+        const initialData = {
+          totalSales,
+          totalPurchases,
+          users: 0, // Will be updated in secondary load
+          companies: companiesCount,
+          recentTransactions: [],
+          serviceNameById: new Map(),
+        };
+
+        setDashboardData(initialData);
+        setCompanies(Array.isArray(companiesData) ? companiesData : []);
+        setIsLoading(false);
+
+        // Secondary non-critical data loading
+        fetchSecondaryData(token, queryParam, initialData);
+      } catch (error) {
+        showToast(
+          'Failed to load dashboard data',
+          error instanceof Error ? error.message : 'Something went wrong.',
+          true,
+        );
+        setIsLoading(false);
       }
+    },
+    [selectedCompanyId, showToast],
+  );
 
-      const queryParam = selectedCompanyId
-        ? `?companyId=${selectedCompanyId}`
-        : '';
+  // Refresh functionality
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      // Clear cache to force fresh data
+      await AsyncStorage.removeItem(CACHE_KEY);
 
-      // Batch critical API calls first
-      const [salesRes, purchasesRes, companiesRes] = await Promise.all([
-        fetch(`${baseURL}/api/sales${queryParam}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${baseURL}/api/purchase${queryParam}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${baseURL}/api/companies/my`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+      // Fetch fresh data and refresh permissions
+      await Promise.all([
+        fetchDashboardData(true),
+        refetchPermissions ? refetchPermissions() : Promise.resolve(),
+        refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
       ]);
-
-      const [rawSales, rawPurchases, companiesData] = await Promise.all([
-        salesRes.json(),
-        purchasesRes.json(),
-        companiesRes.json(),
-      ]);
-
-      // Process critical data first
-      const salesArr = toArray(rawSales);
-      const purchasesArr = toArray(rawPurchases);
-
-      const totalSales = salesArr.reduce(
-        (acc, row) => acc + getAmount('sales', row),
-        0,
-      );
-      const totalPurchases = purchasesArr.reduce(
-        (acc, row) => acc + getAmount('purchases', row),
-        0,
-      );
-      const companiesCount = companiesData?.length || 0;
-
-      const initialData = {
-        totalSales,
-        totalPurchases,
-        users: 0, // Will be updated in secondary load
-        companies: companiesCount,
-        recentTransactions: [],
-        serviceNameById: new Map(),
-      };
-
-      setDashboardData(initialData);
-      setCompanies(Array.isArray(companiesData) ? companiesData : []);
-      setIsLoading(false);
-
-      // Secondary non-critical data loading
-      fetchSecondaryData(token, queryParam, initialData);
     } catch (error) {
       showToast(
-        'Failed to load dashboard data',
-        error instanceof Error ? error.message : 'Something went wrong.',
+        'Refresh Failed',
+        error instanceof Error ? error.message : 'Failed to refresh data',
         true,
       );
-      setIsLoading(false);
+    } finally {
+      setRefreshing(false);
     }
-  }, [selectedCompanyId, showToast]);
+  }, [
+    fetchDashboardData,
+    showToast,
+    refetchPermissions,
+    refetchUserPermissions,
+  ]);
 
   const fetchSecondaryData = async (token, queryParam, initialData) => {
     try {
@@ -400,6 +442,19 @@ export default function DashboardPage() {
           </Text>
 
           <View style={styles.buttonGroup}>
+            {/* Refresh Button */}
+            {/* <TouchableOpacity
+              onPress={handleRefresh}
+              style={[styles.refreshButton, refreshing && styles.refreshButtonActive]}
+              disabled={refreshing}
+            >
+              <RefreshCw
+                size={18}
+                color="#3b82f6"
+                style={[styles.refreshIcon, refreshing && styles.refreshIconActive]}
+              />
+            </TouchableOpacity> */}
+
             <Suspense fallback={null}>
               <UpdateWalkthrough />
             </Suspense>
@@ -447,6 +502,14 @@ export default function DashboardPage() {
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={['#3b82f6']}
+            tintColor="#3b82f6"
+          />
+        }
       >
         {/* Account Validity Notice - Placeholder */}
         <Suspense
@@ -481,7 +544,11 @@ export default function DashboardPage() {
             {/* Product Stock and Recent Transactions */}
             <View style={styles.dataContainer}>
               <Suspense fallback={<ProductStockSkeleton />}>
-                <ProductStock navigation={navigation} />
+                <ProductStock
+                  navigation={navigation}
+                  refetchPermissions={refetchPermissions}
+                  refetchUserPermissions={refetchUserPermissions}
+                />
               </Suspense>
 
               <Suspense fallback={<RecentTransactionsSkeleton />}>
@@ -624,6 +691,22 @@ const styles = StyleSheet.create({
   smallButtonLabel: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  // Refresh Button Styles
+  refreshButton: {
+    padding: 6,
+    marginRight: 4,
+    borderRadius: 20,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+  },
+  refreshButtonActive: {
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+  },
+  refreshIcon: {
+    opacity: 0.9,
+  },
+  refreshIconActive: {
+    transform: [{ rotate: '360deg' }],
   },
   // Button Styles
   button: {
