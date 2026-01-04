@@ -143,7 +143,7 @@ export default function UserSidebar() {
               isActive('UserDashboard')
             }
             onPress={() =>
-              navigation.navigate('MainTabs', { screen: 'CustomerDashboard' })
+              navigation.navigate('MainTabs', { screen: 'UserDashboard' })
             }
             isBottomNav={true}
             showAlways={true}
@@ -162,21 +162,17 @@ export default function UserSidebar() {
           />
 
           {/* Inventory - Only show if permission exists (Next.js के जैसा) */}
-          {isLoading ? (
-            <LoadingState isBottomNav={true} />
-          ) : (
-            userCaps?.canCreateInventory && (
-              <MenuButton
-                icon="cube-outline"
-                title="Inventory"
-                isActive={isActive('Inventory')}
-                onPress={() =>
-                  navigation.navigate('MainTabs', { screen: 'Inventory' })
-                }
-                isBottomNav={true}
-                hasPermission={userCaps?.canCreateInventory}
-              />
-            )
+          {userCaps?.canCreateInventory && (
+            <MenuButton
+              icon="cube-outline"
+              title="Inventory"
+              isActive={isActive('Inventory')}
+              onPress={() =>
+                navigation.navigate('MainTabs', { screen: 'Inventory' })
+              }
+              isBottomNav={true}
+              hasPermission={userCaps?.canCreateInventory}
+            />
           )}
 
           {/* Settings - Direct settings button */}
@@ -184,15 +180,12 @@ export default function UserSidebar() {
             icon="settings-outline"
             title="Settings"
             isActive={isActive('Settings')}
-            onPress={() =>
-              navigation.navigate('ProfileScreen')
-            }
+            onPress={() => navigation.navigate('ProfileScreen')}
             isBottomNav={true}
             showAlways={true}
           />
 
-          {/* Loading State */}
-          {isLoading && <LoadingState isBottomNav={true} />}
+
         </View>
       </SafeAreaView>
     );
@@ -241,20 +234,16 @@ export default function UserSidebar() {
         />
 
         {/* Inventory - Only show if permission exists (Next.js के जैसा) */}
-        {isLoading ? (
-          <LoadingState />
-        ) : (
-          userCaps?.canCreateInventory && (
-            <MenuButton
-              icon="cube-outline"
-              title="Inventory"
-              isActive={isActive('Inventory')}
-              onPress={() =>
-                navigation.navigate('MainTabs', { screen: 'Inventory' })
-              }
-              hasPermission={userCaps?.canCreateInventory}
-            />
-          )
+        {userCaps?.canCreateInventory && (
+          <MenuButton
+            icon="cube-outline"
+            title="Inventory"
+            isActive={isActive('Inventory')}
+            onPress={() =>
+              navigation.navigate('MainTabs', { screen: 'Inventory' })
+            }
+            hasPermission={userCaps?.canCreateInventory}
+          />
         )}
 
         {/* Settings - Added to sidebar for desktop */}
@@ -268,8 +257,7 @@ export default function UserSidebar() {
           showAlways={true}
         />
 
-        {/* Loading State */}
-        {isLoading && <LoadingState />}
+
       </ScrollView>
 
       {currentUser && (

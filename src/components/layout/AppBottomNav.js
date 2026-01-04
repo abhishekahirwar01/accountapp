@@ -271,13 +271,7 @@ export function AppSidebar() {
           />
         )}
 
-        {/* Loading State */}
-        {(permissionsLoading || userPermissionsLoading) && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color="#007bff" />
-            <Text style={styles.loadingText}>Loading...</Text>
-          </View>
-        )}
+
 
         {/* Reports - Collapsible for Desktop, Simple for Mobile */}
         {!isMobile ? (

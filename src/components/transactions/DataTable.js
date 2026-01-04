@@ -18,6 +18,8 @@ export default function DataTable({
   onFilterChange,
   totalResults,
   onLoadMore,
+  refreshing = false,
+  onRefresh = null,
 }) {
   const [sortKey, setSortKey] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
@@ -166,6 +168,9 @@ export default function DataTable({
               />
             ) : null
           }
+          // Pull to refresh support
+          refreshing={refreshing}
+          onRefresh={onRefresh}
           // Optimization props:
           initialNumToRender={10} // Shuruat mein sirf 10 cards render karega
           maxToRenderPerBatch={10} // Scroll karte waqt 10-10 karke naye cards banayega
@@ -230,7 +235,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',

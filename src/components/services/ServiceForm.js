@@ -38,6 +38,9 @@ export default function ServiceForm({
   onServiceCreated,
   initialName,
   navigation,
+  onClose,
+  headerTitle,
+  headerSubtitle,
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -267,6 +270,7 @@ export default function ServiceForm({
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -478,6 +482,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  scrollView: {
+    maxHeight: 600,
   },
   scrollContent: {
     padding: 20,

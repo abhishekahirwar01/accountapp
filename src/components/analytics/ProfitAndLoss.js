@@ -1,13 +1,19 @@
-import React, { useState, useMemo } from 'react';
-import { View, ScrollView, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useMemo, useCallback } from 'react';
+import { 
+  View, 
+  ScrollView, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity,
+  RefreshControl 
+} from 'react-native';
 import { Card } from '../ui/Card';
-import { Loader2 } from 'lucide-react-native';
 
 // Import components
 import { HeaderSection } from '../../components/profit-loss/HeaderSection';
 import { TradingAccountSection } from '../../components/profit-loss/TradingAccountSection';
 import { SummarySection } from '../../components/profit-loss/SummarySection';
-import { ProfitLossAccountSection } from '../../components/profit-loss/ProfitLossAccountSection ';
+import { ProfitLossAccountSection } from '../profit-loss/ProfitLossAccountSection ';
 import { LoadingState } from '../../components/profit-loss/LoadingState';
 import { ErrorState } from '../../components/profit-loss/ErrorState';
 
@@ -26,13 +32,22 @@ export default function ProfitAndLossTab({
     companyMap,
 }) {
     const [dateRange, setDateRange] = useState(getDefaultDateRange());
+    const [refreshing, setRefreshing] = useState(false);
     const { minDate, maxDate } = getMinMaxDates();
     
-    // API parameters derived from props
-    const companyIdForApi = selectedCompanyId || undefined;
+    // FIX: Properly handle empty string for "All Companies"
+    const companyIdForApi = selectedCompanyId && selectedCompanyId.trim() !== '' 
+        ? selectedCompanyId 
+        : undefined;
+    
     const clientIdForApi = selectedClient?._id;
-
-    // Data fetching
+    
+    // Create a unique key to force re-fetch when client/company changes
+    const fetchKey = useMemo(() => {
+        return `${clientIdForApi || 'no-client'}-${companyIdForApi || 'all-companies'}-${dateRange.from}-${dateRange.to}`;
+    }, [clientIdForApi, companyIdForApi, dateRange.from, dateRange.to]);
+    
+    // Data fetching with ALL required parameters
     const { 
         data: profitLossData, 
         loading, 
@@ -41,10 +56,37 @@ export default function ProfitAndLossTab({
     } = useProfitLossData({
         fromDate: dateRange.from,
         toDate: dateRange.to,
-        clientId: clientIdForApi, 
-        companyId: companyIdForApi, 
+        companyId: companyIdForApi,
+        clientId: clientIdForApi, // PASS CLIENT ID
+        key: fetchKey,
     });
-
+    
+    // Pull-to-refresh handler
+    const onRefresh = useCallback(async () => {
+        setRefreshing(true);
+        try {
+            await refetch();
+        } catch (error) {
+            console.error('Refresh error:', error);
+        } finally {
+            setRefreshing(false);
+        }
+    }, [refetch]);
+    
+    // Debug logging
+    React.useEffect(() => {
+        console.log('🔍 ProfitAndLossTab Debug:', {
+            selectedClientId: clientIdForApi,
+            selectedClientName: selectedClient?.contactName,
+            selectedCompanyId: selectedCompanyId,
+            companyIdForApi,
+            dateRange,
+            hasData: !!profitLossData,
+            loading,
+            error,
+        });
+    }, [clientIdForApi, selectedClient, selectedCompanyId, companyIdForApi, dateRange, profitLossData, loading, error]);
+    
     // Date handlers
     const handleFromDateChange = (newFrom) => {
         const validationError = validateDateRange(newFrom, dateRange.to);
@@ -78,7 +120,7 @@ export default function ProfitAndLossTab({
 
     // Report display details
     const clientName = selectedClient?.contactName || "Client Not Selected";
-    const companyName = selectedCompanyId
+    const companyName = selectedCompanyId && selectedCompanyId.trim() !== ''
         ? (companyMap.get(selectedCompanyId) || "Selected Company")
         : "All Companies";
 
@@ -96,11 +138,11 @@ export default function ProfitAndLossTab({
         );
     }
     
-    if (loading) {
+    if (loading && !refreshing) {
         return <LoadingState />;
     }
 
-    if (error) {
+    if (error && !refreshing) {
         const errorMessage = 
             (error && typeof error === 'object' && 'message' in error) 
             ? error.message 
@@ -114,7 +156,17 @@ export default function ProfitAndLossTab({
 
     // Render main detailed P&L report
     return (
-        <ScrollView style={styles.container}>
+        <ScrollView 
+            style={styles.container}
+            refreshControl={
+                <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    colors={['#007bff']}
+                    tintColor="#007bff"
+                />
+            }
+        >
             <View style={styles.contentContainer}>
                 
                 {/* 1. Header Section (Client and Date Filters) */}
@@ -138,16 +190,32 @@ export default function ProfitAndLossTab({
                 )}
 
                 {/* 3. Profit & Loss Account Section */}
-                {profitLossData && (
+                {profitLossData && profitLossData.income && profitLossData.expenses && (
                     <ProfitLossAccountSection profitLossData={profitLossData} />
                 )}
 
                 {/* 4. Summary Section */}
-                {profitLossData && (
+                {profitLossData && profitLossData.summary && (
                     <SummarySection
                         summary={profitLossData.summary}
                         status={profitLossStatus}
                     />
+                )}
+
+                {/* Empty state when no data */}
+                {!loading && !error && (!profitLossData || !profitLossData.success) && (
+                    <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyTitle}>No Profit & Loss Data Available</Text>
+                        <Text style={styles.emptyText}>
+                            {profitLossData?.message || 'No data found for the selected period, client, or company.'}
+                        </Text>
+                        <TouchableOpacity 
+                            style={styles.retryButton}
+                            onPress={refetch}
+                        >
+                            <Text style={styles.retryButtonText}>Retry</Text>
+                        </TouchableOpacity>
+                    </View>
                 )}
             </View>
         </ScrollView>
@@ -162,6 +230,7 @@ const styles = StyleSheet.create({
     contentContainer: {
         padding: 16,
         paddingBottom: 32,
+        minHeight: '100%',
     },
     noClientCard: {
         margin: 16,
@@ -188,4 +257,38 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         lineHeight: 20,
     },
+    emptyContainer: {
+        padding: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#fff',
+        borderRadius: 8,
+        marginTop: 20,
+        borderWidth: 1,
+        borderColor: '#e9ecef',
+        borderStyle: 'dashed',
+    },
+    emptyTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#495057',
+        marginBottom: 8,
+    },
+    emptyText: {
+        fontSize: 14,
+        color: '#6c757d',
+        textAlign: 'center',
+        marginBottom: 20,
+    },
+    retryButton: {
+        backgroundColor: '#007bff',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 6,
+    },
+    retryButtonText: {
+        color: '#fff',
+        fontWeight: '600',
+    },
 });
+

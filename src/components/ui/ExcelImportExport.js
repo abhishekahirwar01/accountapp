@@ -1,696 +1,535 @@
 import React, { useState } from 'react';
-
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
-  Alert,
-  Platform,
-  PermissionsAndroid,
   StyleSheet,
+  Platform,
+  Alert,
 } from 'react-native';
-
 import { Card, Button, Dialog, Portal } from 'react-native-paper';
-
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-
-import { pickDocument } from '@react-native-documents/picker';
-
+import { pick } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
-
-import RNBlob from 'react-native-blob-util';
-
 import XLSX from 'xlsx';
-
-// ⚠️ NOTE: This function provides a replacement for btoa() which is missing
-
-// on standard React Native environments (non-web). For a robust production app,
-
-// you might install the 'base-64' package and use 'import { encode as base64Encode } from "base-64";'
-
-const binaryToBase64 = binary => {
-  // Simple polyfill logic to handle binary string to base64 conversion
-
-  if (typeof btoa === 'function') {
-    return btoa(binary);
-  }
-
-  // Fallback for React Native (requires some environment setup like Buffer polyfill
-
-  // or a dedicated base-64 library for full reliability across all versions).
-
-  // Using Buffer if available, or basic implementation.
-
-  try {
-    return Buffer.from(binary, 'binary').toString('base64');
-  } catch (e) {
-    // If Buffer is not available, try to use a simple replacement logic
-
-    return global.btoa ? global.btoa(binary) : null;
-  }
-};
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Toast from 'react-native-toast-message';
+import { BASE_URL } from '../../config';
+import { useToast } from '../../components/hooks/useToast';
 
 const ExcelImportExport = ({
   templateData,
-
   templateFileName,
-
   onImportSuccess,
-
   expectedColumns,
-
   transformImportData,
-
   activeTab,
 }) => {
+  const { toast } = useToast();
   const [importFile, setImportFile] = useState(null);
-
   const [importPreview, setImportPreview] = useState([]);
-
   const [isImporting, setIsImporting] = useState(false);
-
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [importProgress, setImportProgress] = useState({
+    current: 0,
+    total: 0,
+  });
+  const [errorMessage, setErrorMessage] = useState('');
+  const [importStatus, setImportStatus] = useState(''); // 'success', 'partial', 'failed'
+  const [failedItems, setFailedItems] = useState([]);
 
-  const [downloadFileName, setDownloadFileName] = useState('');
-
-  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
-
-  // Platform detection
-
-  const isWeb = Platform.OS === 'web';
-
-  const isMobile = Platform.OS !== 'web';
-
-  // Function to initiate download with name change
-
-  const initiateDownload = () => {
-    const baseFileName =
-      templateFileName || `inventory_template_${activeTab}.xlsx`;
-
-    setDownloadFileName(baseFileName);
-
-    setIsDownloadDialogOpen(true);
-  };
-
-  // Function to confirm and execute download with custom filename
-
-  const confirmDownload = async () => {
-    setIsDownloadDialogOpen(false);
-
-    if (!downloadFileName.trim()) {
-      Alert.alert('Error', 'Please enter a filename');
-
-      return;
-    }
-
+  // Download template function
+  const handleDownloadTemplate = async () => {
     try {
-      console.log('📥 Starting template download for tab:', activeTab);
-
-      const templateDataToUse = templateData || [
-        activeTab === 'products'
-          ? {
-              'Item Name': 'Sample Product',
-
-              Stock: '100',
-
-              Unit: 'Piece',
-
-              HSN: '8471',
-            }
-          : {
-              'Service Name': 'Sample Service',
-
-              Description: 'Service description',
-
-              SAC: '998314',
-            },
-      ];
-
-      const worksheet = XLSX.utils.json_to_sheet(templateDataToUse);
-
       const workbook = XLSX.utils.book_new();
-
+      const worksheet = XLSX.utils.json_to_sheet(templateData);
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
 
-      const wbout = XLSX.write(workbook, { type: 'binary', bookType: 'xlsx' });
+      const wbout = XLSX.write(workbook, { type: 'base64', bookType: 'xlsx' });
 
-      const base64 = binaryToBase64(wbout);
+      const fileName = templateFileName || 'template.xlsx';
 
-      if (!base64) {
-        console.error('❌ Base64 encoding failed');
+      if (Platform.OS === 'web') {
+        const blob = new Blob([wbout], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
 
-        Alert.alert(
-          'Error',
-
-          'Base64 encoding failed. Missing required polyfill or library.',
-        );
-
-        return;
-      }
-
-      console.log('✅ Base64 encoded successfully');
-
-      const fileName = downloadFileName.endsWith('.xlsx')
-        ? downloadFileName
-        : `${downloadFileName}.xlsx`;
-
-      const downloadPath = RNFS.DownloadDirectoryPath;
-
-      console.log('📍 Download path:', downloadPath);
-
-      console.log('📝 File name:', fileName);
-
-      try {
-        await RNFS.mkdir(downloadPath);
-
-        console.log('✅ Download directory ready');
-      } catch (mkdirErr) {
-        console.warn(
-          '⚠️ Could not create download directory (may already exist):',
-
-          mkdirErr?.message,
-        );
-      }
-
-      // Helper function to find unique filename by checking for duplicates
-
-      const getUniqueFilePath = async (dir, baseFile) => {
-        const pathExtension = baseFile.split('.');
-
-        const ext = pathExtension.pop();
-
-        const nameWithoutExt = pathExtension.join('.');
-
-        let filePath = `${dir}/${baseFile}`;
-
-        let counter = 1;
-
-        while (await RNFS.exists(filePath)) {
-          const newFileName = `${nameWithoutExt} (${counter}).${ext}`;
-
-          filePath = `${dir}/${newFileName}`;
-
-          counter++;
-        }
-
-        return { filePath, fileName: filePath.split('/').pop() };
-      };
-
-      const { filePath, fileName: finalFileName } = await getUniqueFilePath(
-        downloadPath,
-
-        fileName,
-      );
-
-      console.log('🔗 Final file path:', filePath);
-
-      console.log('📝 Final file name:', finalFileName);
-
-      await RNFS.writeFile(filePath, base64, 'base64');
-
-      console.log('✅ File written successfully');
-
-      const fileExists = await RNFS.exists(filePath);
-
-      if (fileExists) {
-        console.log('✅ File verified to exist at:', filePath);
-
-        Alert.alert('Success', `Template downloaded: ${finalFileName}`);
+        // Show success Alert
+        Alert.alert('Success', 'Template downloaded successfully!', [
+          { text: 'OK', style: 'default' },
+        ]);
       } else {
-        console.error('❌ File was written but not found afterward');
+        // Android/iOS - save to Downloads folder
+        const filePath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
+        await RNFS.writeFile(filePath, wbout, 'base64');
 
-        Alert.alert('Success', `Template downloaded successfully.`);
+        // Show success Alert for mobile
+        Alert.alert('Success', `Template saved to Downloads folder`, [
+          { text: 'OK', style: 'default' },
+        ]);
       }
     } catch (error) {
-      console.error('❌ Template download error:', error);
+      console.error('Download error:', error);
 
+      // Show failure Alert
       Alert.alert(
-        'Error',
-
-        'Failed to download template. See console for details.',
+        'Download Failed',
+        error.message || 'Failed to download template',
+        [{ text: 'OK', style: 'cancel' }],
       );
     }
   };
 
-  // Function to handle file import
-
+  // Handle file import
   const handleImportFile = async () => {
+    setErrorMessage('');
+    setImportStatus('');
+    setFailedItems([]);
+
     try {
-      // NOTE: For document-picker flows on Android 13+, runtime storage permissions
+      const result = await pick({
+        type: [
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+          'application/octet-stream',
+        ],
+        allowMultiSelection: false,
+      });
 
-      // are not required and often ignored. The document picker returns a content://
-
-      // URI which RNFS cannot read directly. We'll convert the URI to a readable
-
-      // path using react-native-blob-util (RNBlob) and then read the file. Do not
-
-      // request runtime storage permissions here.
-
-      // Resolve document-picker function dynamically to handle variations
-
-      // between different installed packages / versions (some export `pickDocument`,
-
-      // others export `pick`, `default`, or named APIs). This makes the code
-
-      // more robust and avoids a crash if the library's export shape differs.
-
-      let res = null;
-
-      try {
-        let pickerModule = null;
-
-        try {
-          pickerModule = require('@react-native-documents/picker');
-        } catch (e) {
-          // module may not be available or named differently
-
-          try {
-            pickerModule = require('react-native-document-picker');
-          } catch (e2) {
-            pickerModule = null;
-          }
-        }
-
-        if (!pickerModule) {
-          throw new Error(
-            'Document picker module not found. Please install @react-native-documents/picker or react-native-document-picker',
-          );
-        }
-
-        const pickFn =
-          pickerModule.pickDocument ||
-          pickerModule.pick ||
-          pickerModule.pickSingle ||
-          pickerModule.pickMultiple ||
-          pickerModule.default?.pickDocument ||
-          pickerModule.default?.pick ||
-          pickerModule.default;
-
-        if (typeof pickFn !== 'function') {
-          throw new Error(
-            'No compatible pick function found on document picker module',
-          );
-        }
-
-        // Call the resolved picker function
-
-        res = await pickFn({
-          type: [
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-
-            'application/vnd.ms-excel', // .xls
-          ],
-
-          allowMultiSelection: false,
-        });
-      } catch (pickerErr) {
-        // If user cancelled the picker, just return silently
-
-        const msg = pickerErr?.message || pickerErr;
-
-        if (
-          pickerErr?.code === 'DOCUMENT_PICKER_CANCELED' ||
-          /cancel/i.test(String(msg))
-        ) {
-          console.log('Document picker canceled by user.');
-
-          return;
-        }
-
-        console.error('Document picker error:', pickerErr);
-
-        Alert.alert(
-          'Picker Error',
-
-          'Could not open document picker. Please ensure a compatible picker library is installed (see console).',
-        );
-
-        return;
-      }
-
-      if (res && res.length > 0) {
-        const file = res[0];
-
+      if (result && result.length > 0) {
+        const file = result[0];
         setImportFile(file);
 
-        // Read file content. Document picker returns content:// URIs which RNFS
+        // Read file content
+        let fileContent;
+        let fileUri = file.uri;
 
-        // cannot always read directly. Use RNBlob to stat the URI and get a
-
-        // readable path, then use RNFS to read that path as base64. Provide
-
-        // fallbacks to try multiple methods.
-
-        let fileContent = null;
-
-        try {
-          // Try to stat the URI to get a real path
-
-          const stat = await RNBlob.fs.stat(file.uri);
-
-          const realPath =
-            stat?.path ||
-            stat?.filePath ||
-            (stat?.path || '').replace('raw:', '');
-
-          if (realPath) {
-            fileContent = await RNFS.readFile(realPath, 'base64');
-          } else {
-            // If stat didn't return a usable path, try RNBlob readFile
-
-            fileContent = await RNBlob.fs.readFile(file.uri, 'base64');
-          }
-        } catch (errStat) {
-          try {
-            // Fallback: try RNFS.readFile directly on the URI
-
-            fileContent = await RNFS.readFile(file.uri, 'base64');
-          } catch (errFs) {
-            try {
-              // Final fallback: use RNBlob to read the content
-
-              fileContent = await RNBlob.fs.readFile(file.uri, 'base64');
-            } catch (errBlob) {
-              console.error(
-                'Failed to read file via stat/RNFS/RNBlob',
-
-                errStat,
-
-                errFs,
-
-                errBlob,
-              );
-
-              Alert.alert(
-                'Error',
-
-                'Failed to read selected file. Try a different picker or check device settings.',
-              );
-
-              return;
-            }
-          }
+        if (Platform.OS === 'android' && fileUri.startsWith('content://')) {
+          const destPath = `${RNFS.TemporaryDirectoryPath}/${file.name}`;
+          await RNFS.copyFile(fileUri, destPath);
+          fileUri = destPath;
         }
 
-        // Convert base64 back to binary string for XLSX library
+        fileContent = await RNFS.readFile(fileUri, 'base64');
 
-        const binaryString = atob(fileContent);
-
-        const bytes = new Uint8Array(binaryString.length);
-
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
+        if (!fileContent) {
+          throw new Error('Failed to read file content');
         }
 
-        // Parse Excel file
-
-        const workbook = XLSX.read(bytes, { type: 'array' });
-
+        // Parse Excel
+        const workbook = XLSX.read(fileContent, { type: 'base64' });
         const sheetName = workbook.SheetNames[0];
-
         const worksheet = workbook.Sheets[sheetName];
-
         const json = XLSX.utils.sheet_to_json(worksheet);
 
         // Validate columns
-
-        if (json.length > 0) {
+        if (expectedColumns && json.length > 0) {
           const firstRow = json[0];
-
           const fileColumns = Object.keys(firstRow);
-
           const missingColumns = expectedColumns.filter(
             col => !fileColumns.includes(col),
           );
 
           if (missingColumns.length > 0) {
-            Alert.alert(
-              'Invalid file format',
-
-              `Missing columns: ${missingColumns.join(
-                ', ',
-              )}. Please use the template.`,
-            );
-
+            setErrorMessage(`Missing columns: ${missingColumns.join(', ')}`);
             setImportFile(null);
-
             return;
           }
         }
 
-        // Transform data if needed
-
+        // Transform data
         const processedData = transformImportData
           ? transformImportData(json)
           : json;
 
         setImportPreview(processedData);
+        setErrorMessage(''); // Clear any previous error
+
+        toast({
+          title: 'File Ready',
+          description: `${processedData.length} items loaded successfully.`,
+        });
       }
     } catch (error) {
-      if (error.code !== 'DOCUMENT_PICKER_CANCELED') {
-        console.error('Import error:', error);
-
-        Alert.alert(
-          'Error',
-
-          'Failed to import Excel file. Please check the file format or console for details.',
-        );
+      if (
+        error.code === 'DOCUMENT_PICKER_CANCELED' ||
+        error.message?.includes('cancel')
+      ) {
+        return;
       }
+      console.error('Import error:', error);
+      setErrorMessage(
+        'Failed to read Excel file. Please check the file format.',
+      );
     }
   };
 
-  const handleConfirmImport = async () => {
-    if (importPreview.length === 0) return;
+  // Import items one by one
+  const importItemsSequentially = async items => {
+    const token = await AsyncStorage.getItem('token');
 
-    setIsImporting(true);
+    if (!token) {
+      throw new Error('Authentication token not found');
+    }
 
-    try {
-      // Simulate API call with hardcoded data
+    const failed = [];
+    const endpoint =
+      activeTab === 'products'
+        ? `${BASE_URL}/api/products`
+        : `${BASE_URL}/api/services`;
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      setImportProgress({ current: i + 1, total: items.length });
 
-      Alert.alert(
-        'Success',
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(item),
+        });
 
-        `${importPreview.length} items imported successfully!`,
-      );
+        const responseData = await response.json();
 
-      if (onImportSuccess) {
-        onImportSuccess(importPreview);
+        if (!response.ok) {
+          failed.push({
+            item: item.name || item.serviceName || `Item ${i + 1}`,
+            error: responseData.message || `Status: ${response.status}`,
+            data: item,
+          });
+        }
+      } catch (error) {
+        failed.push({
+          item: item.name || item.serviceName || `Item ${i + 1}`,
+          error: error.message,
+          data: item,
+        });
       }
 
-      setImportFile(null);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
 
-      setImportPreview([]);
+    return failed;
+  };
 
-      setIsDialogOpen(false);
+  // Handle actual import to backend
+  const handleConfirmImport = async () => {
+    if (importPreview.length === 0) {
+      setErrorMessage('Please select a file first');
+      return;
+    }
+
+    setIsImporting(true);
+    setErrorMessage('');
+    setImportStatus('');
+    setFailedItems([]);
+
+    try {
+      const failedItems = await importItemsSequentially(importPreview);
+      setFailedItems(failedItems);
+
+      if (failedItems.length === 0) {
+        setImportStatus('success');
+
+        // Wait a moment to show success message
+        setTimeout(() => {
+          // Clear state and close dialog
+          setImportFile(null);
+          setImportPreview([]);
+          setIsDialogOpen(false);
+          setImportStatus('');
+
+          // Refresh data
+          if (onImportSuccess) {
+            onImportSuccess();
+          }
+
+          // Show success alert
+          Alert.alert(
+            'Import Successful',
+            `All ${importPreview.length} ${activeTab} imported successfully.`,
+            [{ text: 'OK', style: 'default' }],
+          );
+        }, 1500);
+      } else {
+        const successCount = importPreview.length - failedItems.length;
+
+        if (failedItems.length === importPreview.length) {
+          setImportStatus('failed');
+          setErrorMessage(
+            'All items failed to import. Please check your data.',
+          );
+
+          Alert.alert(
+            'Import Failed',
+            'All items failed to import. Please check your data.',
+            [{ text: 'OK', style: 'cancel' }],
+          );
+        } else {
+          setImportStatus('partial');
+          setErrorMessage(
+            `${successCount} items imported, ${failedItems.length} failed.`,
+          );
+
+          Alert.alert(
+            'Partial Success',
+            `${successCount} items imported, ${failedItems.length} failed.`,
+            [{ text: 'OK', style: 'default' }],
+          );
+        }
+      }
     } catch (error) {
-      Alert.alert('Import Failed', error.message || 'Something went wrong.');
+      console.error('Import error:', error);
+      setImportStatus('failed');
+      setErrorMessage(error.message || 'Failed to import data');
+
+      Alert.alert('Import Failed', error.message || 'Failed to import data', [
+        { text: 'OK', style: 'cancel' },
+      ]);
     } finally {
       setIsImporting(false);
     }
   };
 
-  const handleCancelImport = () => {
+  // Reset import state
+  const handleClearImport = () => {
     setImportFile(null);
-
     setImportPreview([]);
+    setErrorMessage('');
+    setImportStatus('');
+    setFailedItems([]);
   };
+
+  // Close dialog handler
+  const handleCloseDialog = () => {
+    if (!isImporting) {
+      setIsDialogOpen(false);
+      handleClearImport();
+    }
+  };
+
+  // Get status color and icon
+  const getStatusInfo = () => {
+    switch (importStatus) {
+      case 'success':
+        return {
+          color: '#28a745',
+          icon: 'check-circle',
+          title: 'Import Successful!',
+          message: `All ${importPreview.length} ${activeTab} imported successfully.`,
+        };
+      case 'partial':
+        return {
+          color: '#fd7e14',
+          icon: 'alert-circle',
+          title: 'Partial Success',
+          message: errorMessage,
+        };
+      case 'failed':
+        return {
+          color: '#dc3545',
+          icon: 'close-circle',
+          title: 'Import Failed',
+          message: errorMessage,
+        };
+      default:
+        return null;
+    }
+  };
+
+  const statusInfo = getStatusInfo();
 
   return (
     <View>
-      {/* Desktop View - Buttons (Only show on Web) */}
-
-      {isWeb && (
-        <View style={styles.desktopContainer}>
-          <Button
-            mode="outlined"
-            onPress={handleDownloadTemplate}
-            style={styles.button}
-            icon="download"
-          >
-            Template
-          </Button>
-
-          <Button
-            mode="outlined"
-            onPress={() => setIsDialogOpen(true)}
-            style={styles.button}
-            icon="upload"
-          >
-            Import
-          </Button>
-        </View>
-      )}
-
-      {/* Mobile View - Icon Button (Only show on Mobile) */}
-
-      {isMobile && (
-        <View style={styles.mobileContainer}>
-          <Button
-            mode="outlined"
-            onPress={() => setIsDialogOpen(true)}
-            style={styles.mobileButton}
-            compact
-          >
-            <Icon name="upload" size={16} />
-          </Button>
-        </View>
-      )}
+      {/* Import/Export Button */}
+      <TouchableOpacity
+        style={styles.importButton}
+        onPress={() => setIsDialogOpen(true)}
+      >
+        <Icon name="upload" size={20} color="#007AFF" />
+        <Text style={styles.buttonText}>Import/Export</Text>
+      </TouchableOpacity>
 
       {/* Import Dialog */}
-
       <Portal>
         <Dialog
           visible={isDialogOpen}
-          onDismiss={() => setIsDialogOpen(false)}
-          style={[styles.dialog, isWeb && styles.desktopDialog]}
+          onDismiss={handleCloseDialog}
+          style={styles.dialog}
         >
-          <Dialog.Title>Import/Export</Dialog.Title>
+          <Dialog.Title style={styles.dialogTitle}>
+            {isImporting
+              ? 'Importing...'
+              : statusInfo
+              ? statusInfo.title
+              : 'Import/Export Excel'}
+          </Dialog.Title>
 
-          <Dialog.Content>
-            {/* Download Template Section */}
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Download Template</Text>
-
-              <Button
-                mode="outlined"
-                onPress={initiateDownload}
-                style={styles.fullWidthButton}
-                icon="download"
-              >
-                Download Excel Template
-              </Button>
-
-              <Text style={styles.helperText}>
-                Download the template file to fill in your data
-              </Text>
-            </View>
-
-            {/* Import Section */}
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Import Data</Text>
-
-              <Button
-                mode="outlined"
-                onPress={handleImportFile}
-                style={styles.fullWidthButton}
-                icon="file-import"
-              >
-                Choose Excel File
-              </Button>
-            </View>
-
-            {/* File Preview */}
-
-            {importFile && (
-              <Card style={styles.previewCard}>
-                <Card.Content>
-                  <View style={styles.fileInfo}>
-                    <Icon name="file-document" size={24} color="#10B981" />
-
-                    <View style={styles.fileDetails}>
-                      <Text style={styles.fileName}>{importFile.name}</Text>
-
-                      <Text style={styles.fileSize}>
-                        {Math.round(importFile.size / 1024)} KB (
-                        {importPreview.length} rows)
-                      </Text>
-                    </View>
-                  </View>
-
+          <Dialog.Content style={styles.dialogContent}>
+            {isImporting ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>
+                  Importing {importProgress.current} of {importProgress.total}{' '}
+                  {activeTab}...
+                </Text>
+                <View style={styles.progressBar}>
                   <View
                     style={[
-                      styles.previewActions,
-
-                      isMobile && styles.mobilePreviewActions,
+                      styles.progressFill,
+                      {
+                        width: `${
+                          (importProgress.current / importProgress.total) * 100
+                        }%`,
+                      },
                     ]}
-                  >
-                    <Button
-                      mode="contained"
-                      onPress={handleConfirmImport}
-                      disabled={isImporting || importPreview.length === 0}
-                      style={styles.confirmButton}
-                      icon={isImporting ? 'loading' : 'check'}
-                      loading={isImporting}
-                    >
-                      {isImporting
-                        ? 'Importing...'
-                        : `Confirm Import (${importPreview.length} Items)`}
-                    </Button>
+                  />
+                </View>
+                <Text style={styles.progressPercentage}>
+                  {Math.round(
+                    (importProgress.current / importProgress.total) * 100,
+                  )}
+                  %
+                </Text>
+              </View>
+            ) : statusInfo ? (
+              <View style={styles.statusContainer}>
+                <Icon
+                  name={statusInfo.icon}
+                  size={48}
+                  color={statusInfo.color}
+                />
+                <Text style={[styles.statusTitle, { color: statusInfo.color }]}>
+                  {statusInfo.title}
+                </Text>
+                <Text style={styles.statusMessage}>{statusInfo.message}</Text>
 
-                    <Button
-                      mode="outlined"
-                      onPress={handleCancelImport}
-                      disabled={isImporting}
-                      icon="close"
-                    >
-                      Cancel
-                    </Button>
+                {/* Show failed items for partial/failed imports */}
+                {failedItems.length > 0 && (
+                  <View style={styles.failedItemsContainer}>
+                    <Text style={styles.failedItemsTitle}>Failed Items:</Text>
+                    {failedItems.slice(0, 3).map((item, index) => (
+                      <Text key={index} style={styles.failedItem}>
+                        • {item.item}: {item.error}
+                      </Text>
+                    ))}
+                    {failedItems.length > 3 && (
+                      <Text style={styles.failedItem}>
+                        ... and {failedItems.length - 3} more
+                      </Text>
+                    )}
                   </View>
-                </Card.Content>
-              </Card>
+                )}
+
+                {/* Auto-close message for success */}
+                {importStatus === 'success' && (
+                  <Text style={styles.autoCloseMessage}>
+                    Dialog will close automatically...
+                  </Text>
+                )}
+              </View>
+            ) : (
+              <>
+                {/* Error Message Display */}
+                {errorMessage ? (
+                  <View style={styles.errorContainer}>
+                    <Icon name="alert-circle" size={20} color="#dc3545" />
+                    <Text style={styles.errorText}>{errorMessage}</Text>
+                  </View>
+                ) : null}
+
+                {/* Download Section */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>📥 Download Template</Text>
+                  <Button
+                    mode="contained"
+                    onPress={handleDownloadTemplate}
+                    style={styles.actionButton}
+                    icon="download"
+                  >
+                    Download Template
+                  </Button>
+                </View>
+
+                <View style={styles.divider} />
+
+                {/* Import Section */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>📤 Import Data</Text>
+                  <Button
+                    mode="outlined"
+                    onPress={handleImportFile}
+                    style={styles.actionButton}
+                    icon="file-upload"
+                  >
+                    Choose Excel File
+                  </Button>
+                </View>
+
+                {/* File Preview */}
+                {importFile && (
+                  <Card style={styles.previewCard}>
+                    <Card.Content>
+                      <View style={styles.fileInfo}>
+                        <Icon name="file-excel" size={32} color="#21A366" />
+                        <View style={styles.fileDetails}>
+                          <Text style={styles.fileName} numberOfLines={1}>
+                            {importFile.name}
+                          </Text>
+                          <Text style={styles.fileSize}>
+                            📊 {importPreview.length} items ready
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.previewActions}>
+                        <Button
+                          mode="contained"
+                          onPress={handleConfirmImport}
+                          disabled={importPreview.length === 0}
+                          style={[styles.actionButton, styles.confirmButton]}
+                          contentStyle={styles.buttonContent}
+                        >
+                          Import {importPreview.length} {activeTab}
+                        </Button>
+
+                        <Button
+                          mode="outlined"
+                          onPress={handleClearImport}
+                          style={[styles.actionButton, styles.clearButton]}
+                          icon="close"
+                        >
+                          Clear
+                        </Button>
+                      </View>
+                    </Card.Content>
+                  </Card>
+                )}
+              </>
             )}
           </Dialog.Content>
 
-          <Dialog.Actions>
-            <Button onPress={() => setIsDialogOpen(false)}>Close</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
-
-      {/* Rename/Save As Dialog */}
-
-      <Portal>
-        <Dialog
-          visible={isDownloadDialogOpen}
-          onDismiss={() => setIsDownloadDialogOpen(false)}
-        >
-          <Dialog.Title>Save As</Dialog.Title>
-
-          <Dialog.Content>
-            <Text style={{ marginBottom: 12, color: '#666' }}>
-              Enter a filename for the template:
-            </Text>
-
-            <TextInput
-              style={[
-                styles.input,
-
-                {
-                  borderWidth: 1,
-
-                  borderColor: '#ddd',
-
-                  borderRadius: 8,
-
-                  padding: 12,
-
-                  fontSize: 14,
-                },
-              ]}
-              placeholder="e.g., my_template"
-              value={downloadFileName}
-              onChangeText={setDownloadFileName}
-              autoFocus
-            />
-
-            <Text style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
-              (.xlsx extension will be added automatically)
-            </Text>
-          </Dialog.Content>
-
-          <Dialog.Actions>
-            <Button onPress={() => setIsDownloadDialogOpen(false)}>
-              Cancel
-            </Button>
-
-            <Button mode="contained" onPress={confirmDownload}>
-              Download
-            </Button>
+          <Dialog.Actions style={styles.dialogActions}>
+            {!isImporting && !importStatus && (
+              <Button onPress={handleCloseDialog} textColor="#666">
+                Close
+              </Button>
+            )}
+            {importStatus && importStatus !== 'success' && (
+              <Button onPress={handleClearImport} textColor="#666">
+                Try Again
+              </Button>
+            )}
           </Dialog.Actions>
         </Dialog>
       </Portal>
@@ -699,126 +538,180 @@ const ExcelImportExport = ({
 };
 
 const styles = StyleSheet.create({
-  desktopContainer: {
+  importButton: {
     flexDirection: 'row',
-
-    gap: 8,
-
     alignItems: 'center',
-  },
-
-  mobileContainer: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-  },
-
-  button: {
-    marginLeft: 4,
-
-    minWidth: 100,
-  },
-
-  mobileButton: {
-    width: 40,
-
-    height: 40,
-
-    borderRadius: 20,
-
-    justifyContent: 'center',
-
-    alignItems: 'center',
-  },
-
-  dialog: {
-    backgroundColor: 'white',
-
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderRadius: 8,
+    gap: 8,
+    minHeight: 44,
   },
-
-  desktopDialog: {
-    maxWidth: 500,
-
-    alignSelf: 'center',
+  buttonText: {
+    color: '#007AFF',
+    fontWeight: '600',
+    fontSize: 14,
   },
-
+  dialog: {
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    maxHeight: '80%',
+  },
+  dialogTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+  },
+  dialogContent: {
+    paddingHorizontal: 4,
+  },
+  dialogActions: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
   section: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
-
   sectionTitle: {
     fontSize: 16,
-
     fontWeight: 'bold',
-
-    marginBottom: 8,
-
-    color: '#374151',
-  },
-
-  fullWidthButton: {
-    width: '100%',
-
-    marginBottom: 4,
-  },
-
-  helperText: {
-    fontSize: 12,
-
-    color: '#6B7280',
-
-    marginTop: 4,
-  },
-
-  previewCard: {
-    backgroundColor: '#ECFDF5',
-
-    borderColor: '#10B981',
-
-    borderWidth: 1,
-
-    marginTop: 8,
-  },
-
-  fileInfo: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
+    color: '#333',
     marginBottom: 12,
   },
-
+  actionButton: {
+    width: '100%',
+    marginVertical: 4,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#f0f0f0',
+    marginVertical: 16,
+  },
+  previewCard: {
+    marginTop: 16,
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 8,
+  },
+  fileInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
   fileDetails: {
-    marginLeft: 8,
-
+    marginLeft: 12,
     flex: 1,
   },
-
   fileName: {
-    fontSize: 14,
-
-    fontWeight: 'bold',
-
-    color: '#065F46',
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
   },
-
   fileSize: {
-    fontSize: 12,
-
-    color: '#047857',
+    fontSize: 13,
+    color: '#28a745',
+    marginTop: 2,
   },
   previewActions: {
-    flexDirection: 'row',
     gap: 8,
-    marginTop: 8,
   },
-  mobilePreviewActions: {
-    flexDirection: 'column',
+  buttonContent: {
+    height: 44,
   },
   confirmButton: {
+    backgroundColor: '#28a745',
+  },
+  clearButton: {
+    borderColor: '#dc3545',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#333',
+    marginBottom: 12,
+  },
+  progressBar: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#e9ecef',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#28a745',
+    borderRadius: 4,
+  },
+  progressPercentage: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 8,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fee',
+    borderWidth: 1,
+    borderColor: '#f5c6cb',
+    borderRadius: 6,
+    padding: 12,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#721c24',
+    fontSize: 14,
+    marginLeft: 8,
     flex: 1,
-    backgroundColor: '#10B981',
+  },
+  statusContainer: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  statusTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  statusMessage: {
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  failedItemsContainer: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 6,
+    padding: 12,
+    marginTop: 12,
+    width: '100%',
+  },
+  failedItemsTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  failedItem: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
+  autoCloseMessage: {
+    fontSize: 14,
+    color: '#666',
+    fontStyle: 'italic',
+    marginTop: 12,
   },
 });
 

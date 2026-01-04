@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: 'white',
     marginHorizontal: 16,
-    marginTop: 60,
+    marginTop: 10,
     borderRadius: 8,
     padding: 4,
     elevation: 2,

@@ -1,68 +1,116 @@
 // hooks/useProfitLossData.js
-import { useState, useEffect } from "react";
-import ProfitLossApiService from "../utils/profitLossApiService";
+import { useState, useEffect, useCallback } from "react";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BASE_URL } from '../../config';
 
 export const useProfitLossData = ({
   fromDate,
   toDate,
+  clientId,
   companyId,
 }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchData = async () => {
+  const fetchProfitLossData = useCallback(async () => {
     if (!fromDate || !toDate) {
-      console.log("Missing date parameters, skipping fetch");
+      console.log('⚠️ Dates not ready:', { fromDate, toDate });
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
-      console.log("Fetching profit loss data for:", { fromDate, toDate, companyId });
 
-      const result = await ProfitLossApiService.fetchProfitLossData({
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        throw new Error("Authentication token not found.");
+      }
+
+      // ✅ BUILD QUERY PARAMS - Same as Next.js
+      const params = new URLSearchParams({
         fromDate,
         toDate,
-        companyId,
       });
 
-      console.log("Profit loss data fetched successfully:", result);
-      setData(result);
-      
+      if (companyId && companyId.trim() !== '') {
+        params.append('companyId', companyId);
+      }
+
+      if (clientId && clientId.trim() !== '') {
+        params.append('clientId', clientId);
+        console.log('🔑 Fetching P&L for clientId:', clientId);
+      }
+
+      const url = `${BASE_URL}/api/profitloss/statement?${params.toString()}`;
+      console.log('📡 Fetching P&L:', url);
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        },
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        let errorData = {};
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          const errorText = await response.text();
+          errorData = { message: errorText || `HTTP error! status: ${response.status}` };
+        }
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const responseData = await response.json();
+      console.log('✅ P&L Data received:', {
+        success: responseData.success,
+        hasData: !!responseData.data,
+        message: responseData.message
+      });
+
+      if (responseData.success) {
+        // Handle different response structures like Next.js
+        if (responseData.data) {
+          setData(responseData.data); // If response has {success: true, data: {...}}
+        } else {
+          setData(responseData); // If response is the data directly
+        }
+      } else {
+        throw new Error(responseData.message || "Failed to load data");
+      }
     } catch (err) {
-      console.error("Error in useProfitLossData:", err);
-      const errorMessage = err instanceof Error ? err.message : "An error occurred";
-      setError(errorMessage);
+      console.error("❌ Error fetching P&L data:", err);
+      setError(err instanceof Error ? err.message : "An error occurred");
       
-      // Set default data structure on error
-      const defaultData = getDefaultProfitLossData();
-      defaultData.success = false;
-      defaultData.message = `Could not fetch profit loss data: ${errorMessage}`;
-      setData(defaultData);
+      // Set default data on error (optional)
+      setData(getDefaultProfitLossData(err.message));
     } finally {
       setLoading(false);
     }
-  };
+  }, [fromDate, toDate, clientId, companyId]);
 
   useEffect(() => {
-    fetchData();
-  }, [fromDate, toDate, companyId]);
+    fetchProfitLossData();
+  }, [fetchProfitLossData]);
 
-  return {
-    data,
-    loading,
-    error,
-    refetch: fetchData,
+  return { 
+    data, 
+    loading, 
+    error, 
+    refetch: fetchProfitLossData 
   };
 };
 
-// Helper function for default data (if you don't have it in separate file)
-const getDefaultProfitLossData = () => {
+// Helper function for default data
+const getDefaultProfitLossData = (message = "No data available") => {
   return {
     success: false,
-    message: "No data available",
+    message,
     trading: {
       openingStock: 0,
       purchases: 0,

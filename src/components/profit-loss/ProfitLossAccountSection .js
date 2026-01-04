@@ -41,6 +41,7 @@ export const ProfitLossAccountSection = ({ profitLossData= ProfitLossResponse })
             <Text style={styles.columnTitle}>Dr. (Indirect Expenses)</Text>
           </View>
           
+          
           {expenses.length === 0 ? (
             <View style={styles.emptyItem}>
               <Text style={styles.emptyItemText}>No expenses</Text>

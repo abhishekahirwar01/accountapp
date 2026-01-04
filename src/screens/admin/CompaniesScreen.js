@@ -292,52 +292,52 @@ export default function AdminCompaniesPage() {
         { transform: [{ translateY: headerTranslateY }] },
       ]}
     >
-      <SafeAreaView style={styles.headerSafeArea} edges={['top']}>
-        <View style={styles.headerInner}>
-          <View style={styles.headerLeft}>
-            <View style={styles.iconContainer}>
-              <Icon name="office-building" size={24} color="#4f46e5" />
-            </View>
-            <View style={styles.headerTextContent}>
-              <Text style={styles.title}>Company Management</Text>
-              <Text style={styles.subtitle}>
-                Manage all companies across all clients
-              </Text>
-            </View>
+      {/* <SafeAreaView style={styles.headerSafeArea} edges={['top']}> */}
+      <View style={styles.headerInner}>
+        <View style={styles.headerLeft}>
+          <View style={styles.iconContainer}>
+            <Icon name="office-building" size={24} color="#4f46e5" />
           </View>
-          <View style={styles.headerRight}>
-            <Button onPress={handleAddNew} size="sm" icon="plus">
-              Create
-            </Button>
+          <View style={styles.headerTextContent}>
+            <Text style={styles.title}>Company Management</Text>
+            <Text style={styles.subtitle}>
+              Manage all companies across all clients
+            </Text>
           </View>
         </View>
+        <View style={styles.headerRight}>
+          <Button onPress={handleAddNew} size="sm" icon="plus">
+            Create
+          </Button>
+        </View>
+      </View>
 
-        <View style={styles.searchContainer}>
-          <Icon
-            name="magnify"
-            size={20}
-            color="#6b7280"
-            style={styles.searchIcon}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by name, email, or address..."
-            placeholderTextColor="#9ca3af"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="search"
-            onSubmitEditing={Keyboard.dismiss}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setSearchQuery('')}
-              style={styles.clearButton}
-            >
-              <Icon name="close-circle" size={20} color="#6b7280" />
-            </TouchableOpacity>
-          )}
-        </View>
-      </SafeAreaView>
+      <View style={styles.searchContainer}>
+        <Icon
+          name="magnify"
+          size={20}
+          color="#6b7280"
+          style={styles.searchIcon}
+        />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by name, email, or address..."
+          placeholderTextColor="#9ca3af"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          returnKeyType="search"
+          onSubmitEditing={Keyboard.dismiss}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setSearchQuery('')}
+            style={styles.clearButton}
+          >
+            <Icon name="close-circle" size={20} color="#6b7280" />
+          </TouchableOpacity>
+        )}
+      </View>
+      {/* </SafeAreaView> */}
     </Animated.View>
   );
 
@@ -400,7 +400,7 @@ export default function AdminCompaniesPage() {
             filteredCompanies.length === 0
               ? styles.emptyListContent
               : styles.listContent,
-            { paddingTop: 160 }, // Adjusted for tight UI spacing
+            { paddingTop: 120 }, // Adjusted for tight UI spacing
           ]}
           onScroll={Animated.event(
             [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -474,8 +474,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 4,
+    paddingTop: 20,
+    paddingBottom: 8,
   },
   headerLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconContainer: {

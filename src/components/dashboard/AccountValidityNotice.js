@@ -9,8 +9,6 @@ export function AccountValidityNotice({
   daysRemaining,
   onContactSupport,
 }) {
-  console.log('validity show run');
-
   // If no validity data provided, don't show notice
   if (!expiresAt || !status || daysRemaining === undefined) {
     return null;

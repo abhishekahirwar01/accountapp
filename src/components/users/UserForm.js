@@ -12,7 +12,7 @@ import {
   Pressable,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BASE_URL } from '../../config'; // Base URL yahan se aayega
+import { BASE_URL } from '../../config';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 /* ----------------------------- Helpers ---------------------------- */
@@ -29,7 +29,7 @@ const mapExistingRoleToForm = (r, roles) => {
 };
 
 const DEFAULT_ROLES = [
-  { _id: 'admin', name: 'admin' }, // Backend IDs ke according update karein
+  { _id: 'admin', name: 'admin' },
   { _id: 'user', name: 'user' },
 ];
 
@@ -47,6 +47,16 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
     contactNumber: '',
     address: '',
     companies: [],
+    roleId: '',
+  });
+
+  // 🔥 Validation errors state
+  const [errors, setErrors] = useState({
+    userName: '',
+    userId: '',
+    password: '',
+    email: '',
+    contactNumber: '',
     roleId: '',
   });
 
@@ -89,20 +99,116 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
     }));
   };
 
-  // --- ACTUAL WORKING SUBMIT LOGIC WITH BASE_URL ---
+  // 🔥 Validation Functions
+  const validateEmail = email => {
+    if (!email || email.trim() === '') {
+      return 'Email is required';
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return 'Please enter a valid email address';
+    }
+    return '';
+  };
+
+  const validateContactNumber = number => {
+    if (!number || number.trim() === '') {
+      return 'Contact number is required';
+    }
+    const phoneRegex = /^[0-9]{10}$/;
+    if (!phoneRegex.test(number.trim())) {
+      return 'Contact number must be exactly 10 digits';
+    }
+    return '';
+  };
+
+  const validateForm = () => {
+    const newErrors = {
+      userName: '',
+      userId: '',
+      password: '',
+      email: '',
+      contactNumber: '',
+      roleId: '',
+    };
+
+    let isValid = true;
+
+    // User Name validation
+    if (!formData.userName.trim()) {
+      newErrors.userName = 'User name is required';
+      isValid = false;
+    }
+
+    // User ID validation (only for new users)
+    if (!user && !formData.userId.trim()) {
+      newErrors.userId = 'User ID is required';
+      isValid = false;
+    }
+
+    // Password validation (only for new users)
+    if (!user && !formData.password.trim()) {
+      newErrors.password = 'Password is required';
+      isValid = false;
+    } else if (!user && formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+      isValid = false;
+    }
+
+    // Email validation (REQUIRED)
+    const emailError = validateEmail(formData.email);
+    if (emailError) {
+      newErrors.email = emailError;
+      isValid = false;
+    }
+
+    // Contact Number validation (REQUIRED)
+    const contactError = validateContactNumber(formData.contactNumber);
+    if (contactError) {
+      newErrors.contactNumber = contactError;
+      isValid = false;
+    }
+
+    // Role validation
+    if (!formData.roleId) {
+      newErrors.roleId = 'Role is required';
+      isValid = false;
+    }
+
+    setErrors(newErrors);
+    return isValid;
+  };
+
+  // 🔥 Clear error when user starts typing
+  const handleInputChange = (field, value) => {
+    setFormData({ ...formData, [field]: value });
+    // Clear error for this field
+    if (errors[field]) {
+      setErrors({ ...errors, [field]: '' });
+    }
+  };
+
+  // 🔥 Clear role error when a role is selected
+  const handleRoleSelect = (roleId) => {
+    setFormData({ ...formData, roleId });
+    if (errors.roleId) {
+      setErrors({ ...errors, roleId: '' });
+    }
+  };
+
   const handleSubmit = () => {
-    if (!formData.userName || (!user && !formData.password)) {
-      Alert.alert('Validation Error', 'Please fill required fields.');
+    // Validate form
+    if (!validateForm()) {
+      Alert.alert('Validation Error', 'Please fill all required fields before submitting');
       return;
     }
 
-    // Web ki tarah roleId ya roleName decide karna
     const selectedRole = roles.find(r => r._id === formData.roleId);
     const payload = {
-      userName: formData.userName,
-      contactNumber: formData.contactNumber,
-      email: formData.email?.trim(),
-      address: formData.address,
+      userName: formData.userName.trim(),
+      contactNumber: formData.contactNumber.trim(),
+      email: formData.email.trim(),
+      address: formData.address.trim(),
       companies: formData.companies,
       roleId: isObjectId(selectedRole?._id) ? selectedRole._id : undefined,
       roleName: !isObjectId(selectedRole?._id)
@@ -110,10 +216,17 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
         : undefined,
     };
 
-    if (!user) payload.userId = formData.userId;
+    if (!user) payload.userId = formData.userId.trim();
     if (formData.password) payload.password = formData.password;
 
-    onSave(payload);
+    setIsSubmitting(true);
+    onSave(payload)
+      .catch((error) => {
+        Alert.alert('Error', error.message || 'Failed to save user');
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
   };
 
   const filteredCompanies = allCompanies.filter(c =>
@@ -123,62 +236,114 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
   return (
     <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
       <View style={styles.form}>
+        {/* User Name Field */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.label}>User Name *</Text>
+          <Text style={styles.label}>
+            User Name <Text style={styles.required}>*</Text>
+          </Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errors.userName && styles.inputError]}
             value={formData.userName}
-            onChangeText={t => setFormData({ ...formData, userName: t })}
+            onChangeText={t => handleInputChange('userName', t)}
             placeholder="e.g. John Doe"
           />
+          {errors.userName ? (
+            <View style={styles.errorContainer}>
+              <Icon name="alert-circle" size={14} color="#dc2626" />
+              <Text style={styles.errorText}>{errors.userName}</Text>
+            </View>
+          ) : null}
         </View>
 
+        {/* User ID Field */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.label}>User ID</Text>
+          <Text style={styles.label}>
+            User ID {!user && <Text style={styles.required}>*</Text>}
+          </Text>
           <TextInput
-            style={[styles.input, user && styles.disabledInput]}
+            style={[
+              styles.input,
+              user && styles.disabledInput,
+              errors.userId && styles.inputError,
+            ]}
             value={formData.userId}
             editable={!user}
-            onChangeText={t => setFormData({ ...formData, userId: t })}
+            onChangeText={t => handleInputChange('userId', t)}
             placeholder="Unique User ID"
           />
+          {errors.userId ? (
+            <View style={styles.errorContainer}>
+              <Icon name="alert-circle" size={14} color="#dc2626" />
+              <Text style={styles.errorText}>{errors.userId}</Text>
+            </View>
+          ) : null}
         </View>
 
+        {/* Password Field (only for new users) */}
         {!user && (
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Password *</Text>
+            <Text style={styles.label}>
+              Password <Text style={styles.required}>*</Text>
+            </Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.password && styles.inputError]}
               secureTextEntry
               value={formData.password}
-              onChangeText={t => setFormData({ ...formData, password: t })}
-              placeholder="Enter Password"
+              onChangeText={t => handleInputChange('password', t)}
+              placeholder="Enter Password (min 6 characters)"
             />
+            {errors.password ? (
+              <View style={styles.errorContainer}>
+                <Icon name="alert-circle" size={14} color="#dc2626" />
+                <Text style={styles.errorText}>{errors.password}</Text>
+              </View>
+            ) : null}
           </View>
         )}
 
+        {/* Contact Number Field */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Contact Number</Text>
+          <Text style={styles.label}>
+            Contact Number <Text style={styles.required}>*</Text>
+          </Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errors.contactNumber && styles.inputError]}
             keyboardType="phone-pad"
             value={formData.contactNumber}
-            onChangeText={t => setFormData({ ...formData, contactNumber: t })}
+            onChangeText={t => handleInputChange('contactNumber', t)}
             placeholder="9876543210"
+            maxLength={10}
           />
+          {errors.contactNumber ? (
+            <View style={styles.errorContainer}>
+              <Icon name="alert-circle" size={14} color="#dc2626" />
+              <Text style={styles.errorText}>{errors.contactNumber}</Text>
+            </View>
+          ) : null}
         </View>
 
+        {/* Email Field */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>
+            Email <Text style={styles.required}>*</Text>
+          </Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errors.email && styles.inputError]}
             autoCapitalize="none"
+            keyboardType="email-address"
             value={formData.email}
-            onChangeText={t => setFormData({ ...formData, email: t })}
+            onChangeText={t => handleInputChange('email', t)}
             placeholder="user@example.com"
           />
+          {errors.email ? (
+            <View style={styles.errorContainer}>
+              <Icon name="alert-circle" size={14} color="#dc2626" />
+              <Text style={styles.errorText}>{errors.email}</Text>
+            </View>
+          ) : null}
         </View>
 
+        {/* Address Field */}
         <View style={styles.fieldGroup}>
           <Text style={styles.label}>Address</Text>
           <TextInput
@@ -192,27 +357,37 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
         </View>
 
         {/* Role Selection */}
-        <Text style={styles.label}>Role *</Text>
-        <View style={styles.radioGroup}>
-          {roles.map(r => (
-            <TouchableOpacity
-              key={r._id}
-              style={styles.roleItem}
-              onPress={() => setFormData({ ...formData, roleId: r._id })}
-            >
-              <View
-                style={[
-                  styles.radioCircle,
-                  formData.roleId === r._id && styles.radioSelected,
-                ]}
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>
+            Role <Text style={styles.required}>*</Text>
+          </Text>
+          <View style={styles.radioGroup}>
+            {roles.map(r => (
+              <TouchableOpacity
+                key={r._id}
+                style={styles.roleItem}
+                onPress={() => handleRoleSelect(r._id)}
               >
-                {formData.roleId === r._id && (
-                  <View style={styles.radioInner} />
-                )}
-              </View>
-              <Text style={styles.radioText}>{r.name}</Text>
-            </TouchableOpacity>
-          ))}
+                <View
+                  style={[
+                    styles.radioCircle,
+                    formData.roleId === r._id && styles.radioSelected,
+                  ]}
+                >
+                  {formData.roleId === r._id && (
+                    <View style={styles.radioInner} />
+                  )}
+                </View>
+                <Text style={styles.radioText}>{r.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {errors.roleId ? (
+            <View style={styles.errorContainer}>
+              <Icon name="alert-circle" size={14} color="#dc2626" />
+              <Text style={styles.errorText}>{errors.roleId}</Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Companies Dropdown */}
@@ -341,14 +516,20 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  form: { padding: 20 },
-  fieldGroup: { marginBottom: 18 },
+
+  form: { paddingTop: 5 },
+  fieldGroup: { marginBottom: 10 },
+
   label: {
     fontSize: 13,
     fontWeight: '700',
     color: '#475569',
     marginBottom: 6,
     textTransform: 'uppercase',
+  },
+  required: {
+    color: '#dc2626',
+    fontSize: 14,
   },
   input: {
     borderWidth: 1,
@@ -359,9 +540,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
     color: '#1e293b',
   },
+  inputError: {
+    borderColor: '#dc2626',
+    borderWidth: 1,
+    // backgroundColor: '#fef2f2',
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#dc2626',
+    fontWeight: '500',
+  },
   textArea: { minHeight: 60, textAlignVertical: 'top' },
   disabledInput: { backgroundColor: '#f1f5f9', color: '#94a3b8' },
-  radioGroup: { flexDirection: 'row', gap: 20, marginBottom: 25, marginTop: 4 },
+  radioGroup: { flexDirection: 'row', gap: 20, marginBottom: 4, marginTop: 4 },
   roleItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   radioCircle: {
     height: 20,
@@ -386,11 +583,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderWidth: 1,
-    borderColor: '#22c55e',
+    borderColor: '#cbd5e1',
     borderRadius: 8,
-    backgroundColor: '#f0fdf4',
+    // backgroundColor: '#f0fdf4',
   },
-  triggerText: { color: '#15803d', fontWeight: '600' },
+  triggerText: {  fontWeight: '600' },
   badgeContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -479,4 +676,4 @@ const styles = StyleSheet.create({
   saveText: { color: '#fff', fontWeight: 'bold' },
 });
 
-export default UserForm;
+export default UserForm;  

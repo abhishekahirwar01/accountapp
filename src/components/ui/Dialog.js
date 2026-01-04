@@ -1,6 +1,13 @@
 // components/ui/Dialog.js
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Modal,
+  ScrollView,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 
 export const Dialog = ({ open, onOpenChange, children }) => {
@@ -13,14 +20,15 @@ export const Dialog = ({ open, onOpenChange, children }) => {
     >
       <View style={styles.overlay}>
         <View style={styles.content}>
-          <TouchableOpacity 
+          
+          <ScrollView style={styles.scrollView}>
+            <TouchableOpacity
             style={styles.closeButton}
             onPress={() => onOpenChange(false)}
           >
             <Icon name="x" size={20} color="#6b7280" />
           </TouchableOpacity>
-          <ScrollView style={styles.scrollView}>
-            {children}
+          {children}
           </ScrollView>
         </View>
       </View>
@@ -29,35 +37,19 @@ export const Dialog = ({ open, onOpenChange, children }) => {
 };
 
 export const DialogContent = ({ children, style, className }) => {
-  return (
-    <View style={[styles.dialogContent, style]}>
-      {children}
-    </View>
-  );
+  return <View style={[styles.dialogContent, style]}>{children}</View>;
 };
 
 export const DialogHeader = ({ children, style }) => {
-  return (
-    <View style={[styles.dialogHeader, style]}>
-      {children}
-    </View>
-  );
+  return <View style={[styles.dialogHeader, style]}>{children}</View>;
 };
 
 export const DialogTitle = ({ children, style }) => {
-  return (
-    <Text style={[styles.dialogTitle, style]}>
-      {children}
-    </Text>
-  );
+  return <Text style={[styles.dialogTitle, style]}>{children}</Text>;
 };
 
 export const DialogDescription = ({ children, style }) => {
-  return (
-    <Text style={[styles.dialogDescription, style]}>
-      {children}
-    </Text>
-  );
+  return <Text style={[styles.dialogDescription, style]}>{children}</Text>;
 };
 
 const styles = StyleSheet.create({
@@ -73,7 +65,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     maxWidth: 640,
     width: '100%',
-    maxHeight: '80%',
+    maxHeight: '100%',
+    // minHeight: '90%',
     position: 'relative',
   },
   scrollView: {

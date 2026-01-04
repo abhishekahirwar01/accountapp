@@ -1,17 +1,8 @@
-// screens/InventoryScreen.js
-import React, {
-  useState,
-  useEffect,
-  useMemo,
-  useCallback,
-  useRef,
-} from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
-  Alert,
   RefreshControl,
   FlatList,
   Modal,
@@ -19,18 +10,25 @@ import {
   StyleSheet,
   Dimensions,
   Linking,
+  ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePermissions } from '../../contexts/permission-context';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
 import { useToast } from '../../components/hooks/useToast';
 import { BASE_URL } from '../../config';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '../../components/ui/Dialog';
 
 // Icons
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import Feather from 'react-native-vector-icons/Feather';
 
-// Custom components (you'll need to create these React Native versions)
+// Custom components
 import ProductForm from '../../components/products/ProductForm';
 import ServiceForm from '../../components/services/ServiceForm';
 import ExcelImportExport from '../../components/ui/ExcelImportExport';
@@ -60,10 +58,14 @@ const extractNumber = value => {
 };
 
 export default function InventoryScreen() {
-  const { permissions: userCaps, isLoading: isLoadingPermissions } =
-    useUserPermissions();
-  const [activeTab, setActiveTab] = useState('products');
+  const {
+    permissions: userCaps,
+    isLoading: isLoadingPermissions,
+    refetch: refetchUserPermissions,
+  } = useUserPermissions();
+  const { permissions, refetch, isLoading: isLoadingPerms } = usePermissions();
 
+  const [activeTab, setActiveTab] = useState('products');
   const [products, setProducts] = useState([]);
   const [services, setServices] = useState([]);
   const [companies, setCompanies] = useState([]);
@@ -87,13 +89,31 @@ export default function InventoryScreen() {
   const [serviceToDelete, setServiceToDelete] = useState(null);
 
   const [isAlertOpen, setIsAlertOpen] = useState(false);
-  const [openNameDialog, setOpenNameDialog] = useState(null);
 
   const { toast } = useToast();
-  const { permissions } = usePermissions();
 
-  const getCompanyId = c => (typeof c === 'object' ? c?._id : c) || null;
+  // ==========================================
+  // PERMISSION CHECKS - SIRF CREATE KE LIYE
+  // ==========================================
+  const canCreateProducts =
+    userCaps?.canCreateProducts ?? userCaps?.canCreateInventory ?? false;
+  const webCanCreate = permissions?.canCreateProducts ?? false;
+  const hasCreatePermission = canCreateProducts || webCanCreate;
 
+  // Check role from localStorage (AsyncStorage)
+  const [userRole, setUserRole] = useState(null);
+
+  useEffect(() => {
+    const loadUserRole = async () => {
+      const role = await AsyncStorage.getItem('role');
+      setUserRole(role);
+    };
+    loadUserRole();
+  }, []);
+
+  // ==========================================
+  // FETCH FUNCTIONS
+  // ==========================================
   const fetchCompanies = useCallback(async () => {
     setIsLoadingCompanies(true);
     try {
@@ -176,11 +196,26 @@ export default function InventoryScreen() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    Promise.all([fetchCompanies(), fetchProducts(), fetchServices()]).finally(
-      () => setRefreshing(false),
-    );
-  }, [fetchCompanies, fetchProducts, fetchServices]);
+    Promise.all([
+      fetchCompanies(),
+      fetchProducts(),
+      fetchServices(),
+      refetch ? refetch() : Promise.resolve(),
+      refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
+    ]).finally(() => {
+      setRefreshing(false);
+    });
+  }, [
+    fetchCompanies,
+    fetchProducts,
+    fetchServices,
+    refetch,
+    refetchUserPermissions,
+  ]);
 
+  // ==========================================
+  // CRUD OPERATIONS
+  // ==========================================
   const openCreateProduct = () => {
     setProductToEdit(null);
     setIsProductFormOpen(true);
@@ -283,7 +318,13 @@ export default function InventoryScreen() {
     }
   };
 
+  // ==========================================
+  // SELECTION HANDLING - EDIT/DELETE PERMISSION CHECK HATAYA
+  // ==========================================
   const handleSelectProduct = (productId, checked, index, shiftKey = false) => {
+    // EDIT/DELETE PERMISSION CHECK HATAYA
+    // if (userRole === 'user') return; // Yeh line hatani hai
+
     if (shiftKey && lastSelectedIndex !== null && index !== undefined) {
       const startIndex = Math.min(lastSelectedIndex, index);
       const endIndex = Math.max(lastSelectedIndex, index);
@@ -306,6 +347,9 @@ export default function InventoryScreen() {
   };
 
   const handleSelectAllProducts = checked => {
+    // EDIT/DELETE PERMISSION CHECK HATAYA
+    // if (userRole === 'user') return; // Yeh line hatani hai
+
     if (checked) {
       setSelectedProducts(products.map(p => p._id));
     } else {
@@ -314,7 +358,8 @@ export default function InventoryScreen() {
   };
 
   const handleBulkDeleteProducts = async () => {
-    if (selectedProducts.length === 0) return;
+    // EDIT/DELETE PERMISSION CHECK HATAYA
+    if (selectedProducts.length === 0) return; // if (selectedProducts.length === 0 || userRole === 'user') return;
 
     try {
       const token = await AsyncStorage.getItem('token');
@@ -348,6 +393,9 @@ export default function InventoryScreen() {
     }
   };
 
+  // ==========================================
+  // PAGINATION
+  // ==========================================
   const productTotalPages = Math.ceil(products.length / ITEMS_PER_PAGE);
   const serviceTotalPages = Math.ceil(services.length / ITEMS_PER_PAGE);
 
@@ -379,8 +427,11 @@ export default function InventoryScreen() {
     setServiceCurrentPage(prev => Math.max(prev - 1, 1));
   };
 
+  // ==========================================
+  // ACTION BUTTONS (SIRF CREATE KE LIYE PERMISSION)
+  // ==========================================
   const renderActionButtons = () => {
-    if (!(permissions?.canCreateProducts || userCaps?.canCreateInventory)) {
+    if (!hasCreatePermission) {
       return null;
     }
 
@@ -388,48 +439,85 @@ export default function InventoryScreen() {
       return (
         <View style={styles.actionButtons}>
           <ExcelImportExport
-            templateData={[
-              {
-                Company: '',
-                'Item Name': '',
-                Stock: '',
-                Unit: '',
-                'Cost Price': '',
-                'Selling Price': '',
-                HSN: '',
-              },
-            ]}
-            templateFileName="product_template.xlsx"
-            importEndpoint={`${BASE_URL}/api/products`}
-            onImportSuccess={fetchProducts}
-            expectedColumns={[
-              'Company',
-              'Item Name',
-              'Stock',
-              'Unit',
-              'Cost Price',
-              'Selling Price',
-              'HSN',
-            ]}
-            transformImportData={data => {
-              return data.map(item => {
-                const companyName = item['Company']?.trim();
-                const foundCompany = companies.find(
-                  c =>
-                    c.businessName.toLowerCase() === companyName?.toLowerCase(),
-                );
-
-                return {
-                  company: foundCompany?._id || companies[0]?._id || '',
-                  name: item['Item Name'],
-                  stocks: item['Stock'] || 0,
-                  unit: item['Unit'] || 'Piece',
-                  costPrice: extractNumber(item['Cost Price']),
-                  sellingPrice: extractNumber(item['Selling Price']),
-                  hsn: item['HSN'] || '',
-                };
-              });
+            templateData={
+              activeTab === 'products'
+                ? [
+                    {
+                      Company:
+                        companies.length > 0
+                          ? companies[0].businessName
+                          : 'Your Company',
+                      'Item Name': '',
+                      Stock: '',
+                      Unit: '',
+                      'Cost Price': '',
+                      'Selling Price': '',
+                      HSN: '',
+                    },
+                  ]
+                : [{ 'Service Name': '', Amount: '', SAC: '' }]
+            }
+            templateFileName={`${activeTab}_template.xlsx`}
+            onImportSuccess={() => {
+              if (activeTab === 'products') fetchProducts();
+              else fetchServices();
             }}
+            expectedColumns={
+              activeTab === 'products'
+                ? [
+                    'Company',
+                    'Item Name',
+                    'Stock',
+                    'Unit',
+                    'Cost Price',
+                    'Selling Price',
+                    'HSN',
+                  ]
+                : ['Service Name', 'Amount', 'SAC']
+            }
+            transformImportData={data => {
+              if (activeTab === 'products') {
+                return data.map(item => {
+                  const companyName = item['Company']?.trim();
+
+                  // Find matching company
+                  const foundCompany = companies.find(
+                    c =>
+                      c.businessName.toLowerCase() ===
+                      companyName?.toLowerCase(),
+                  );
+
+                  // Log for debugging
+                  console.log('Mapping company:', {
+                    excelCompany: companyName,
+                    availableCompanies: companies.map(c => ({
+                      id: c._id,
+                      name: c.businessName,
+                    })),
+                    foundCompanyId: foundCompany?._id,
+                  });
+
+                  return {
+                    company: foundCompany?._id || companies[0]?._id || '',
+                    
+                    name: item['Item Name'],
+                    stocks: Number(item['Stock']) || 0,
+                    unit: item['Unit'] || 'Piece',
+                    costPrice: Number(item['Cost Price']) || 0,
+                    sellingPrice: Number(item['Selling Price']) || 0,
+                    hsn: item['HSN'] || '',
+                  };
+                });
+              } else {
+                return data.map(item => ({
+                  serviceName: item['Service Name'],
+                  amount: Number(item['Amount']) || 0,
+                  sac: item['SAC'] || '',
+                }));
+              }
+            }}
+            activeTab={activeTab}
+            companies={companies} // Add this prop
           />
           <TouchableOpacity
             style={[styles.button, styles.outlineButton]}
@@ -476,182 +564,185 @@ export default function InventoryScreen() {
     }
   };
 
- const renderProductCard = (item, index) => {
-  const absoluteIndex = (productCurrentPage - 1) * ITEMS_PER_PAGE + index;
-  return (
-    <View style={styles.card} key={item._id}>
-      <View style={styles.cardHeader}>
-        <View style={styles.productInfo}>
-          <View style={styles.productIcon}>
-            <Icon name="inventory" size={20} color="#007AFF" />
+  // ==========================================
+  // PRODUCT CARD (EDIT/DELETE KE PERMISSION CHECKS HATAYE)
+  // ==========================================
+  const renderProductCard = (item, index) => {
+    const absoluteIndex = (productCurrentPage - 1) * ITEMS_PER_PAGE + index;
+    const isLowStock = (item.stocks ?? 0) <= 10;
+
+    return (
+      <View style={styles.card} key={item._id}>
+        <View style={styles.cardHeader}>
+          <View style={styles.productInfo}>
+            <View style={styles.productIcon}>
+              <Icon name="inventory" size={20} color="#007AFF" />
+            </View>
+            <View style={styles.productDetails}>
+              <Text style={styles.productName}>
+                {item.name?.charAt(0).toUpperCase() + item.name?.slice(1)}
+              </Text>
+              <Text style={styles.companyName}>
+                {typeof item.company === 'object' && item.company
+                  ? item.company.businessName
+                  : '-'}
+              </Text>
+            </View>
           </View>
-          <View style={styles.productDetails}>
-            <Text style={styles.productName}>
-              {item.name?.charAt(0).toUpperCase() + item.name?.slice(1)}
-            </Text>
-            <Text style={styles.companyName}>
-              {typeof item.company === 'object' && item.company
-                ? item.company.businessName
-                : '-'}
-            </Text>
+
+          <View style={styles.priceSection}>
+            <View style={styles.priceItem}>
+              <Text style={styles.priceLabel}>Cost Price</Text>
+              <Text style={styles.priceValue}>
+                {item.costPrice ? formatCurrencyINR(item.costPrice) : '-'}
+              </Text>
+            </View>
+            <View style={styles.priceItem}>
+              <Text style={styles.priceLabel}>Selling Price</Text>
+              <Text style={styles.priceValue}>
+                {item.sellingPrice ? formatCurrencyINR(item.sellingPrice) : '-'}
+              </Text>
+            </View>
           </View>
         </View>
 
-        <View style={styles.priceSection}>
-          <View style={styles.priceItem}>
-            <Text style={styles.priceLabel}>Cost Price</Text>
-            <Text style={styles.priceValue}>
-              {item.costPrice ? formatCurrencyINR(item.costPrice) : '-'}
+        <View style={styles.stockSection}>
+          <Text style={styles.stockLabel}>Stock</Text>
+          <View style={styles.stockInfo}>
+            <Text
+              style={[
+                styles.stockValue,
+                (item.stocks ?? 0) > 10
+                  ? styles.stockHigh
+                  : (item.stocks ?? 0) > 0
+                  ? styles.stockMedium
+                  : styles.stockLow,
+              ]}
+            >
+              {item.stocks ?? 0}
             </Text>
+            <Text style={styles.unit}>{item.unit ?? 'Piece'}</Text>
           </View>
-          <View style={styles.priceItem}>
-            <Text style={styles.priceLabel}>Selling Price</Text>
-            <Text style={styles.priceValue}>
-              {item.sellingPrice ? formatCurrencyINR(item.sellingPrice) : '-'}
-            </Text>
-          </View>
+          {isLowStock && (item.stocks ?? 0) > 0 && (
+            <Text style={styles.lowStockWarning}>Low stock</Text>
+          )}
         </View>
-      </View>
 
-      <View style={styles.stockSection}>
-        <Text style={styles.stockLabel}>Stock</Text>
-        <View style={styles.stockInfo}>
-          <Text
-            style={[
-              styles.stockValue,
-              (item.stocks ?? 0) > 10
-                ? styles.stockHigh
-                : (item.stocks ?? 0) > 0
-                ? styles.stockMedium
-                : styles.stockLow,
-            ]}
-          >
-            {item.stocks ?? 0}
-          </Text>
-          <Text style={styles.unit}>{item.unit ?? 'Piece'}</Text>
-        </View>
-        {(item.stocks ?? 0) <= 10 && (item.stocks ?? 0) > 0 && (
-          <Text style={styles.lowStockWarning}>Low stock</Text>
+        {item.hsn && (
+          <View style={styles.hsnSection}>
+            <Text style={styles.hsnLabel}>HSN</Text>
+            <Text style={styles.hsnValue}>{item.hsn}</Text>
+          </View>
         )}
-      </View>
 
-      {item.hsn && (
-        <View style={styles.hsnSection}>
-          <Text style={styles.hsnLabel}>HSN</Text>
-          <Text style={styles.hsnValue}>{item.hsn}</Text>
-        </View>
-      )}
-
-      <View style={styles.cardActions}>
-        {/* Date moved here, aligned to left */}
-        <View style={styles.dateContainer}>
-          <Text style={styles.createdDate}>
-            {item.createdAt
-              ? new Date(item.createdAt).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                })
-              : '—'}
-          </Text>
-        </View>
-
-        {/* Action buttons aligned to right */}
-        <View style={styles.actionButtonsContainer}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.editButton]}
-            onPress={() => openEditProduct(item)}
-          >
-            <Icon name="edit" size={16} color="#007AFF" />
-            <Text style={[styles.actionButtonText, styles.editButtonText]}>
-              Edit
+        <View style={styles.cardActions}>
+          <View style={styles.dateContainer}>
+            <Text style={styles.createdDate}>
+              {item.createdAt
+                ? new Date(item.createdAt).toLocaleDateString()
+                : '—'}
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.deleteButton]}
-            onPress={() => confirmDeleteProduct(item)}
-          >
-            <Icon name="delete" size={16} color="#DC2626" />
-            <Text style={[styles.actionButtonText, styles.deleteButtonText]}>
-              Delete
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
-};
-
- const renderServiceCard = item => {
-  return (
-    <View style={styles.card} key={item._id}>
-      <View style={styles.cardHeader}>
-        <View style={styles.serviceInfo}>
-          <View style={[styles.serviceIcon, { backgroundColor: '#EC4899' }]}>
-            <Icon name="build" size={20} color="white" />
           </View>
-          <View style={styles.serviceDetails}>
-            <Text style={styles.serviceName}>{item.serviceName}</Text>
+
+          {/* EDIT/DELETE BUTTONS - SABKE LIYE (PERMISSION CHECK HATAYA) */}
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.editButton]}
+              onPress={() => openEditProduct(item)}
+            >
+              <Icon name="edit" size={16} color="#007AFF" />
+              <Text style={[styles.actionButtonText, styles.editButtonText]}>
+                Edit
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={() => confirmDeleteProduct(item)}
+            >
+              <Icon name="delete" size={16} color="#DC2626" />
+              <Text style={[styles.actionButtonText, styles.deleteButtonText]}>
+                Delete
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
+      </View>
+    );
+  };
 
-        <View style={styles.amountSection}>
-          <Text style={styles.amountLabel}>Amount</Text>
-          <Text style={styles.amountValue}>
-            {formatCurrencyINR(item.amount)}
-          </Text>
+  // ==========================================
+  // SERVICE CARD (EDIT/DELETE KE PERMISSION CHECKS HATAYE)
+  // ==========================================
+  const renderServiceCard = item => {
+    return (
+      <View style={styles.card} key={item._id}>
+        <View style={styles.cardHeader}>
+          <View style={styles.serviceInfo}>
+            <View style={[styles.serviceIcon, { backgroundColor: '#EC4899' }]}>
+              <Icon name="build" size={20} color="white" />
+            </View>
+            <View style={styles.serviceDetails}>
+              <Text style={styles.serviceName}>{item.serviceName}</Text>
+            </View>
+          </View>
+
+          <View style={styles.amountSection}>
+            <Text style={styles.amountLabel}>Amount</Text>
+            <Text style={styles.amountValue}>
+              {formatCurrencyINR(item.amount)}
+            </Text>
+          </View>
+        </View>
+
+        {item.sac && (
+          <View style={styles.sacSection}>
+            <Text style={styles.sacLabel}>SAC</Text>
+            <Text style={styles.sacValue}>{item.sac}</Text>
+          </View>
+        )}
+
+        <View style={styles.cardActions}>
+          <View style={styles.dateContainer}>
+            <Text style={styles.createdDate}>
+              {item.createdAt
+                ? new Date(item.createdAt).toLocaleDateString()
+                : '—'}
+            </Text>
+          </View>
+
+          {/* EDIT/DELETE BUTTONS - SABKE LIYE (PERMISSION CHECK HATAYA) */}
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.editButton]}
+              onPress={() => openEditService(item)}
+            >
+              <Icon name="edit" size={16} color="#007AFF" />
+              <Text style={[styles.actionButtonText, styles.editButtonText]}>
+                Edit
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={() => confirmDeleteService(item)}
+            >
+              <Icon name="delete" size={16} color="#DC2626" />
+              <Text style={[styles.actionButtonText, styles.deleteButtonText]}>
+                Delete
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
+    );
+  };
 
-      {item.sac && (
-        <View style={styles.sacSection}>
-          <Text style={styles.sacLabel}>SAC</Text>
-          <Text style={styles.sacValue}>{item.sac}</Text>
-        </View>
-      )}
-
-      <View style={styles.cardActions}>
-        {/* Date moved here, aligned to left */}
-        <View style={styles.dateContainer}>
-          <Text style={styles.createdDate}>
-            {item.createdAt
-              ? new Date(item.createdAt).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                })
-              : '—'}
-          </Text>
-        </View>
-
-        {/* Action buttons aligned to right */}
-        <View style={styles.actionButtonsContainer}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.editButton]}
-            onPress={() => openEditService(item)}
-          >
-            <Icon name="edit" size={16} color="#007AFF" />
-            <Text style={[styles.actionButtonText, styles.editButtonText]}>
-              Edit
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.deleteButton]}
-            onPress={() => confirmDeleteService(item)}
-          >
-            <Icon name="delete" size={16} color="#DC2626" />
-            <Text style={[styles.actionButtonText, styles.deleteButtonText]}>
-              Delete
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
-};
+  // ==========================================
+  // HEADER COMPONENT
+  // ==========================================
   const renderHeader = () => (
     <View>
-      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Inventory Management</Text>
@@ -663,7 +754,6 @@ export default function InventoryScreen() {
         {renderActionButtons()}
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabsContainer}>
         <View style={styles.tabs}>
           <TouchableOpacity
@@ -695,7 +785,7 @@ export default function InventoryScreen() {
         </View>
       </View>
 
-      {/* Bulk actions for desktop */}
+      {/* Bulk Actions - EDIT/DELETE PERMISSION CHECK HATAYA */}
       {activeTab === 'products' && selectedProducts.length > 0 && (
         <View style={styles.bulkActions}>
           <TouchableOpacity
@@ -710,13 +800,7 @@ export default function InventoryScreen() {
         </View>
       )}
 
-      {/* Loading or Empty States */}
-      {activeTab === 'products' && isLoadingProducts && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-        </View>
-      )}
-
+      {/* Empty States with permission checks */}
       {activeTab === 'products' &&
         !isLoadingProducts &&
         products.length === 0 && (
@@ -724,10 +808,11 @@ export default function InventoryScreen() {
             <Icon name="inventory" size={48} color="#666" />
             <Text style={styles.emptyStateTitle}>No Products Found</Text>
             <Text style={styles.emptyStateDescription}>
-              Create your first product to get started.
+              {hasCreatePermission
+                ? 'Create your first product to get started.'
+                : 'No products available in your inventory.'}
             </Text>
-            {(permissions?.canCreateProducts ||
-              userCaps?.canCreateInventory) && (
+            {hasCreatePermission && (
               <TouchableOpacity
                 style={styles.button}
                 onPress={openCreateProduct}
@@ -739,12 +824,6 @@ export default function InventoryScreen() {
           </View>
         )}
 
-      {activeTab === 'services' && isLoadingServices && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-        </View>
-      )}
-
       {activeTab === 'services' &&
         !isLoadingServices &&
         services.length === 0 && (
@@ -752,10 +831,11 @@ export default function InventoryScreen() {
             <Icon name="build" size={48} color="#666" />
             <Text style={styles.emptyStateTitle}>No Services Found</Text>
             <Text style={styles.emptyStateDescription}>
-              Create your first service to get started.
+              {hasCreatePermission
+                ? 'Create your first service to get started.'
+                : 'No services available in your inventory.'}
             </Text>
-            {(permissions?.canCreateProducts ||
-              userCaps?.canCreateInventory) && (
+            {hasCreatePermission && (
               <TouchableOpacity
                 style={styles.button}
                 onPress={openCreateService}
@@ -769,6 +849,9 @@ export default function InventoryScreen() {
     </View>
   );
 
+  // ==========================================
+  // RENDER ITEM FUNCTION
+  // ==========================================
   const renderItem = ({ item, index }) => {
     if (activeTab === 'products') {
       return renderProductCard(item, index);
@@ -777,6 +860,9 @@ export default function InventoryScreen() {
     }
   };
 
+  // ==========================================
+  // FOOTER COMPONENT
+  // ==========================================
   const renderFooter = () => {
     if (
       activeTab === 'products' &&
@@ -913,8 +999,10 @@ export default function InventoryScreen() {
     }
   };
 
-  // Loading State
-  if (isLoadingCompanies) {
+  // ==========================================
+  // LOADING STATE
+  // ==========================================
+  if (isLoadingCompanies || isLoadingPermissions || isLoadingPerms) {
     return (
       <AppLayout>
         <SafeAreaView style={styles.safeArea}>
@@ -927,7 +1015,9 @@ export default function InventoryScreen() {
     );
   }
 
-  // No Company State
+  // ==========================================
+  // NO COMPANY STATE
+  // ==========================================
   if (companies.length === 0) {
     return (
       <AppLayout>
@@ -965,56 +1055,87 @@ export default function InventoryScreen() {
     );
   }
 
-  // Main Content
+  // ==========================================
+  // MAIN CONTENT
+  // ==========================================
   return (
     <AppLayout>
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}>
-          <FlatList
-            data={getData()}
-            keyExtractor={item => item._id}
-            renderItem={renderItem}
-            ListHeaderComponent={renderHeader}
-            ListFooterComponent={renderFooter}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-            contentContainerStyle={styles.contentContainer}
-            showsVerticalScrollIndicator={false}
-            initialNumToRender={10}
-            maxToRenderPerBatch={10}
-            windowSize={5}
-          />
+      <View style={styles.container}>
+        <FlatList
+          data={getData()}
+          keyExtractor={item => item._id}
+          renderItem={renderItem}
+          ListHeaderComponent={renderHeader}
+          ListFooterComponent={renderFooter}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+        />
 
-          {/* Modals */}
-          <Modal
-            visible={isProductFormOpen}
-            animationType="slide"
-            presentationStyle="pageSheet"
-            onRequestClose={() => {
-              setIsProductFormOpen(false);
+        {/* Product Form Dialog */}
+        <Dialog
+          open={isProductFormOpen}
+          onOpenChange={isOpen => {
+            if (!isOpen) {
               setProductToEdit(null);
-            }}
-          >
-            <ProductForm
-              product={productToEdit}
-              onSuccess={onProductSaved}
-              onClose={() => {
-                setIsProductFormOpen(false);
-                setProductToEdit(null);
-              }}
-            />
-          </Modal>
+              setIsProductFormOpen(false);
+            }
+          }}
+        >
+          <DialogContent>
+            <View>
+              <DialogHeader>
+                <DialogTitle>
+                  {productToEdit ? 'Edit Product' : 'Create New Product'}
+                </DialogTitle>
+                <DialogDescription>
+                  {productToEdit
+                    ? 'Update the product details.'
+                    : 'Fill in the form to add a new product.'}
+                </DialogDescription>
+              </DialogHeader>
+              <ScrollView>
+                <ProductForm
+                  product={productToEdit}
+                  onSuccess={onProductSaved}
+                  onClose={() => {
+                    setIsProductFormOpen(false);
+                    setProductToEdit(null);
+                  }}
+                />
+              </ScrollView>
+            </View>
+          </DialogContent>
+        </Dialog>
 
-          <Modal
-            visible={isServiceFormOpen}
-            animationType="slide"
-            presentationStyle="pageSheet"
-            onRequestClose={() => {
-              setIsServiceFormOpen(false);
-              setServiceToEdit(null);
-            }}
-          >
+        {/* Service Form Dialog */}
+        <Dialog
+          open={isServiceFormOpen}
+          onOpenChange={isOpen => {
+            if (!isOpen) setServiceToEdit(null);
+            setIsServiceFormOpen(isOpen);
+          }}
+        >
+          <DialogContent>
+            {/* Header without close button (Dialog has built-in close) */}
+            <View style={styles.dialogHeaderRow}>
+              <View style={styles.dialogHeaderLeft}>
+                <Text style={styles.dialogHeaderTitle}>
+                  {serviceToEdit ? 'Edit Service' : 'Create New Service'}
+                </Text>
+                <Text style={styles.dialogHeaderSubtitle}>
+                  {serviceToEdit
+                    ? 'Update service details'
+                    : 'Add new service to your records'}
+                </Text>
+              </View>
+            </View>
+
             <ServiceForm
               service={serviceToEdit}
               onSuccess={onServiceSaved}
@@ -1022,46 +1143,56 @@ export default function InventoryScreen() {
                 setIsServiceFormOpen(false);
                 setServiceToEdit(null);
               }}
+              headerTitle={
+                serviceToEdit ? 'Edit Service' : 'Create New Service'
+              }
+              headerSubtitle={
+                serviceToEdit
+                  ? 'Update service details'
+                  : 'Add new service to your records'
+              }
             />
-          </Modal>
+          </DialogContent>
+        </Dialog>
 
-          {/* Alert Dialog */}
-          <Modal
-            visible={isAlertOpen}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setIsAlertOpen(false)}
-          >
-            <View style={styles.alertOverlay}>
-              <View style={styles.alertContent}>
-                <Text style={styles.alertTitle}>Are you absolutely sure?</Text>
-                <Text style={styles.alertDescription}>
-                  This action cannot be undone. This will permanently delete the{' '}
-                  {productToDelete ? 'product' : 'service'}.
-                </Text>
-                <View style={styles.alertButtons}>
-                  <TouchableOpacity
-                    style={[styles.alertButton, styles.alertCancelButton]}
-                    onPress={() => setIsAlertOpen(false)}
-                  >
-                    <Text style={styles.alertCancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.alertButton, styles.alertConfirmButton]}
-                    onPress={handleDelete}
-                  >
-                    <Text style={styles.alertConfirmButtonText}>Continue</Text>
-                  </TouchableOpacity>
-                </View>
+        {/* Delete Confirmation Modal - EDIT/DELETE PERMISSION CHECK HATAYA */}
+        <Modal
+          visible={isAlertOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsAlertOpen(false)}
+        >
+          <View style={styles.alertOverlay}>
+            <View style={styles.alertContent}>
+              <Text style={styles.alertTitle}>Are you absolutely sure?</Text>
+              <Text style={styles.alertDescription}>
+                This action cannot be undone. This will permanently delete the{' '}
+                {productToDelete ? 'product' : 'service'}.
+              </Text>
+              <View style={styles.alertButtons}>
+                <TouchableOpacity
+                  style={[styles.alertButton, styles.alertCancelButton]}
+                  onPress={() => setIsAlertOpen(false)}
+                >
+                  <Text style={styles.alertCancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.alertButton, styles.alertConfirmButton]}
+                  onPress={handleDelete}
+                >
+                  <Text style={styles.alertConfirmButtonText}>Continue</Text>
+                </TouchableOpacity>
               </View>
             </View>
-          </Modal>
-        </View>
-      </SafeAreaView>
+          </View>
+        </Modal>
+      </View>
     </AppLayout>
   );
 }
-
+// ==========================================
+// STYLES (Unchanged)
+// ==========================================
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -1216,9 +1347,9 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   actionButtonsContainer: {
-  flexDirection: 'row',
-  gap: 8,
-},
+    flexDirection: 'row',
+    gap: 8,
+  },
   priceSection: {
     alignItems: 'flex-end',
   },
@@ -1339,17 +1470,17 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   cardActions: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  borderTopWidth: 1,
-  borderTopColor: '#f0f0f0',
-  paddingTop: 12,
-  marginTop: 8,
-},
-dateContainer: {
-  flex: 1,
-},
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    paddingTop: 12,
+    marginTop: 8,
+  },
+  dateContainer: {
+    flex: 1,
+  },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1567,5 +1698,27 @@ dateContainer: {
   alertConfirmButtonText: {
     color: 'white',
     fontWeight: '500',
+  },
+  dialogHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  dialogHeaderLeft: {
+    flex: 1,
+  },
+  dialogHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  dialogHeaderSubtitle: {
+    fontSize: 14,
+    color: '#666',
   },
 });

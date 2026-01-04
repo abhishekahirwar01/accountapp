@@ -83,17 +83,17 @@ function MainTabNavigator({ route }) {
       <Tab.Screen
         name="Inventory"
         component={InventoryScreen}
-        options={{ headerShown: false }}
+        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="Companies"
         component={CompaniesScreen}
-        options={{ headerShown: false }}
+          options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="Users"
         component={UsersScreen}
-        options={{ headerShown: false }}
+        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="Settings"
@@ -103,34 +103,34 @@ function MainTabNavigator({ route }) {
       <Tab.Screen
         name="Reports"
         component={Reports}
-        options={{ headerShown: false }}
+         options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="Ledger"
         component={Ledger}
-        options={{ headerShown: false }}
+       options={{ headerShown: true, header: () => <Header /> }}
       />
 
       {/* Admin specific screens */}
       <Tab.Screen
         name="AdminAnalytics"
         component={AdminAnalyticsScreen}
-        options={{ headerShown: false }}
+          options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="AnalyticsScreen"
         component={AnalyticsScreen}
-        options={{ headerShown: false }}
+           options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="AdminCompanies"
         component={AdminCompaniesScreen}
-        options={{ headerShown: false }}
+        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="AdminClientManagement"
         component={AdminClientManagementPage}
-        options={{ headerShown: false }}
+         options={{ headerShown: true, header: () => <Header /> }}
       />
     </Tab.Navigator>
   );

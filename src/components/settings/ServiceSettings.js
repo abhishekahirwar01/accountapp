@@ -14,6 +14,7 @@ import {
   Linking,
   TextInput,
   FlatList,
+  TouchableWithoutFeedback, 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -23,7 +24,7 @@ import * as XLSX from 'xlsx';
 import Toast from 'react-native-toast-message';
 import {
   MoreHorizontal,
-  Edit,
+  Edit2,
   Trash2,
   PlusCircle,
   Building,
@@ -47,6 +48,13 @@ import {
 } from 'lucide-react-native';
 import { BASE_URL } from '../../config';
 import ServiceForm from '../services/ServiceForm';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '../../components/ui/Dialog';
 
 const { width } = Dimensions.get('window');
 const ITEMS_PER_PAGE = 10;
@@ -65,6 +73,7 @@ const ServiceSettings = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const [role, setRole] = useState(null);
+  const [openDropdownId, setOpenDropdownId] = useState(null);
 
   const totalPages = Math.ceil(services.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -249,6 +258,16 @@ const ServiceSettings = () => {
     }
   };
 
+  const handleEditService = service => {
+  setOpenDropdownId(null);
+  handleOpenForm(service);
+};
+
+const handleDeleteServiceFromDropdown = service => {
+  setOpenDropdownId(null);
+  handleOpenDeleteDialog(service);
+};
+
   const handleImportClick = () => {
     setIsImportDialogOpen(true);
   };
@@ -416,23 +435,39 @@ const ServiceSettings = () => {
         </View>
 
         {role !== 'user' && (
-          <TouchableOpacity
-            style={styles.moreButton}
-            onPress={() => {
-              Alert.alert('Actions', 'Choose an action', [
-                { text: 'Edit', onPress: () => handleOpenForm(item) },
-                {
-                  text: 'Delete',
-                  onPress: () => handleOpenDeleteDialog(item),
-                  style: 'destructive',
-                },
-                { text: 'Cancel', style: 'cancel' },
-              ]);
-            }}
-          >
-            <MoreHorizontal size={20} color="#666" />
-          </TouchableOpacity>
-        )}
+  <View>
+    <TouchableOpacity
+      style={styles.moreButton}
+      onPress={() => {
+        setOpenDropdownId(openDropdownId === item._id ? null : item._id);
+      }}
+    >
+      <MoreHorizontal size={20} color="#666" />
+    </TouchableOpacity>
+    
+    {openDropdownId === item._id && (
+      <View style={styles.dropdown}>
+        <TouchableOpacity
+          style={styles.dropdownItem}
+          onPress={() => handleEditService(item)}
+        >
+          <Edit2 size={16} color="#3b82f6" />
+          <Text style={styles.dropdownItemText}>Edit</Text>
+        </TouchableOpacity>
+        <View style={styles.dropdownDivider} />
+        <TouchableOpacity
+          style={styles.dropdownItem}
+          onPress={() => handleDeleteServiceFromDropdown(item)}
+        >
+          <Trash2 size={16} color="#ef4444" />
+          <Text style={[styles.dropdownItemText, styles.dropdownItemTextDanger]}>
+            Delete
+          </Text>
+        </TouchableOpacity>
+      </View>
+    )}
+  </View>
+)}
       </View>
 
       <View style={styles.serviceDetails}>
@@ -519,6 +554,7 @@ const ServiceSettings = () => {
   }
 
   return (
+    <TouchableWithoutFeedback onPress={() => setOpenDropdownId(null)}>
     <View style={styles.safeArea}>
       <ScrollView
         style={styles.container}
@@ -638,7 +674,7 @@ const ServiceSettings = () => {
       </ScrollView>
 
       {/* Service Form Modal */}
-      <Modal
+      {/* <Modal
         visible={isFormOpen}
         animationType="slide"
         onRequestClose={() => {
@@ -654,7 +690,42 @@ const ServiceSettings = () => {
             setIsFormOpen(false);
           }}
         />
-      </Modal>
+      </Modal> */}
+
+      <Dialog
+        open={isFormOpen}
+        onOpenChange={isOpen => {
+          if (!isOpen) {
+            setSelectedService(null);
+            setIsFormOpen(false);
+          }
+        }}
+      >
+        <DialogContent>
+          <View>
+            <DialogHeader>
+              <DialogTitle>
+                {selectedService ? 'Edit Service' : 'Create New Service'}
+              </DialogTitle>
+              <DialogDescription>
+                {selectedService
+                  ? 'Update the service details.'
+                  : 'Fill in the form to add a new service.'}
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollView>
+              <ServiceForm
+                service={selectedService || undefined}
+                onSuccess={handleFormSuccess}
+                onCancel={() => {
+                  setSelectedService(null);
+                  setIsFormOpen(false);
+                }}
+              />
+            </ScrollView>
+          </View>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Modal */}
       <Modal
@@ -751,6 +822,7 @@ const ServiceSettings = () => {
         </View>
       </Modal>
     </View>
+    </TouchableWithoutFeedback>
   );
 };
 
@@ -947,9 +1019,45 @@ const styles = StyleSheet.create({
     color: '#111827',
     flex: 1,
   },
-  moreButton: {
-    padding: 4,
-  },
+ moreButton: {
+  padding: 8,
+  borderRadius: 8,
+},
+dropdown: {
+  position: 'absolute',
+  top: 24,
+  right: 0,
+  backgroundColor: 'white',
+  borderRadius: 12,
+  borderWidth: 1,
+  borderColor: '#e2e8f0',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.1,
+  shadowRadius: 12,
+  elevation: 5,
+  minWidth: 100,
+  zIndex: 1000,
+},
+dropdownItem: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingVertical: 10,
+  paddingHorizontal: 16,
+  gap: 10,
+},
+dropdownItemText: {
+  fontSize: 14,
+  fontWeight: '600',
+  color: '#334155',
+},
+dropdownItemTextDanger: {
+  color: '#ef4444',
+},
+dropdownDivider: {
+  height: 1,
+  backgroundColor: '#f1f5f9',
+},
   serviceDetails: {
     backgroundColor: '#f3f4f6',
     borderRadius: 6,

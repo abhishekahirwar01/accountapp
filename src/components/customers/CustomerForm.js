@@ -19,7 +19,7 @@ import { State, City } from 'country-state-city';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL as baseURL } from '../../config';
 import CustomDropdown from '../../components/ui/CustomDropdown';
-
+import { grey300 } from 'react-native-paper/lib/typescript/styles/themes/v2/colors';
 
 const gstRegistrationTypes = [
   'Regular',
@@ -154,6 +154,7 @@ export function CustomerForm({
   customer,
   initialName,
   onSuccess,
+  onCancel,
   hideHeader = false,
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -278,18 +279,29 @@ export function CustomerForm({
         bounces={true}
       >
         {/* Header Section */}
-        {!hideHeader && (
+        {/* {!hideHeader && (
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>
-              {customer ? 'Edit Customer' : 'Create New Customer'}
-            </Text>
-            <Text style={styles.headerSubtitle}>
-              {customer
-                ? 'Update customer details'
-                : 'Add new customer to your records'}
-            </Text>
+            <View style={styles.headerLeft}>
+              <Text style={styles.headerTitle}>
+                {customer ? 'Edit Customer' : 'Create New Customer'}
+              </Text>
+              <Text style={styles.headerSubtitle}>
+                {customer
+                  ? 'Update customer details'
+                  : 'Add new customer to your records'}
+              </Text>
+            </View>
+            {onCancel && (
+              <TouchableOpacity
+                onPress={onCancel}
+                style={styles.headerCloseButton}
+                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }} 
+              >
+                <Text style={styles.headerCloseButtonText}>✕</Text>
+              </TouchableOpacity>
+            )}
           </View>
-        )}
+        )} */}
 
         {/* Form Section */}
         <View style={styles.formContainer}>
@@ -663,7 +675,6 @@ export function CustomerForm({
           </TouchableOpacity>
 
           {/* Extra space for better scrolling */}
-          
         </View>
       </ScrollView>
     </View>
@@ -676,13 +687,30 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingBottom: 30,
+    // paddingBottom: 30,
   },
   header: {
     backgroundColor: '#fff',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#f3f4f6',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  headerCloseButton: {
+    padding: 4, // Extra box background hata diya
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerCloseButtonText: {
+    fontSize: 22, // Thoda bada aur clean size
+    color: '#374151', // Dark grey standard color
+    fontWeight: '300',
   },
   headerTitle: {
     fontSize: 24,
@@ -695,7 +723,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   formContainer: {
-    padding: 20,
+    // padding: 20,
   },
   section: {
     marginBottom: 25,
@@ -829,7 +857,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  
+
   // Modal Styles
   modalContainer: {
     flex: 1,

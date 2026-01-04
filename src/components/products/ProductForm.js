@@ -69,6 +69,9 @@ export default function ProductForm({
   product: propProduct,
   initialName,
   onClose,
+  hideHeader = false,
+  title,
+  subtitle,
 }) {
   const product = propProduct || route?.params?.product || null;
   const onSuccess = onSuccessProp || route?.params?.onSuccess || (() => {});
@@ -244,7 +247,9 @@ export default function ProductForm({
     setIsSubmitting(true);
     try {
       const token = await AsyncStorage.getItem('token');
-      const url = product ? `${BASE_URL}/api/products/${product._id}` : `${BASE_URL}/api/products`;
+      const url = product
+        ? `${BASE_URL}/api/products/${product._id}`
+        : `${BASE_URL}/api/products`;
       const method = product ? 'PUT' : 'POST';
 
       const payload = {
@@ -306,43 +311,66 @@ export default function ProductForm({
   const filteredUnits = [
     ...STANDARD_UNITS.map(unit => ({ type: 'standard', name: unit })),
     ...existingUnits.map(unit => ({ type: 'custom', ...unit })),
-  ].filter(unit => unit.name.toLowerCase().includes(unitSearchQuery.toLowerCase()));
+  ].filter(unit =>
+    unit.name.toLowerCase().includes(unitSearchQuery.toLowerCase()),
+  );
 
   const filteredCompanies = companies.filter(company =>
-    company.businessName.toLowerCase().includes(companySearchQuery.toLowerCase()),
+    company.businessName
+      .toLowerCase()
+      .includes(companySearchQuery.toLowerCase()),
   );
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <View
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+
+      <ScrollView>
+      {/* {!hideHeader && (
         <View style={styles.headerRow}>
-          <TouchableOpacity 
-            onPress={() => (onClose ? onClose() : navigation?.goBack())}
+          <View style={styles.headerContent}>
+            {title && <Text style={styles.headerTitle}>{title}</Text>}
+            {subtitle && <Text style={styles.headerSubtitle}>{subtitle}</Text>}
+          </View>
+          <TouchableOpacity
+            onPress={() => {
+              if (onClose) onClose();
+              else if (navigation) navigation.goBack();
+            }}
             style={styles.closeIconButton}
           >
             <Text style={styles.closeIconText}>✕</Text>
           </TouchableOpacity>
         </View>
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        
-        {/* TOP RIGHT CLOSE ICON */}
-      
+      )} */}
 
-        {/* Company Selection */}
+      <View style={styles.formContent}>
         <View style={styles.field}>
           <Text style={styles.label}>Company</Text>
           <Controller
             control={control}
             name="company"
             render={() => (
-              <TouchableOpacity style={[styles.dropdownButton, errors.company && styles.inputError]} onPress={() => setShowCompanyDropdown(true)}>
+              <TouchableOpacity
+                style={[
+                  styles.dropdownButton,
+                  errors.company && styles.inputError,
+                ]}
+                onPress={() => setShowCompanyDropdown(true)}
+              >
                 <Text style={styles.dropdownButtonText}>
-                  {companies.find(c => c._id === companyValue)?.businessName || 'Select company...'}
+                  {companies.find(c => c._id === companyValue)?.businessName ||
+                    'Select company...'}
                 </Text>
                 <Text style={styles.dropdownArrow}>▼</Text>
               </TouchableOpacity>
             )}
           />
-          {errors.company && <Text style={styles.error}>{errors.company.message}</Text>}
+          {errors.company && (
+            <Text style={styles.error}>{errors.company.message}</Text>
+          )}
         </View>
 
         {/* Product Name */}
@@ -352,20 +380,36 @@ export default function ProductForm({
             control={control}
             name="name"
             render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput style={[styles.input, errors.name && styles.inputError]} placeholder="e.g. Website Development" value={value} onChangeText={onChange} onBlur={onBlur} />
+              <TextInput
+                style={[styles.input, errors.name && styles.inputError]}
+                placeholder="e.g. Website Development"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+              />
             )}
           />
-          {errors.name && <Text style={styles.error}>{errors.name.message}</Text>}
+          {errors.name && (
+            <Text style={styles.error}>{errors.name.message}</Text>
+          )}
         </View>
 
-        {/* Stocks (Disabled) */}
+        {/* Stocks (Opening Stock) - Conditional Disabled */}
         <View style={styles.field}>
           <Text style={styles.label}>Opening Stock (Qty)</Text>
           <Controller
             control={control}
             name="stocks"
-            render={({ field: { value } }) => (
-              <TextInput style={[styles.input, styles.disabledInput]} value={String(value)} editable={false} />
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                style={[styles.input, product && styles.disabledInput]}
+                placeholder="0"
+                keyboardType="numeric"
+                value={String(value)}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                editable={!product}
+              />
             )}
           />
         </View>
@@ -382,7 +426,7 @@ export default function ProductForm({
                 placeholder="₹0"
                 keyboardType="decimal-pad"
                 value={formatCurrency(value)}
-                onChangeText={(text) => handleCurrencyInput(onChange, text)}
+                onChangeText={text => handleCurrencyInput(onChange, text)}
               />
             )}
           />
@@ -400,27 +444,74 @@ export default function ProductForm({
                 placeholder="₹0"
                 keyboardType="decimal-pad"
                 value={formatCurrency(value)}
-                onChangeText={(text) => handleCurrencyInput(onChange, text)}
+                onChangeText={text => handleCurrencyInput(onChange, text)}
               />
             )}
           />
-          {errors.costPrice && <Text style={styles.error}>{errors.costPrice.message}</Text>}
+          {errors.costPrice && (
+            <Text style={styles.error}>{errors.costPrice.message}</Text>
+          )}
         </View>
 
         {/* Unit Selection */}
+        {/* <View style={styles.field}>
+          <Text style={styles.label}>Unit</Text>
+          <Controller
+            control={control}
+            name="unit"
+            render={({ field: { value } }) => (
+              <TouchableOpacity
+                style={styles.dropdownButton}
+                onPress={() => setShowUnitDropdown(true)}
+              >
+                <Text style={styles.dropdownButtonText}>
+                  {value === 'other' ? 'Other' : value || 'Select unit...'}
+                </Text>
+                <Text style={styles.dropdownArrow}>▼</Text>
+              </TouchableOpacity>
+            )}
+          />
+        </View> */}
+
         <View style={styles.field}>
           <Text style={styles.label}>Unit</Text>
           <Controller
             control={control}
             name="unit"
             render={({ field: { value } }) => (
-              <TouchableOpacity style={styles.dropdownButton} onPress={() => setShowUnitDropdown(true)}>
-                <Text style={styles.dropdownButtonText}>{value === 'other' ? 'Other' : value || 'Select unit...'}</Text>
+              <TouchableOpacity
+                style={styles.dropdownButton}
+                onPress={() => setShowUnitDropdown(true)}
+              >
+                <Text style={styles.dropdownButtonText}>
+                  {value === 'other' ? 'Other' : value || 'Select unit...'}
+                </Text>
                 <Text style={styles.dropdownArrow}>▼</Text>
               </TouchableOpacity>
             )}
           />
         </View>
+
+        {/* Custom Unit Input (when "other" is selected) */}
+        {unitValue === 'other' && (
+          <View style={[styles.field, { marginTop: -10, marginBottom: 20 }]}>
+            <Text style={styles.label}>Custom Unit Name</Text>
+            <Controller
+              control={control}
+              name="customUnit"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., hour, session, gigabyte"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  autoFocus={true}
+                />
+              )}
+            />
+          </View>
+        )}
 
         {/* HSN Selection */}
         <View style={styles.field}>
@@ -429,30 +520,55 @@ export default function ProductForm({
             control={control}
             name="hsn"
             render={({ field: { value } }) => (
-              <TouchableOpacity style={styles.dropdownButton} onPress={() => setShowHsnModal(true)}>
-                <Text style={styles.dropdownButtonText}>{value || 'Select HSN code...'}</Text>
+              <TouchableOpacity
+                style={styles.dropdownButton}
+                onPress={() => setShowHsnModal(true)}
+              >
+                <Text style={styles.dropdownButtonText}>
+                  {value || 'Select HSN code...'}
+                </Text>
                 <Text style={styles.dropdownArrow}>▼</Text>
               </TouchableOpacity>
             )}
           />
         </View>
 
-        <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'flex-end' }}>
-
-           <TouchableOpacity style={[styles.button, isSubmitting && styles.buttonDisabled]} onPress={handleSubmit(onSubmit)} disabled={isSubmitting}>
-          {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{product ? 'Save Changes' : 'Create Product'}</Text>}
-        </TouchableOpacity>
-
-        {product && (
-          <TouchableOpacity style={styles.deleteButton} onPress={handleDelete} disabled={isDeleting}>
-            {isDeleting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Delete Product</Text>}
+        <View
+          style={{
+            flexDirection: 'row',
+            gap: 10,
+            justifyContent: 'flex-end',
+            marginBottom: 40,
+          }}
+        >
+          <TouchableOpacity
+            style={[styles.button, isSubmitting && styles.buttonDisabled]}
+            onPress={handleSubmit(onSubmit)}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>
+                {product ? 'Save Changes' : 'Create Product'}
+              </Text>
+            )}
           </TouchableOpacity>
-        )}
 
-
+          {product && (
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Delete Product</Text>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
-
-       
 
         {/* Company Modal */}
         <Modal visible={showCompanyDropdown} animationType="slide" transparent>
@@ -460,12 +576,22 @@ export default function ProductForm({
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select Company</Text>
-                <TouchableOpacity onPress={() => setShowCompanyDropdown(false)}><Text style={styles.closeButton}>✕</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowCompanyDropdown(false)}>
+                  <Text style={styles.closeButton}>✕</Text>
+                </TouchableOpacity>
               </View>
-              <TextInput style={styles.searchInput} placeholder="Search..." onChangeText={setCompanySearchQuery} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search..."
+                onChangeText={setCompanySearchQuery}
+              />
               <ScrollView>
                 {filteredCompanies.map(c => (
-                  <TouchableOpacity key={c._id} style={styles.unitItem} onPress={() => handleCompanySelect(c)}>
+                  <TouchableOpacity
+                    key={c._id}
+                    style={styles.unitItem}
+                    onPress={() => handleCompanySelect(c)}
+                  >
                     <Text style={styles.unitText}>{c.businessName}</Text>
                   </TouchableOpacity>
                 ))}
@@ -480,21 +606,28 @@ export default function ProductForm({
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Search HSN</Text>
-                <TouchableOpacity onPress={() => setShowHsnModal(false)}><Text style={styles.closeButton}>✕</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowHsnModal(false)}>
+                  <Text style={styles.closeButton}>✕</Text>
+                </TouchableOpacity>
               </View>
-              <TextInput 
-                style={styles.searchInput} 
-                placeholder="Type HSN Code..." 
-                onChangeText={(text) => {
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Type HSN Code..."
+                onChangeText={text => {
                   if (text.length >= 2) setHsnSuggestions(searchHSNCodes(text));
-                }} 
+                }}
               />
               <FlatList
                 data={hsnSuggestions}
                 keyExtractor={item => item.code}
                 renderItem={({ item }) => (
-                  <TouchableOpacity style={styles.hsnItem} onPress={() => handleHSNSelect(item)}>
-                    <Text style={styles.hsnCode}>{item.code} - {item.description}</Text>
+                  <TouchableOpacity
+                    style={styles.hsnItem}
+                    onPress={() => handleHSNSelect(item)}
+                  >
+                    <Text style={styles.hsnCode}>
+                      {item.code} - {item.description}
+                    </Text>
                   </TouchableOpacity>
                 )}
               />
@@ -502,38 +635,168 @@ export default function ProductForm({
           </View>
         </Modal>
 
+        <Modal visible={showUnitDropdown} animationType="slide" transparent>
+          <View style={styles.modalOverlayUnit}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Unit</Text>
+                <TouchableOpacity onPress={() => setShowUnitDropdown(false)}>
+                  <Text style={styles.closeButton}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search units..."
+                value={unitSearchQuery}
+                onChangeText={setUnitSearchQuery}
+                autoFocus={true}
+              />
+              <ScrollView>
+                {filteredUnits.map((unit, index) => (
+                  <TouchableOpacity
+                    key={unit.id || `${unit.type}-${unit.name}-${index}`}
+                    style={styles.unitItem}
+                    onPress={() => handleUnitSelect(unit.name)}
+                  >
+                    <Text style={styles.unitText}>
+                      {unit.name} {unit.type === 'custom' && '(Custom)'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                {/* "Other" option */}
+                <TouchableOpacity
+                  style={styles.unitItem}
+                  onPress={() => {
+                    setValue('unit', 'other');
+                    setShowUnitDropdown(false);
+                    setUnitSearchQuery('');
+                  }}
+                >
+                  <Text style={[styles.unitText, { color: '#007AFF' }]}>
+                    Other (Custom Unit)
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  scrollContent: { padding: 20, paddingTop: 0 },
-  headerRow: { flexDirection: 'row', justifyContent: 'flex-end', margin: 4 , marginTop:10 , marginBottom:30},
-  closeIconButton: { borderWidth: 1, borderColor: '#ddd', borderRadius: 20, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  container: { flex: 1, },
+  // formContent: { padding: 20, paddingTop: 0 },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    margin: 4,
+    marginTop: 10,
+    marginBottom: 30,
+    gap: 12,
+  },
+  headerContent: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  closeIconButton: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 20,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   closeIconText: { fontSize: 18, color: '#666', fontWeight: 'bold' },
   field: { marginBottom: 20 },
   label: { fontWeight: 'bold', color: '#333', marginBottom: 8, fontSize: 16 },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: '#fff' },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#fff',
+  },
   disabledInput: { backgroundColor: '#eeeeee', color: '#777' },
   inputError: { borderColor: '#ff3b30' },
   error: { color: '#ff3b30', fontSize: 14, marginTop: 5 },
-  button: { backgroundColor: '#007AFF', padding: 16, borderRadius: 8, alignItems: 'center', marginTop: 10 },
+  button: {
+    backgroundColor: '#007AFF',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
   buttonDisabled: { opacity: 0.6 },
-  deleteButton: { backgroundColor: '#ff3b30', padding: 16, borderRadius: 8, alignItems: 'center', marginTop: 10 },
+  deleteButton: {
+    backgroundColor: '#ff3b30',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
   buttonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  dropdownButton: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, backgroundColor: '#fff', flexDirection: 'row', justifyContent: 'space-between' },
+  dropdownButton: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
   dropdownButtonText: { fontSize: 16, color: '#333' },
   dropdownArrow: { color: '#666' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-  modalContent: { backgroundColor: 'white', borderRadius: 12, maxHeight: '80%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+
+  modalOverlayUnit: {
+    flex: 1,
+    // backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
   modalTitle: { fontSize: 18, fontWeight: 'bold' },
   closeButton: { fontSize: 20, color: '#666' },
-  searchInput: { margin: 16, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10 },
+  searchInput: {
+    margin: 16,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 10,
+  },
   unitItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' },
   unitText: { fontSize: 16 },
   hsnItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  hsnCode: { fontSize: 14, color: '#333' }
+  hsnCode: { fontSize: 14, color: '#333' },
 });

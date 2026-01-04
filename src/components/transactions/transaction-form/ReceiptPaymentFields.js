@@ -69,6 +69,9 @@ export const ReceiptPaymentFields = props => {
     setExpenseDropdownOpen,
     paymentMethodDropdownOpen,
     setPaymentMethodDropdownOpen,
+    canCreateInventory,
+    canCreateCustomer,
+    canCreateVendor,
   } = props;
 
   const {
@@ -400,7 +403,21 @@ export const ReceiptPaymentFields = props => {
                     searchPlaceholder="Enter Name"
                     noResultsText="No results found."
                     creatable={partyCreatable}
-                    onCreate={name => handleTriggerCreateParty(name)}
+                    onCreate={name => {
+                      if (!partyCreatable) {
+                        toast({
+                          variant: 'destructive',
+                          title: 'Permission denied',
+                          description:
+                            type === 'receipt'
+                              ? "You don't have permission to create customers."
+                              : "You don't have permission to create vendors.",
+                        });
+                        return '';
+                      }
+                      handleTriggerCreateParty(name);
+                      return '';
+                    }}
                   />
                 )}
               />

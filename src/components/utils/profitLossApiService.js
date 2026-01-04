@@ -14,12 +14,13 @@ class ProfitLossApiService {
         throw new Error("Authentication token not found");
       }
 
-      const { fromDate, toDate, companyId } = params;
+      const { fromDate, toDate, companyId , clientId} = params;
       
       // Build query parameters - Note: using fromDate, toDate (not 'from' and 'to')
       const queryParams = new URLSearchParams({
         fromDate,
         toDate,
+        clientId,
         ...(companyId && { companyId })
       });
 

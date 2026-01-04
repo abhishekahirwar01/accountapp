@@ -7,14 +7,118 @@ import {
   TouchableOpacity,
   Switch as RNSwitch,
   StyleSheet,
-  Button,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useToast } from '../hooks/useToast';
 import ClientValidityCard from '../admin/settings/ClientValidityCard';
 import { BASE_URL } from '../../config';
+import { AlertCircle, Check, Eye, EyeOff } from 'lucide-react-native';
+
+// Field validation functions
+const fieldValidations = {
+  validateContactName: (value) => {
+    if (!value || value.trim().length < 2) {
+      return { isValid: false, message: 'Contact name must be at least 2 characters' };
+    }
+    if (value.trim().length > 50) {
+      return { isValid: false, message: 'Contact name must not exceed 50 characters' };
+    }
+    return { isValid: true, message: '' };
+  },
+
+  validateUsername: (value, isEditMode) => {
+    if (isEditMode) return { isValid: true, message: '' };
+    
+    if (!value || value.trim().length < 4) {
+      return { isValid: false, message: 'Username must be at least 4 characters' };
+    }
+    if (value.length > 24) {
+      return { isValid: false, message: 'Username must not exceed 24 characters' };
+    }
+    if (!/^[a-z0-9_.]{4,24}$/.test(value)) {
+      return { isValid: false, message: 'Username can only contain lowercase letters, numbers, dots, and underscores' };
+    }
+    return { isValid: true, message: '' };
+  },
+
+  validateEmail: (value) => {
+    if (!value || value.trim().length === 0) {
+      return { isValid: false, message: 'Email is required' };
+    }
+    const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(value.trim())) {
+      return { isValid: false, message: 'Please enter a valid email address' };
+    }
+    return { isValid: true, message: '' };
+  },
+
+  validatePhone: (value) => {
+    if (!value || value.trim().length < 6) {
+      return { isValid: false, message: 'Phone number must be at least 6 characters' };
+    }
+    // Check if it contains at least some digits
+    if (!/\d/.test(value)) {
+      return { isValid: false, message: 'Phone number must contain digits' };
+    }
+    return { isValid: true, message: '' };
+  },
+
+  validatePassword: (value, isEditMode) => {
+    if (isEditMode) return { isValid: true, message: '' };
+    
+    if (!value || value.length < 6) {
+      return { isValid: false, message: 'Password must be at least 6 characters' };
+    }
+    if (value.length > 50) {
+      return { isValid: false, message: 'Password must not exceed 50 characters' };
+    }
+    return { isValid: true, message: '' };
+  },
+
+  validateNewPassword: (value) => {
+    if (!value || value.trim().length === 0) {
+      return { isValid: false, message: 'New password is required' };
+    }
+    if (value.length < 6) {
+      return { isValid: false, message: 'Password must be at least 6 characters' };
+    }
+    if (value.length > 50) {
+      return { isValid: false, message: 'Password must not exceed 50 characters' };
+    }
+    return { isValid: true, message: '' };
+  },
+
+  validateValidityAmount: (value) => {
+    const num = Number(value);
+    if (isNaN(num) || num <= 0) {
+      return { isValid: false, message: 'Validity amount must be greater than 0' };
+    }
+    if (num > 999) {
+      return { isValid: false, message: 'Validity amount seems too large' };
+    }
+    return { isValid: true, message: '' };
+  },
+
+  validateValidityUnit: (value) => {
+    const validUnits = ['days', 'months', 'years'];
+    if (!validUnits.includes(value.toLowerCase())) {
+      return { isValid: false, message: 'Validity unit must be days, months, or years' };
+    }
+    return { isValid: true, message: '' };
+  },
+
+  validateMaxValue: (value, fieldName, max = 1000) => {
+    const num = Number(value);
+    if (isNaN(num) || num < 0) {
+      return { isValid: false, message: `${fieldName} must be 0 or greater` };
+    }
+    if (num > max) {
+      return { isValid: false, message: `${fieldName} must not exceed ${max}` };
+    }
+    return { isValid: true, message: '' };
+  },
+};
 
 function slugifyUsername(s = '') {
   return s
@@ -53,44 +157,27 @@ export default function ClientForm({
 
   // form state
   const [contactName, setContactName] = useState(client?.contactName || '');
-  const [clientUsername, setClientUsername] = useState(
-    client?.clientUsername || '',
-  );
+  const [clientUsername, setClientUsername] = useState(client?.clientUsername || '');
   const [email, setEmail] = useState(client?.email || '');
   const [phone, setPhone] = useState(client?.phone || '');
   const [password, setPassword] = useState('');
   const [maxCompanies, setMaxCompanies] = useState(client?.maxCompanies ?? 5);
   const [maxUsers, setMaxUsers] = useState(client?.maxUsers ?? 10);
-  const [maxInventories, setMaxInventories] = useState(
-    client?.maxInventories ?? 50,
-  );
-  const [canSendInvoiceEmail, setCanSendInvoiceEmail] = useState(
-    client?.canSendInvoiceEmail ?? false,
-  );
-  const [canSendInvoiceWhatsapp, setCanSendInvoiceWhatsapp] = useState(
-    client?.canSendInvoiceWhatsapp ?? false,
-  );
-  const [canCreateUsers, setCanCreateUsers] = useState(
-    client?.canCreateUsers ?? true,
-  );
-  const [canCreateCustomers, setCanCreateCustomers] = useState(
-    client?.canCreateCustomers ?? true,
-  );
-  const [canCreateVendors, setCanCreateVendors] = useState(
-    client?.canCreateVendors ?? true,
-  );
-  const [canCreateProducts, setCanCreateProducts] = useState(
-    client?.canCreateProducts ?? true,
-  );
-  const [canCreateCompanies, setCanCreateCompanies] = useState(
-    client?.canCreateCompanies ?? false,
-  );
-  const [canUpdateCompanies, setCanUpdateCompanies] = useState(
-    client?.canUpdateCompanies ?? false,
-  );
+  const [maxInventories, setMaxInventories] = useState(client?.maxInventories ?? 50);
+  const [canSendInvoiceEmail, setCanSendInvoiceEmail] = useState(client?.canSendInvoiceEmail ?? false);
+  const [canSendInvoiceWhatsapp, setCanSendInvoiceWhatsapp] = useState(client?.canSendInvoiceWhatsapp ?? false);
+  const [canCreateUsers, setCanCreateUsers] = useState(client?.canCreateUsers ?? true);
+  const [canCreateCustomers, setCanCreateCustomers] = useState(client?.canCreateCustomers ?? true);
+  const [canCreateVendors, setCanCreateVendors] = useState(client?.canCreateVendors ?? true);
+  const [canCreateProducts, setCanCreateProducts] = useState(client?.canCreateProducts ?? true);
+  const [canCreateCompanies, setCanCreateCompanies] = useState(client?.canCreateCompanies ?? false);
+  const [canUpdateCompanies, setCanUpdateCompanies] = useState(client?.canUpdateCompanies ?? false);
   const [validityAmount, setValidityAmount] = useState(30);
   const [validityUnit, setValidityUnit] = useState('days');
   const [eyeOpen, setEyeOpen] = useState(false);
+
+  // Validation errors state
+  const [fieldErrors, setFieldErrors] = useState({});
 
   // Permissions management state
   const [currentPermissions, setCurrentPermissions] = useState({
@@ -115,12 +202,66 @@ export default function ClientForm({
   // UX / async state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkingUsername, setCheckingUsername] = useState(false);
-  const [usernameAvailable, setUsernameAvailable] = useState(null); // true | false | null
+  const [usernameAvailable, setUsernameAvailable] = useState(null);
   const [usernameSuggestions, setUsernameSuggestions] = useState([]);
   const [authToken, setAuthToken] = useState(null);
   const [activeTab, setActiveTab] = useState('general');
   const [isSavingPermissions, setIsSavingPermissions] = useState(false);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
+  // Field validation handler
+  const handleFieldValidation = (fieldName, value) => {
+    let validation = { isValid: true, message: '' };
+    
+    switch (fieldName) {
+      case 'contactName':
+        validation = fieldValidations.validateContactName(value);
+        break;
+      case 'clientUsername':
+        validation = fieldValidations.validateUsername(value, !!client);
+        break;
+      case 'email':
+        validation = fieldValidations.validateEmail(value);
+        break;
+      case 'phone':
+        validation = fieldValidations.validatePhone(value);
+        break;
+      case 'password':
+        validation = fieldValidations.validatePassword(value, !!client);
+        break;
+      case 'newPassword':
+        validation = fieldValidations.validateNewPassword(value);
+        break;
+      case 'validityAmount':
+        validation = fieldValidations.validateValidityAmount(value);
+        break;
+      case 'validityUnit':
+        validation = fieldValidations.validateValidityUnit(value);
+        break;
+      case 'maxCompanies':
+        validation = fieldValidations.validateMaxValue(value, 'Max Companies', 1000);
+        break;
+      case 'maxUsers':
+        validation = fieldValidations.validateMaxValue(value, 'Max Users', 1000);
+        break;
+      case 'maxInventories':
+        validation = fieldValidations.validateMaxValue(value, 'Max Inventories', 10000);
+        break;
+      default:
+        break;
+    }
+
+    setFieldErrors(prev => {
+      if (validation.isValid) {
+        const { [fieldName]: removed, ...rest } = prev;
+        return rest;
+      } else {
+        return { ...prev, [fieldName]: validation.message };
+      }
+    });
+
+    return validation.isValid;
+  };
 
   // load token
   useEffect(() => {
@@ -145,7 +286,6 @@ export default function ClientForm({
   // username availability check (debounced)
   useEffect(() => {
     if (client) {
-      // editing existing client — skip availability checks
       setUsernameAvailable(true);
       setUsernameSuggestions([]);
       setCheckingUsername(false);
@@ -160,7 +300,6 @@ export default function ClientForm({
       return;
     }
 
-    // local validation
     if (!/^[a-z0-9_.]{4,24}$/.test(raw)) {
       setUsernameAvailable(false);
       setUsernameSuggestions(localSuggestions(contactName || raw, raw));
@@ -190,7 +329,6 @@ export default function ClientForm({
         if (cancelled) return;
 
         if (!res.ok || !data?.ok) {
-          // transient failure: don't block
           setUsernameAvailable(null);
           setUsernameSuggestions([]);
         } else if (data.available) {
@@ -223,14 +361,12 @@ export default function ClientForm({
     };
   }, [clientUsername, contactName, client]);
 
-  // Load permissions when in edit mode and permissions tab is active
   useEffect(() => {
     if (client && activeTab === 'permissions' && !permissionsLoaded) {
       loadPermissions();
     }
   }, [client, activeTab, permissionsLoaded]);
 
-  // Update local state when client prop changes (edit mode)
   useEffect(() => {
     if (!client) return;
     setContactName(client.contactName || '');
@@ -251,52 +387,38 @@ export default function ClientForm({
   }, [client]);
 
   const validateClientForm = useCallback(() => {
-    if (!contactName || contactName.trim().length < 2) {
-      toast({
-        variant: 'destructive',
-        title: 'Validation',
-        description: 'Contact name must be at least 2 characters.',
-      });
-      return false;
+    const errors = {};
+    
+    // Validate all required fields
+    if (!handleFieldValidation('contactName', contactName)) {
+      errors.contactName = fieldErrors.contactName;
     }
-    if (
-      !client &&
-      (!clientUsername ||
-        clientUsername.length < 4 ||
-        !/^[a-z0-9_.]{4,24}$/.test(clientUsername))
-    ) {
-      toast({
-        variant: 'destructive',
-        title: 'Validation',
-        description:
-          'Username must be 4–24 chars: lowercase letters, digits, dot or underscore.',
-      });
-      return false;
+    
+    if (!client && !handleFieldValidation('clientUsername', clientUsername)) {
+      errors.clientUsername = fieldErrors.clientUsername;
     }
-    if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
-      toast({
-        variant: 'destructive',
-        title: 'Validation',
-        description: 'Enter a valid email.',
-      });
-      return false;
+    
+    if (!handleFieldValidation('email', email)) {
+      errors.email = fieldErrors.email;
     }
-    if (!phone || phone.trim().length < 6) {
-      toast({
-        variant: 'destructive',
-        title: 'Validation',
-        description: 'Enter a valid phone number.',
-      });
-      return false;
+    
+    if (!handleFieldValidation('phone', phone)) {
+      errors.phone = fieldErrors.phone;
     }
-    if (!client && (!password || password.length < 6)) {
-      toast({
-        variant: 'destructive',
-        title: 'Validation',
-        description: 'Password must be at least 6 characters.',
-      });
-      return false;
+    
+    if (!client && !handleFieldValidation('password', password)) {
+      errors.password = fieldErrors.password;
     }
+
+    if (!client) {
+      if (!handleFieldValidation('validityAmount', validityAmount)) {
+        errors.validityAmount = fieldErrors.validityAmount;
+      }
+      if (!handleFieldValidation('validityUnit', validityUnit)) {
+        errors.validityUnit = fieldErrors.validityUnit;
+      }
+    }
+    
     if (checkingUsername) {
       toast({
         variant: 'destructive',
@@ -305,6 +427,7 @@ export default function ClientForm({
       });
       return false;
     }
+    
     if (!client && usernameAvailable === false) {
       toast({
         variant: 'destructive',
@@ -313,6 +436,17 @@ export default function ClientForm({
       });
       return false;
     }
+
+    if (Object.keys(errors).length > 0) {
+      const firstError = Object.values(errors)[0];
+      toast({
+        variant: 'destructive',
+        title: 'Validation Error',
+        description: firstError,
+      });
+      return false;
+    }
+
     return true;
   }, [
     contactName,
@@ -320,9 +454,12 @@ export default function ClientForm({
     email,
     phone,
     password,
+    validityAmount,
+    validityUnit,
     checkingUsername,
     usernameAvailable,
     client,
+    fieldErrors,
     toast,
   ]);
 
@@ -331,10 +468,7 @@ export default function ClientForm({
     if (lower.includes('username')) {
       setUsernameAvailable(false);
       setUsernameSuggestions(
-        localSuggestions(contactName || clientUsername, clientUsername).slice(
-          0,
-          6,
-        ),
+        localSuggestions(contactName || clientUsername, clientUsername).slice(0, 6),
       );
       toast({
         variant: 'destructive',
@@ -362,7 +496,6 @@ export default function ClientForm({
     return false;
   };
 
-  // Load permissions function
   const loadPermissions = async () => {
     if (!client) return;
     try {
@@ -392,7 +525,6 @@ export default function ClientForm({
           canUpdateCompanies: data.canUpdateCompanies,
         });
       } else {
-        // Fallback to client data if permissions are not explicitly set
         setCurrentPermissions({
           maxCompanies: client.maxCompanies || 5,
           maxUsers: client.maxUsers || 10,
@@ -408,7 +540,6 @@ export default function ClientForm({
         });
       }
     } catch (error) {
-      // Fallback in case of network error etc.
       setCurrentPermissions({
         maxCompanies: client.maxCompanies || 5,
         maxUsers: client.maxUsers || 10,
@@ -428,10 +559,43 @@ export default function ClientForm({
 
   const handlePermissionChange = (field, value) => {
     setCurrentPermissions(prev => ({ ...prev, [field]: value }));
+    
+    // Validate numeric fields
+    if (['maxCompanies', 'maxUsers', 'maxInventories'].includes(field)) {
+      handleFieldValidation(field, value);
+    }
+  };
+
+  const validatePermissions = () => {
+    const errors = {};
+    
+    if (!handleFieldValidation('maxCompanies', currentPermissions.maxCompanies)) {
+      errors.maxCompanies = true;
+    }
+    if (!handleFieldValidation('maxUsers', currentPermissions.maxUsers)) {
+      errors.maxUsers = true;
+    }
+    if (!handleFieldValidation('maxInventories', currentPermissions.maxInventories)) {
+      errors.maxInventories = true;
+    }
+
+    if (Object.keys(errors).length > 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Validation Error',
+        description: 'Please fix the errors in the form before saving.',
+      });
+      return false;
+    }
+
+    return true;
   };
 
   const handleSavePermissions = async () => {
     if (!client) return;
+    
+    if (!validatePermissions()) return;
+
     setIsSavingPermissions(true);
     try {
       const token = await AsyncStorage.getItem('token');
@@ -462,21 +626,21 @@ export default function ClientForm({
       toast({
         variant: 'destructive',
         title: 'Update Failed',
-        description:
-          error instanceof Error ? error.message : 'Something went wrong.',
+        description: error instanceof Error ? error.message : 'Something went wrong.',
       });
     } finally {
       setIsSavingPermissions(false);
     }
   };
 
-  // Password reset function
   const handleResetPassword = async () => {
-    if (!client || !newPassword) {
+    if (!client) return;
+    
+    if (!handleFieldValidation('newPassword', newPassword)) {
       toast({
         variant: 'destructive',
         title: 'Validation Error',
-        description: 'New password cannot be empty.',
+        description: fieldErrors.newPassword || 'New password is invalid.',
       });
       return;
     }
@@ -509,12 +673,15 @@ export default function ClientForm({
       });
 
       setNewPassword('');
+      setFieldErrors(prev => {
+        const { newPassword: removed, ...rest } = prev;
+        return rest;
+      });
     } catch (error) {
       toast({
         variant: 'destructive',
         title: 'Password Reset Failed',
-        description:
-          error instanceof Error ? error.message : 'Something went wrong.',
+        description: error instanceof Error ? error.message : 'Something went wrong.',
       });
     } finally {
       setIsSubmittingPassword(false);
@@ -601,7 +768,6 @@ export default function ClientForm({
     }
   };
 
-  // Tab navigation for edit mode
   const renderTabButton = (tabName, label) => (
     <TouchableOpacity
       style={[styles.tabButton, activeTab === tabName && styles.activeTab]}
@@ -615,71 +781,130 @@ export default function ClientForm({
     </TouchableOpacity>
   );
 
-  // General Form Section
+  // Render form field with validation
+  const renderFormField = (
+    label,
+    value,
+    onChange,
+    fieldName,
+    options = {}
+  ) => {
+    const {
+      placeholder = '',
+      keyboardType = 'default',
+      secureTextEntry = false,
+      editable = true,
+      multiline = false,
+      showValidation = true,
+      required = true,
+    } = options;
+
+    return (
+      <View style={styles.section}>
+        <Text style={styles.label}>
+          {label}
+          {required && <Text style={styles.required}> *</Text>}
+        </Text>
+        <TextInput
+          style={[
+            styles.input,
+            !editable && styles.inputDisabled,
+            fieldErrors[fieldName] && styles.inputError,
+          ]}
+          placeholder={placeholder}
+          value={value}
+          onChangeText={onChange}
+          onBlur={() => handleFieldValidation(fieldName, value)}
+          keyboardType={keyboardType}
+          secureTextEntry={secureTextEntry}
+          editable={editable}
+          multiline={multiline}
+        />
+        
+        {fieldErrors[fieldName] && (
+          <View style={styles.errorContainer}>
+            <AlertCircle size={14} color="#dc2626" />
+            <Text style={styles.errorText}>{fieldErrors[fieldName]}</Text>
+          </View>
+        )}
+        
+        {showValidation && !fieldErrors[fieldName] && value && !secureTextEntry && (
+          <View style={styles.successContainer}>
+            <Check size={14} color="#10b981" />
+            <Text style={styles.successText}>Valid</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   const renderGeneralForm = () => (
     <ScrollView style={styles.tabContent}>
-      <View style={styles.section}>
-        <Text style={styles.label}>Contact Name</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. John Doe"
-          value={contactName}
-          onChangeText={setContactName}
-        />
-      </View>
+      {renderFormField(
+        'Contact Name',
+        contactName,
+        (text) => {
+          setContactName(text);
+          handleFieldValidation('contactName', text);
+        },
+        'contactName',
+        { placeholder: 'e.g. John Doe' }
+      )}
 
       <View style={styles.section}>
-        <Text style={styles.label}>Username</Text>
+        <Text style={styles.label}>
+          Username
+          {!client && <Text style={styles.required}> *</Text>}
+        </Text>
         <View>
           <TextInput
-            style={[styles.input, client ? { backgroundColor: '#eee' } : null]}
+            style={[
+              styles.input,
+              client && styles.inputDisabled,
+              fieldErrors.clientUsername && styles.inputError,
+            ]}
             placeholder="e.g. johndoe"
             value={clientUsername}
             editable={!client}
-            onChangeText={t =>
-              setClientUsername(t.toLowerCase().replace(/\s+/g, ''))
-            }
+            onChangeText={t => {
+              const processed = t.toLowerCase().replace(/\s+/g, '');
+              setClientUsername(processed);
+              handleFieldValidation('clientUsername', processed);
+            }}
+            onBlur={() => handleFieldValidation('clientUsername', clientUsername)}
           />
           {!client && (
-            <View
-              style={{
-                flexDirection: 'row',
-                marginTop: 6,
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              {checkingUsername ? <ActivityIndicator size="small" /> : null}
+            <View style={styles.validationRow}>
+              {checkingUsername && <ActivityIndicator size="small" />}
               {usernameAvailable === true && !checkingUsername && (
-                <Text style={{ color: '#10b981' }}>Available ✓</Text>
+                <View style={styles.successContainer}>
+                  <Check size={14} color="#10b981" />
+                  <Text style={styles.successText}>Available</Text>
+                </View>
               )}
               {usernameAvailable === false && !checkingUsername && (
-                <Text style={{ color: '#ef4444' }}>Taken ✗</Text>
+                <View style={styles.errorContainer}>
+                  <AlertCircle size={14} color="#dc2626" />
+                  <Text style={styles.errorText}>Username taken</Text>
+                </View>
               )}
             </View>
           )}
+          {fieldErrors.clientUsername && (
+            <View style={styles.errorContainer}>
+              <AlertCircle size={14} color="#dc2626" />
+              <Text style={styles.errorText}>{fieldErrors.clientUsername}</Text>
+            </View>
+          )}
           {!client && usernameSuggestions.length > 0 && (
-            <View
-              style={{
-                flexDirection: 'row',
-                flexWrap: 'wrap',
-                gap: 8,
-                marginTop: 8,
-              }}
-            >
+            <View style={styles.suggestionsContainer}>
               {usernameSuggestions.map(s => (
                 <TouchableOpacity
                   key={s}
                   onPress={() => setClientUsername(s)}
-                  style={{
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: '#e5e7eb',
-                  }}
+                  style={styles.suggestionChip}
                 >
-                  <Text>{s}</Text>
+                  <Text style={styles.suggestionText}>{s}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -689,67 +914,116 @@ export default function ClientForm({
 
       {!client && (
         <View style={styles.section}>
-          <Text style={styles.label}>Password</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={styles.label}>
+            Password<Text style={styles.required}> *</Text>
+          </Text>
+          <View style={styles.passwordContainer}>
             <TextInput
-              style={[styles.input, { flex: 1 }]}
+              style={[
+                styles.input,
+                styles.passwordInput,
+                fieldErrors.password && styles.inputError,
+              ]}
               placeholder="••••••••"
               secureTextEntry={!eyeOpen}
               value={password}
-              onChangeText={setPassword}
+              onChangeText={text => {
+                setPassword(text);
+                handleFieldValidation('password', text);
+              }}
+              onBlur={() => handleFieldValidation('password', password)}
             />
             <TouchableOpacity
               onPress={() => setEyeOpen(v => !v)}
-              style={{ marginLeft: 8 }}
+              style={styles.eyeIconButton}
             >
-              <Text style={{ color: 'blue' }}>{eyeOpen ? 'Hide' : 'Show'}</Text>
+              {eyeOpen ? (
+                <Eye size={20} color="#6b7280" />
+              ) : (
+                <EyeOff size={20} color="#6b7280" />
+              )}
             </TouchableOpacity>
           </View>
+          {fieldErrors.password && (
+            <View style={styles.errorContainer}>
+              <AlertCircle size={14} color="#dc2626" />
+              <Text style={styles.errorText}>{fieldErrors.password}</Text>
+            </View>
+          )}
         </View>
       )}
 
-      <View style={styles.section}>
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="contact@company.com"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-        />
-      </View>
+      {renderFormField(
+        'Email',
+        email,
+        (text) => {
+          setEmail(text);
+          handleFieldValidation('email', text);
+        },
+        'email',
+        { placeholder: 'contact@company.com', keyboardType: 'email-address' }
+      )}
 
-      <View style={styles.section}>
-        <Text style={styles.label}>Phone</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="+1 (555) 123-4567"
-          value={phone}
-          onChangeText={t => setPhone(t.replace(/[^0-9+()-\s]/g, ''))}
-          keyboardType="phone-pad"
-        />
-      </View>
+      {renderFormField(
+        'Phone',
+        phone,
+        (text) => {
+          const cleaned = text.replace(/[^0-9+()-\s]/g, '');
+          setPhone(cleaned);
+          handleFieldValidation('phone', cleaned);
+        },
+        'phone',
+        { placeholder: '+1 (555) 123-4567', keyboardType: 'phone-pad' }
+      )}
 
       {!client && !hideAdvanced && (
         <View style={styles.section}>
-          <Text style={styles.label}>Account Validity</Text>
-          <View style={{ flexDirection: 'row' }}>
-            <TextInput
-              style={[styles.input, { flex: 1, marginRight: 10 }]}
-              placeholder="e.g. 30"
-              value={String(validityAmount)}
-              onChangeText={v => setValidityAmount(Number(v || 0))}
-              keyboardType="numeric"
-            />
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              placeholder="Unit (days, months, years)"
-              value={validityUnit}
-              onChangeText={setValidityUnit}
-            />
+          <Text style={styles.label}>
+            Account Validity<Text style={styles.required}> *</Text>
+          </Text>
+          <View style={styles.validityRow}>
+            <View style={styles.validityInputContainer}>
+              <TextInput
+                style={[
+                  styles.input,
+                  fieldErrors.validityAmount && styles.inputError,
+                ]}
+                placeholder="30"
+                value={String(validityAmount)}
+                onChangeText={v => {
+                  setValidityAmount(Number(v || 0));
+                  handleFieldValidation('validityAmount', v);
+                }}
+                onBlur={() => handleFieldValidation('validityAmount', validityAmount)}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={styles.validityInputContainer}>
+              <TextInput
+                style={[
+                  styles.input,
+                  fieldErrors.validityUnit && styles.inputError,
+                ]}
+                placeholder="days"
+                value={validityUnit}
+                onChangeText={v => {
+                  setValidityUnit(v);
+                  handleFieldValidation('validityUnit', v);
+                }}
+                onBlur={() => handleFieldValidation('validityUnit', validityUnit)}
+              />
+            </View>
           </View>
-          {expiryPreview && (
-            <Text style={{ marginTop: 6, fontSize: 12, color: 'gray' }}>
+          {(fieldErrors.validityAmount || fieldErrors.validityUnit) && (
+            <View style={styles.errorContainer}>
+              <AlertCircle size={14} color="#dc2626" />
+              <Text style={styles.errorText}>
+                {fieldErrors.validityAmount || fieldErrors.validityUnit}
+              </Text>
+            </View>
+          )}
+          {expiryPreview && !fieldErrors.validityAmount && !fieldErrors.validityUnit && (
+            <Text style={styles.helperText}>
               This account will expire on {expiryPreview}.
             </Text>
           )}
@@ -758,26 +1032,6 @@ export default function ClientForm({
 
       {!hideAdvanced && (
         <>
-          {/* <View style={styles.section}>
-            <Text style={styles.label}>Max Companies</Text>
-            <TextInput
-              style={styles.input}
-              value={String(maxCompanies)}
-              onChangeText={v => setMaxCompanies(Number(v || 0))}
-              keyboardType="numeric"
-            />
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.label}>Max Users</Text>
-            <TextInput
-              style={styles.input}
-              value={String(maxUsers)}
-              onChangeText={v => setMaxUsers(Number(v || 0))}
-              keyboardType="numeric"
-            />
-          </View> */}
-
           <View style={styles.sectionRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Send Invoice via Email</Text>
@@ -800,23 +1054,16 @@ export default function ClientForm({
         </>
       )}
 
-      {/* Action Buttons for General Tab */}
-      <View
-        style={{
-          marginTop: 20,
-          flexDirection: 'row',
-          justifyContent: 'flex-end',
-        }}
-      >
-        <View style={{ marginRight: 8 }}>
-          <Text title="Cancel" onPress={onCancel} style={{ color: 'white', backgroundColor: '#007BFF', padding: 15, borderRadius: 5 , fontSize:16 , fontWeight: 'bold'}}>Cancel</Text>
-        </View>
+      <View style={styles.buttonRow}>
+        <TouchableOpacity onPress={onCancel} style={styles.cancelButton}>
+          <Text style={styles.cancelText}>Cancel</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           onPress={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || Object.keys(fieldErrors).length > 0}
           style={[
             styles.submitButton,
-            isSubmitting ? styles.buttonDisabled : null,
+            (isSubmitting || Object.keys(fieldErrors).length > 0) && styles.buttonDisabled,
           ]}
         >
           {isSubmitting ? (
@@ -831,7 +1078,6 @@ export default function ClientForm({
     </ScrollView>
   );
 
-  // Permissions Form Section
   const renderPermissionsForm = () => (
     <ScrollView style={styles.tabContent}>
       <View style={styles.section}>
@@ -845,37 +1091,79 @@ export default function ClientForm({
         <Text style={styles.label}>Limits</Text>
         <View style={styles.gridContainer}>
           <View style={styles.gridItem}>
-            <Text style={styles.gridLabel}>Max Companies</Text>
+            <Text style={styles.gridLabel}>
+              Max Companies<Text style={styles.required}> *</Text>
+            </Text>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                fieldErrors.maxCompanies && styles.inputError,
+              ]}
               value={String(currentPermissions.maxCompanies || '')}
-              onChangeText={v =>
-                handlePermissionChange('maxCompanies', Number(v || 0))
-              }
+              onChangeText={v => {
+                handlePermissionChange('maxCompanies', Number(v || 0));
+              }}
+              onBlur={() => handleFieldValidation('maxCompanies', currentPermissions.maxCompanies)}
               keyboardType="numeric"
             />
+            {fieldErrors.maxCompanies && (
+              <View style={styles.errorContainer}>
+                <AlertCircle size={12} color="#dc2626" />
+                <Text style={[styles.errorText, { fontSize: 11 }]}>
+                  {fieldErrors.maxCompanies}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.gridItem}>
-            <Text style={styles.gridLabel}>Max Users</Text>
+            <Text style={styles.gridLabel}>
+              Max Users<Text style={styles.required}> *</Text>
+            </Text>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                fieldErrors.maxUsers && styles.inputError,
+              ]}
               value={String(currentPermissions.maxUsers || '')}
-              onChangeText={v =>
-                handlePermissionChange('maxUsers', Number(v || 0))
-              }
+              onChangeText={v => {
+                handlePermissionChange('maxUsers', Number(v || 0));
+              }}
+              onBlur={() => handleFieldValidation('maxUsers', currentPermissions.maxUsers)}
               keyboardType="numeric"
             />
+            {fieldErrors.maxUsers && (
+              <View style={styles.errorContainer}>
+                <AlertCircle size={12} color="#dc2626" />
+                <Text style={[styles.errorText, { fontSize: 11 }]}>
+                  {fieldErrors.maxUsers}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.gridItem}>
-            <Text style={styles.gridLabel}>Max Inventories</Text>
+            <Text style={styles.gridLabel}>
+              Max Inventories<Text style={styles.required}> *</Text>
+            </Text>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                fieldErrors.maxInventories && styles.inputError,
+              ]}
               value={String(currentPermissions.maxInventories || '')}
-              onChangeText={v =>
-                handlePermissionChange('maxInventories', Number(v || 0))
-              }
+              onChangeText={v => {
+                handlePermissionChange('maxInventories', Number(v || 0));
+              }}
+              onBlur={() => handleFieldValidation('maxInventories', currentPermissions.maxInventories)}
               keyboardType="numeric"
             />
+            {fieldErrors.maxInventories && (
+              <View style={styles.errorContainer}>
+                <AlertCircle size={12} color="#dc2626" />
+                <Text style={[styles.errorText, { fontSize: 11 }]}>
+                  {fieldErrors.maxInventories}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       </View>
@@ -887,20 +1175,14 @@ export default function ClientForm({
             <Text style={styles.permissionLabel}>Send Invoice via Email</Text>
             <RNSwitch
               value={currentPermissions.canSendInvoiceEmail}
-              onValueChange={v =>
-                handlePermissionChange('canSendInvoiceEmail', v)
-              }
+              onValueChange={v => handlePermissionChange('canSendInvoiceEmail', v)}
             />
           </View>
           <View style={styles.permissionItem}>
-            <Text style={styles.permissionLabel}>
-              Send Invoice via WhatsApp
-            </Text>
+            <Text style={styles.permissionLabel}>Send Invoice via WhatsApp</Text>
             <RNSwitch
               value={currentPermissions.canSendInvoiceWhatsapp}
-              onValueChange={v =>
-                handlePermissionChange('canSendInvoiceWhatsapp', v)
-              }
+              onValueChange={v => handlePermissionChange('canSendInvoiceWhatsapp', v)}
             />
           </View>
           <View style={styles.permissionItem}>
@@ -914,9 +1196,7 @@ export default function ClientForm({
             <Text style={styles.permissionLabel}>Create Customers</Text>
             <RNSwitch
               value={currentPermissions.canCreateCustomers}
-              onValueChange={v =>
-                handlePermissionChange('canCreateCustomers', v)
-              }
+              onValueChange={v => handlePermissionChange('canCreateCustomers', v)}
             />
           </View>
           <View style={styles.permissionItem}>
@@ -930,45 +1210,37 @@ export default function ClientForm({
             <Text style={styles.permissionLabel}>Create Products</Text>
             <RNSwitch
               value={currentPermissions.canCreateProducts}
-              onValueChange={v =>
-                handlePermissionChange('canCreateProducts', v)
-              }
+              onValueChange={v => handlePermissionChange('canCreateProducts', v)}
             />
           </View>
           <View style={styles.permissionItem}>
             <Text style={styles.permissionLabel}>Create Companies</Text>
             <RNSwitch
               value={currentPermissions.canCreateCompanies}
-              onValueChange={v =>
-                handlePermissionChange('canCreateCompanies', v)
-              }
+              onValueChange={v => handlePermissionChange('canCreateCompanies', v)}
             />
           </View>
           <View style={styles.permissionItem}>
             <Text style={styles.permissionLabel}>Update Companies</Text>
             <RNSwitch
               value={currentPermissions.canUpdateCompanies}
-              onValueChange={v =>
-                handlePermissionChange('canUpdateCompanies', v)
-              }
+              onValueChange={v => handlePermissionChange('canUpdateCompanies', v)}
             />
           </View>
         </View>
       </View>
 
-      <View
-        style={{
-          marginTop: 20,
-          flexDirection: 'row',
-          justifyContent: 'flex-end',
-        }}
-      >
+      <View style={styles.buttonRow}>
         <TouchableOpacity
           onPress={handleSavePermissions}
-          disabled={isSavingPermissions}
+          disabled={isSavingPermissions || Object.keys(fieldErrors).some(k => 
+            ['maxCompanies', 'maxUsers', 'maxInventories'].includes(k)
+          )}
           style={[
             styles.submitButton,
-            isSavingPermissions ? styles.buttonDisabled : null,
+            (isSavingPermissions || Object.keys(fieldErrors).some(k => 
+              ['maxCompanies', 'maxUsers', 'maxInventories'].includes(k)
+            )) && styles.buttonDisabled,
           ]}
         >
           {isSavingPermissions ? (
@@ -981,61 +1253,73 @@ export default function ClientForm({
     </ScrollView>
   );
 
-  // Validity Form Section
   const renderValidityForm = () => (
     <ScrollView style={styles.tabContent}>
       <View style={styles.section}>
         <ClientValidityCard
           clientId={client._id}
-          onChanged={() => {
-            /* optional refresh handled by parent */
-          }}
+          onChanged={() => {}}
         />
       </View>
     </ScrollView>
   );
 
-  // Password Reset Form Section
   const renderPasswordForm = () => (
     <ScrollView style={styles.tabContent}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Reset Password</Text>
         <Text style={styles.sectionSubtitle}>
-          Set a new password for {client.contactName}. They will be notified of
-          this change.
+          Set a new password for {client.contactName}. They will be notified of this change.
         </Text>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.label}>New Password</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={styles.label}>
+          New Password<Text style={styles.required}> *</Text>
+        </Text>
+        <View style={styles.passwordContainer}>
           <TextInput
-            style={[styles.input, { flex: 1 }]}
+            style={[
+              styles.input,
+              styles.passwordInput,
+              fieldErrors.newPassword && styles.inputError,
+            ]}
             placeholder="Enter new password"
             secureTextEntry={!eyeOpenPassword}
             value={newPassword}
-            onChangeText={setNewPassword}
+            onChangeText={text => {
+              setNewPassword(text);
+              handleFieldValidation('newPassword', text);
+            }}
+            onBlur={() => handleFieldValidation('newPassword', newPassword)}
           />
           <TouchableOpacity
             onPress={() => setEyeOpenPassword(v => !v)}
-            style={{ marginLeft: 8 }}
+            style={styles.eyeIconButton}
           >
-            <Text style={{ color: 'blue' }}>
-              {eyeOpenPassword ? 'Hide' : 'Show'}
-            </Text>
+            {eyeOpenPassword ? (
+              <Eye size={20} color="#6b7280" />
+            ) : (
+              <EyeOff size={20} color="#6b7280" />
+            )}
           </TouchableOpacity>
         </View>
+        {fieldErrors.newPassword && (
+          <View style={styles.errorContainer}>
+            <AlertCircle size={14} color="#dc2626" />
+            <Text style={styles.errorText}>{fieldErrors.newPassword}</Text>
+          </View>
+        )}
       </View>
 
       <View style={{ marginTop: 20 }}>
         <TouchableOpacity
           onPress={handleResetPassword}
-          disabled={isSubmittingPassword || !newPassword.trim()}
+          disabled={isSubmittingPassword || !newPassword.trim() || fieldErrors.newPassword}
           style={[
             styles.submitButton,
-            isSubmittingPassword || !newPassword.trim()
-              ? styles.buttonDisabled
-              : null,
+            (isSubmittingPassword || !newPassword.trim() || fieldErrors.newPassword) && 
+              styles.buttonDisabled,
           ]}
         >
           {isSubmittingPassword ? (
@@ -1051,7 +1335,6 @@ export default function ClientForm({
   return (
     <View style={styles.container}>
       {client ? (
-        // Edit Mode with Tabs
         <>
           <View style={styles.tabContainer}>
             {renderTabButton('general', 'General')}
@@ -1068,7 +1351,6 @@ export default function ClientForm({
           </View>
         </>
       ) : (
-        // Create Mode - Simple Form
         renderGeneralForm()
       )}
     </View>
@@ -1135,6 +1417,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontSize: 16,
   },
+  required: {
+    color: '#dc2626',
+    fontSize: 14,
+  },
   gridLabel: {
     fontWeight: '600',
     marginBottom: 4,
@@ -1152,6 +1438,81 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     backgroundColor: '#fff',
+  },
+  inputDisabled: {
+    backgroundColor: '#f3f4f6',
+    color: '#6b7280',
+  },
+  inputError: {
+    borderColor: '#dc2626',
+  },
+  passwordContainer: {
+    position: 'relative',
+  },
+  passwordInput: {
+    paddingRight: 50,
+  },
+  eyeIconButton: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+    padding: 4,
+    zIndex: 1,
+  },
+  validationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#dc2626',
+    marginLeft: 4,
+  },
+  successContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  successText: {
+    fontSize: 12,
+    color: '#10b981',
+    marginLeft: 4,
+  },
+  helperText: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  suggestionsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  suggestionChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+  },
+  suggestionText: {
+    fontSize: 13,
+    color: '#374151',
+  },
+  validityRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  validityInputContainer: {
+    flex: 1,
   },
   gridContainer: {
     flexDirection: 'row',
@@ -1174,6 +1535,25 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
     borderRadius: 8,
     backgroundColor: '#f9fafb',
+  },
+  buttonRow: {
+    marginTop: 20,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  cancelButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+  },
+  cancelText: {
+    color: '#374151',
+    fontWeight: '600',
+    fontSize: 16,
   },
   submitButton: {
     backgroundColor: '#2563eb',

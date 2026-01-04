@@ -19,10 +19,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomDropdown from '../../components/ui/CustomDropdown';
-
+import HsnSacDropdown from '../ui/HsnSacDropdown.js';
 import { Combobox } from '../../components/ui/Combobox';
 import QuillEditor from '../../components/ui/QuillEditor';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Toast from 'react-native-toast-message';
 
 // Context
 import { useCompany } from '../../contexts/company-context.js';
@@ -317,6 +318,7 @@ export default function ProformaForm({
   const canSales = isSuper || !!userCaps?.canCreateSaleEntries;
   const canCreateCustomer = isSuper || !!userCaps?.canCreateCustomers;
   const canCreateInventory = isSuper || !!userCaps?.canCreateInventory;
+  const canCreateProducts = isSuper || !!userCaps?.canCreateProducts;
 
   // Populate form with transactionToEdit data
   useEffect(() => {
@@ -1070,14 +1072,34 @@ export default function ProformaForm({
                         }
                       }
                     }}
-                    placeholder="Select product..."
-                    creatable={canCreateInventory}
-                    onCreate={name => {
+                    placeholder={
+                      transactionToEdit && type === 'purchases'
+                        ? 'Select a product...'
+                        : 'Select or create a product...'
+                    }
+                    searchPlaceholder="Search products..."
+                    noResultsText="No product found."
+                    creatable={canCreateProducts}
+                    onCreate={async name => {
+                      if (!canCreateProducts) {
+                        Toast.show({
+                          type: 'error',
+                          text1: 'Permission denied',
+                          text2:
+                            "You don't have permission to create products.",
+                        });
+                        return '';
+                      }
                       setCreatingProductForIndex(index);
                       setNewEntityName(name);
                       setIsProductDialogOpen(true);
-                      return Promise.resolve(name);
+                      return '';
                     }}
+                    style={
+                      form.formState.errors?.items?.[index]?.product
+                        ? styles.errorBorder
+                        : {}
+                    }
                   />
                 </View>
               </View>
@@ -1244,7 +1266,7 @@ export default function ProformaForm({
               <View style={styles.formRow}>
                 <View style={styles.formField}>
                   <Text style={styles.label}>HSN Code</Text>
-                  <CustomDropdown
+                  <HsnSacDropdown
                     items={hsnOptions}
                     value={form.watch(`items.${index}.hsn`) || ''}
                     onChange={hsnCodeValue => {
@@ -1375,6 +1397,14 @@ export default function ProformaForm({
                     placeholder="Select service..."
                     creatable={canCreateInventory}
                     onCreate={name => {
+                      if (!canCreateInventory) {
+                        setSnackbar({
+                          visible: true,
+                          message: 'Permission denied to create services.',
+                          type: 'error',
+                        });
+                        return '';
+                      }
                       setCreatingServiceForIndex(index);
                       setNewServiceName(name);
                       setIsServiceDialogOpen(true);
@@ -1445,7 +1475,7 @@ export default function ProformaForm({
               <View style={styles.formRow}>
                 <View style={styles.formField}>
                   <Text style={styles.label}>SAC Code</Text>
-                  <CustomDropdown
+                  <HsnSacDropdown
                     items={sacOptions}
                     value={form.watch(`items.${index}.sac`) || ''}
                     onChange={sacCodeValue => {
@@ -1651,6 +1681,14 @@ export default function ProformaForm({
                 placeholder="Select customer..."
                 creatable={canCreateCustomer}
                 onCreate={name => {
+                  if (!canCreateCustomer) {
+                    setSnackbar({
+                      visible: true,
+                      message: 'Permission denied to create customers.',
+                      type: 'error',
+                    });
+                    return '';
+                  }
                   setNewCustomerName(name);
                   setIsCreateCustomerOpen(true);
                   return Promise.resolve(name);
@@ -1848,13 +1886,27 @@ export default function ProformaForm({
         onRequestClose={() => setIsCreateCustomerOpen(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Create New Customer</Text>
-            <CustomerForm
-              initialName={newCustomerName}
-              onSuccess={handleCustomerCreated}
-              onCancel={() => setIsCreateCustomerOpen(false)}
-            />
+          <View style={[styles.modalContent, styles.modalContentWithHeader]}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderTitle}>
+                <Text style={styles.modalTitle}>Create New Customer</Text>
+                <Text style={styles.modalSubTitle}>
+                  Add a customer to use in this proforma
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setIsCreateCustomerOpen(false)}>
+                <Text style={styles.modalCloseIcon}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalInner}>
+              <CustomerForm
+                initialName={newCustomerName}
+                onSuccess={handleCustomerCreated}
+                onCancel={() => setIsCreateCustomerOpen(false)}
+                hideHeader={true}
+              />
+            </View>
           </View>
         </View>
       </Modal>
@@ -1866,14 +1918,28 @@ export default function ProformaForm({
         onRequestClose={() => setIsProductDialogOpen(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Create New Product</Text>
-            <ProductForm
-              productType={'product'}
-              onSuccess={handleProductCreated}
-              initialName={newEntityName}
-              onCancel={() => setIsProductDialogOpen(false)}
-            />
+          <View style={[styles.modalContent, styles.modalContentWithHeader]}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderTitle}>
+                <Text style={styles.modalTitle}>Create New Product</Text>
+                <Text style={styles.modalSubTitle}>
+                  Add a product to use in this proforma
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setIsProductDialogOpen(false)}>
+                <Text style={styles.modalCloseIcon}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalInner}>
+              <ProductForm
+                productType={'product'}
+                onSuccess={handleProductCreated}
+                initialName={newEntityName}
+                onClose={() => setIsProductDialogOpen(false)}
+                hideHeader={true}
+              />
+            </View>
           </View>
         </View>
       </Modal>
@@ -1885,13 +1951,26 @@ export default function ProformaForm({
         onRequestClose={() => setIsServiceDialogOpen(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Create New Service</Text>
-            <ServiceForm
-              onSuccess={handleServiceCreated}
-              initialName={newServiceName}
-              onCancel={() => setIsServiceDialogOpen(false)}
-            />
+          <View style={[styles.modalContent, styles.modalContentWithHeader]}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderTitle}>
+                <Text style={styles.modalTitle}>Create New Service</Text>
+                <Text style={styles.modalSubTitle}>
+                  Add a service to use in this proforma
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setIsServiceDialogOpen(false)}>
+                <Text style={styles.modalCloseIcon}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalInner}>
+              <ServiceForm
+                onSuccess={handleServiceCreated}
+                initialName={newServiceName}
+                onClose={() => setIsServiceDialogOpen(false)}
+              />
+            </View>
           </View>
         </View>
       </Modal>
@@ -1931,9 +2010,10 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     backgroundColor: '#fff',
+    paddingTop: 100,
   },
   loadingText: {
     marginTop: 16,
@@ -2163,8 +2243,41 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 16,
-    textAlign: 'center',
+    marginBottom: 4,
+  },
+  modalSubTitle: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    flexWrap: 'nowrap',
+  },
+  modalHeaderTitle: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  modalContentWithHeader: {
+    padding: 0,
+    height: '88%',
+    width: '94%',
+  },
+  modalInner: {
+    flex: 1,
+    padding: 16,
+  },
+  modalCloseIcon: {
+    fontSize: 20,
+    color: '#666',
+    padding: 8,
+    alignSelf: 'flex-start',
   },
   snackbar: {
     position: 'absolute',

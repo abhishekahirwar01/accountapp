@@ -433,7 +433,7 @@ export function EmailSendingConsent() {
   return (
     <View style={styles.container}>
       {/* Reconnect Notice */}
-      {needsReconnect && (
+      {/* {needsReconnect && (
         <View style={styles.alertContainer}>
           <View style={styles.alertHeader}>
             <Icon name="alert-triangle" size={20} color="#f59e0b" />
@@ -468,7 +468,7 @@ export function EmailSendingConsent() {
             )}
           </TouchableOpacity>
         </View>
-      )}
+      )} */}
 
       {/* Email Account Card */}
       <View style={styles.card}>
