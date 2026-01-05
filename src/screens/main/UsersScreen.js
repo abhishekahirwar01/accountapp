@@ -42,6 +42,8 @@ import { useToast } from '../../components/hooks/useToast';
 import AppLayout from '../../components/layout/AppLayout';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
+import { usePermissions } from '../../contexts/permission-context';
+import { useUserPermissions } from '../../contexts/user-permissions-context';
 
 const base64Decode = str => {
   const chars =
@@ -70,6 +72,8 @@ export default function UsersPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   const { toast } = useToast();
+  const { permissions, refetch } = usePermissions();
+  const { refetch: refetchUserPermissions } = useUserPermissions();
   const userLoginUrl = 'https://yourapp.com/user-login';
 
   useEffect(() => {
@@ -138,10 +142,12 @@ export default function UsersPage() {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await fetchUsersAndCompanies(true);
-      toast({
-        title: 'Users data refreshed successfully',
-      });
+      await Promise.all([
+        fetchUsersAndCompanies(true),
+        refetch ? refetch() : Promise.resolve(),
+        refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
+      ]);
+      toast({ title: 'Users data refreshed successfully' });
     } catch (error) {
       Alert.alert('Refresh Failed', error.message || 'Failed to refresh data');
     } finally {
@@ -188,8 +194,9 @@ export default function UsersPage() {
       if (!res.ok) {
         Alert.alert(
           'Operation Failed',
-          data.message || `Failed to ${selectedUser ? 'update' : 'create'} user.`,
-          [{ text: 'OK' }]
+          data.message ||
+            `Failed to ${selectedUser ? 'update' : 'create'} user.`,
+          [{ text: 'OK' }],
         );
         return; // Keep dialog open
       }
@@ -206,7 +213,7 @@ export default function UsersPage() {
       Alert.alert(
         'Operation Failed',
         error.message || 'Something went wrong.',
-        [{ text: 'OK' }]
+        [{ text: 'OK' }],
       );
     }
   };
@@ -240,10 +247,7 @@ export default function UsersPage() {
       setIsAlertOpen(false);
       setUserToDelete(null);
     } catch (error) {
-      Alert.alert(
-        'Deletion Failed',
-        error.message || 'Something went wrong.'
-      );
+      Alert.alert('Deletion Failed', error.message || 'Something went wrong.');
     }
   };
 
@@ -272,7 +276,7 @@ export default function UsersPage() {
     return (
       <AppLayout>
         <SafeAreaView style={styles.safeArea}>
-          <ScrollView 
+          <ScrollView
             contentContainerStyle={styles.scrollContainer}
             refreshControl={
               <RefreshControl
@@ -293,7 +297,8 @@ export default function UsersPage() {
                     Company Setup Required
                   </Text>
                   <Text style={styles.noCompanyDescription}>
-                    Contact us to enable your company account and access all features.
+                    Contact us to enable your company account and access all
+                    features.
                   </Text>
                   <View style={styles.contactButtons}>
                     <TouchableOpacity style={styles.phoneButton}>
@@ -316,7 +321,7 @@ export default function UsersPage() {
 
   return (
     <AppLayout>
-      <ScrollView 
+      <ScrollView
         style={styles.container}
         refreshControl={
           <RefreshControl
@@ -335,13 +340,15 @@ export default function UsersPage() {
             </View>
             <View style={styles.headerActions}>
               <View style={styles.viewToggle} />
-              <Button
-                style={styles.addUser}
-                onPress={() => handleOpenForm()}
-                icon="plus-circle"
-              >
-                Add User
-              </Button>
+              {permissions?.canCreateUsers && (
+                <Button
+                  style={styles.addUser}
+                  onPress={() => handleOpenForm()}
+                  icon="plus-circle"
+                >
+                  Add User
+                </Button>
+              )}
             </View>
           </View>
 
@@ -365,7 +372,9 @@ export default function UsersPage() {
 
           <Card>
             <CardContent
-              style={viewMode === 'card' ? styles.cardContent : styles.listContent}
+              style={
+                viewMode === 'card' ? styles.cardContent : styles.listContent
+              }
             >
               {isLoading ? (
                 <View style={styles.loadingContainer}>
@@ -391,12 +400,24 @@ export default function UsersPage() {
                 <View style={styles.emptyState}>
                   <Icon name="users" size={48} color="#999" />
                   <Text style={styles.emptyStateTitle}>No Users Found</Text>
-                  <Text style={styles.emptyStateDescription}>
-                    Get started by adding your first user.
-                  </Text>
-                  <Button onPress={() => handleOpenForm()} icon="plus-circle">
-                    Add User
-                  </Button>
+                  {permissions?.canCreateUsers ? (
+                    <>
+                      <Text style={styles.emptyStateDescription}>
+                        Get started by adding your first user.
+                      </Text>
+                      <Button
+                        onPress={() => handleOpenForm()}
+                        icon="plus-circle"
+                      >
+                        Add User
+                      </Button>
+                    </>
+                  ) : (
+                    <Text style={styles.emptyStateDescription}>
+                      Please contact your Admin to provide permission for adding
+                      users.
+                    </Text>
+                  )}
                 </View>
               )}
             </CardContent>
@@ -424,8 +445,8 @@ export default function UsersPage() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete
-                  the user account.
+                  This action cannot be undone. This will permanently delete the
+                  user account.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

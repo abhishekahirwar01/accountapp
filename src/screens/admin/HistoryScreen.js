@@ -17,6 +17,7 @@ import {
   TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { BASE_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -199,6 +200,7 @@ const dropdownStyles = StyleSheet.create({
 });
 
 const HistoryScreen = () => {
+  const navigation = useNavigation();
   const [clients, setClients] = useState([]);
   const [validityByClient, setValidityByClient] = useState({});
   const [isValidityLoading, setIsValidityLoading] = useState(false);
@@ -692,11 +694,15 @@ const HistoryScreen = () => {
       >
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <View style={styles.headerIcon}>
-              <Icon name={iconMap.Sparkles} size={24} color="#3b82f6" />
-            </View>
-            <View>
+          <View style={styles.headerTop}>
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Icon name="arrow-left" size={24} color="#1e293b" />
+            </TouchableOpacity>
+            
+            <View style={styles.headerContent}>
               <Text style={styles.headerTitle}>Client History</Text>
               <Text style={styles.headerSubtitle}>
                 View client details and notification history
@@ -971,32 +977,55 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: 24,
+    padding: 20,
     paddingBottom: 16,
+    backgroundColor: '#f8fafc',
   },
-  headerLeft: {
+  headerTop: {
     flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
+    alignItems: 'flex-start',
+    marginBottom: 16,
   },
-  headerIcon: {
-    padding: 8,
-    backgroundColor: '#dbeafe',
-    borderRadius: 12,
-    marginRight: 12,
+  backButton: {
+    paddingTop: 10,
+    // backgroundColor: 'white',
+    // borderRadius: 12,
+    // shadowColor: '#000',
+    // shadowOffset: { width: 0, height: 1 },
+    // shadowOpacity: 0.1,
+    // shadowRadius: 2,
+    // elevation: 2,
+    marginRight: 16,
+  },
+  headerContent: {
+    flex: 1,
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#1e293b',
+    marginBottom: 4,
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#64748b',
-    marginTop: 4,
+    lineHeight: 20,
+  },
+  headerStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    padding: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    alignSelf: 'flex-start',
+    marginLeft: 56,
   },
   headerStats: {
     flexDirection: 'row',
@@ -1088,15 +1117,8 @@ const styles = StyleSheet.create({
   loadingContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
-    backgroundColor: 'white',
     margin: 16,
     borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
   },
   loadingTitle: {
     fontSize: 16,
@@ -1107,6 +1129,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#94a3b8',
     marginTop: 4,
+  },
+  loadingText: {
+    fontSize: 12,
+    color: '#64748b',
+    marginLeft: 8,
   },
   clientsGrid: {
     padding: 16,
@@ -1263,8 +1290,6 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
   },
-
-  // Modal / Notifications styles
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

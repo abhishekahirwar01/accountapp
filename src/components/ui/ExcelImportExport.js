@@ -63,7 +63,7 @@ const ExcelImportExport = ({
         document.body.removeChild(a);
 
         // Show success Alert
-        Alert.alert('Success', 'Template downloaded successfully!', [
+        Alert.alert('Download Success', 'Template downloaded successfully!', [
           { text: 'OK', style: 'default' },
         ]);
       } else {
@@ -72,7 +72,7 @@ const ExcelImportExport = ({
         await RNFS.writeFile(filePath, wbout, 'base64');
 
         // Show success Alert for mobile
-        Alert.alert('Success', `Template saved to Downloads folder`, [
+        Alert.alert('Download Success', `Template saved to Downloads folder`, [
           { text: 'OK', style: 'default' },
         ]);
       }
@@ -368,13 +368,24 @@ const ExcelImportExport = ({
           onDismiss={handleCloseDialog}
           style={styles.dialog}
         >
-          <Dialog.Title style={styles.dialogTitle}>
-            {isImporting
-              ? 'Importing...'
-              : statusInfo
-              ? statusInfo.title
-              : 'Import/Export Excel'}
-          </Dialog.Title>
+          {/* Header Container: Title and Close button aligned in one row */}
+          <View style={styles.dialogHeader}>
+            <Dialog.Title style={styles.dialogTitle}>
+              {isImporting
+                ? 'Importing...'
+                : statusInfo
+                ? statusInfo.title
+                : 'Import/Export Excel'}
+            </Dialog.Title>
+
+            <TouchableOpacity
+              style={styles.dialogCloseButton}
+              onPress={handleCloseDialog}
+              accessibilityLabel="Close import dialog"
+            >
+              <Icon name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
 
           <Dialog.Content style={styles.dialogContent}>
             {isImporting ? (
@@ -459,6 +470,9 @@ const ExcelImportExport = ({
                   >
                     Download Template
                   </Button>
+                  <Text style={styles.downloadHelper}>
+                    Download the template file to fill in your data
+                  </Text>
                 </View>
 
                 <View style={styles.divider} />
@@ -520,11 +534,6 @@ const ExcelImportExport = ({
           </Dialog.Content>
 
           <Dialog.Actions style={styles.dialogActions}>
-            {!isImporting && !importStatus && (
-              <Button onPress={handleCloseDialog} textColor="#666">
-                Close
-              </Button>
-            )}
             {importStatus && importStatus !== 'success' && (
               <Button onPress={handleClearImport} textColor="#666">
                 Try Again
@@ -565,9 +574,25 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     textAlign: 'center',
+    marginHorizontal: 40,
+    marginTop: 10,
   },
   dialogContent: {
-    paddingHorizontal: 4,
+    paddingHorizontal: 26,
+  },
+  dialogHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 4,
+    position: 'relative',
+  },
+  dialogCloseButton: {
+    position: 'absolute',
+    top: 0,
+    right: 15,
+    zIndex: 10,
+    padding: 4,
   },
   dialogActions: {
     paddingHorizontal: 16,
@@ -585,6 +610,13 @@ const styles = StyleSheet.create({
   actionButton: {
     width: '100%',
     marginVertical: 4,
+  },
+  downloadHelper: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 8,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
   divider: {
     height: 1,

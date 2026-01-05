@@ -21,6 +21,7 @@ import {
   Keyboard,
   ActivityIndicator,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useForm, useFieldArray, useWatch, Controller } from 'react-hook-form';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -196,22 +197,50 @@ Dialog.Content = ({ children }) => (
   <View style={styles.dialogContent}>{children}</View>
 );
 
-const IconButton = ({ icon, onPress, size = 24, style }) => (
+const IconButton = ({ icon, onPress, size = 24, style, color = '#666' }) => (
   <TouchableOpacity onPress={onPress} style={[styles.iconButton, style]}>
-    <Text style={{ fontSize: size }}>{icon}</Text>
+    <Icon name={icon} size={size} color={color} />
   </TouchableOpacity>
 );
 
-const IconAction = ({ iconName, label, onPress, disabled }) => (
-  <TouchableOpacity
-    onPress={onPress}
-    disabled={disabled}
-    style={styles.iconActionContainer}
-  >
-    <Icon name={iconName} size={32} color={disabled ? '#AAA' : '#007AFF'} />
-    <Text style={styles.iconActionLabel}>{label}</Text>
-  </TouchableOpacity>
-);
+const IconAction = ({ iconName, label, onPress, disabled }) => {
+  let icon = iconName;
+  let color = '#007AFF';
+
+  switch (iconName) {
+    case 'whatsapp':
+      icon = 'whatsapp';
+      color = '#25D366';
+      break;
+    case 'download':
+      icon = 'download';
+      color = '#007AFF';
+      break;
+    case 'email':
+      icon = 'email-outline';
+      color = '#D44638';
+      break;
+    case 'printer':
+    case 'print':
+      icon = 'printer';
+      color = '#374151';
+      break;
+    default:
+      icon = iconName;
+      color = '#007AFF';
+  }
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={disabled}
+      style={styles.iconActionContainer}
+    >
+      <Icon name={icon} size={32} color={disabled ? '#AAA' : color} />
+      <Text style={styles.iconActionLabel}>{label}</Text>
+    </TouchableOpacity>
+  );
+};
 
 // const ActivityIndicator = ({ size, color }) => (
 //   <View style={styles.activityIndicator}>
@@ -347,6 +376,8 @@ export function TransactionForm({
     message: '',
     type: 'default',
   });
+
+  const navigation = useNavigation();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPartyDialogOpen, setIsPartyDialogOpen] = useState(false);
@@ -1452,7 +1483,8 @@ export function TransactionForm({
         : undefined,
       totalAmount: transactionToEdit.totalAmount || transactionToEdit.amount,
       items: itemsToSet,
-      description: transactionToEdit.description || transactionToEdit.narration || '',
+      description:
+        transactionToEdit.description || transactionToEdit.narration || '',
       narration: transactionToEdit.narration || '',
       party: partyId,
       referenceNumber: transactionToEdit.referenceNumber,
@@ -2161,16 +2193,16 @@ export function TransactionForm({
         delete payload.party;
       }
 
-    if (values.type === 'journal') {
-      payload.debitAccount = values.fromAccount;
-      payload.creditAccount = values.toAccount;
-      payload.amount = Number(values.totalAmount ?? 0);
-      payload.narration = values.description || '';
+      if (values.type === 'journal') {
+        payload.debitAccount = values.fromAccount;
+        payload.creditAccount = values.toAccount;
+        payload.amount = Number(values.totalAmount ?? 0);
+        payload.narration = values.description || '';
 
-      delete payload.items;
-      delete payload.totalAmount;
-      delete payload.taxAmount;
-    }
+        delete payload.items;
+        delete payload.totalAmount;
+        delete payload.taxAmount;
+      }
 
       const res = await fetch(`${BASE_URL}${endpoint}`, {
         method,
@@ -2645,10 +2677,16 @@ export function TransactionForm({
             {
               text: 'Open Settings',
               onPress: () => {
-                // Navigate to settings screen
-                // navigation.navigate('Settings', { screen: 'Integrations' });
-                // Or open settings URL if available
-                Linking.openURL('app-settings:').catch(() => {});
+                // Navigate to Profile screen Permissions tab so user can connect Gmail
+                try {
+                  setIsEmailDialogOpen(false);
+                  navigation.navigate('ProfileScreen', {
+                    selectTab: 'permissions',
+                  });
+                } catch (e) {
+                  // Fallback to OS settings if navigation fails
+                  Linking.openURL('app-settings:').catch(() => {});
+                }
               },
             },
             { text: 'OK', style: 'cancel' },
@@ -2789,10 +2827,7 @@ export function TransactionForm({
       // Optional: Show an alert with more details
       Alert.alert(
         'Invoice Saved Successfully',
-        `Invoice ${invoiceNumber} has been saved as ${fname}\n\n` +
-          (copiedToDownloads
-            ? `Location: Downloads folder\nPath: ${downloadsFilePath}`
-            : `Location: App storage\nPath: ${appFilePath}`),
+        `Invoice ${invoiceNumber} has been saved as ${fname}`,
         [
           { text: 'OK', style: 'default' },
           // Only show "Open File" option if we have a reliable way to open it
@@ -3783,7 +3818,12 @@ export function TransactionForm({
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text variant="headlineSmall">Invoice Preview</Text>
-            <IconButton icon="✕" size={24} onPress={handlePreviewClose} />
+            <IconButton
+              icon="close"
+              size={24}
+              onPress={handlePreviewClose}
+              color="#666"
+            />
           </View>
 
           <InvoiceTemplateRenderer invoiceData={generatedInvoice} />
@@ -3824,7 +3864,7 @@ export function TransactionForm({
         </View>
       </Modal>
 
-      {/* Email Status Dialog */}
+      {/* Email Status Dialog - commented out per request. Use Alert.alert instead.
       <Modal
         visible={isEmailDialogOpen}
         transparent
@@ -3848,6 +3888,7 @@ export function TransactionForm({
           </View>
         </View>
       </Modal>
+      */}
 
       {/* WhatsApp Composer Dialog */}
       <WhatsAppComposerDialog

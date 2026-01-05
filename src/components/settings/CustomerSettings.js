@@ -610,9 +610,7 @@ export function CustomerSettings() {
 
   const downloadTemplate = async () => {
     setIsDownloading(true);
-
     try {
-      // Create sample customer data
       const headers = [
         'name',
         'contactNumber',
@@ -628,55 +626,11 @@ export function CustomerSettings() {
         'tdsRate',
         'tdsSection',
       ];
-
-      // Add note about duplicate prevention
       const note = [
         ['IMPORTANT NOTES:', '', '', '', '', '', '', '', '', '', '', '', ''],
-        [
-          '1. name is REQUIRED and should be unique',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-        ],
-        [
-          '2. Customers with duplicate names will be skipped automatically',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-        ],
-        [
-          '3. For TDS Applicable, use "Yes"/"No" or "true"/"false"',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-        ],
+        ['1. name is REQUIRED and should be unique'],
+        ['2. Customers with duplicate names will be skipped automatically'],
+        ['3. For TDS Applicable, use "Yes"/"No" or "true"/"false"'],
         ['', '', '', '', '', '', '', '', '', '', '', '', ''],
         headers,
       ];
@@ -697,101 +651,50 @@ export function CustomerSettings() {
           '0',
           '',
         ],
-        [
-          'Dr. Sharma Clinic',
-          '9876543211',
-          'sharma@clinic.com',
-          '456 Health Avenue',
-          'Delhi',
-          'Delhi',
-          '110001',
-          '',
-          'Unregistered',
-          'FGHIJ5678K',
-          'true',
-          '10',
-          '194J',
-        ],
-        [
-          'Small Business',
-          '9876543213',
-          'business@example.com',
-          '789 Trade Lane',
-          'Chennai',
-          'Tamil Nadu',
-          '600001',
-          '33COMP1234C1Z2',
-          'Composition',
-          'COMP1234C',
-          'false',
-          '0',
-          '',
-        ],
-        [
-          'Overseas Client',
-          '9876543214',
-          'overseas@client.com',
-          '123 International Road',
-          'New York',
-          'New York',
-          '10001',
-          '',
-          'Overseas',
-          '',
-          'false',
-          '0',
-          '',
-        ],
-        [
-          'Local Consumer',
-          '9876543215',
-          'consumer@example.com',
-          '456 Local Street',
-          'Mumbai',
-          'Maharashtra',
-          '400001',
-          '',
-          'Consumer',
-          '',
-          'false',
-          '0',
-          '',
-        ],
       ];
 
-      // Create workbook
       const ws = XLSX.utils.aoa_to_sheet([...note, ...sampleData]);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Customer Template');
-
-      // Generate Excel file
       const excelBuffer = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
 
-      // Save to downloads
-      const fileName = 'customer_import_template.xlsx';
-      const filePath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
+      const fileName = `customer_template_${Date.now()}.xlsx`;
+
+      // Determine Path Based on Platform
+      let filePath = '';
+      if (Platform.OS === 'android') {
+        // Path to the public Downloads folder
+        filePath = `${RNFS.ExternalStorageDirectoryPath}/Download/${fileName}`;
+      } else {
+        filePath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
+      }
 
       await RNFS.writeFile(filePath, excelBuffer, 'base64');
 
+      // CRITICAL STEP: Scan file so it appears in Media/File Manager immediately
+      if (Platform.OS === 'android') {
+        await RNFS.scanFile(filePath);
+      }
+
+      Alert.alert(
+        'Download Successful',
+        `File saved to: ${
+          Platform.OS === 'android' ? 'Downloads Folder' : 'Documents'
+        }\n\nName: ${fileName}`,
+        [{ text: 'OK' }],
+      );
+
       Toast.show({
         type: 'success',
-        text1: 'Template Downloaded',
-        text2: 'Excel template has been downloaded to your device.',
+        text1: 'Downloaded',
+        text2: 'Template saved to Downloads folder',
       });
-
-      try {
-        Alert.alert(
-          'Template Downloaded',
-          'Excel template has been downloaded to your device.',
-        );
-      } catch (e) {}
     } catch (error) {
       console.error('Download error:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Download Failed',
-        text2: error.message || 'Failed to download template.',
-      });
+      Alert.alert(
+        'Error',
+        'Could not save file. Please check storage permissions.',
+      );
     } finally {
       setIsDownloading(false);
     }

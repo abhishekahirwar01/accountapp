@@ -313,7 +313,7 @@ export const SalesPurchasesFields = props => {
   const [banks, setBanks] = useState(propBanks || []);
   const [selectedBank, setSelectedBank] = useState('');
   const [paymentExpenses, setPaymentExpenses] = useState([]);
-  const [sameAsBilling, setSameAsBilling] = useState(false);
+  const [sameAsBilling, setSameAsBilling] = useState(true);
   const [shippingAddress, setShippingAddress] = useState('');
   const [selectedUnitIndex, setSelectedUnitIndex] = useState(null);
   const fieldRefs = useRef({});
@@ -2086,13 +2086,13 @@ export const SalesPurchasesFields = props => {
                   <FormMessage error={errors.bank} />
 
                   {/* Show auto-selection info */}
-                  {banks && banks.length > 0 && isBankAutoSelected && (
+                  {/* {banks && banks.length > 0 && isBankAutoSelected && (
                     <Text style={styles.autoSelectText}>
                       {banks.length === 1
                         ? 'Only one bank available - auto-selected'
                         : 'First bank auto-selected - you can change it'}
                     </Text>
-                  )}
+                  )} */}
                 </View>
               )}
             </View>
