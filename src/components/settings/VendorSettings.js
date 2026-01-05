@@ -23,6 +23,7 @@ import {
   MoreHorizontal,
   PlusCircle,
   Building,
+  User,
   Check,
   X,
   Phone,
@@ -43,6 +44,13 @@ import { useUserPermissions } from '../../contexts/user-permissions-context';
 import { usePermissions } from '../../contexts/permission-context';
 import { capitalizeWords } from '../../lib/utils';
 import { BASE_URL } from '../../config';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '../../components/ui/Dialog';
 
 export function VendorSettings() {
   const [vendors, setVendors] = useState([]);
@@ -59,7 +67,10 @@ export function VendorSettings() {
   const [importStatus, setImportStatus] = useState(null);
   const [failedItems, setFailedItems] = useState([]);
   const [skippedItems, setSkippedItems] = useState([]);
-  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [importProgress, setImportProgress] = useState({
+    current: 0,
+    total: 0,
+  });
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -104,7 +115,6 @@ export function VendorSettings() {
       const data = await res.json();
       setCompanies(Array.isArray(data) ? data : data.companies || []);
     } catch (err) {
-      console.error(err);
     } finally {
       setIsLoadingCompanies(false);
     }
@@ -169,28 +179,31 @@ export function VendorSettings() {
     fetchVendors();
     Toast.show({
       type: 'success',
-      text1: selectedVendor ? 'Vendor updated successfully' : 'Vendor created successfully',
+      text1: selectedVendor
+        ? 'Vendor updated successfully'
+        : 'Vendor created successfully',
     });
     setSelectedVendor(null);
   };
 
   // Check if vendor exists by name (case insensitive)
-  const checkVendorExistsByName = (vendorName) => {
+  const checkVendorExistsByName = vendorName => {
     if (!vendorName || !vendors.length) return false;
-    
+
     const normalizedVendorName = vendorName.trim().toLowerCase();
-    return vendors.some(vendor => 
-      vendor.vendorName?.trim().toLowerCase() === normalizedVendorName
+    return vendors.some(
+      vendor =>
+        vendor.vendorName?.trim().toLowerCase() === normalizedVendorName,
     );
   };
 
   // Check if vendor exists by GSTIN
-  const checkVendorExistsByGSTIN = (gstin) => {
+  const checkVendorExistsByGSTIN = gstin => {
     if (!gstin || !vendors.length) return false;
-    
+
     const normalizedGSTIN = gstin.trim().toUpperCase();
-    return vendors.some(vendor => 
-      vendor.gstin?.trim().toUpperCase() === normalizedGSTIN
+    return vendors.some(
+      vendor => vendor.gstin?.trim().toUpperCase() === normalizedGSTIN,
     );
   };
 
@@ -199,16 +212,16 @@ export function VendorSettings() {
     try {
       // Read file content
       const fileContent = await RNFS.readFile(fileUri, 'base64');
-      
+
       if (!fileContent) {
         throw new Error('Failed to read file content');
       }
 
       // Determine file type
       const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
-      
+
       let jsonData = [];
-      
+
       if (isExcel) {
         // Parse Excel file
         const workbook = XLSX.read(fileContent, { type: 'base64' });
@@ -218,16 +231,22 @@ export function VendorSettings() {
       } else {
         // Parse CSV file
         const textContent = atob(fileContent);
-        const lines = textContent.split('\n').filter(line => line.trim() !== '');
-        
+        const lines = textContent
+          .split('\n')
+          .filter(line => line.trim() !== '');
+
         if (lines.length === 0) {
           throw new Error('CSV file is empty');
         }
-        
-        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-        
+
+        const headers = lines[0]
+          .split(',')
+          .map(h => h.trim().replace(/"/g, ''));
+
         for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+          const values = lines[i]
+            .split(',')
+            .map(v => v.trim().replace(/"/g, ''));
           const row = {};
           headers.forEach((header, index) => {
             row[header] = values[index] || '';
@@ -239,19 +258,31 @@ export function VendorSettings() {
       console.log('Parsed data:', jsonData);
       return jsonData;
     } catch (error) {
-      console.error('Parse error:', error);
       throw new Error(`Failed to parse file: ${error.message}`);
     }
   };
 
   // Transform CSV/Excel data to match vendor schema
-  const transformVendorData = (data) => {
+  const transformVendorData = data => {
     return data.map((row, index) => {
       // Normalize and clean data
-      const vendorName = (row.vendorName || row['Vendor Name'] || row['vendor name'] || '').trim();
-      const contactNumber = (row.contactNumber || row['Contact Number'] || row['contact number'] || row.phone || '').trim();
-      const gstin = (row.gstin || row.GSTIN || row.gst || '').toUpperCase().trim();
-      
+      const vendorName = (
+        row.vendorName ||
+        row['Vendor Name'] ||
+        row['vendor name'] ||
+        ''
+      ).trim();
+      const contactNumber = (
+        row.contactNumber ||
+        row['Contact Number'] ||
+        row['contact number'] ||
+        row.phone ||
+        ''
+      ).trim();
+      const gstin = (row.gstin || row.GSTIN || row.gst || '')
+        .toUpperCase()
+        .trim();
+
       return {
         vendorName,
         contactNumber,
@@ -260,13 +291,18 @@ export function VendorSettings() {
         city: (row.city || row.City || '').trim(),
         state: (row.state || row.State || '').trim(),
         gstin,
-        gstRegistrationType: (row.gstRegistrationType || row['GST Registration Type'] || 'Regular').trim(),
+        gstRegistrationType: (
+          row.gstRegistrationType ||
+          row['GST Registration Type'] ||
+          'Regular'
+        ).trim(),
         pan: (row.pan || row.PAN || '').toUpperCase().trim(),
-        isTDSApplicable: row.isTDSApplicable === 'true' || 
-                         row.isTDSApplicable === true || 
-                         row['TDS Applicable'] === 'true' ||
-                         (row.isTDSApplicable || '').toString().toLowerCase() === 'yes' ||
-                         (row.isTDSApplicable || '').toString().toLowerCase() === 'y',
+        isTDSApplicable:
+          row.isTDSApplicable === 'true' ||
+          row.isTDSApplicable === true ||
+          row['TDS Applicable'] === 'true' ||
+          (row.isTDSApplicable || '').toString().toLowerCase() === 'yes' ||
+          (row.isTDSApplicable || '').toString().toLowerCase() === 'y',
         tdsRate: parseFloat(row.tdsRate || row['TDS Rate'] || 0),
         tdsSection: (row.tdsSection || row['TDS Section'] || '').trim(),
         // Add reference for tracking
@@ -276,35 +312,39 @@ export function VendorSettings() {
   };
 
   // Filter out existing vendors
-  const filterExistingVendors = (vendorsData) => {
+  const filterExistingVendors = vendorsData => {
     const newVendors = [];
     const existingVendors = [];
-    
+
     for (const vendor of vendorsData) {
       // Check by vendor name (case insensitive)
       const existsByName = checkVendorExistsByName(vendor.vendorName);
-      
+
       // Check by GSTIN if available
-      const existsByGSTIN = vendor.gstin ? checkVendorExistsByGSTIN(vendor.gstin) : false;
-      
+      const existsByGSTIN = vendor.gstin
+        ? checkVendorExistsByGSTIN(vendor.gstin)
+        : false;
+
       if (existsByName || existsByGSTIN) {
         existingVendors.push({
           vendor: vendor.vendorName || `Row ${vendor._originalIndex}`,
-          reason: existsByName ? 'Vendor name already exists' : 'GSTIN already exists',
-          type: 'skipped'
+          reason: existsByName
+            ? 'Vendor name already exists'
+            : 'GSTIN already exists',
+          type: 'skipped',
         });
       } else {
         newVendors.push(vendor);
       }
     }
-    
+
     return { newVendors, existingVendors };
   };
 
   // Import vendors one by one
-  const importVendorsSequentially = async (vendorsData) => {
+  const importVendorsSequentially = async vendorsData => {
     const token = await AsyncStorage.getItem('token');
-    
+
     if (!token) {
       throw new Error('Authentication token not found');
     }
@@ -321,30 +361,31 @@ export function VendorSettings() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(vendor),
         });
 
         const responseData = await response.json();
-        
+
         if (!response.ok) {
           failed.push({
             vendor: vendor.vendorName || `Row ${vendor._originalIndex}`,
             error: responseData.message || `Status: ${response.status}`,
-            type: 'failed'
+            type: 'failed',
           });
-          console.error(`Failed to import vendor ${i + 1}:`, responseData);
         } else {
-          console.log(`Successfully imported vendor ${i + 1}:`, vendor.vendorName);
+          console.log(
+            `Successfully imported vendor ${i + 1}:`,
+            vendor.vendorName,
+          );
         }
       } catch (error) {
         failed.push({
           vendor: vendor.vendorName || `Row ${vendor._originalIndex}`,
           error: error.message,
-          type: 'failed'
+          type: 'failed',
         });
-        console.error(`Error importing vendor ${i + 1}:`, error);
       }
 
       // Small delay to avoid overwhelming the server
@@ -379,10 +420,13 @@ export function VendorSettings() {
       // Process the file
       await handleFileImport(file);
     } catch (error) {
-      if (error.code === 'DOCUMENT_PICKER_CANCELED' || error.message?.includes('cancel')) {
+      if (
+        error.code === 'DOCUMENT_PICKER_CANCELED' ||
+        error.message?.includes('cancel')
+      ) {
         return;
       }
-      console.error('Picker Error:', error);
+
       Toast.show({
         type: 'error',
         text1: 'Import Failed',
@@ -391,7 +435,7 @@ export function VendorSettings() {
     }
   };
 
-  const handleFileImport = async (file) => {
+  const handleFileImport = async file => {
     setIsImporting(true);
     setImportStatus(null);
     setFailedItems([]);
@@ -401,14 +445,14 @@ export function VendorSettings() {
     try {
       // Parse the file
       const parsedData = await parseFile(file.uri, file.name);
-      
+
       if (parsedData.length === 0) {
         throw new Error('No data found in file');
       }
 
       // Transform data
       const vendorsData = transformVendorData(parsedData);
-      
+
       console.log('Transformed vendors data:', vendorsData);
 
       // Step 1: Check for existing vendors locally
@@ -417,8 +461,9 @@ export function VendorSettings() {
         text1: 'Checking for duplicate vendors...',
       });
 
-      const { newVendors, existingVendors } = filterExistingVendors(vendorsData);
-      
+      const { newVendors, existingVendors } =
+        filterExistingVendors(vendorsData);
+
       // Store skipped items
       setSkippedItems(existingVendors);
 
@@ -436,7 +481,7 @@ export function VendorSettings() {
 
       // Step 2: Import only new vendors
       setImportProgress({ current: 0, total: newVendors.length });
-      
+
       Toast.show({
         type: 'info',
         text1: 'Importing new vendors...',
@@ -444,7 +489,7 @@ export function VendorSettings() {
       });
 
       const failed = await importVendorsSequentially(newVendors);
-      
+
       // Update status
       if (failed.length === 0 && newVendors.length > 0) {
         setImportStatus('success');
@@ -453,10 +498,10 @@ export function VendorSettings() {
           text1: 'Import Successful',
           text2: `Successfully imported ${newVendors.length} new vendors. ${existingVendors.length} vendors already existed.`,
         });
-        
+
         // Refresh vendor list
         await fetchVendors();
-        
+
         // Close modal after delay
         setTimeout(() => {
           setIsImportModalOpen(false);
@@ -465,13 +510,15 @@ export function VendorSettings() {
       } else if (newVendors.length - failed.length > 0) {
         setImportStatus('partial');
         setFailedItems(failed);
-        
+
         Toast.show({
           type: 'success',
           text1: 'Partial Success',
-          text2: `${newVendors.length - failed.length} imported, ${existingVendors.length} already existed, ${failed.length} failed.`,
+          text2: `${newVendors.length - failed.length} imported, ${
+            existingVendors.length
+          } already existed, ${failed.length} failed.`,
         });
-        
+
         // Refresh vendor list for successful imports
         await fetchVendors();
       } else {
@@ -484,7 +531,6 @@ export function VendorSettings() {
         });
       }
     } catch (error) {
-      console.error('Import error:', error);
       setImportStatus('failed');
       Toast.show({
         type: 'error',
@@ -498,7 +544,7 @@ export function VendorSettings() {
 
   const downloadTemplate = async () => {
     setIsDownloading(true);
-    
+
     try {
       // Create sample vendor data
       const headers = [
@@ -519,11 +565,50 @@ export function VendorSettings() {
       // Add note about duplicate prevention
       const note = [
         ['IMPORTANT NOTES:', '', '', '', '', '', '', '', '', '', '', ''],
-        ['1. vendorName is REQUIRED and should be unique', '', '', '', '', '', '', '', '', '', '', ''],
-        ['2. Vendors with duplicate names will be skipped automatically', '', '', '', '', '', '', '', '', '', '', ''],
-        ['3. For TDS Applicable, use "Yes"/"No" or "true"/"false"', '', '', '', '', '', '', '', '', '', '', ''],
+        [
+          '1. vendorName is REQUIRED and should be unique',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+        ],
+        [
+          '2. Vendors with duplicate names will be skipped automatically',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+        ],
+        [
+          '3. For TDS Applicable, use "Yes"/"No" or "true"/"false"',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+        ],
         ['', '', '', '', '', '', '', '', '', '', '', ''],
-        headers
+        headers,
       ];
 
       const sampleData = [
@@ -578,25 +663,39 @@ export function VendorSettings() {
 
       // Generate Excel file
       const excelBuffer = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-      
-      // Save to downloads
-      const fileName = 'vendor_import_template.xlsx';
-      const filePath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
-      
+
+      // Save to downloads (match CustomerSettings behaviour)
+      const fileName = `vendor_import_template_${Date.now()}.xlsx`;
+
+      // Determine Path Based On Platform
+      let filePath = '';
+      if (Platform.OS === 'android') {
+        // Path to the public Downloads folder
+        filePath = `${RNFS.ExternalStorageDirectoryPath}/Download/${fileName}`;
+      } else {
+        filePath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
+      }
+
       await RNFS.writeFile(filePath, excelBuffer, 'base64');
-      
+
+      // Ensure the file appears in Android file manager immediately
+      if (Platform.OS === 'android') {
+        await RNFS.scanFile(filePath);
+      }
+
+      Alert.alert(
+        'Download Successful',
+        `File saved to: ${
+          Platform.OS === 'android' ? 'Downloads Folder' : 'Documents'
+        }\n\nName: ${fileName}`,
+        [{ text: 'OK' }],
+      );
+
       Toast.show({
         type: 'success',
-        text1: 'Template Downloaded',
-        text2: `Template saved to Downloads folder`,
+        text1: 'Downloaded',
+        text2: 'Template saved to Downloads folder',
       });
-       try {
-                Alert.alert(
-                  'Template Downloaded',
-                  'Excel template has been downloaded to your device.',
-                );
-              } catch (e) {}
-      
     } catch (error) {
       console.error('Download error:', error);
       Toast.show({
@@ -649,15 +748,14 @@ export function VendorSettings() {
         <Text style={[styles.importStatusTitle, { color: config.color }]}>
           {config.title}
         </Text>
-        <Text style={styles.importStatusMessage}>
-          {config.message}
-        </Text>
-        
+        <Text style={styles.importStatusMessage}>{config.message}</Text>
+
         {/* Show existing/skipped vendors */}
         {skippedItems.length > 0 && (
           <View style={styles.skippedItemsContainer}>
             <Text style={styles.skippedItemsTitle}>
-              <Info size={14} color="#856404" /> Skipped ({skippedItems.length}):
+              <Info size={14} color="#856404" /> Skipped ({skippedItems.length}
+              ):
             </Text>
             <ScrollView style={styles.skippedList} nestedScrollEnabled={true}>
               {skippedItems.slice(0, 5).map((item, index) => (
@@ -673,12 +771,13 @@ export function VendorSettings() {
             </ScrollView>
           </View>
         )}
-        
+
         {/* Show failed items */}
         {failedItems.length > 0 && (
           <View style={styles.failedItemsContainer}>
             <Text style={styles.failedItemsTitle}>
-              <AlertCircle size={14} color="#dc3545" /> Failed ({failedItems.length}):
+              <AlertCircle size={14} color="#dc3545" /> Failed (
+              {failedItems.length}):
             </Text>
             <ScrollView style={styles.failedList} nestedScrollEnabled={true}>
               {failedItems.slice(0, 5).map((item, index) => (
@@ -694,13 +793,11 @@ export function VendorSettings() {
             </ScrollView>
           </View>
         )}
-        
+
         {importStatus === 'success' && (
-          <Text style={styles.autoCloseMessage}>
-            Closing in 3 seconds...
-          </Text>
+          <Text style={styles.autoCloseMessage}>Closing in 3 seconds...</Text>
         )}
-        
+
         <TouchableOpacity
           style={[styles.closeImportBtn, { backgroundColor: config.color }]}
           onPress={() => {
@@ -765,7 +862,7 @@ export function VendorSettings() {
           >
             <MoreHorizontal size={20} color="#64748b" />
           </TouchableOpacity>
-          
+
           {openDropdownId === item._id && (
             <View style={styles.dropdown}>
               <TouchableOpacity
@@ -781,7 +878,12 @@ export function VendorSettings() {
                 onPress={() => handleDeleteVendor(item)}
               >
                 <Trash2 size={16} color="#ef4444" />
-                <Text style={[styles.dropdownItemText, styles.dropdownItemTextDanger]}>
+                <Text
+                  style={[
+                    styles.dropdownItemText,
+                    styles.dropdownItemTextDanger,
+                  ]}
+                >
                   Delete
                 </Text>
               </TouchableOpacity>
@@ -797,6 +899,15 @@ export function VendorSettings() {
               <Phone size={14} color="#3b82f6" />
             </View>
             <Text style={styles.detailText}>{item.contactNumber}</Text>
+          </View>
+        ) : null}
+
+        {item.email ? (
+          <View style={styles.detailItem}>
+            <View style={styles.iconCircle}>
+              <Mail size={14} color="#8b5cf6" />
+            </View>
+            <Text style={styles.detailText}>{item.email}</Text>
           </View>
         ) : null}
 
@@ -828,18 +939,37 @@ export function VendorSettings() {
     return (
       <View style={styles.centerContainer}>
         <View style={styles.setupCard}>
-          <Building size={64} color="#3b82f6" />
+          <View style={styles.iconCircleLarge}>
+            <Building size={48} color="#3b82f6" />
+          </View>
           <Text style={styles.setupTitle}>Company Setup Required</Text>
           <Text style={styles.setupSub}>
             Contact us to enable your company account and access all features.
           </Text>
-          <TouchableOpacity
-            style={styles.primaryBtn}
-            onPress={() => Linking.openURL('tel:+918989773689')}
-          >
-            <Phone size={18} color="white" style={{ marginRight: 8 }} />
-            <Text style={styles.btnText}>+91-8989773689</Text>
-          </TouchableOpacity>
+          <View style={styles.contactButtons}>
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={() => Linking.openURL('tel:+918989773689')}
+            >
+              <Phone size={18} color="white" style={{ marginRight: 8 }} />
+              <Text style={styles.btnText}>+91-8989773689</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // If user cannot show vendors AND cannot create vendors, show access restricted
+  if (!canShowVendors && !canCreateVendors) {
+    return (
+      <View style={styles.centerContainer}>
+        <View style={styles.restrictedContainer}>
+          <User size={48} color="#9ca3af" />
+          <Text style={styles.restrictedTitle}>Access Restricted</Text>
+          <Text style={styles.restrictedText}>
+            You don't have permission to view or manage vendors.
+          </Text>
         </View>
       </View>
     );
@@ -863,7 +993,11 @@ export function VendorSettings() {
                   setIsFormOpen(true);
                 }}
               >
-                <PlusCircle size={18} color="white" style={{ marginRight: 8 }} />
+                <PlusCircle
+                  size={18}
+                  color="white"
+                  style={{ marginRight: 8 }}
+                />
                 <Text style={styles.mainActionText}>Add Vendor</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -874,7 +1008,11 @@ export function VendorSettings() {
                 {isImporting ? (
                   <ActivityIndicator size="small" color="#1e293b" />
                 ) : (
-                  <Upload size={18} color="#1e293b" style={{ marginRight: 8 }} />
+                  <Upload
+                    size={18}
+                    color="#1e293b"
+                    style={{ marginRight: 8 }}
+                  />
                 )}
                 <Text style={styles.secondaryActionText}>Import Vendors</Text>
               </TouchableOpacity>
@@ -882,66 +1020,100 @@ export function VendorSettings() {
           )}
         </View>
 
-        <FlatList
-          data={vendors.slice(
-            (currentPage - 1) * vendorsPerPage,
-            currentPage * vendorsPerPage,
-          )}
-          renderItem={renderVendor}
-          keyExtractor={item => item._id}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={fetchVendors} />
-          }
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
-          scrollEnabled={false}
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={10}
-          updateCellsBatchingPeriod={50}
-          ListEmptyComponent={
-            <View style={styles.emptyView}>
-              <Building size={48} color="#cbd5e1" />
-              <Text style={{ color: '#64748b', marginTop: 10 }}>
-                No vendors found
+        {vendors.length > 0 && !canShowVendors && canCreateVendors ? (
+          <View style={styles.centerContainer}>
+            <View style={styles.restrictedContainer}>
+              <Building size={48} color="#9ca3af" />
+              <Text style={styles.restrictedTitle}>Vendor Management</Text>
+              <Text style={styles.restrictedText}>
+                You can create vendors, but viewing existing vendor details
+                requires additional permissions.
               </Text>
             </View>
-          }
-        />
+          </View>
+        ) : (
+          <FlatList
+            data={vendors.slice(
+              (currentPage - 1) * vendorsPerPage,
+              currentPage * vendorsPerPage,
+            )}
+            renderItem={renderVendor}
+            keyExtractor={item => item._id}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={fetchVendors}
+              />
+            }
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              paddingBottom: 100,
+            }}
+            scrollEnabled={false}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            updateCellsBatchingPeriod={50}
+            ListEmptyComponent={
+              <View style={styles.emptyView}>
+                <Building size={48} color="#cbd5e1" />
+                <Text style={{ color: '#64748b', marginTop: 10 }}>
+                  No vendors found
+                </Text>
+              </View>
+            }
+          />
+        )}
 
-        <View style={styles.footerPagination}>
-          <TouchableOpacity
-            disabled={currentPage === 1}
-            onPress={() => setCurrentPage(p => p - 1)}
-            style={[styles.pageNavBtn, currentPage === 1 && { opacity: 0.4 }]}
-          >
-            <ChevronLeft size={20} color="#1e293b" />
-            <Text style={styles.pageNavText}>Previous</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            disabled={currentPage >= Math.ceil(vendors.length / vendorsPerPage)}
-            onPress={() => setCurrentPage(p => p + 1)}
-            style={[
-              styles.pageNavBtn,
-              styles.nextBtn,
-              currentPage >= Math.ceil(vendors.length / vendorsPerPage) && {
-                opacity: 0.4,
-              },
-            ]}
-          >
-            <Text style={[styles.pageNavText, { color: 'white' }]}>Next</Text>
-            <ChevronRight size={20} color="white" />
-          </TouchableOpacity>
-        </View>
-
-        {!canShowVendors && canCreateVendors && vendors.length > 0 && (
-          <View style={styles.overlay}>
-            <Building size={48} color="#64748b" />
-            <Text style={styles.modalTitle}>Vendor Management</Text>
-            <Text style={styles.navSub}>
-              Viewing details requires additional permissions.
-            </Text>
+        {vendors.length > 0 && canShowVendors && (
+          <View style={styles.footerPagination}>
+            <TouchableOpacity
+              disabled={currentPage === 1}
+              onPress={() => setCurrentPage(p => p - 1)}
+              style={[styles.pageNavBtn, currentPage === 1 && { opacity: 0.4 }]}
+            >
+              <ChevronLeft size={20} color="#1e293b" />
+              <Text style={styles.pageNavText}>Previous</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              disabled={
+                currentPage >= Math.ceil(vendors.length / vendorsPerPage)
+              }
+              onPress={() => setCurrentPage(p => p + 1)}
+              style={[
+                styles.pageNavBtn,
+                styles.nextBtn,
+                currentPage >= Math.ceil(vendors.length / vendorsPerPage) && {
+                  opacity: 0.4,
+                },
+              ]}
+            >
+              <Text style={[styles.pageNavText, { color: 'white' }]}>Next</Text>
+              <ChevronRight size={20} color="white" />
+            </TouchableOpacity>
           </View>
         )}
 
+        {/* Access overlay handled above to match CustomerSettings behavior */}
+
+        {/* Vendor Form Modal */}
+        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+          <DialogContent className="md:max-w-2xl max-w-sm grid-rows-[auto,1fr,auto] max-h-[90vh] p-0">
+            <DialogHeader className="p-6">
+              <DialogTitle>
+                {selectedVendor ? 'Edit Vendor' : 'Create New Vendor'}
+              </DialogTitle>
+              <DialogDescription>
+                {selectedVendor
+                  ? 'Update the details for this vendor.'
+                  : 'Fill in the form to add a new vendor.'}
+              </DialogDescription>
+            </DialogHeader>
+            <VendorForm
+              vendor={selectedVendor || undefined}
+              onSuccess={handleFormSuccess}
+            />
+          </DialogContent>
+        </Dialog>
         {/* Import Modal */}
         <Modal
           visible={isImportModalOpen}
@@ -955,32 +1127,43 @@ export function VendorSettings() {
                 <Text style={styles.importModalTitle}>
                   {importStatus ? 'Import Status' : 'Import Vendors'}
                 </Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => !isImporting && setIsImportModalOpen(false)}
                   disabled={isImporting}
                 >
                   <X size={24} color="black" />
                 </TouchableOpacity>
               </View>
-              
+
               {isImporting ? (
                 <View style={styles.importLoadingContainer}>
                   <ActivityIndicator size="large" color="#3b82f6" />
                   <Text style={styles.importLoadingText}>
-                    {importProgress.current <= importProgress.total ? 
-                      `Processing ${importProgress.current} of ${importProgress.total} vendors...` :
-                      'Processing file...'}
+                    {importProgress.current <= importProgress.total
+                      ? `Processing ${importProgress.current} of ${importProgress.total} vendors...`
+                      : 'Processing file...'}
                   </Text>
                   {importProgress.total > 0 && (
                     <>
                       <View style={styles.progressBar}>
-                        <View style={[
-                          styles.progressFill,
-                          { width: `${(importProgress.current / importProgress.total) * 100}%` }
-                        ]} />
+                        <View
+                          style={[
+                            styles.progressFill,
+                            {
+                              width: `${
+                                (importProgress.current /
+                                  importProgress.total) *
+                                100
+                              }%`,
+                            },
+                          ]}
+                        />
                       </View>
                       <Text style={styles.progressPercentage}>
-                        {Math.round((importProgress.current / importProgress.total) * 100)}%
+                        {Math.round(
+                          (importProgress.current / importProgress.total) * 100,
+                        )}
+                        %
                       </Text>
                     </>
                   )}
@@ -991,7 +1174,10 @@ export function VendorSettings() {
               ) : importStatus ? (
                 renderImportStatus()
               ) : (
-                <ScrollView style={styles.importModalContent} scrollEnabled={true}>
+                <ScrollView
+                  style={styles.importModalContent}
+                  scrollEnabled={true}
+                >
                   <Text style={styles.importDescription}>
                     Upload a CSV or Excel file containing vendor data.
                   </Text>
@@ -1009,7 +1195,9 @@ export function VendorSettings() {
                     disabled={isImporting}
                   >
                     <Upload size={40} color="#94a3b8" />
-                    <Text style={styles.uploadText}>Tap to select file (CSV or Excel)</Text>
+                    <Text style={styles.uploadText}>
+                      Tap to select file (CSV or Excel)
+                    </Text>
                     <Text style={styles.uploadSubText}>
                       Supports .xlsx, .xls, .csv files
                     </Text>
@@ -1040,10 +1228,18 @@ export function VendorSettings() {
                   </Text>
 
                   <View style={styles.requirementsContainer}>
-                    <Text style={styles.requirementsTitle}>Important Notes:</Text>
-                    <Text style={styles.requirementItem}>• vendorName is REQUIRED (must be unique)</Text>
-                    <Text style={styles.requirementItem}>• Vendors with duplicate names will be skipped</Text>
-                    <Text style={styles.requirementItem}>• For TDS Applicable, use "Yes"/"No" or "true"/"false"</Text>
+                    <Text style={styles.requirementsTitle}>
+                      Important Notes:
+                    </Text>
+                    <Text style={styles.requirementItem}>
+                      • vendorName is REQUIRED (must be unique)
+                    </Text>
+                    <Text style={styles.requirementItem}>
+                      • Vendors with duplicate names will be skipped
+                    </Text>
+                    <Text style={styles.requirementItem}>
+                      • For TDS Applicable, use "Yes"/"No" or "true"/"false"
+                    </Text>
                   </View>
                 </ScrollView>
               )}
@@ -1063,7 +1259,84 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
+  },
+  restrictedContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  restrictedTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  restrictedText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  iconCircleLarge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#eff6ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  contactButtons: {
+    width: '100%',
+  },
+  setupCard: {
+    backgroundColor: 'white',
+    padding: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  setupTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 8,
+  },
+  setupSub: {
+    textAlign: 'center',
+    color: '#6b7280',
+    fontSize: 14,
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  primaryBtn: {
+    backgroundColor: '#3b82f6',
+    flexDirection: 'row',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnText: {
+    color: 'white',
+    fontWeight: '500',
+    fontSize: 14,
   },
   header: {
     paddingHorizontal: 20,
@@ -1076,10 +1349,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: '#0f172a',
-    textAlign: 'center',
+    // textAlign: 'center',
   },
-  navSub: { fontSize: 13, color: '#64748b', textAlign: 'center', marginTop: 4 },
-  actionRow: { marginTop: 16, gap: 10 },
+  navSub: { fontSize: 13, color: '#64748b', marginTop: 4 },
+  actionRow: {
+    marginTop: 16,
+    gap: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
   mainActionBtn: {
     backgroundColor: '#3b82f6',
     flexDirection: 'row',
@@ -1087,6 +1366,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderRadius: 10,
+    flex: 1,
   },
   mainActionText: { color: 'white', fontWeight: 'bold', fontSize: 15 },
   secondaryActionBtn: {
@@ -1099,6 +1379,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderRadius: 10,
+    flex: 1,
   },
   secondaryActionText: { color: '#1e293b', fontWeight: '600', fontSize: 15 },
   card: {
@@ -1224,6 +1505,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalTitle: { fontSize: 18, fontWeight: 'bold' },
+
+  // Form Modal Styles
+  formModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  formModalContainer: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    maxHeight: '90%',
+    width: '100%',
+    overflow: 'hidden',
+  },
+  formModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  formModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  formModalContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+
+  // Import Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

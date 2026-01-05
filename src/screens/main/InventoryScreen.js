@@ -15,6 +15,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePermissions } from '../../contexts/permission-context';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
+import { useCompany } from '../../contexts/company-context';
 import { useToast } from '../../components/hooks/useToast';
 import { BASE_URL } from '../../config';
 import {
@@ -64,6 +65,7 @@ export default function InventoryScreen() {
     refetch: refetchUserPermissions,
   } = useUserPermissions();
   const { permissions, refetch, isLoading: isLoadingPerms } = usePermissions();
+  const { selectedCompanyId } = useCompany();
 
   const [activeTab, setActiveTab] = useState('products');
   const [products, setProducts] = useState([]);
@@ -144,7 +146,11 @@ export default function InventoryScreen() {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
 
-      const res = await fetch(`${BASE_URL}/api/products`, {
+      const queryParam = selectedCompanyId
+        ? `?companyId=${selectedCompanyId}`
+        : '';
+
+      const res = await fetch(`${BASE_URL}/api/products${queryParam}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Failed to fetch products.');
@@ -161,7 +167,7 @@ export default function InventoryScreen() {
     } finally {
       setIsLoadingProducts(false);
     }
-  }, [toast]);
+  }, [toast, selectedCompanyId]);
 
   const fetchServices = useCallback(async () => {
     setIsLoadingServices(true);
@@ -169,6 +175,7 @@ export default function InventoryScreen() {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
 
+      // Services are global (same for all companies) — fetch without company filter
       const res = await fetch(`${BASE_URL}/api/services`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -351,7 +358,7 @@ export default function InventoryScreen() {
     // if (userRole === 'user') return; // Yeh line hatani hai
 
     if (checked) {
-      setSelectedProducts(products.map(p => p._id));
+      setSelectedProducts(filteredProducts.map(p => p._id));
     } else {
       setSelectedProducts([]);
     }
@@ -396,20 +403,35 @@ export default function InventoryScreen() {
   // ==========================================
   // PAGINATION
   // ==========================================
-  const productTotalPages = Math.ceil(products.length / ITEMS_PER_PAGE);
-  const serviceTotalPages = Math.ceil(services.length / ITEMS_PER_PAGE);
+  // Filter products/services by selected company (if any)
+  const filteredProducts = useMemo(() => {
+    if (!selectedCompanyId) return products;
+    return products.filter(p => {
+      const cId =
+        typeof p.company === 'object' && p.company ? p.company._id : p.company;
+      return String(cId) === String(selectedCompanyId);
+    });
+  }, [products, selectedCompanyId]);
+
+  const filteredServices = useMemo(() => {
+    // Services are global (same for all companies) — no company filtering
+    return services;
+  }, [services]);
+
+  const productTotalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+  const serviceTotalPages = Math.ceil(filteredServices.length / ITEMS_PER_PAGE);
 
   const paginatedProducts = useMemo(() => {
     const startIndex = (productCurrentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
-    return products.slice(startIndex, endIndex);
-  }, [products, productCurrentPage]);
+    return filteredProducts.slice(startIndex, endIndex);
+  }, [filteredProducts, productCurrentPage]);
 
   const paginatedServices = useMemo(() => {
     const startIndex = (serviceCurrentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
-    return services.slice(startIndex, endIndex);
-  }, [services, serviceCurrentPage]);
+    return filteredServices.slice(startIndex, endIndex);
+  }, [filteredServices, serviceCurrentPage]);
 
   const goToNextProductPage = () => {
     setProductCurrentPage(prev => Math.min(prev + 1, productTotalPages));
@@ -457,7 +479,7 @@ export default function InventoryScreen() {
                   ]
                 : [{ 'Service Name': '', Amount: '', SAC: '' }]
             }
-            templateFileName={`${activeTab}_template.xlsx`}
+            templateFileName="product_template.xlsx"
             onImportSuccess={() => {
               if (activeTab === 'products') fetchProducts();
               else fetchServices();
@@ -499,7 +521,7 @@ export default function InventoryScreen() {
 
                   return {
                     company: foundCompany?._id || companies[0]?._id || '',
-                    
+
                     name: item['Item Name'],
                     stocks: Number(item['Stock']) || 0,
                     unit: item['Unit'] || 'Piece',
@@ -766,7 +788,7 @@ export default function InventoryScreen() {
                 activeTab === 'products' && styles.activeTabText,
               ]}
             >
-              Products ({products.length})
+              Products ({filteredProducts.length})
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -779,7 +801,7 @@ export default function InventoryScreen() {
                 activeTab === 'services' && styles.activeTabText,
               ]}
             >
-              Services ({services.length})
+              Services ({filteredServices.length})
             </Text>
           </TouchableOpacity>
         </View>
@@ -803,7 +825,7 @@ export default function InventoryScreen() {
       {/* Empty States with permission checks */}
       {activeTab === 'products' &&
         !isLoadingProducts &&
-        products.length === 0 && (
+        filteredProducts.length === 0 && (
           <View style={styles.emptyState}>
             <Icon name="inventory" size={48} color="#666" />
             <Text style={styles.emptyStateTitle}>No Products Found</Text>
@@ -826,7 +848,7 @@ export default function InventoryScreen() {
 
       {activeTab === 'services' &&
         !isLoadingServices &&
-        services.length === 0 && (
+        filteredServices.length === 0 && (
           <View style={styles.emptyState}>
             <Icon name="build" size={48} color="#666" />
             <Text style={styles.emptyStateTitle}>No Services Found</Text>
@@ -867,14 +889,17 @@ export default function InventoryScreen() {
     if (
       activeTab === 'products' &&
       productTotalPages > 1 &&
-      products.length > 0
+      filteredProducts.length > 0
     ) {
       return (
         <View style={styles.pagination}>
           <Text style={styles.paginationInfo}>
             Showing {(productCurrentPage - 1) * ITEMS_PER_PAGE + 1} to{' '}
-            {Math.min(productCurrentPage * ITEMS_PER_PAGE, products.length)} of{' '}
-            {products.length} products
+            {Math.min(
+              productCurrentPage * ITEMS_PER_PAGE,
+              filteredProducts.length,
+            )}{' '}
+            of {filteredProducts.length} products
           </Text>
           <View style={styles.paginationButtons}>
             <TouchableOpacity
@@ -929,14 +954,17 @@ export default function InventoryScreen() {
     if (
       activeTab === 'services' &&
       serviceTotalPages > 1 &&
-      services.length > 0
+      filteredServices.length > 0
     ) {
       return (
         <View style={styles.pagination}>
           <Text style={styles.paginationInfo}>
             Showing {(serviceCurrentPage - 1) * ITEMS_PER_PAGE + 1} to{' '}
-            {Math.min(serviceCurrentPage * ITEMS_PER_PAGE, services.length)} of{' '}
-            {services.length} services
+            {Math.min(
+              serviceCurrentPage * ITEMS_PER_PAGE,
+              filteredServices.length,
+            )}{' '}
+            of {filteredServices.length} services
           </Text>
           <View style={styles.paginationButtons}>
             <TouchableOpacity
@@ -993,9 +1021,9 @@ export default function InventoryScreen() {
 
   const getData = () => {
     if (activeTab === 'products') {
-      return products.length > 0 ? paginatedProducts : [];
+      return filteredProducts.length > 0 ? paginatedProducts : [];
     } else {
-      return services.length > 0 ? paginatedServices : [];
+      return filteredServices.length > 0 ? paginatedServices : [];
     }
   };
 

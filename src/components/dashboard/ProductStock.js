@@ -43,7 +43,7 @@ const baseURL = BASE_URL;
 const StockEditForm = ({ product, onSuccess, onCancel }) => {
   const [newStock, setNewStock] = useState(product.stocks?.toString() || '0');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { showToast } = useToast();
+  const { toast } = useToast();
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -63,10 +63,17 @@ const StockEditForm = ({ product, onSuccess, onCancel }) => {
       if (!res.ok) throw new Error('Failed to update stock.');
       const data = await res.json();
 
-      showToast('Stock updated successfully!', 'success');
+      toast({
+        title: 'Stock updated',
+        description: 'Stock has been updated successfully.',
+      });
       onSuccess(data.product);
     } catch (error) {
-      showToast('Failed to update stock', 'error', error.message);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to update stock',
+        description: error.message,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -301,7 +308,7 @@ const ProductStock = ({
   const [role, setRole] = useState('user');
   const [openNameDialog, setOpenNameDialog] = useState(null);
 
-  const { showToast } = useToast();
+  const { toast } = useToast();
   const { permissions } = usePermissions();
   const { selectedCompanyId } = useCompany();
   const { permissions: userCaps } = useUserPermissions();
@@ -335,7 +342,11 @@ const ProductStock = ({
       const data = await res.json();
       setProducts(Array.isArray(data) ? data : data.products || []);
     } catch (error) {
-      showToast('Failed to load products', 'error', error.message);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to load products',
+        description: error.message,
+      });
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -373,11 +384,12 @@ const ProductStock = ({
   const handleAddProductSuccess = newProduct => {
     setProducts(prev => [...prev, newProduct]);
     setIsAddProductOpen(false);
-    showToast(
-      `${capitalizeWords(newProduct.name)} added.`,
-      'success',
-      'Product Created!',
-    );
+    toast({
+      title: 'Product Created',
+      description: `${capitalizeWords(
+        newProduct.name,
+      )} has been added successfully.`,
+    });
     fetchProducts();
   };
 
@@ -393,11 +405,12 @@ const ProductStock = ({
 
     setProducts(prev => [...prev, serviceAsProduct]);
     setIsAddServiceOpen(false);
-    showToast(
-      `${capitalizeWords(newService.serviceName)} added.`,
-      'success',
-      'Service Created!',
-    );
+    toast({
+      title: 'Service Created',
+      description: `${capitalizeWords(
+        newService.serviceName,
+      )} has been added successfully.`,
+    });
     fetchProducts();
   };
 

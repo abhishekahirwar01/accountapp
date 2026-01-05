@@ -14,7 +14,7 @@ import {
   Linking,
   TextInput,
   FlatList,
-  TouchableWithoutFeedback, 
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -259,14 +259,14 @@ const ServiceSettings = () => {
   };
 
   const handleEditService = service => {
-  setOpenDropdownId(null);
-  handleOpenForm(service);
-};
+    setOpenDropdownId(null);
+    handleOpenForm(service);
+  };
 
-const handleDeleteServiceFromDropdown = service => {
-  setOpenDropdownId(null);
-  handleOpenDeleteDialog(service);
-};
+  const handleDeleteServiceFromDropdown = service => {
+    setOpenDropdownId(null);
+    handleOpenDeleteDialog(service);
+  };
 
   const handleImportClick = () => {
     setIsImportDialogOpen(true);
@@ -369,33 +369,49 @@ const handleDeleteServiceFromDropdown = service => {
 
       if (!response.ok) throw new Error('Failed to download template');
 
+      // Blob ko base64 mein convert karne ka sahi tarika
       const result = await response.blob();
-      const base64Data = await new Promise(resolve => {
+      const base64Data = await new Promise((resolve, reject) => {
         const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
         reader.readAsDataURL(result);
-        reader.onloadend = () => {
-          resolve(reader.result);
-        };
       });
 
-      const path = `${RNFS.DocumentDirectoryPath}/services_import_template.xlsx`;
+      const fileName = 'services_import_template.xlsx';
+      let path = '';
+
+      // Android aur iOS ke liye alag-alag public paths
+      if (Platform.OS === 'android') {
+        // ExternalStorageDirectoryPath se file public Downloads mein jayegi
+        path = `${RNFS.ExternalStorageDirectoryPath}/Download/${fileName}`;
+      } else {
+        path = `${RNFS.DocumentDirectoryPath}/${fileName}`;
+      }
+
+      // File likhna (base64 data se prefix hatane ke liye split use kiya hai)
       await RNFS.writeFile(path, base64Data.split(',')[1], 'base64');
 
-      if (Platform.OS === 'ios') {
-        await RNFS.writeFile(path, base64Data.split(',')[1], 'base64');
-        Toast.show({
-          type: 'success',
-          text1: 'Template Downloaded',
-          text2: 'File saved to Documents folder.',
-        });
+      if (Platform.OS === 'android') {
+        // System ko refresh karna taaki file turant dikhne lage
+        await RNFS.scanFile(path);
+
+        Alert.alert(
+          'Download Successful',
+          `File saved to your Downloads folder as ${fileName}`,
+          [{ text: 'OK' }],
+        );
       } else {
-        await RNFS.writeFile(path, base64Data.split(',')[1], 'base64');
-        Toast.show({
-          type: 'success',
-          text1: 'Template Downloaded',
-          text2: 'File saved to device storage.',
-        });
+        Alert.alert('Download Successful', 'File saved to Documents folder.', [
+          { text: 'OK' },
+        ]);
       }
+
+      Toast.show({
+        type: 'success',
+        text1: 'Template Downloaded',
+        text2: 'File is ready to use.',
+      });
     } catch (error) {
       console.error('Error downloading template:', error);
       Toast.show({
@@ -435,39 +451,46 @@ const handleDeleteServiceFromDropdown = service => {
         </View>
 
         {role !== 'user' && (
-  <View>
-    <TouchableOpacity
-      style={styles.moreButton}
-      onPress={() => {
-        setOpenDropdownId(openDropdownId === item._id ? null : item._id);
-      }}
-    >
-      <MoreHorizontal size={20} color="#666" />
-    </TouchableOpacity>
-    
-    {openDropdownId === item._id && (
-      <View style={styles.dropdown}>
-        <TouchableOpacity
-          style={styles.dropdownItem}
-          onPress={() => handleEditService(item)}
-        >
-          <Edit2 size={16} color="#3b82f6" />
-          <Text style={styles.dropdownItemText}>Edit</Text>
-        </TouchableOpacity>
-        <View style={styles.dropdownDivider} />
-        <TouchableOpacity
-          style={styles.dropdownItem}
-          onPress={() => handleDeleteServiceFromDropdown(item)}
-        >
-          <Trash2 size={16} color="#ef4444" />
-          <Text style={[styles.dropdownItemText, styles.dropdownItemTextDanger]}>
-            Delete
-          </Text>
-        </TouchableOpacity>
-      </View>
-    )}
-  </View>
-)}
+          <View>
+            <TouchableOpacity
+              style={styles.moreButton}
+              onPress={() => {
+                setOpenDropdownId(
+                  openDropdownId === item._id ? null : item._id,
+                );
+              }}
+            >
+              <MoreHorizontal size={20} color="#666" />
+            </TouchableOpacity>
+
+            {openDropdownId === item._id && (
+              <View style={styles.dropdown}>
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => handleEditService(item)}
+                >
+                  <Edit2 size={16} color="#3b82f6" />
+                  <Text style={styles.dropdownItemText}>Edit</Text>
+                </TouchableOpacity>
+                <View style={styles.dropdownDivider} />
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => handleDeleteServiceFromDropdown(item)}
+                >
+                  <Trash2 size={16} color="#ef4444" />
+                  <Text
+                    style={[
+                      styles.dropdownItemText,
+                      styles.dropdownItemTextDanger,
+                    ]}
+                  >
+                    Delete
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
       </View>
 
       <View style={styles.serviceDetails}>
@@ -555,126 +578,126 @@ const handleDeleteServiceFromDropdown = service => {
 
   return (
     <TouchableWithoutFeedback onPress={() => setOpenDropdownId(null)}>
-    <View style={styles.safeArea}>
-      <ScrollView
-        style={styles.container}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        <View style={styles.mainCard}>
-          <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <Text style={styles.title}>Manage Services</Text>
-              <Text style={styles.subtitle}>
-                A list of all your available services with their pricing.
-              </Text>
-            </View>
-            <View style={styles.headerButtons}>
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => handleOpenForm()}
-              >
-                <PlusCircle size={20} color="white" />
-                <Text style={styles.addButtonText}>Add Service</Text>
-              </TouchableOpacity>
+      <View style={styles.safeArea}>
+        <ScrollView
+          style={styles.container}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
+          <View style={styles.mainCard}>
+            <View style={styles.header}>
+              <View style={styles.headerLeft}>
+                <Text style={styles.title}>Manage Services</Text>
+                <Text style={styles.subtitle}>
+                  A list of all your available services with their pricing.
+                </Text>
+              </View>
+              <View style={styles.headerButtons}>
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => handleOpenForm()}
+                >
+                  <PlusCircle size={20} color="white" />
+                  <Text style={styles.addButtonText}>Add Service</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.importButton}
-                onPress={handleImportClick}
-              >
-                <Upload size={20} color="#3b82f6" />
-                <Text style={styles.importButtonText}>Import Services</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.importButton}
+                  onPress={handleImportClick}
+                >
+                  <Upload size={20} color="#3b82f6" />
+                  <Text style={styles.importButtonText}>Import Services</Text>
+                </TouchableOpacity>
+              </View>
             </View>
+
+            {isLoading ? (
+              <View style={styles.loadingContent}>
+                <ActivityIndicator size="large" color="#3b82f6" />
+              </View>
+            ) : services.length > 0 ? (
+              <>
+                <FlatList
+                  data={currentServices}
+                  renderItem={renderServiceItem}
+                  keyExtractor={item => item._id}
+                  scrollEnabled={false}
+                  contentContainerStyle={styles.flatListContent}
+                />
+
+                {totalPages > 1 && (
+                  <View style={styles.paginationContainer}>
+                    <TouchableOpacity
+                      style={[
+                        styles.pageButton,
+                        currentPage === 1 && styles.pageButtonDisabled,
+                      ]}
+                      onPress={goToPrevPage}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft
+                        size={20}
+                        color={currentPage === 1 ? '#999' : '#333'}
+                      />
+                      <Text
+                        style={[
+                          styles.pageButtonText,
+                          currentPage === 1 && styles.pageButtonTextDisabled,
+                        ]}
+                      >
+                        Previous
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.pageButton,
+                        styles.nextButton,
+                        currentPage === totalPages && styles.pageButtonDisabled,
+                      ]}
+                      onPress={goToNextPage}
+                      disabled={currentPage === totalPages}
+                    >
+                      <Text
+                        style={[
+                          styles.pageButtonText,
+                          styles.nextButtonText,
+                          currentPage === totalPages &&
+                            styles.pageButtonTextDisabled,
+                        ]}
+                      >
+                        Next
+                      </Text>
+                      <ChevronRight
+                        size={20}
+                        color={currentPage === totalPages ? '#999' : 'white'}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            ) : (
+              <View style={styles.noServicesContainer}>
+                <Server size={48} color="#999" />
+                <Text style={styles.noServicesTitle}>No Services Found</Text>
+                <Text style={styles.noServicesDescription}>
+                  Get started by adding your first service.
+                </Text>
+                <TouchableOpacity
+                  style={styles.addServiceButton}
+                  onPress={() => handleOpenForm()}
+                >
+                  <PlusCircle size={20} color="white" />
+                  <Text style={styles.addServiceButtonText}>Add Service</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
+        </ScrollView>
 
-          {isLoading ? (
-            <View style={styles.loadingContent}>
-              <ActivityIndicator size="large" color="#3b82f6" />
-            </View>
-          ) : services.length > 0 ? (
-            <>
-              <FlatList
-                data={currentServices}
-                renderItem={renderServiceItem}
-                keyExtractor={item => item._id}
-                scrollEnabled={false}
-                contentContainerStyle={styles.flatListContent}
-              />
-
-              {totalPages > 1 && (
-                <View style={styles.paginationContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.pageButton,
-                      currentPage === 1 && styles.pageButtonDisabled,
-                    ]}
-                    onPress={goToPrevPage}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft
-                      size={20}
-                      color={currentPage === 1 ? '#999' : '#333'}
-                    />
-                    <Text
-                      style={[
-                        styles.pageButtonText,
-                        currentPage === 1 && styles.pageButtonTextDisabled,
-                      ]}
-                    >
-                      Previous
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.pageButton,
-                      styles.nextButton,
-                      currentPage === totalPages && styles.pageButtonDisabled,
-                    ]}
-                    onPress={goToNextPage}
-                    disabled={currentPage === totalPages}
-                  >
-                    <Text
-                      style={[
-                        styles.pageButtonText,
-                        styles.nextButtonText,
-                        currentPage === totalPages &&
-                          styles.pageButtonTextDisabled,
-                      ]}
-                    >
-                      Next
-                    </Text>
-                    <ChevronRight
-                      size={20}
-                      color={currentPage === totalPages ? '#999' : 'white'}
-                    />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </>
-          ) : (
-            <View style={styles.noServicesContainer}>
-              <Server size={48} color="#999" />
-              <Text style={styles.noServicesTitle}>No Services Found</Text>
-              <Text style={styles.noServicesDescription}>
-                Get started by adding your first service.
-              </Text>
-              <TouchableOpacity
-                style={styles.addServiceButton}
-                onPress={() => handleOpenForm()}
-              >
-                <PlusCircle size={20} color="white" />
-                <Text style={styles.addServiceButtonText}>Add Service</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Service Form Modal */}
-      {/* <Modal
+        {/* Service Form Modal */}
+        {/* <Modal
         visible={isFormOpen}
         animationType="slide"
         onRequestClose={() => {
@@ -692,136 +715,140 @@ const handleDeleteServiceFromDropdown = service => {
         />
       </Modal> */}
 
-      <Dialog
-        open={isFormOpen}
-        onOpenChange={isOpen => {
-          if (!isOpen) {
-            setSelectedService(null);
-            setIsFormOpen(false);
-          }
-        }}
-      >
-        <DialogContent>
-          <View>
-            <DialogHeader>
-              <DialogTitle>
-                {selectedService ? 'Edit Service' : 'Create New Service'}
-              </DialogTitle>
-              <DialogDescription>
-                {selectedService
-                  ? 'Update the service details.'
-                  : 'Fill in the form to add a new service.'}
-              </DialogDescription>
-            </DialogHeader>
-            <ScrollView>
-              <ServiceForm
-                service={selectedService || undefined}
-                onSuccess={handleFormSuccess}
-                onCancel={() => {
-                  setSelectedService(null);
-                  setIsFormOpen(false);
-                }}
-              />
-            </ScrollView>
-          </View>
-        </DialogContent>
-      </Dialog>
+        <Dialog
+          open={isFormOpen}
+          onOpenChange={isOpen => {
+            if (!isOpen) {
+              setSelectedService(null);
+              setIsFormOpen(false);
+            }
+          }}
+        >
+          <DialogContent>
+            <View>
+              <DialogHeader>
+                <DialogTitle>
+                  {selectedService ? 'Edit Service' : 'Create New Service'}
+                </DialogTitle>
+                <DialogDescription>
+                  {selectedService
+                    ? 'Update the service details.'
+                    : 'Fill in the form to add a new service.'}
+                </DialogDescription>
+              </DialogHeader>
+              <ScrollView>
+                <ServiceForm
+                  service={selectedService || undefined}
+                  onSuccess={handleFormSuccess}
+                  onCancel={() => {
+                    setSelectedService(null);
+                    setIsFormOpen(false);
+                  }}
+                />
+              </ScrollView>
+            </View>
+          </DialogContent>
+        </Dialog>
 
-      {/* Delete Confirmation Modal */}
-      <Modal
-        visible={isAlertOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsAlertOpen(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.alertModal}>
-            <Text style={styles.alertTitle}>Are you absolutely sure?</Text>
-            <Text style={styles.alertDescription}>
-              This action cannot be undone. This will permanently delete the
-              service.
-            </Text>
-            <View style={styles.alertButtons}>
+        {/* Delete Confirmation Modal */}
+        <Modal
+          visible={isAlertOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsAlertOpen(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.alertModal}>
+              <Text style={styles.alertTitle}>Are you absolutely sure?</Text>
+              <Text style={styles.alertDescription}>
+                This action cannot be undone. This will permanently delete the
+                service.
+              </Text>
+              <View style={styles.alertButtons}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => setIsAlertOpen(false)}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={handleDeleteService}
+                >
+                  <Text style={styles.deleteButtonText}>Continue</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Import Dialog Modal */}
+        <Modal
+          visible={isImportDialogOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsImportDialogOpen(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.importModal}>
+              <Text style={styles.importTitle}>Import Services</Text>
+              <Text style={styles.importDescription}>
+                Upload an Excel file (.xlsx, .xls) or CSV file containing
+                services data.
+              </Text>
+
+              <View style={styles.uploadArea}>
+                <Upload size={32} color="#999" />
+                <Text style={styles.uploadText}>
+                  Drag and drop your file here, or click to browse
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.selectFileButton,
+                    isImporting && styles.selectFileButtonDisabled,
+                  ]}
+                  onPress={handleFilePick}
+                  disabled={isImporting}
+                >
+                  {isImporting ? (
+                    <ActivityIndicator size="small" color="#666" />
+                  ) : (
+                    <>
+                      <Upload size={20} color="#666" />
+                      <Text style={styles.selectFileButtonText}>
+                        Select File
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+
               <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setIsAlertOpen(false)}
+                style={styles.downloadTemplateButton}
+                onPress={downloadTemplate}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Download size={20} color="#3b82f6" />
+                <Text style={styles.downloadTemplateButtonText}>
+                  Download Template
+                </Text>
               </TouchableOpacity>
+
+              <Text style={styles.templateNote}>
+                Download the template file to ensure proper formatting.
+              </Text>
+
+              {/* Top-right X close button (replaces bottom Close button) */}
               <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={handleDeleteService}
+                style={styles.modalCloseButton}
+                onPress={() => setIsImportDialogOpen(false)}
+                accessibilityLabel="Close import dialog"
               >
-                <Text style={styles.deleteButtonText}>Continue</Text>
+                <X size={20} color="#6b7280" />
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </Modal>
-
-      {/* Import Dialog Modal */}
-      <Modal
-        visible={isImportDialogOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsImportDialogOpen(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.importModal}>
-            <Text style={styles.importTitle}>Import Services</Text>
-            <Text style={styles.importDescription}>
-              Upload an Excel file (.xlsx, .xls) or CSV file containing services
-              data.
-            </Text>
-
-            <View style={styles.uploadArea}>
-              <Upload size={32} color="#999" />
-              <Text style={styles.uploadText}>
-                Drag and drop your file here, or click to browse
-              </Text>
-              <TouchableOpacity
-                style={[
-                  styles.selectFileButton,
-                  isImporting && styles.selectFileButtonDisabled,
-                ]}
-                onPress={handleFilePick}
-                disabled={isImporting}
-              >
-                {isImporting ? (
-                  <ActivityIndicator size="small" color="#666" />
-                ) : (
-                  <>
-                    <Upload size={20} color="#666" />
-                    <Text style={styles.selectFileButtonText}>Select File</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={styles.downloadTemplateButton}
-              onPress={downloadTemplate}
-            >
-              <Download size={20} color="#3b82f6" />
-              <Text style={styles.downloadTemplateButtonText}>
-                Download Template
-              </Text>
-            </TouchableOpacity>
-
-            <Text style={styles.templateNote}>
-              Download the template file to ensure proper formatting.
-            </Text>
-
-            <TouchableOpacity
-              style={styles.closeImportButton}
-              onPress={() => setIsImportDialogOpen(false)}
-            >
-              <Text style={styles.closeImportButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    </View>
+        </Modal>
+      </View>
     </TouchableWithoutFeedback>
   );
 };
@@ -1019,45 +1046,45 @@ const styles = StyleSheet.create({
     color: '#111827',
     flex: 1,
   },
- moreButton: {
-  padding: 8,
-  borderRadius: 8,
-},
-dropdown: {
-  position: 'absolute',
-  top: 24,
-  right: 0,
-  backgroundColor: 'white',
-  borderRadius: 12,
-  borderWidth: 1,
-  borderColor: '#e2e8f0',
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.1,
-  shadowRadius: 12,
-  elevation: 5,
-  minWidth: 100,
-  zIndex: 1000,
-},
-dropdownItem: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  paddingVertical: 10,
-  paddingHorizontal: 16,
-  gap: 10,
-},
-dropdownItemText: {
-  fontSize: 14,
-  fontWeight: '600',
-  color: '#334155',
-},
-dropdownItemTextDanger: {
-  color: '#ef4444',
-},
-dropdownDivider: {
-  height: 1,
-  backgroundColor: '#f1f5f9',
-},
+  moreButton: {
+    padding: 8,
+    borderRadius: 8,
+  },
+  dropdown: {
+    position: 'absolute',
+    top: 24,
+    right: 0,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+    minWidth: 100,
+    zIndex: 1000,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  dropdownItemTextDanger: {
+    color: '#ef4444',
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: '#f1f5f9',
+  },
   serviceDetails: {
     backgroundColor: '#f3f4f6',
     borderRadius: 6,
@@ -1233,6 +1260,13 @@ dropdownDivider: {
     padding: 24,
     width: '100%',
     maxWidth: 400,
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 10,
+    padding: 8,
   },
   importTitle: {
     fontSize: 18,

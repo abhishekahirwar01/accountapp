@@ -305,15 +305,15 @@ export default function ServiceForm({
             render={({ field: { onChange, onBlur, value } }) => (
               <TextInput
                 style={[styles.input, errors.amount && styles.inputError]}
-                placeholder="0"
+                placeholder="Enter amount"
                 keyboardType="decimal-pad"
-                value={String(value ?? '')}
+                value={value === 0 || value === '0' ? '' : String(value ?? '')}
                 onChangeText={text => {
                   const cleaned = text.replace(/[^\d.]/g, '');
                   const parts = cleaned.split('.');
                   if (parts.length > 2) return;
                   if (parts[1] && parts[1].length > 2) return;
-                  onChange(cleaned === '' ? 0 : cleaned);
+                  onChange(cleaned === '' ? '' : cleaned);
                 }}
                 onBlur={onBlur}
               />
