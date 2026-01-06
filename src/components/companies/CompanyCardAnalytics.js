@@ -270,4 +270,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CompanyCardAnalytics;
+export default CompanyCardAnalytics; 

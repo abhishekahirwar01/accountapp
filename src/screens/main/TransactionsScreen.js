@@ -210,217 +210,248 @@ const TransactionsScreen = ({ navigation }) => {
   };
 
   // Fetch transactions
-  const fetchTransactions = useCallback(async () => {
-    if (initialLoad) {
-      setIsLoading(true); // Skeleton shuru
-    }
-    setIsRefreshing(true);
+  const fetchTransactions = useCallback(
+    async (isManualRefresh = false) => {
+      if (initialLoad) {
+        setIsLoading(true); // Skeleton shuru
+        // Ensure pull-to-refresh spinner is off for initial load
+        setIsRefreshing(false);
+      }
 
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('Authentication token not found.');
+      // Show pull-to-refresh spinner only when user explicitly refreshes
+      if (isManualRefresh) {
+        setIsRefreshing(true);
+      }
 
-      const queryParam = selectedCompanyId
-        ? `?companyId=${selectedCompanyId}`
-        : '';
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) throw new Error('Authentication token not found.');
 
-      const parseResponse = (data, possibleArrayKeys = []) => {
-        if (Array.isArray(data)) return data;
+        const queryParam = selectedCompanyId
+          ? `?companyId=${selectedCompanyId}`
+          : '';
 
-        if (data?.success && Array.isArray(data?.data)) return data.data;
-        if (data?.success && Array.isArray(data?.entries)) return data.entries;
+        const parseResponse = (data, possibleArrayKeys = []) => {
+          if (Array.isArray(data)) return data;
 
-        for (const key of possibleArrayKeys) {
-          if (Array.isArray(data?.[key])) return data[key];
-        }
+          if (data?.success && Array.isArray(data?.data)) return data.data;
+          if (data?.success && Array.isArray(data?.entries))
+            return data.entries;
 
-        for (const key in data) {
-          if (Array.isArray(data[key])) {
-            console.warn(`Found array in unexpected key: ${key}`);
-            return data[key];
-          }
-        }
-
-        return [];
-      };
-
-      const fetchData = async (url, parser, endpointName) => {
-        try {
-          const response = await fetch(`${BASE_URL}${url}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-
-          if (!response.ok) {
-            throw new Error(
-              `${endpointName} failed: ${response.status} ${response.statusText}`,
-            );
+          for (const key of possibleArrayKeys) {
+            if (Array.isArray(data?.[key])) return data[key];
           }
 
-          const data = await response.json();
-          return parser(data);
-        } catch (error) {
-          console.error(`Error fetching ${endpointName}:`, error);
-          throw error;
-        }
-      };
+          for (const key in data) {
+            if (Array.isArray(data[key])) {
+              console.warn(`Found array in unexpected key: ${key}`);
+              return data[key];
+            }
+          }
 
-      const maybeFetch = (condition, task, fallback) =>
-        condition ? task() : Promise.resolve(fallback);
+          return [];
+        };
 
-      // STEP 1: Pehle Transactions aur Companies dono fetch karein
-      const [
-        salesArray,
-        purchasesArray,
-        proformaArray,
-        receiptsArray,
-        paymentsArray,
-        journalsArray,
-        companiesArray, // <-- Company ko bhi main promise mein le aayein
-      ] = await Promise.all([
-        maybeFetch(
-          canSales,
-          () =>
-            fetchData(
-              `/api/sales${queryParam}`,
-              data => parseResponse(data, ['salesEntries', 'sales', 'entries']),
-              'sales',
-            ),
-          [],
-        ),
-        maybeFetch(
-          canPurchases,
-          () =>
-            fetchData(
-              `/api/purchase${queryParam}`,
-              data =>
-                parseResponse(data, [
-                  'purchaseEntries',
-                  'purchases',
-                  'entries',
-                ]),
-              'purchases',
-            ),
-          [],
-        ),
-        maybeFetch(
-          canSales,
-          () =>
-            fetchData(
-              `/api/proforma${queryParam}`,
-              data =>
-                parseResponse(data, ['proformaEntries', 'proforma', 'entries']),
-              'proforma',
-            ),
-          [],
-        ),
-        maybeFetch(
-          canReceipt,
-          () =>
-            fetchData(
-              `/api/receipts${queryParam}`,
-              data =>
-                parseResponse(data, ['receiptEntries', 'receipts', 'entries']),
-              'receipts',
-            ),
-          [],
-        ),
-        maybeFetch(
-          canPayment,
-          () =>
-            fetchData(
-              `/api/payments${queryParam}`,
-              data =>
-                parseResponse(data, ['paymentEntries', 'payments', 'entries']),
-              'payments',
-            ),
-          [],
-        ),
-        maybeFetch(
-          canJournal,
-          () =>
-            fetchData(
-              `/api/journals${queryParam}`,
-              data =>
-                parseResponse(data, ['journalEntries', 'journals', 'entries']),
-              'journals',
-            ),
-          [],
-        ),
-        fetchData(
-          '/api/companies/my',
-          data => parseResponse(data, ['companies', 'data']),
-          'companies',
-        ),
-      ]);
+        const fetchData = async (url, parser, endpointName) => {
+          try {
+            const response = await fetch(`${BASE_URL}${url}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
 
-      // Sabse pehle Companies set karein taaki "Company Setup Required" na dikhe
-      setCompanies(companiesArray);
+            if (!response.ok) {
+              throw new Error(
+                `${endpointName} failed: ${response.status} ${response.statusText}`,
+              );
+            }
 
-      // Baaki data set karein
-      setSales(salesArray.map(p => ({ ...p, type: 'sales' })));
-      setPurchases(purchasesArray.map(p => ({ ...p, type: 'purchases' })));
-      setProforma(proformaArray.map(p => ({ ...p, type: 'proforma' })));
-      setReceipts(receiptsArray.map(r => ({ ...r, type: 'receipt' })));
-      setPayments(paymentsArray.map(p => ({ ...p, type: 'payment' })));
-      setJournals(
-        journalsArray.map(j => ({
-          ...j,
-          description: j.narration || j.description,
-          type: 'journal',
-        })),
-      );
+            const data = await response.json();
+            return parser(data);
+          } catch (error) {
+            console.error(`Error fetching ${endpointName}:`, error);
+            throw error;
+          }
+        };
 
-      // Ab Loading band karein (Ab seedha UI dikhega)
-      setIsLoading(false);
-      setInitialLoad(false);
+        const maybeFetch = (condition, task, fallback) =>
+          condition ? task() : Promise.resolve(fallback);
 
-      // STEP 2: Ab baki bacha hua low-priority data background mein chalne dein
-      Promise.all([
-        fetchData(
-          '/api/parties',
-          data => parseResponse(data, ['parties', 'customers', 'data']),
-          'parties',
-        ),
-        fetchData(
-          '/api/vendors',
-          data => parseResponse(data, ['vendors', 'suppliers', 'data']),
-          'vendors',
-        ),
-        fetchData(
-          '/api/products',
-          data => parseResponse(data, ['products', 'items', 'data']),
-          'products',
-        ),
-        fetchData(
-          '/api/services',
-          data => parseResponse(data, ['services', 'data']),
-          'services',
-        ),
-      ]).then(([partiesArray, vendorsArray, productsArray, servicesArray]) => {
-        setParties(partiesArray);
-        setVendors(vendorsArray);
-        setProductsList(productsArray);
-        setServicesList(servicesArray);
-      });
-    } catch (error) {
-      // ... error handling
-      console.error('Fetch transactions error:', error);
-      toast('Failed to load transactions', 'error', error.message);
-      setIsLoading(false);
-      setInitialLoad(false);
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [
-    selectedCompanyId,
-    canSales,
-    canPurchases,
-    canReceipt,
-    canPayment,
-    canJournal,
-    toast,
-    initialLoad,
-  ]);
+        // STEP 1: Pehle Transactions aur Companies dono fetch karein
+        const [
+          salesArray,
+          purchasesArray,
+          proformaArray,
+          receiptsArray,
+          paymentsArray,
+          journalsArray,
+          companiesArray, // <-- Company ko bhi main promise mein le aayein
+        ] = await Promise.all([
+          maybeFetch(
+            canSales,
+            () =>
+              fetchData(
+                `/api/sales${queryParam}`,
+                data =>
+                  parseResponse(data, ['salesEntries', 'sales', 'entries']),
+                'sales',
+              ),
+            [],
+          ),
+          maybeFetch(
+            canPurchases,
+            () =>
+              fetchData(
+                `/api/purchase${queryParam}`,
+                data =>
+                  parseResponse(data, [
+                    'purchaseEntries',
+                    'purchases',
+                    'entries',
+                  ]),
+                'purchases',
+              ),
+            [],
+          ),
+          maybeFetch(
+            canSales,
+            () =>
+              fetchData(
+                `/api/proforma${queryParam}`,
+                data =>
+                  parseResponse(data, [
+                    'proformaEntries',
+                    'proforma',
+                    'entries',
+                  ]),
+                'proforma',
+              ),
+            [],
+          ),
+          maybeFetch(
+            canReceipt,
+            () =>
+              fetchData(
+                `/api/receipts${queryParam}`,
+                data =>
+                  parseResponse(data, [
+                    'receiptEntries',
+                    'receipts',
+                    'entries',
+                  ]),
+                'receipts',
+              ),
+            [],
+          ),
+          maybeFetch(
+            canPayment,
+            () =>
+              fetchData(
+                `/api/payments${queryParam}`,
+                data =>
+                  parseResponse(data, [
+                    'paymentEntries',
+                    'payments',
+                    'entries',
+                  ]),
+                'payments',
+              ),
+            [],
+          ),
+          maybeFetch(
+            canJournal,
+            () =>
+              fetchData(
+                `/api/journals${queryParam}`,
+                data =>
+                  parseResponse(data, [
+                    'journalEntries',
+                    'journals',
+                    'entries',
+                  ]),
+                'journals',
+              ),
+            [],
+          ),
+          fetchData(
+            '/api/companies/my',
+            data => parseResponse(data, ['companies', 'data']),
+            'companies',
+          ),
+        ]);
+
+        // Sabse pehle Companies set karein taaki "Company Setup Required" na dikhe
+        setCompanies(companiesArray);
+
+        // Baaki data set karein
+        setSales(salesArray.map(p => ({ ...p, type: 'sales' })));
+        setPurchases(purchasesArray.map(p => ({ ...p, type: 'purchases' })));
+        setProforma(proformaArray.map(p => ({ ...p, type: 'proforma' })));
+        setReceipts(receiptsArray.map(r => ({ ...r, type: 'receipt' })));
+        setPayments(paymentsArray.map(p => ({ ...p, type: 'payment' })));
+        setJournals(
+          journalsArray.map(j => ({
+            ...j,
+            description: j.narration || j.description,
+            type: 'journal',
+          })),
+        );
+
+        // Ab Loading band karein (Ab seedha UI dikhega)
+        setIsLoading(false);
+        setIsRefreshing(false);
+        setInitialLoad(false);
+
+        // STEP 2: Ab baki bacha hua low-priority data background mein chalne dein
+        Promise.all([
+          fetchData(
+            '/api/parties',
+            data => parseResponse(data, ['parties', 'customers', 'data']),
+            'parties',
+          ),
+          fetchData(
+            '/api/vendors',
+            data => parseResponse(data, ['vendors', 'suppliers', 'data']),
+            'vendors',
+          ),
+          fetchData(
+            '/api/products',
+            data => parseResponse(data, ['products', 'items', 'data']),
+            'products',
+          ),
+          fetchData(
+            '/api/services',
+            data => parseResponse(data, ['services', 'data']),
+            'services',
+          ),
+        ]).then(
+          ([partiesArray, vendorsArray, productsArray, servicesArray]) => {
+            setParties(partiesArray);
+            setVendors(vendorsArray);
+            setProductsList(productsArray);
+            setServicesList(servicesArray);
+          },
+        );
+      } catch (error) {
+        // ... error handling
+        console.error('Fetch transactions error:', error);
+        toast('Failed to load transactions', 'error', error.message);
+        setIsLoading(false);
+        setInitialLoad(false);
+        setIsRefreshing(false);
+      } finally {
+        // Do not change refreshing here; background tasks run separately
+      }
+    },
+    [
+      selectedCompanyId,
+      canSales,
+      canPurchases,
+      canReceipt,
+      canPayment,
+      canJournal,
+      toast,
+      initialLoad,
+    ],
+  );
 
   // Initial fetch
   useEffect(() => {
@@ -1442,7 +1473,7 @@ const TransactionsScreen = ({ navigation }) => {
           totalResults={searchedDataForTab.length}
           onLoadMore={handleLoadMore}
           key={`${refreshTrigger}-${activeTab}`}
-          refreshing={isRefreshing}
+          refreshing={isLoading ? false : isRefreshing}
           onRefresh={onRefresh}
         />
       </View>
@@ -1451,10 +1482,9 @@ const TransactionsScreen = ({ navigation }) => {
 
   // Handle refresh (also refresh permissions)
   const onRefresh = useCallback(async () => {
-    setIsRefreshing(true);
     try {
       await Promise.all([
-        fetchTransactions(),
+        fetchTransactions(true),
         refetchClientPermissions
           ? refetchClientPermissions()
           : Promise.resolve(),
@@ -1462,8 +1492,6 @@ const TransactionsScreen = ({ navigation }) => {
       ]);
     } catch (error) {
       console.error('Refresh error:', error);
-    } finally {
-      setIsRefreshing(false);
     }
   }, [fetchTransactions, refetchClientPermissions, refetchUserPermissions]);
 

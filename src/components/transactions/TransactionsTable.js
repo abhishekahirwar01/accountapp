@@ -294,8 +294,9 @@ const styles = StyleSheet.create({
   },
   companyRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    // alignItems: 'center',
     marginBottom: 12,
+    flexWrap: 'wrap',
   },
   label: {
     fontSize: 14,
@@ -305,6 +306,8 @@ const styles = StyleSheet.create({
   companyName: {
     fontSize: 14,
     color: '#6b7280',
+    flex: 1,
+    flexWrap: 'wrap',
   },
   amountDateRow: {
     flexDirection: 'row',
@@ -406,4 +409,4 @@ const styles = StyleSheet.create({
   deleteText: {
     color: '#dc2626',
   },
-});
+}); 

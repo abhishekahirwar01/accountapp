@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import DocumentPicker from '@react-native-documents/picker';
+import { pick } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import * as XLSX from 'xlsx';
 import Toast from 'react-native-toast-message';
@@ -274,15 +274,20 @@ const ServiceSettings = () => {
 
   const handleFilePick = async () => {
     try {
-      const result = await DocumentPicker.pickSingle({
+      const result = await pick({
         type: [
-          DocumentPicker.types.xlsx,
-          DocumentPicker.types.xls,
-          DocumentPicker.types.csv,
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+          'text/csv',
         ],
+        allowMultiSelection: false,
       });
 
-      const fileSize = result.size;
+      const file = Array.isArray(result) ? result[0] : result;
+
+      if (!file) return;
+
+      const fileSize = file.size || file.fileSize || 0;
       if (fileSize > 10 * 1024 * 1024) {
         Toast.show({
           type: 'error',
@@ -292,11 +297,16 @@ const ServiceSettings = () => {
         return;
       }
 
-      handleFileUpload(result);
+      await handleFileUpload(file);
     } catch (err) {
-      if (!DocumentPicker.isCancel(err)) {
-        console.error('Error picking file:', err);
+      if (
+        err.code === 'DOCUMENT_PICKER_CANCELED' ||
+        err.message?.toLowerCase()?.includes('cancel')
+      ) {
+        return;
       }
+      console.error('Error picking file:', err);
+      Toast.show({ type: 'error', text1: 'File selection failed' });
     }
   };
 
@@ -797,18 +807,22 @@ const ServiceSettings = () => {
                 services data.
               </Text>
 
-              <View style={styles.uploadArea}>
+              <TouchableOpacity
+                style={styles.uploadArea}
+                onPress={handleFilePick}
+                disabled={isImporting}
+                activeOpacity={0.8}
+              >
                 <Upload size={32} color="#999" />
                 <Text style={styles.uploadText}>
                   Drag and drop your file here, or click to browse
                 </Text>
-                <TouchableOpacity
+
+                <View
                   style={[
                     styles.selectFileButton,
                     isImporting && styles.selectFileButtonDisabled,
                   ]}
-                  onPress={handleFilePick}
-                  disabled={isImporting}
                 >
                   {isImporting ? (
                     <ActivityIndicator size="small" color="#666" />
@@ -820,8 +834,8 @@ const ServiceSettings = () => {
                       </Text>
                     </>
                   )}
-                </TouchableOpacity>
-              </View>
+                </View>
+              </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.downloadTemplateButton}

@@ -10,7 +10,13 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Receipt, Package, Server, ArrowRight, Calendar } from 'lucide-react-native';
+import {
+  Receipt,
+  Package,
+  Server,
+  ArrowRight,
+  Calendar,
+} from 'lucide-react-native';
 
 /* ---------- helpers ---------- */
 const inr = n => {
@@ -24,7 +30,7 @@ const safeDate = d => {
     ? new Intl.DateTimeFormat('en-IN', {
         day: '2-digit',
         month: 'short',
-        year: 'numeric'
+        year: 'numeric',
       }).format(t)
     : '-';
 };
@@ -45,7 +51,8 @@ const getAmount = tx => {
     case 'payment':
       return Number(tx?.amount ?? tx?.totalAmount ?? 0);
     case 'journal':
-      return 0;
+      // Journal entries store their amount under `amount` or `totalAmount`.
+      return Number(tx?.amount ?? tx?.totalAmount ?? 0);
     default:
       return Number(tx?.amount ?? tx?.totalAmount ?? 0);
   }
@@ -129,11 +136,11 @@ const getPartyName = tx => {
   return capitalizeWords(partyName);
 };
 
-const RecentTransactions = ({ 
-  transactions, 
-  serviceNameById, 
+const RecentTransactions = ({
+  transactions,
+  serviceNameById,
   onRefresh,
-  refreshing = false 
+  refreshing = false,
 }) => {
   const [isItemsOpen, setIsItemsOpen] = useState(false);
   const [dialogItems, setDialogItems] = useState([]);
@@ -234,7 +241,12 @@ const RecentTransactions = ({
         </View>
 
         <View style={[styles.tableCell, { flex: 1 }]}>
-          <View style={[styles.typeBadge, { backgroundColor: typeStyle.backgroundColor }]}>
+          <View
+            style={[
+              styles.typeBadge,
+              { backgroundColor: typeStyle.backgroundColor },
+            ]}
+          >
             <Text style={[styles.typeBadgeText, { color: typeStyle.color }]}>
               {tx.type?.toUpperCase()}
             </Text>
@@ -249,7 +261,12 @@ const RecentTransactions = ({
         </View>
 
         <View style={[styles.tableCell, styles.numericCell, { flex: 1 }]}>
-          <Text style={[styles.amountText, amt >= 0 ? styles.positiveAmount : styles.negativeAmount]}>
+          <Text
+            style={[
+              styles.amountText,
+              amt >= 0 ? styles.positiveAmount : styles.negativeAmount,
+            ]}
+          >
             {inr(Math.abs(amt))}
           </Text>
         </View>
@@ -285,7 +302,12 @@ const RecentTransactions = ({
               ) : null}
             </View>
             <View style={styles.mobileAmount}>
-              <Text style={[styles.amountText, amt >= 0 ? styles.positiveAmount : styles.negativeAmount]}>
+              <Text
+                style={[
+                  styles.amountText,
+                  amt >= 0 ? styles.positiveAmount : styles.negativeAmount,
+                ]}
+              >
                 {inr(Math.abs(amt))}
               </Text>
               <View style={styles.dateContainer}>
@@ -306,7 +328,10 @@ const RecentTransactions = ({
                   )}
                   <View style={styles.itemText}>
                     <Text
-                      style={[styles.itemLabel, clickable && styles.clickableText]}
+                      style={[
+                        styles.itemLabel,
+                        clickable && styles.clickableText,
+                      ]}
                       numberOfLines={1}
                     >
                       {item.label}
@@ -323,7 +348,12 @@ const RecentTransactions = ({
           </View>
 
           <View style={styles.badgeContainer}>
-            <View style={[styles.typeBadge, { backgroundColor: typeStyle.backgroundColor }]}>
+            <View
+              style={[
+                styles.typeBadge,
+                { backgroundColor: typeStyle.backgroundColor },
+              ]}
+            >
               <Text style={[styles.typeBadgeText, { color: typeStyle.color }]}>
                 {tx.type?.toUpperCase()}
               </Text>
@@ -342,7 +372,10 @@ const RecentTransactions = ({
       const total = inr(li.amount);
 
       return (
-        <View style={styles.dialogItemCard} key={`${li.itemType}-${li.name}-${index}`}>
+        <View
+          style={styles.dialogItemCard}
+          key={`${li.itemType}-${li.name}-${index}`}
+        >
           <View style={styles.dialogItemContent}>
             <View style={styles.dialogItemHeader}>
               {isService ? (
@@ -415,7 +448,7 @@ const RecentTransactions = ({
               </Text>
             </View>
 
-            <ScrollView 
+            <ScrollView
               style={styles.modalBody}
               showsVerticalScrollIndicator={true}
             >
@@ -479,11 +512,9 @@ const RecentTransactions = ({
           {!isMobile && (
             <View style={styles.desktopTable}>
               <TableHeader />
-              {transactions?.length > 0 ? (
-                transactions.map(tx => <TableRow key={tx._id} tx={tx} />)
-              ) : (
-                renderEmptyState()
-              )}
+              {transactions?.length > 0
+                ? transactions.map(tx => <TableRow key={tx._id} tx={tx} />)
+                : renderEmptyState()}
             </View>
           )}
 

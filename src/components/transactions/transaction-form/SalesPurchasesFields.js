@@ -2480,6 +2480,8 @@ export const SalesPurchasesFields = props => {
                           style={styles.invoiceTotalInput}
                           value={`₹${formatGrandTotal(watch('invoiceTotal'))}`}
                           editable={false}
+                          adjustsFontSizeToFit={true}
+                          numberOfLines={1}
                         />
                       </View>
                     </View>
@@ -3002,40 +3004,47 @@ const styles = StyleSheet.create({
   },
   totalsSection: {
     width: '100%',
-    maxWidth: 400,
+    marginTop: 10,
   },
   totalsContainer: {
     gap: 12,
+    width: '100%',
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 8,
+    flexWrap: 'wrap',
   },
   totalLabel: {
     fontSize: 14,
     fontWeight: '500',
+    flex: 1,
   },
   totalInputField: {
-    width: 150,
-    height: 40,
+    width: 140,
+    height: 45,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     backgroundColor: '#F9FAFB',
     fontSize: 14,
     textAlign: 'right',
+    color: '#111827',
   },
   invoiceTotalLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
+    flex: 1,
+    marginRight: 10,
   },
   invoiceTotalInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: 150,
-    height: 40,
+    minWidth: 140,
+    height: 50,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 6,
@@ -3050,7 +3059,7 @@ const styles = StyleSheet.create({
   },
   invoiceTotalInput: {
     flex: 1,
-    height: 40,
+    height: '100%',
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'right',

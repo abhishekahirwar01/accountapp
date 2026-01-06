@@ -74,7 +74,7 @@ export default function UsersPage() {
   const { toast } = useToast();
   const { permissions, refetch } = usePermissions();
   const { refetch: refetchUserPermissions } = useUserPermissions();
-  const userLoginUrl = 'https://yourapp.com/user-login';
+  const userLoginUrl = 'https://vinimay.sharda.co.in/user-login';
 
   useEffect(() => {
     const { width } = Dimensions.get('window');

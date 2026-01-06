@@ -133,9 +133,15 @@ const useFormMethods = form => {
 
     return {
       watch: field => form.watch?.(field) || form[field],
-      setValue: (field, value) => {
+      setValue: (field, value, options = {}) => {
+        // Ensure we trigger validation and mark field dirty by default so
+        // UI errors clear as user types. Callers can pass options to override.
         if (form.setValue) {
-          form.setValue(field, value);
+          form.setValue(field, value, {
+            shouldValidate: true,
+            shouldDirty: true,
+            ...options,
+          });
         } else if (form.onChange) {
           form.onChange(field, value);
         }
@@ -413,9 +419,9 @@ export function FormTabs({
                       onChange={val => formMethods.setValue('company', val)}
                       placeholder="Select a company"
                     />
-                    {formMethods.formState.errors?.company && (
+                    {form.formState.errors?.company && (
                       <Text style={styles.errorText}>
-                        {formMethods.formState.errors.company.message}
+                        {form.formState.errors.company.message}
                       </Text>
                     )}
                   </View>
@@ -425,7 +431,7 @@ export function FormTabs({
                     <TouchableOpacity
                       style={[
                         styles.dateInput,
-                        formMethods.formState.errors?.date && styles.inputError,
+                        form.formState.errors?.date && styles.inputError,
                         focusedField === 'date' && styles.inputFocused,
                       ]}
                       onPress={() => {
@@ -448,9 +454,9 @@ export function FormTabs({
                         minimumDate={new Date('1900-01-01')}
                       />
                     )}
-                    {formMethods.formState.errors?.date && (
+                    {form.formState.errors?.date && (
                       <Text style={styles.errorText}>
-                        {formMethods.formState.errors.date.message}
+                        {form.formState.errors.date.message}
                       </Text>
                     )}
                   </View>
@@ -466,7 +472,7 @@ export function FormTabs({
                       placeholder="e.g., Rent Expense"
                       style={getInputStyle(
                         'fromAccount',
-                        formMethods.formState.errors?.fromAccount,
+                        form.formState.errors?.fromAccount,
                       )}
                       value={formMethods.watch('fromAccount') || ''}
                       onChangeText={text =>
@@ -478,9 +484,9 @@ export function FormTabs({
                       onFocus={() => setFocusedField('fromAccount')}
                       onBlur={() => setFocusedField(null)}
                     />
-                    {formMethods.formState.errors?.fromAccount && (
+                    {form.formState.errors?.fromAccount && (
                       <Text style={styles.errorText}>
-                        {formMethods.formState.errors.fromAccount.message}
+                        {form.formState.errors.fromAccount.message}
                       </Text>
                     )}
                   </View>
@@ -491,7 +497,7 @@ export function FormTabs({
                       placeholder="e.g., Cash"
                       style={getInputStyle(
                         'toAccount',
-                        formMethods.formState.errors?.toAccount,
+                        form.formState.errors?.toAccount,
                       )}
                       value={formMethods.watch('toAccount') || ''}
                       onChangeText={text =>
@@ -503,9 +509,9 @@ export function FormTabs({
                       onFocus={() => setFocusedField('toAccount')}
                       onBlur={() => setFocusedField(null)}
                     />
-                    {formMethods.formState.errors?.toAccount && (
+                    {form.formState.errors?.toAccount && (
                       <Text style={styles.errorText}>
-                        {formMethods.formState.errors.toAccount.message}
+                        {form.formState.errors.toAccount.message}
                       </Text>
                     )}
                   </View>
@@ -516,7 +522,7 @@ export function FormTabs({
                       placeholder="₹0.00"
                       style={getInputStyle(
                         'totalAmount',
-                        formMethods.formState.errors?.totalAmount,
+                        form.formState.errors?.totalAmount,
                       )}
                       value={journalDisplayValue}
                       onChangeText={text => {
@@ -539,9 +545,9 @@ export function FormTabs({
                       onFocus={() => setFocusedField('totalAmount')}
                       onBlur={() => setFocusedField(null)}
                     />
-                    {formMethods.formState.errors?.totalAmount && (
+                    {form.formState.errors?.totalAmount && (
                       <Text style={styles.errorText}>
-                        {formMethods.formState.errors.totalAmount.message}
+                        {form.formState.errors.totalAmount.message}
                       </Text>
                     )}
                   </View>
@@ -555,7 +561,7 @@ export function FormTabs({
                   <TextInput
                     style={getInputStyle(
                       'description',
-                      formMethods.formState.errors?.description,
+                      form.formState.errors?.description,
                     )}
                     multiline
                     numberOfLines={4}
@@ -570,9 +576,9 @@ export function FormTabs({
                     onFocus={() => setFocusedField('description')}
                     onBlur={() => setFocusedField(null)}
                   />
-                  {formMethods.formState.errors?.description && (
+                  {form.formState.errors?.description && (
                     <Text style={styles.errorText}>
-                      {formMethods.formState.errors.description.message}
+                      {form.formState.errors.description.message}
                     </Text>
                   )}
                 </View>
