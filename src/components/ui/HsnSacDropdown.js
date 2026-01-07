@@ -26,6 +26,11 @@ const HsnSacDropdown = ({
 
   const selectedItem = items.find(item => item.value === value);
 
+  // If no match found in items, create a synthetic item to show the value
+  // This handles cases where backend returns HSN/SAC codes not in the standard list
+  const displayItem =
+    selectedItem || (value ? { label: value, value: value } : null);
+
   return (
     <View style={[styles.container, style]}>
       <TouchableOpacity
@@ -34,9 +39,9 @@ const HsnSacDropdown = ({
         disabled={disabled}
       >
         <Text
-          style={[styles.buttonText, !selectedItem && styles.placeholderText]}
+          style={[styles.buttonText, !displayItem && styles.placeholderText]}
         >
-          {selectedItem ? selectedItem.value : placeholder}
+          {displayItem ? displayItem.value : placeholder}
         </Text>
         <Text style={styles.arrow}>▼</Text>
       </TouchableOpacity>

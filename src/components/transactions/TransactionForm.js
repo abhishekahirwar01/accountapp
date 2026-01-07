@@ -1350,6 +1350,28 @@ export function TransactionForm({
       gstPercentage: p.gstPercentage ?? 18,
       lineTax: p.lineTax ?? 0,
       lineTotal: p.lineTotal ?? p.amount,
+      hsn: (() => {
+        const v =
+          p.hsn ??
+          (p.product && typeof p.product === 'object'
+            ? p.product.hsn
+            : undefined);
+        if (v === undefined || v === null) return '';
+        if (typeof v === 'object')
+          return String(v.HSN_CD ?? v.hsn ?? v.code ?? v.value ?? '');
+        return String(v);
+      })(),
+      sac: (() => {
+        const v =
+          p.sac ??
+          (p.product && typeof p.product === 'object'
+            ? p.product.sac
+            : undefined);
+        if (v === undefined || v === null) return '';
+        if (typeof v === 'object')
+          return String(v.SAC_CD ?? v.sac ?? v.code ?? v.value ?? '');
+        return String(v);
+      })(),
     });
 
     const toServiceId = s => {
@@ -1400,6 +1422,34 @@ export function TransactionForm({
       gstPercentage: i.gstPercentage ?? 18,
       lineTax: i.lineTax ?? 0,
       lineTotal: i.lineTotal ?? i.amount,
+      hsn: (() => {
+        const v =
+          i.hsn ??
+          (i.product && typeof i.product === 'object'
+            ? i.product.hsn
+            : undefined) ??
+          (i.service && typeof i.service === 'object'
+            ? i.service.hsn
+            : undefined);
+        if (v === undefined || v === null) return '';
+        if (typeof v === 'object')
+          return String(v.HSN_CD ?? v.hsn ?? v.code ?? v.value ?? '');
+        return String(v);
+      })(),
+      sac: (() => {
+        const v =
+          i.sac ??
+          (i.service && typeof i.service === 'object'
+            ? i.service.sac
+            : undefined) ??
+          (i.product && typeof i.product === 'object'
+            ? i.product.sac
+            : undefined);
+        if (v === undefined || v === null) return '';
+        if (typeof v === 'object')
+          return String(v.SAC_CD ?? v.sac ?? v.code ?? v.value ?? '');
+        return String(v);
+      })(),
     });
 
     let itemsToSet = [];
@@ -3213,7 +3263,29 @@ export function TransactionForm({
     }
   };
 
-  const productOptions = products.map(p => {
+  // Filter products by selected company
+  const filteredProducts = useMemo(() => {
+    if (!selectedCompanyIdWatch) return products;
+    return products.filter(
+      p =>
+        !p.company ||
+        p.company === selectedCompanyIdWatch ||
+        p.company?._id === selectedCompanyIdWatch,
+    );
+  }, [products, selectedCompanyIdWatch]);
+
+  // Filter services by selected company
+  const filteredServices = useMemo(() => {
+    if (!selectedCompanyIdWatch) return services;
+    return services.filter(
+      s =>
+        !s.company ||
+        s.company === selectedCompanyIdWatch ||
+        s.company?._id === selectedCompanyIdWatch,
+    );
+  }, [services, selectedCompanyIdWatch]);
+
+  const productOptions = filteredProducts.map(p => {
     const stockNum = Number(p.stocks ?? p.stock ?? 0);
 
     let stockLabel;
@@ -3231,7 +3303,7 @@ export function TransactionForm({
     };
   });
 
-  const serviceOptions = services.map(s => ({
+  const serviceOptions = filteredServices.map(s => ({
     value: s._id,
     label: s.serviceName,
   }));

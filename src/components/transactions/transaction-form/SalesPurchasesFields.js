@@ -789,10 +789,21 @@ export const SalesPurchasesFields = props => {
     setValue(`items.${index}.product`, value, { shouldValidate: true });
     const selectedProduct = value ? products.find(p => p._id === value) : null;
 
-    // Set HSN or clear it
-    setValue(`items.${index}.hsn`, selectedProduct?.hsn || '', {
-      shouldValidate: true,
-    });
+    // Set HSN or clear it (coerce and handle nested objects)
+    const prodHsn = (() => {
+      if (!selectedProduct) return '';
+      const v =
+        selectedProduct.hsn ??
+        selectedProduct.HSN_CD ??
+        selectedProduct.hsnCode ??
+        selectedProduct.hsn_code ??
+        null;
+      if (v === undefined || v === null) return '';
+      if (typeof v === 'object')
+        return String(v.HSN_CD ?? v.hsn ?? v.code ?? v.value ?? '');
+      return String(v);
+    })();
+    setValue(`items.${index}.hsn`, prodHsn, { shouldValidate: true });
 
     if (value && typeof value === 'string') {
       if (selectedProduct) {
@@ -1586,7 +1597,24 @@ export const SalesPurchasesFields = props => {
                     ? services.find(s => s._id === value)
                     : null;
 
-                  setValue(`items.${index}.sac`, selectedService?.sac || '', {
+                  // Robustly extract SAC (handles object or scalar)
+                  const svcSac = (() => {
+                    if (!selectedService) return '';
+                    const v =
+                      selectedService.sac ??
+                      selectedService.SAC_CD ??
+                      selectedService.sacCode ??
+                      selectedService.sac_code ??
+                      null;
+                    if (v === undefined || v === null) return '';
+                    if (typeof v === 'object')
+                      return String(
+                        v.SAC_CD ?? v.sac ?? v.code ?? v.value ?? '',
+                      );
+                    return String(v);
+                  })();
+
+                  setValue(`items.${index}.sac`, svcSac, {
                     shouldValidate: true,
                   });
 
