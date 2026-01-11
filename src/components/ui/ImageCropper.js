@@ -1,3 +1,4 @@
+// ImageCropper.js
 import React, { useEffect, useCallback, useState } from 'react';
 import {
   View,
@@ -5,14 +6,13 @@ import {
   StyleSheet,
   ActivityIndicator,
   Text,
-  Alert,
+  Platform,
 } from 'react-native';
-// यह वह लाइब्रेरी है जो नेटिव क्रॉपर लॉन्च करती है
 import ImagePicker from 'react-native-image-crop-picker';
 
 /**
  * ImageCropper (Native Wrapper)
- * यह कंपोनेंट सीधे नेटिव क्रॉपर को लॉन्च करता है और उसके परिणाम का इंतजार करता है।
+ * This component launches the native cropper and waits for the result
  */
 export default function ImageCropper({
   image,
@@ -22,51 +22,69 @@ export default function ImageCropper({
 }) {
   const [loading, setLoading] = useState(false);
 
-  // 1. नेटिव क्रॉपर को लॉन्च करने का फंक्शन
   const openNativeCropper = useCallback(async () => {
     if (!image) {
+      console.warn('No image provided to cropper');
       onCancel();
       return;
     }
 
     try {
-      setLoading(true); // लोडिंग शुरू करें (यह लोडिंग स्क्रीन दिखेगी)
+      setLoading(true);
 
-      // **यह कॉल नेटिव UI को लॉन्च करता है**
+      console.log('Opening cropper with image:', image);
+
+      // Launch native cropper
       const croppedImage = await ImagePicker.openCropper({
         path: image,
-        width: 300,
-        height: 300,
+        width: 800,
+        height: 800,
         cropping: true,
-        cropperCircleOverlay: false, // वेब जैसा Rectangular Cropper
-        compressImageQuality: 0.95,
+        cropperCircleOverlay: false,
+        compressImageQuality: 0.8,
+        compressImageMaxWidth: 1024,
+        compressImageMaxHeight: 1024,
         mediaType: 'photo',
-
-        // आप केवल Toolbar के Text और Color को सेट कर सकते हैं,
-        // लेकिन ज़ूम स्लाइडर या बटन नहीं जोड़ सकते।
-        cropperToolbarTitle: 'Crop Logo',
+        includeBase64: false,
+        includeExif: false,
+        cropperToolbarTitle: 'Crop QR Code',
         cropperCancelText: 'Cancel',
         cropperChooseText: 'Done',
+        enableRotationGesture: true,
+        freeStyleCropEnabled: true,
       });
 
-      // 2. जब नेटिव क्रॉपर बंद हो जाता है, तो परिणाम यहाँ आता है
+      console.log('Cropped image result:', {
+        path: croppedImage.path,
+        mime: croppedImage.mime,
+        size: croppedImage.size,
+        width: croppedImage.width,
+        height: croppedImage.height,
+      });
+
+      // Return the cropped image to parent
       onCropComplete(croppedImage);
+      
     } catch (error) {
-      if (error?.code !== 'E_PICKER_CANCELLED') {
+      if (error?.code === 'E_PICKER_CANCELLED') {
+        console.log('User cancelled cropping');
+      } else {
         console.error('Crop Error:', error);
-        Alert.alert('Error', 'An error occurred during cropping.');
+        console.error('Error details:', {
+          code: error?.code,
+          message: error?.message,
+        });
       }
-      // अगर यूज़र नेटिव क्रॉपर में 'Cancel' दबाता है, तो यह यहाँ कैच होता है।
     } finally {
       setLoading(false);
-      onCancel(); // मोडल को बंद करें
+      onCancel();
     }
   }, [image, onCropComplete, onCancel]);
 
   useEffect(() => {
-    // 3. visible होने पर Cropper को लॉन्च करें
+    // Launch cropper when visible
     if (visible && !loading) {
-      // setTimeout एक अच्छी प्रथा है ताकि मोडल पूरी तरह से रेंडर हो जाए
+      // Timeout ensures modal is fully rendered
       const timer = setTimeout(openNativeCropper, 100);
       return () => clearTimeout(timer);
     }
@@ -74,7 +92,7 @@ export default function ImageCropper({
 
   if (!visible) return null;
 
-  // 4. यह UI केवल एक लोडिंग/ट्रांजिशन स्क्रीन है
+  // Loading screen shown while native cropper is launching
   return (
     <Modal
       visible={visible}
@@ -83,9 +101,11 @@ export default function ImageCropper({
       statusBarTranslucent
     >
       <View style={styles.overlay}>
-        <ActivityIndicator size="large" color="#10B981" />
+        <ActivityIndicator size="large" color="#3B82F6" />
         <Text style={styles.text}>Opening crop tool…</Text>
-        <Text style={styles.subText}>(Using Native {Platform.OS} Cropper)</Text>
+        <Text style={styles.subText}>
+          (Using Native {Platform.OS === 'ios' ? 'iOS' : 'Android'} Cropper)
+        </Text>
       </View>
     </Modal>
   );
@@ -106,7 +126,7 @@ const styles = StyleSheet.create({
   },
   subText: {
     marginTop: 4,
-    color: '#aaa',
+    color: '#9CA3AF',
     fontSize: 14,
   },
 });

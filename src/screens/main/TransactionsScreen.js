@@ -153,7 +153,7 @@ const TransactionsScreen = ({ navigation }) => {
   const [isGmailNotConnected, setIsGmailNotConnected] = useState(false);
 
   // Hooks
-  const { selectedCompanyId } = useCompany();
+  const { selectedCompanyId, triggerCompaniesRefresh } = useCompany();
   const { toast } = useToast();
   const {
     permissions: userCaps,
@@ -1480,11 +1480,13 @@ const TransactionsScreen = ({ navigation }) => {
     );
   };
 
-  // Handle refresh (also refresh permissions)
+  // Handle refresh (also refresh permissions and companies)
   const onRefresh = useCallback(async () => {
     try {
+      console.log('🔄 TransactionsScreen pull-to-refresh triggered...');
       await Promise.all([
         fetchTransactions(true),
+        triggerCompaniesRefresh(), // Add company refresh
         refetchClientPermissions
           ? refetchClientPermissions()
           : Promise.resolve(),
@@ -1493,7 +1495,12 @@ const TransactionsScreen = ({ navigation }) => {
     } catch (error) {
       console.error('Refresh error:', error);
     }
-  }, [fetchTransactions, refetchClientPermissions, refetchUserPermissions]);
+  }, [
+    fetchTransactions,
+    triggerCompaniesRefresh,
+    refetchClientPermissions,
+    refetchUserPermissions,
+  ]);
 
   // Main render function for content
   const renderMainContent = () => {
@@ -1646,14 +1653,23 @@ const TransactionsScreen = ({ navigation }) => {
         {/* Content */}
         <View style={styles.content}>
           {allowedTypes.length === 0 ? (
-            <View style={styles.noAccessContainer}>
+            <ScrollView
+              contentContainerStyle={styles.noAccessContainer}
+              refreshControl={
+                <RefreshControl
+                  refreshing={isRefreshing}
+                  onRefresh={onRefresh}
+                  colors={['#3b82f6']}
+                />
+              }
+            >
               <Icon name="block" size={48} color="#ef4444" />
               <Text style={styles.noAccessTitle}>No transaction access</Text>
               <Text style={styles.noAccessDescription}>
                 You don't have permission to view transaction entries. Please
                 contact your administrator.
               </Text>
-            </View>
+            </ScrollView>
           ) : (
             renderContent()
           )}

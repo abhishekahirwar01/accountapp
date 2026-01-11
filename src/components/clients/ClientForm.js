@@ -8,6 +8,7 @@ import {
   Switch as RNSwitch,
   StyleSheet,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useToast } from '../hooks/useToast';
@@ -17,32 +18,48 @@ import { AlertCircle, Check, Eye, EyeOff } from 'lucide-react-native';
 
 // Field validation functions
 const fieldValidations = {
-  validateContactName: (value) => {
+  validateContactName: value => {
     if (!value || value.trim().length < 2) {
-      return { isValid: false, message: 'Contact name must be at least 2 characters' };
+      return {
+        isValid: false,
+        message: 'Contact name must be at least 2 characters',
+      };
     }
     if (value.trim().length > 50) {
-      return { isValid: false, message: 'Contact name must not exceed 50 characters' };
+      return {
+        isValid: false,
+        message: 'Contact name must not exceed 50 characters',
+      };
     }
     return { isValid: true, message: '' };
   },
 
   validateUsername: (value, isEditMode) => {
     if (isEditMode) return { isValid: true, message: '' };
-    
+
     if (!value || value.trim().length < 4) {
-      return { isValid: false, message: 'Username must be at least 4 characters' };
+      return {
+        isValid: false,
+        message: 'Username must be at least 4 characters',
+      };
     }
     if (value.length > 24) {
-      return { isValid: false, message: 'Username must not exceed 24 characters' };
+      return {
+        isValid: false,
+        message: 'Username must not exceed 24 characters',
+      };
     }
     if (!/^[a-z0-9_.]{4,24}$/.test(value)) {
-      return { isValid: false, message: 'Username can only contain lowercase letters, numbers, dots, and underscores' };
+      return {
+        isValid: false,
+        message:
+          'Username can only contain lowercase letters, numbers, dots, and underscores',
+      };
     }
     return { isValid: true, message: '' };
   },
 
-  validateEmail: (value) => {
+  validateEmail: value => {
     if (!value || value.trim().length === 0) {
       return { isValid: false, message: 'Email is required' };
     }
@@ -53,9 +70,12 @@ const fieldValidations = {
     return { isValid: true, message: '' };
   },
 
-  validatePhone: (value) => {
+  validatePhone: value => {
     if (!value || value.trim().length < 6) {
-      return { isValid: false, message: 'Phone number must be at least 6 characters' };
+      return {
+        isValid: false,
+        message: 'Phone number must be at least 6 characters',
+      };
     }
     // Check if it contains at least some digits
     if (!/\d/.test(value)) {
@@ -66,33 +86,48 @@ const fieldValidations = {
 
   validatePassword: (value, isEditMode) => {
     if (isEditMode) return { isValid: true, message: '' };
-    
+
     if (!value || value.length < 6) {
-      return { isValid: false, message: 'Password must be at least 6 characters' };
+      return {
+        isValid: false,
+        message: 'Password must be at least 6 characters',
+      };
     }
     if (value.length > 50) {
-      return { isValid: false, message: 'Password must not exceed 50 characters' };
+      return {
+        isValid: false,
+        message: 'Password must not exceed 50 characters',
+      };
     }
     return { isValid: true, message: '' };
   },
 
-  validateNewPassword: (value) => {
+  validateNewPassword: value => {
     if (!value || value.trim().length === 0) {
       return { isValid: false, message: 'New password is required' };
     }
     if (value.length < 6) {
-      return { isValid: false, message: 'Password must be at least 6 characters' };
+      return {
+        isValid: false,
+        message: 'Password must be at least 6 characters',
+      };
     }
     if (value.length > 50) {
-      return { isValid: false, message: 'Password must not exceed 50 characters' };
+      return {
+        isValid: false,
+        message: 'Password must not exceed 50 characters',
+      };
     }
     return { isValid: true, message: '' };
   },
 
-  validateValidityAmount: (value) => {
+  validateValidityAmount: value => {
     const num = Number(value);
     if (isNaN(num) || num <= 0) {
-      return { isValid: false, message: 'Validity amount must be greater than 0' };
+      return {
+        isValid: false,
+        message: 'Validity amount must be greater than 0',
+      };
     }
     if (num > 999) {
       return { isValid: false, message: 'Validity amount seems too large' };
@@ -100,10 +135,13 @@ const fieldValidations = {
     return { isValid: true, message: '' };
   },
 
-  validateValidityUnit: (value) => {
+  validateValidityUnit: value => {
     const validUnits = ['days', 'months', 'years'];
     if (!validUnits.includes(value.toLowerCase())) {
-      return { isValid: false, message: 'Validity unit must be days, months, or years' };
+      return {
+        isValid: false,
+        message: 'Validity unit must be days, months, or years',
+      };
     }
     return { isValid: true, message: '' };
   },
@@ -157,21 +195,41 @@ export default function ClientForm({
 
   // form state
   const [contactName, setContactName] = useState(client?.contactName || '');
-  const [clientUsername, setClientUsername] = useState(client?.clientUsername || '');
+  const [clientUsername, setClientUsername] = useState(
+    client?.clientUsername || '',
+  );
   const [email, setEmail] = useState(client?.email || '');
   const [phone, setPhone] = useState(client?.phone || '');
   const [password, setPassword] = useState('');
   const [maxCompanies, setMaxCompanies] = useState(client?.maxCompanies ?? 5);
   const [maxUsers, setMaxUsers] = useState(client?.maxUsers ?? 10);
-  const [maxInventories, setMaxInventories] = useState(client?.maxInventories ?? 50);
-  const [canSendInvoiceEmail, setCanSendInvoiceEmail] = useState(client?.canSendInvoiceEmail ?? false);
-  const [canSendInvoiceWhatsapp, setCanSendInvoiceWhatsapp] = useState(client?.canSendInvoiceWhatsapp ?? false);
-  const [canCreateUsers, setCanCreateUsers] = useState(client?.canCreateUsers ?? true);
-  const [canCreateCustomers, setCanCreateCustomers] = useState(client?.canCreateCustomers ?? true);
-  const [canCreateVendors, setCanCreateVendors] = useState(client?.canCreateVendors ?? true);
-  const [canCreateProducts, setCanCreateProducts] = useState(client?.canCreateProducts ?? true);
-  const [canCreateCompanies, setCanCreateCompanies] = useState(client?.canCreateCompanies ?? false);
-  const [canUpdateCompanies, setCanUpdateCompanies] = useState(client?.canUpdateCompanies ?? false);
+  const [maxInventories, setMaxInventories] = useState(
+    client?.maxInventories ?? 50,
+  );
+  const [canSendInvoiceEmail, setCanSendInvoiceEmail] = useState(
+    client?.canSendInvoiceEmail ?? false,
+  );
+  const [canSendInvoiceWhatsapp, setCanSendInvoiceWhatsapp] = useState(
+    client?.canSendInvoiceWhatsapp ?? false,
+  );
+  const [canCreateUsers, setCanCreateUsers] = useState(
+    client?.canCreateUsers ?? true,
+  );
+  const [canCreateCustomers, setCanCreateCustomers] = useState(
+    client?.canCreateCustomers ?? true,
+  );
+  const [canCreateVendors, setCanCreateVendors] = useState(
+    client?.canCreateVendors ?? true,
+  );
+  const [canCreateProducts, setCanCreateProducts] = useState(
+    client?.canCreateProducts ?? true,
+  );
+  const [canCreateCompanies, setCanCreateCompanies] = useState(
+    client?.canCreateCompanies ?? false,
+  );
+  const [canUpdateCompanies, setCanUpdateCompanies] = useState(
+    client?.canUpdateCompanies ?? false,
+  );
   const [validityAmount, setValidityAmount] = useState(30);
   const [validityUnit, setValidityUnit] = useState('days');
   const [eyeOpen, setEyeOpen] = useState(false);
@@ -212,7 +270,7 @@ export default function ClientForm({
   // Field validation handler
   const handleFieldValidation = (fieldName, value) => {
     let validation = { isValid: true, message: '' };
-    
+
     switch (fieldName) {
       case 'contactName':
         validation = fieldValidations.validateContactName(value);
@@ -239,13 +297,25 @@ export default function ClientForm({
         validation = fieldValidations.validateValidityUnit(value);
         break;
       case 'maxCompanies':
-        validation = fieldValidations.validateMaxValue(value, 'Max Companies', 1000);
+        validation = fieldValidations.validateMaxValue(
+          value,
+          'Max Companies',
+          1000,
+        );
         break;
       case 'maxUsers':
-        validation = fieldValidations.validateMaxValue(value, 'Max Users', 1000);
+        validation = fieldValidations.validateMaxValue(
+          value,
+          'Max Users',
+          1000,
+        );
         break;
       case 'maxInventories':
-        validation = fieldValidations.validateMaxValue(value, 'Max Inventories', 10000);
+        validation = fieldValidations.validateMaxValue(
+          value,
+          'Max Inventories',
+          10000,
+        );
         break;
       default:
         break;
@@ -388,24 +458,24 @@ export default function ClientForm({
 
   const validateClientForm = useCallback(() => {
     const errors = {};
-    
+
     // Validate all required fields
     if (!handleFieldValidation('contactName', contactName)) {
       errors.contactName = fieldErrors.contactName;
     }
-    
+
     if (!client && !handleFieldValidation('clientUsername', clientUsername)) {
       errors.clientUsername = fieldErrors.clientUsername;
     }
-    
+
     if (!handleFieldValidation('email', email)) {
       errors.email = fieldErrors.email;
     }
-    
+
     if (!handleFieldValidation('phone', phone)) {
       errors.phone = fieldErrors.phone;
     }
-    
+
     if (!client && !handleFieldValidation('password', password)) {
       errors.password = fieldErrors.password;
     }
@@ -418,7 +488,7 @@ export default function ClientForm({
         errors.validityUnit = fieldErrors.validityUnit;
       }
     }
-    
+
     if (checkingUsername) {
       toast({
         variant: 'destructive',
@@ -427,7 +497,7 @@ export default function ClientForm({
       });
       return false;
     }
-    
+
     if (!client && usernameAvailable === false) {
       toast({
         variant: 'destructive',
@@ -468,7 +538,10 @@ export default function ClientForm({
     if (lower.includes('username')) {
       setUsernameAvailable(false);
       setUsernameSuggestions(
-        localSuggestions(contactName || clientUsername, clientUsername).slice(0, 6),
+        localSuggestions(contactName || clientUsername, clientUsername).slice(
+          0,
+          6,
+        ),
       );
       toast({
         variant: 'destructive',
@@ -559,7 +632,7 @@ export default function ClientForm({
 
   const handlePermissionChange = (field, value) => {
     setCurrentPermissions(prev => ({ ...prev, [field]: value }));
-    
+
     // Validate numeric fields
     if (['maxCompanies', 'maxUsers', 'maxInventories'].includes(field)) {
       handleFieldValidation(field, value);
@@ -568,14 +641,21 @@ export default function ClientForm({
 
   const validatePermissions = () => {
     const errors = {};
-    
-    if (!handleFieldValidation('maxCompanies', currentPermissions.maxCompanies)) {
+
+    if (
+      !handleFieldValidation('maxCompanies', currentPermissions.maxCompanies)
+    ) {
       errors.maxCompanies = true;
     }
     if (!handleFieldValidation('maxUsers', currentPermissions.maxUsers)) {
       errors.maxUsers = true;
     }
-    if (!handleFieldValidation('maxInventories', currentPermissions.maxInventories)) {
+    if (
+      !handleFieldValidation(
+        'maxInventories',
+        currentPermissions.maxInventories,
+      )
+    ) {
       errors.maxInventories = true;
     }
 
@@ -593,10 +673,11 @@ export default function ClientForm({
 
   const handleSavePermissions = async () => {
     if (!client) return;
-    
+
     if (!validatePermissions()) return;
 
     setIsSavingPermissions(true);
+
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
@@ -618,15 +699,34 @@ export default function ClientForm({
         throw new Error(errorData.message || 'Failed to update permissions.');
       }
 
+      // Show success alert
+      Alert.alert(
+        'Success',
+        `Permissions for ${client.contactName} have been updated successfully!`,
+        [{ text: 'OK' }],
+      );
+
+      // Also show toast if available
       toast({
-        title: 'Permissions Updated',
-        description: `Permissions for ${client.contactName} have been saved.`,
+        variant: 'default',
+        title: 'Success',
+        description: `Permissions for ${client.contactName} have been updated successfully.`,
       });
     } catch (error) {
+      // Show error alert
+      Alert.alert(
+        'Update Failed',
+        error instanceof Error
+          ? error.message
+          : 'Failed to update permissions.',
+        [{ text: 'OK' }],
+      );
+
       toast({
         variant: 'destructive',
         title: 'Update Failed',
-        description: error instanceof Error ? error.message : 'Something went wrong.',
+        description:
+          error instanceof Error ? error.message : 'Something went wrong.',
       });
     } finally {
       setIsSavingPermissions(false);
@@ -635,13 +735,12 @@ export default function ClientForm({
 
   const handleResetPassword = async () => {
     if (!client) return;
-    
+
     if (!handleFieldValidation('newPassword', newPassword)) {
-      toast({
-        variant: 'destructive',
-        title: 'Validation Error',
-        description: fieldErrors.newPassword || 'New password is invalid.',
-      });
+      Alert.alert(
+        'Validation Error',
+        fieldErrors.newPassword || 'New password is invalid.',
+      );
       return;
     }
 
@@ -667,10 +766,11 @@ export default function ClientForm({
         throw new Error(errorData.message || 'Failed to reset password.');
       }
 
-      toast({
-        title: 'Password Reset Successful',
-        description: `Password for ${client.contactName} has been updated.`,
-      });
+      Alert.alert(
+        'Success',
+        `Password for ${client.contactName} has been reset successfully!`,
+        [{ text: 'OK' }],
+      );
 
       setNewPassword('');
       setFieldErrors(prev => {
@@ -678,11 +778,10 @@ export default function ClientForm({
         return rest;
       });
     } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Password Reset Failed',
-        description: error instanceof Error ? error.message : 'Something went wrong.',
-      });
+      Alert.alert(
+        'Password Reset Failed',
+        error instanceof Error ? error.message : 'Something went wrong.',
+      );
     } finally {
       setIsSubmittingPassword(false);
     }
@@ -782,13 +881,7 @@ export default function ClientForm({
   );
 
   // Render form field with validation
-  const renderFormField = (
-    label,
-    value,
-    onChange,
-    fieldName,
-    options = {}
-  ) => {
+  const renderFormField = (label, value, onChange, fieldName, options = {}) => {
     const {
       placeholder = '',
       keyboardType = 'default',
@@ -820,20 +913,23 @@ export default function ClientForm({
           editable={editable}
           multiline={multiline}
         />
-        
+
         {fieldErrors[fieldName] && (
           <View style={styles.errorContainer}>
             <AlertCircle size={14} color="#dc2626" />
             <Text style={styles.errorText}>{fieldErrors[fieldName]}</Text>
           </View>
         )}
-        
-        {showValidation && !fieldErrors[fieldName] && value && !secureTextEntry && (
-          <View style={styles.successContainer}>
-            <Check size={14} color="#10b981" />
-            <Text style={styles.successText}>Valid</Text>
-          </View>
-        )}
+
+        {showValidation &&
+          !fieldErrors[fieldName] &&
+          value &&
+          !secureTextEntry && (
+            <View style={styles.successContainer}>
+              <Check size={14} color="#10b981" />
+              <Text style={styles.successText}>Valid</Text>
+            </View>
+          )}
       </View>
     );
   };
@@ -843,12 +939,12 @@ export default function ClientForm({
       {renderFormField(
         'Contact Name',
         contactName,
-        (text) => {
+        text => {
           setContactName(text);
           handleFieldValidation('contactName', text);
         },
         'contactName',
-        { placeholder: 'e.g. John Doe' }
+        { placeholder: 'e.g. John Doe' },
       )}
 
       <View style={styles.section}>
@@ -871,7 +967,9 @@ export default function ClientForm({
               setClientUsername(processed);
               handleFieldValidation('clientUsername', processed);
             }}
-            onBlur={() => handleFieldValidation('clientUsername', clientUsername)}
+            onBlur={() =>
+              handleFieldValidation('clientUsername', clientUsername)
+            }
           />
           {!client && (
             <View style={styles.validationRow}>
@@ -956,24 +1054,24 @@ export default function ClientForm({
       {renderFormField(
         'Email',
         email,
-        (text) => {
+        text => {
           setEmail(text);
           handleFieldValidation('email', text);
         },
         'email',
-        { placeholder: 'contact@company.com', keyboardType: 'email-address' }
+        { placeholder: 'contact@company.com', keyboardType: 'email-address' },
       )}
 
       {renderFormField(
         'Phone',
         phone,
-        (text) => {
+        text => {
           const cleaned = text.replace(/[^0-9+()-\s]/g, '');
           setPhone(cleaned);
           handleFieldValidation('phone', cleaned);
         },
         'phone',
-        { placeholder: '+1 (555) 123-4567', keyboardType: 'phone-pad' }
+        { placeholder: '+1 (555) 123-4567', keyboardType: 'phone-pad' },
       )}
 
       {!client && !hideAdvanced && (
@@ -994,7 +1092,9 @@ export default function ClientForm({
                   setValidityAmount(Number(v || 0));
                   handleFieldValidation('validityAmount', v);
                 }}
-                onBlur={() => handleFieldValidation('validityAmount', validityAmount)}
+                onBlur={() =>
+                  handleFieldValidation('validityAmount', validityAmount)
+                }
                 keyboardType="numeric"
               />
             </View>
@@ -1010,7 +1110,9 @@ export default function ClientForm({
                   setValidityUnit(v);
                   handleFieldValidation('validityUnit', v);
                 }}
-                onBlur={() => handleFieldValidation('validityUnit', validityUnit)}
+                onBlur={() =>
+                  handleFieldValidation('validityUnit', validityUnit)
+                }
               />
             </View>
           </View>
@@ -1022,15 +1124,17 @@ export default function ClientForm({
               </Text>
             </View>
           )}
-          {expiryPreview && !fieldErrors.validityAmount && !fieldErrors.validityUnit && (
-            <Text style={styles.helperText}>
-              This account will expire on {expiryPreview}.
-            </Text>
-          )}
+          {expiryPreview &&
+            !fieldErrors.validityAmount &&
+            !fieldErrors.validityUnit && (
+              <Text style={styles.helperText}>
+                This account will expire on {expiryPreview}.
+              </Text>
+            )}
         </View>
       )}
 
-      {!hideAdvanced && (
+      {/* {!hideAdvanced && (
         <>
           <View style={styles.sectionRow}>
             <View style={{ flex: 1 }}>
@@ -1052,7 +1156,7 @@ export default function ClientForm({
             />
           </View>
         </>
-      )}
+      )} */}
 
       <View style={styles.buttonRow}>
         <TouchableOpacity onPress={onCancel} style={styles.cancelButton}>
@@ -1063,7 +1167,8 @@ export default function ClientForm({
           disabled={isSubmitting || Object.keys(fieldErrors).length > 0}
           style={[
             styles.submitButton,
-            (isSubmitting || Object.keys(fieldErrors).length > 0) && styles.buttonDisabled,
+            (isSubmitting || Object.keys(fieldErrors).length > 0) &&
+              styles.buttonDisabled,
           ]}
         >
           {isSubmitting ? (
@@ -1079,187 +1184,219 @@ export default function ClientForm({
   );
 
   const renderPermissionsForm = () => (
-    <ScrollView style={styles.tabContent}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Manage Permissions</Text>
-        <Text style={styles.sectionSubtitle}>
-          Modify usage limits and feature access for this client.
-        </Text>
-      </View>
+    <View style={{ flex: 1 }}>
+      <ScrollView style={styles.tabContent}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Manage Permissions</Text>
+          <Text style={styles.sectionSubtitle}>
+            Modify usage limits and feature access for this client.
+          </Text>
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.label}>Limits</Text>
-        <View style={styles.gridContainer}>
-          <View style={styles.gridItem}>
-            <Text style={styles.gridLabel}>
-              Max Companies<Text style={styles.required}> *</Text>
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                fieldErrors.maxCompanies && styles.inputError,
-              ]}
-              value={String(currentPermissions.maxCompanies || '')}
-              onChangeText={v => {
-                handlePermissionChange('maxCompanies', Number(v || 0));
-              }}
-              onBlur={() => handleFieldValidation('maxCompanies', currentPermissions.maxCompanies)}
-              keyboardType="numeric"
-            />
-            {fieldErrors.maxCompanies && (
-              <View style={styles.errorContainer}>
-                <AlertCircle size={12} color="#dc2626" />
-                <Text style={[styles.errorText, { fontSize: 11 }]}>
-                  {fieldErrors.maxCompanies}
-                </Text>
-              </View>
-            )}
-          </View>
-          <View style={styles.gridItem}>
-            <Text style={styles.gridLabel}>
-              Max Users<Text style={styles.required}> *</Text>
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                fieldErrors.maxUsers && styles.inputError,
-              ]}
-              value={String(currentPermissions.maxUsers || '')}
-              onChangeText={v => {
-                handlePermissionChange('maxUsers', Number(v || 0));
-              }}
-              onBlur={() => handleFieldValidation('maxUsers', currentPermissions.maxUsers)}
-              keyboardType="numeric"
-            />
-            {fieldErrors.maxUsers && (
-              <View style={styles.errorContainer}>
-                <AlertCircle size={12} color="#dc2626" />
-                <Text style={[styles.errorText, { fontSize: 11 }]}>
-                  {fieldErrors.maxUsers}
-                </Text>
-              </View>
-            )}
-          </View>
-          <View style={styles.gridItem}>
-            <Text style={styles.gridLabel}>
-              Max Inventories<Text style={styles.required}> *</Text>
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                fieldErrors.maxInventories && styles.inputError,
-              ]}
-              value={String(currentPermissions.maxInventories || '')}
-              onChangeText={v => {
-                handlePermissionChange('maxInventories', Number(v || 0));
-              }}
-              onBlur={() => handleFieldValidation('maxInventories', currentPermissions.maxInventories)}
-              keyboardType="numeric"
-            />
-            {fieldErrors.maxInventories && (
-              <View style={styles.errorContainer}>
-                <AlertCircle size={12} color="#dc2626" />
-                <Text style={[styles.errorText, { fontSize: 11 }]}>
-                  {fieldErrors.maxInventories}
-                </Text>
-              </View>
-            )}
+        <View style={styles.section}>
+          <Text style={styles.label}>Limits</Text>
+          <View style={styles.gridContainer}>
+            <View style={styles.gridItem}>
+              <Text style={styles.gridLabel}>
+                Max Companies<Text style={styles.required}> *</Text>
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  fieldErrors.maxCompanies && styles.inputError,
+                ]}
+                value={String(currentPermissions.maxCompanies || '')}
+                onChangeText={v => {
+                  handlePermissionChange('maxCompanies', Number(v || 0));
+                }}
+                onBlur={() =>
+                  handleFieldValidation(
+                    'maxCompanies',
+                    currentPermissions.maxCompanies,
+                  )
+                }
+                keyboardType="numeric"
+              />
+              {fieldErrors.maxCompanies && (
+                <View style={styles.errorContainer}>
+                  <AlertCircle size={12} color="#dc2626" />
+                  <Text style={[styles.errorText, { fontSize: 11 }]}>
+                    {fieldErrors.maxCompanies}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.gridItem}>
+              <Text style={styles.gridLabel}>
+                Max Users<Text style={styles.required}> *</Text>
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  fieldErrors.maxUsers && styles.inputError,
+                ]}
+                value={String(currentPermissions.maxUsers || '')}
+                onChangeText={v => {
+                  handlePermissionChange('maxUsers', Number(v || 0));
+                }}
+                onBlur={() =>
+                  handleFieldValidation('maxUsers', currentPermissions.maxUsers)
+                }
+                keyboardType="numeric"
+              />
+              {fieldErrors.maxUsers && (
+                <View style={styles.errorContainer}>
+                  <AlertCircle size={12} color="#dc2626" />
+                  <Text style={[styles.errorText, { fontSize: 11 }]}>
+                    {fieldErrors.maxUsers}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.gridItem}>
+              <Text style={styles.gridLabel}>
+                Max Inventories<Text style={styles.required}> *</Text>
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  fieldErrors.maxInventories && styles.inputError,
+                ]}
+                value={String(currentPermissions.maxInventories || '')}
+                onChangeText={v => {
+                  handlePermissionChange('maxInventories', Number(v || 0));
+                }}
+                onBlur={() =>
+                  handleFieldValidation(
+                    'maxInventories',
+                    currentPermissions.maxInventories,
+                  )
+                }
+                keyboardType="numeric"
+              />
+              {fieldErrors.maxInventories && (
+                <View style={styles.errorContainer}>
+                  <AlertCircle size={12} color="#dc2626" />
+                  <Text style={[styles.errorText, { fontSize: 11 }]}>
+                    {fieldErrors.maxInventories}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.label}>Feature Access</Text>
-        <View style={styles.permissionsGrid}>
-          <View style={styles.permissionItem}>
-            <Text style={styles.permissionLabel}>Send Invoice via Email</Text>
-            <RNSwitch
-              value={currentPermissions.canSendInvoiceEmail}
-              onValueChange={v => handlePermissionChange('canSendInvoiceEmail', v)}
-            />
-          </View>
-          <View style={styles.permissionItem}>
-            <Text style={styles.permissionLabel}>Send Invoice via WhatsApp</Text>
-            <RNSwitch
-              value={currentPermissions.canSendInvoiceWhatsapp}
-              onValueChange={v => handlePermissionChange('canSendInvoiceWhatsapp', v)}
-            />
-          </View>
-          <View style={styles.permissionItem}>
-            <Text style={styles.permissionLabel}>Create Users</Text>
-            <RNSwitch
-              value={currentPermissions.canCreateUsers}
-              onValueChange={v => handlePermissionChange('canCreateUsers', v)}
-            />
-          </View>
-          <View style={styles.permissionItem}>
-            <Text style={styles.permissionLabel}>Create Customers</Text>
-            <RNSwitch
-              value={currentPermissions.canCreateCustomers}
-              onValueChange={v => handlePermissionChange('canCreateCustomers', v)}
-            />
-          </View>
-          <View style={styles.permissionItem}>
-            <Text style={styles.permissionLabel}>Create Vendors</Text>
-            <RNSwitch
-              value={currentPermissions.canCreateVendors}
-              onValueChange={v => handlePermissionChange('canCreateVendors', v)}
-            />
-          </View>
-          <View style={styles.permissionItem}>
-            <Text style={styles.permissionLabel}>Create Products</Text>
-            <RNSwitch
-              value={currentPermissions.canCreateProducts}
-              onValueChange={v => handlePermissionChange('canCreateProducts', v)}
-            />
-          </View>
-          <View style={styles.permissionItem}>
-            <Text style={styles.permissionLabel}>Create Companies</Text>
-            <RNSwitch
-              value={currentPermissions.canCreateCompanies}
-              onValueChange={v => handlePermissionChange('canCreateCompanies', v)}
-            />
-          </View>
-          <View style={styles.permissionItem}>
-            <Text style={styles.permissionLabel}>Update Companies</Text>
-            <RNSwitch
-              value={currentPermissions.canUpdateCompanies}
-              onValueChange={v => handlePermissionChange('canUpdateCompanies', v)}
-            />
+        <View style={styles.section}>
+          <Text style={styles.label}>Feature Access</Text>
+          <View style={styles.permissionsGrid}>
+            <View style={styles.permissionItem}>
+              <Text style={styles.permissionLabel}>Send Invoice via Email</Text>
+              <RNSwitch
+                value={currentPermissions.canSendInvoiceEmail}
+                onValueChange={v =>
+                  handlePermissionChange('canSendInvoiceEmail', v)
+                }
+              />
+            </View>
+            <View style={styles.permissionItem}>
+              <Text style={styles.permissionLabel}>
+                Send Invoice via WhatsApp
+              </Text>
+              <RNSwitch
+                value={currentPermissions.canSendInvoiceWhatsapp}
+                onValueChange={v =>
+                  handlePermissionChange('canSendInvoiceWhatsapp', v)
+                }
+              />
+            </View>
+            <View style={styles.permissionItem}>
+              <Text style={styles.permissionLabel}>Create Users</Text>
+              <RNSwitch
+                value={currentPermissions.canCreateUsers}
+                onValueChange={v => handlePermissionChange('canCreateUsers', v)}
+              />
+            </View>
+            <View style={styles.permissionItem}>
+              <Text style={styles.permissionLabel}>Create Customers</Text>
+              <RNSwitch
+                value={currentPermissions.canCreateCustomers}
+                onValueChange={v =>
+                  handlePermissionChange('canCreateCustomers', v)
+                }
+              />
+            </View>
+            <View style={styles.permissionItem}>
+              <Text style={styles.permissionLabel}>Create Vendors</Text>
+              <RNSwitch
+                value={currentPermissions.canCreateVendors}
+                onValueChange={v =>
+                  handlePermissionChange('canCreateVendors', v)
+                }
+              />
+            </View>
+            <View style={styles.permissionItem}>
+              <Text style={styles.permissionLabel}>Create Products</Text>
+              <RNSwitch
+                value={currentPermissions.canCreateProducts}
+                onValueChange={v =>
+                  handlePermissionChange('canCreateProducts', v)
+                }
+              />
+            </View>
+            <View style={styles.permissionItem}>
+              <Text style={styles.permissionLabel}>Create Companies</Text>
+              <RNSwitch
+                value={currentPermissions.canCreateCompanies}
+                onValueChange={v =>
+                  handlePermissionChange('canCreateCompanies', v)
+                }
+              />
+            </View>
+            <View style={styles.permissionItem}>
+              <Text style={styles.permissionLabel}>Update Companies</Text>
+              <RNSwitch
+                value={currentPermissions.canUpdateCompanies}
+                onValueChange={v =>
+                  handlePermissionChange('canUpdateCompanies', v)
+                }
+              />
+            </View>
           </View>
         </View>
-      </View>
 
-      <View style={styles.buttonRow}>
-        <TouchableOpacity
-          onPress={handleSavePermissions}
-          disabled={isSavingPermissions || Object.keys(fieldErrors).some(k => 
-            ['maxCompanies', 'maxUsers', 'maxInventories'].includes(k)
-          )}
-          style={[
-            styles.submitButton,
-            (isSavingPermissions || Object.keys(fieldErrors).some(k => 
-              ['maxCompanies', 'maxUsers', 'maxInventories'].includes(k)
-            )) && styles.buttonDisabled,
-          ]}
-        >
-          {isSavingPermissions ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.submitText}>Save Permissions</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            onPress={handleSavePermissions}
+            disabled={
+              isSavingPermissions ||
+              Object.keys(fieldErrors).some(k =>
+                ['maxCompanies', 'maxUsers', 'maxInventories'].includes(k),
+              )
+            }
+            style={[
+              styles.submitButton,
+              (isSavingPermissions ||
+                Object.keys(fieldErrors).some(k =>
+                  ['maxCompanies', 'maxUsers', 'maxInventories'].includes(k),
+                )) &&
+                styles.buttonDisabled,
+            ]}
+          >
+            {isSavingPermissions ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.submitText}>Save Permissions</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
   );
 
   const renderValidityForm = () => (
     <ScrollView style={styles.tabContent}>
       <View style={styles.section}>
-        <ClientValidityCard
-          clientId={client._id}
-          onChanged={() => {}}
-        />
+        <ClientValidityCard clientId={client._id} onChanged={() => {}} />
       </View>
     </ScrollView>
   );
@@ -1269,7 +1406,8 @@ export default function ClientForm({
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Reset Password</Text>
         <Text style={styles.sectionSubtitle}>
-          Set a new password for {client.contactName}. They will be notified of this change.
+          Set a new password for {client.contactName}. They will be notified of
+          this change.
         </Text>
       </View>
 
@@ -1315,10 +1453,16 @@ export default function ClientForm({
       <View style={{ marginTop: 20 }}>
         <TouchableOpacity
           onPress={handleResetPassword}
-          disabled={isSubmittingPassword || !newPassword.trim() || fieldErrors.newPassword}
+          disabled={
+            isSubmittingPassword ||
+            !newPassword.trim() ||
+            Boolean(fieldErrors.newPassword)
+          }
           style={[
             styles.submitButton,
-            (isSubmittingPassword || !newPassword.trim() || fieldErrors.newPassword) && 
+            (isSubmittingPassword ||
+              !newPassword.trim() ||
+              fieldErrors.newPassword) &&
               styles.buttonDisabled,
           ]}
         >

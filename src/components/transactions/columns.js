@@ -1483,7 +1483,7 @@ export const columns = ({
   };
 
   // Avatar Component (simple function component, no hooks)
-  const Avatar = ({ children, size = 32, style }) => (
+  const Avatar = ({ children, size = 28, style }) => (
     <View style={[styles.avatar, { width: size, height: size }, style]}>
       <Text style={styles.avatarText}>{children}</Text>
     </View>
@@ -1580,15 +1580,19 @@ export const columns = ({
 
       return (
         <View style={styles.partyInfo}>
-          <Avatar>{partyName.substring(0, 2).toUpperCase()}</Avatar>
-          <View style={styles.partyText}>
-            <Text style={styles.partyName}>
-              {capitalizeWords(partyName) || 'N/A'}
-            </Text>
-            <Text style={styles.description} numberOfLines={1}>
-              {transaction.description || transaction.narration || ''}
-            </Text>
+          <View style={styles.partyMainContent}>
+            <Avatar>{partyName.substring(0, 2).toUpperCase()}</Avatar>
+            <View style={styles.partyText}>
+              <Text style={styles.partyName}>
+                {capitalizeWords(partyName) || 'N/A'}
+              </Text>
+            </View>
           </View>
+          {(transaction.description || transaction.narration) && (
+            <Text style={styles.description} numberOfLines={1}>
+              {transaction.description || transaction.narration}
+            </Text>
+          )}
         </View>
       );
     },
@@ -1634,15 +1638,19 @@ export const columns = ({
 
       return (
         <View style={styles.partyInfo}>
-          <Avatar>{partyName.substring(0, 2).toUpperCase()}</Avatar>
-          <View style={styles.partyText}>
-            <Text style={styles.partyName}>
-              {capitalizeWords(partyName) || 'N/A'}
-            </Text>
-            <Text style={styles.description} numberOfLines={1}>
-              {transaction.description || transaction.narration || ''}
-            </Text>
+          <View style={styles.partyMainContent}>
+            <Avatar>{partyName.substring(0, 2).toUpperCase()}</Avatar>
+            <View style={styles.partyText}>
+              <Text style={styles.partyName}>
+                {capitalizeWords(partyName) || 'N/A'}
+              </Text>
+            </View>
           </View>
+          {(transaction.description || transaction.narration) && (
+            <Text style={styles.description} numberOfLines={1}>
+              {transaction.description || transaction.narration}
+            </Text>
+          )}
         </View>
       );
     },
@@ -2000,9 +2008,16 @@ const styles = StyleSheet.create({
 
   // Party Info
   partyInfo: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    // gap: 4,
+    marginTop: -6
+    
+  },
+  partyMainContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    gap: 4,
   },
   partyText: {
     alignItems: 'flex-end',
@@ -2016,8 +2031,7 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 12,
     color: '#6c757d',
-    marginTop: 2,
-    textAlign: 'right',
+    paddingLeft: 36, // Avatar width (28) + gap (8)
   },
 
   // Company

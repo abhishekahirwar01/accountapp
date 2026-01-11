@@ -4,15 +4,26 @@ import {
   View,
   TouchableOpacity,
   ScrollView,
+  RefreshControl,
 } from 'react-native';
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TrendingUp, PieChart } from 'lucide-react-native';
+import { useCompany } from '../../../contexts/company-context';
 import ProfitAndLossTab from '../../main/reports/ProfitLossScreen';
 import BalanceSheetTab from '../../main/reports/BalanceSheetScreen';
 import AppLayout from '../../../components/layout/AppLayout';
 export default function Reports() {
-  const [activeTab, setActiveTab] = useState('profit-loss'); // Default to Profit & Loss
+  const [activeTab, setActiveTab] = useState('profit-loss');
+  const [refreshing, setRefreshing] = useState(false);
+  const { triggerCompaniesRefresh } = useCompany();
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    triggerCompaniesRefresh().finally(() => {
+      setRefreshing(false);
+    });
+  }, [triggerCompaniesRefresh]);
 
   const tabs = [
     {
@@ -42,7 +53,16 @@ export default function Reports() {
   return (
     <AppLayout>
       {/* <SafeAreaView style={styles.safeArea}> */}
-      <ScrollView style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#007AFF']}
+          />
+        }
+      >
         {/* Header */}
         {/* <View style={styles.header}>
           <Text style={styles.title}>Reports</Text>

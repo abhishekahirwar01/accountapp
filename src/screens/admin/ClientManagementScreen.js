@@ -15,6 +15,8 @@ import {
   RefreshControl,
   Animated,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -52,7 +54,15 @@ import ClientForm from '../../components/clients/ClientForm';
 import { useToast } from '../../components/hooks/useToast';
 import { BASE_URL } from '../../config';
 import AppLayout from '../../components/layout/AppLayout';
-
+import {
+  AlertDialog,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '../../components/ui/AlertDialog';
 const { width, height } = Dimensions.get('window');
 
 const getAppOrigin = () => BASE_URL || 'https://yourapp.com';
@@ -62,7 +72,7 @@ const getApiLoginUrl = (slug, base = BASE_URL) =>
   slug ? `${base}/api/clients/${slug}/login` : '';
 
 // Client Login Base URL
-const CLIENT_LOGIN_URL ='https://vinimay.sharda.co.in/client-login';
+const CLIENT_LOGIN_URL = 'https://vinimay.sharda.co.in/client-login';
 
 // Header height constant
 const HEADER_MAX_HEIGHT = 200;
@@ -116,7 +126,10 @@ const Dialog = ({ visible, onClose, title, description, children }) => (
     onRequestClose={onClose}
     statusBarTranslucent={true}
   >
-    <View style={styles.modalOverlay}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.modalOverlay}
+    >
       <View style={styles.dialogContent}>
         <View style={styles.dialogHeader}>
           <Text style={styles.dialogTitle}>{title}</Text>
@@ -127,41 +140,41 @@ const Dialog = ({ visible, onClose, title, description, children }) => (
         </View>
         <View style={styles.dialogBody}>{children}</View>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   </Modal>
 );
 
-const AlertDialog = ({ visible, onClose, title, description, onConfirm }) => (
-  <Modal
-    visible={visible}
-    animationType="fade"
-    transparent={true}
-    onRequestClose={onClose}
-  >
-    <View style={styles.modalOverlay}>
-      <View style={styles.alertDialogContent}>
-        <Text style={styles.alertDialogTitle}>{title}</Text>
-        <Text style={styles.alertDialogDescription}>{description}</Text>
-        <View style={styles.alertDialogActions}>
-          <Button
-            variant="outline"
-            onPress={onClose}
-            style={styles.alertDialogButton}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="destructive"
-            onPress={onConfirm}
-            style={styles.alertDialogButton}
-          >
-            Continue
-          </Button>
-        </View>
-      </View>
-    </View>
-  </Modal>
-);
+// const AlertDialog = ({ visible, onClose, title, description, onConfirm }) => (
+//   <Modal
+//     visible={visible}
+//     animationType="fade"
+//     transparent={true}
+//     onRequestClose={onClose}
+//   >
+//     <View style={styles.modalOverlay}>
+//       <View style={styles.alertDialogContent}>
+//         <Text style={styles.alertDialogTitle}>{title}</Text>
+//         <Text style={styles.alertDialogDescription}>{description}</Text>
+//         <View style={styles.alertDialogActions}>
+//           <Button
+//             variant="outline"
+//             onPress={onClose}
+//             style={styles.alertDialogButton}
+//           >
+//             Cancel
+//           </Button>
+//           <Button
+//             variant="destructive"
+//             onPress={onConfirm}
+//             style={styles.alertDialogButton}
+//           >
+//             Continue
+//           </Button>
+//         </View>
+//       </View>
+//     </View>
+//   </Modal>
+// );
 
 // ---------- MAIN COMPONENT ----------
 export default function ClientManagementPage() {
@@ -228,7 +241,19 @@ export default function ClientManagementPage() {
       }
 
       const data = await response.json();
-      setClients(data);
+      const sortedClients = data.sort((a, b) => {
+        // Extract timestamp from MongoDB ObjectId (first 4 bytes)
+        // This is a simplified approach - for actual use, you might want a more robust solution
+        const timestampA = a._id
+          ? parseInt(a._id.substring(0, 8), 16) * 1000
+          : 0;
+        const timestampB = b._id
+          ? parseInt(b._id.substring(0, 8), 16) * 1000
+          : 0;
+        return timestampB - timestampA; // Newest first
+      });
+
+      setClients(sortedClients);
     } catch (error) {
       toast({
         title: 'Failed to load clients',
@@ -499,12 +524,12 @@ export default function ClientManagementPage() {
   };
 
   const renderHeader = () => (
-    <Animated.View 
+    <Animated.View
       style={[
         styles.headerContainer,
         {
           transform: [{ translateY: headerTranslateY }],
-        }
+        },
       ]}
     >
       <View style={styles.headerContent}>
@@ -523,7 +548,11 @@ export default function ClientManagementPage() {
       <View style={styles.loginUrlCard}>
         <View style={styles.loginUrlHeader}>
           <View style={styles.loginUrlTextContainer}>
-            <Text style={styles.loginUrlValue} numberOfLines={1} ellipsizeMode="middle">
+            <Text
+              style={styles.loginUrlValue}
+              numberOfLines={1}
+              ellipsizeMode="middle"
+            >
               {CLIENT_LOGIN_URL}
             </Text>
           </View>
@@ -660,9 +689,11 @@ export default function ClientManagementPage() {
           }
         >
           <ScrollView
-            style={{ flexGrow: 0, maxHeight: 700 }}
-            contentContainerStyle={{ paddingBottom: 16 }}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: 60 }}
             keyboardShouldPersistTaps="handled"
+            scrollEnabled={true}
+            nestedScrollEnabled={true}
           >
             <ClientForm
               client={selectedClient}
@@ -677,10 +708,28 @@ export default function ClientManagementPage() {
         <AlertDialog
           visible={isAlertOpen}
           onClose={() => setIsAlertOpen(false)}
-          title="Confirm Delete"
-          description={`Are you sure you want to delete ${clientToDelete?.contactName}?`}
-          onConfirm={confirmDelete}
-        />
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the
+              client account and all associated data for{' '}
+              <Text style={{ fontWeight: '700', color: '#000' }}>
+                {clientToDelete?.contactName}
+              </Text>
+              .
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel onPress={() => setIsAlertOpen(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onPress={confirmDelete}>
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialog>
 
         <Modal
           visible={isResetPasswordDialogOpen}

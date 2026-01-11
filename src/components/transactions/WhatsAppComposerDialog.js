@@ -98,7 +98,7 @@
 //   };
 
 //   // Function to extract mobile number from party object
-//   const extractMobileNumber = (partyObj) => {
+//   const extractMobileNumber = partyObj => {
 //     if (!partyObj) return '';
 
 //     console.log('Party object for mobile extraction:', partyObj);
@@ -116,7 +116,7 @@
 //       'whatsappNumber',
 //       'whatsapp',
 //       'primaryPhone',
-//       'secondaryPhone'
+//       'secondaryPhone',
 //     ];
 
 //     let foundNumber = '';
@@ -135,7 +135,10 @@
 
 //     // If still not found, check nested objects
 //     if (!foundNumber) {
-//       if (partyObj.contactDetails && typeof partyObj.contactDetails === 'object') {
+//       if (
+//         partyObj.contactDetails &&
+//         typeof partyObj.contactDetails === 'object'
+//       ) {
 //         for (const field of possibleFields) {
 //           if (partyObj.contactDetails[field]) {
 //             const num = String(partyObj.contactDetails[field]).trim();
@@ -343,7 +346,7 @@
 //     }
 //   }, [isOpen, transaction, party, company]);
 
-//   // Complete flow handler
+//   // Complete flow handler - Direct PDF sharing to WhatsApp
 //   const handleCompleteFlow = async () => {
 //     if (!mobileNumber.trim()) {
 //       Alert.alert(
@@ -353,33 +356,89 @@
 //       return;
 //     }
 
-//     let pdfUrl = null;
-
 //     try {
 //       setIsLoading(true);
 //       setIsGeneratingPdf(true);
 
-//       // If parent supplied a PDF generator, try to generate and get a URL
+//       let pdfBase64 = null;
+//       let pdfPath = null;
+
+//       // Generate PDF if callback available
 //       if (typeof onGeneratePdf === 'function') {
 //         try {
-//           const genResult = await onGeneratePdf(transaction);
+//           console.log('🟡 Generating PDF for WhatsApp...');
+//           const genResult = await onGeneratePdf(transaction, party, company);
+
+//           // Handle different return types from PDF generator
 //           if (typeof genResult === 'string') {
-//             pdfUrl = genResult;
+//             // Could be base64 or path
+//             if (
+//               genResult.startsWith('data:') ||
+//               genResult.match(/^[A-Za-z0-9+/=]+$/)
+//             ) {
+//               pdfBase64 = genResult;
+//             } else {
+//               pdfPath = genResult;
+//             }
 //           } else if (genResult && typeof genResult === 'object') {
-//             pdfUrl =
-//               genResult.url || genResult.pdfUrl || genResult.path || null;
+//             pdfBase64 =
+//               genResult.base64 ||
+//               genResult.data ||
+//               (typeof genResult.output === 'function'
+//                 ? genResult.output('base64')
+//                 : null);
+//             pdfPath =
+//               genResult.path || genResult.pdfPath || genResult.url || null;
 //           }
+
+//           console.log('PDF Generated:', {
+//             hasBase64: !!pdfBase64,
+//             hasPath: !!pdfPath,
+//           });
 //         } catch (e) {
-//           console.warn('PDF generation failed:', e);
-//           pdfUrl = null;
+//           console.error('❌ PDF generation failed:', e);
+//           Alert.alert(
+//             'PDF Generation Failed',
+//             'Could not generate invoice PDF.',
+//           );
+//           setIsLoading(false);
+//           setIsGeneratingPdf(false);
+//           return;
 //         }
 //       }
 
-//       // If no PDF URL but baseUrl+transaction._id is available, try a conventional path
-//       if (!pdfUrl && baseUrl && transaction && transaction._id) {
-//         pdfUrl = `${baseUrl.replace(/\/$/, '')}/invoices/${
-//           transaction._id
-//         }/download`;
+//       // If we have base64, write it to a file
+//       if (pdfBase64 && !pdfPath) {
+//         try {
+//           const RNFS = await import('react-native-fs').then(m => m.default);
+//           const { Platform } = await import('react-native');
+
+//           const downloadDir =
+//             Platform.OS === 'android'
+//               ? `${RNFS.ExternalStorageDirectoryPath}/Download`
+//               : RNFS.DocumentDirectoryPath;
+
+//           // Ensure directory exists
+//           const dirExists = await RNFS.exists(downloadDir);
+//           if (!dirExists) {
+//             await RNFS.mkdir(downloadDir);
+//           }
+
+//           const fileName = `invoice_${
+//             transaction?.invoiceNumber || Date.now()
+//           }.pdf`;
+//           pdfPath = `${downloadDir}/${fileName}`;
+
+//           console.log('💾 Saving PDF to:', pdfPath);
+//           await RNFS.writeFile(pdfPath, pdfBase64, 'base64');
+//           console.log('✅ PDF saved successfully');
+//         } catch (e) {
+//           console.error('❌ Error saving PDF file:', e);
+//           Alert.alert('File Save Failed', 'Could not save PDF to device.');
+//           setIsLoading(false);
+//           setIsGeneratingPdf(false);
+//           return;
+//         }
 //       }
 
 //       const formattedNumber = mobileNumber.replace(/\D/g, '');
@@ -388,63 +447,89 @@
 //         finalNumber = `91${formattedNumber}`;
 //       }
 
-//       // Append pdf link to message if available
 //       let finalMessage = messageContent || '';
-//       if (pdfUrl) {
-//         finalMessage = `${finalMessage}\n\nDownload invoice: ${pdfUrl}`;
-//       }
 
-//       // Prefer server-side send if whatsappService exposes sendMessage
-//       if (
-//         whatsappService &&
-//         typeof whatsappService.sendMessage === 'function'
-//       ) {
+//       // Share PDF directly with WhatsApp using Share API
+//       if (pdfPath) {
 //         try {
-//           const payload = {
-//             phoneNumber: finalNumber,
+//           console.log('📤 Sharing PDF via Share API:', pdfPath);
+//           const Share = await import('react-native-share').then(m => m.default);
+//           const { Platform } = await import('react-native');
+
+//           const shareOptions = {
+//             title: 'Share Invoice',
 //             message: finalMessage,
-//             pdfUrl: pdfUrl || undefined,
-//             transactionId: transaction?._id,
+//             url: Platform.OS === 'android' ? `file://${pdfPath}` : pdfPath,
+//             type: 'application/pdf',
+//             recipient: `91${finalNumber}`,
+//             social: 'whatsapp',
+//             showAppsToView: true,
 //           };
 
-//           const resp = await whatsappService.sendMessage(payload);
-//           if (resp && resp.success) {
-//             Alert.alert('Sent', 'Message queued for WhatsApp delivery');
-//             onClose && onClose();
-//             return;
+//           await Share.open(shareOptions);
+
+//           console.log('✅ PDF shared successfully');
+//           setTimeout(() => onClose && onClose(), 1000);
+//         } catch (error) {
+//           if (error.message !== 'User did not share') {
+//             console.error('❌ Error sharing PDF:', error);
+//             Alert.alert(
+//               'Share Failed',
+//               'Could not open WhatsApp. Make sure WhatsApp is installed.',
+//             );
 //           } else {
-//             console.warn('Server-side WhatsApp send failed', resp);
-//             // fallback to client open
+//             onClose && onClose();
+//           }
+//         }
+//       } else {
+//         // Fallback: Send via WhatsApp link without PDF
+//         console.log('⚠️ No PDF available, opening WhatsApp with message only');
+//         const { Linking, Platform } = await import('react-native');
+
+//         const encodedMessage = encodeURIComponent(finalMessage);
+//         const appUrl = `whatsapp://send?phone=${finalNumber}&text=${encodedMessage}`;
+//         const iosTextOnlyUrl = `whatsapp://send?text=${encodedMessage}`;
+//         const webLink = `https://wa.me/${finalNumber}?text=${encodedMessage}`;
+
+//         // Try native app URL first, then platform-specific fallbacks, then wa.me web link
+//         try {
+//           if (Platform.OS === 'android') {
+//             // Android: try whatsapp:// then intent:// (more robust on some devices)
+//             const canOpen = await Linking.canOpenURL(appUrl);
+//             if (canOpen) {
+//               await Linking.openURL(appUrl);
+//             } else {
+//               const intentUrl = `intent://send?phone=${finalNumber}&text=${encodedMessage}#Intent;package=com.whatsapp;scheme=whatsapp;end`;
+//               try {
+//                 await Linking.openURL(intentUrl);
+//               } catch (e) {
+//                 await Linking.openURL(webLink);
+//               }
+//             }
+//           } else {
+//             // iOS: phone param can be unreliable; try text-only scheme, then wa.me
+//             const canOpenTextOnly = await Linking.canOpenURL(iosTextOnlyUrl);
+//             if (canOpenTextOnly) {
+//               await Linking.openURL(iosTextOnlyUrl);
+//             } else {
+//               await Linking.openURL(webLink);
+//             }
 //           }
 //         } catch (e) {
-//           console.warn('whatsappService.sendMessage error', e);
-//           // fallback to client open
+//           console.warn('WhatsApp open fallback failed, opening web link', e);
+//           try {
+//             await Linking.openURL(webLink);
+//           } catch (err) {
+//             console.error('Failed to open wa.me link', err);
+//           }
 //         }
-//       }
-
-//       const encodedMessage = encodeURIComponent(finalMessage);
-//       const whatsappUrl = `whatsapp://send?phone=${finalNumber}&text=${encodedMessage}`;
-//       const whatsappWebUrl = `https://web.whatsapp.com/send?phone=${finalNumber}&text=${encodedMessage}`;
-
-//       const canOpen = await Linking.canOpenURL(whatsappUrl);
-
-//       if (canOpen) {
-//         await Linking.openURL(whatsappUrl);
-//         Alert.alert('WhatsApp Opening', 'Please attach the PDF if required.');
-//         setTimeout(() => onClose && onClose(), 1500);
-//       } else {
-//         await Linking.openURL(whatsappWebUrl);
-//         Alert.alert(
-//           'WhatsApp Web Opening',
-//           'Please attach the PDF if required.',
-//         );
 //         setTimeout(() => onClose && onClose(), 1500);
 //       }
 //     } catch (error) {
-//       console.error('Error opening/sending WhatsApp:', error);
+//       console.error('Error in WhatsApp flow:', error);
 //       Alert.alert(
 //         'Operation Failed',
-//         'Could not open WhatsApp. Please try again.',
+//         'Could not complete the operation. Please try again.',
 //       );
 //     } finally {
 //       setIsLoading(false);
@@ -471,13 +556,22 @@
 //     const finalMessage = messageContent || '';
 
 //     const encodedMessage = encodeURIComponent(finalMessage);
-//     const whatsappUrl = `whatsapp://send?phone=${finalNumber}&text=${encodedMessage}`;
+//     const appUrl = `whatsapp://send?phone=${finalNumber}&text=${encodedMessage}`;
+//     const iosTextOnlyUrl = `whatsapp://send?text=${encodedMessage}`;
+//     const webLink = `https://wa.me/${finalNumber}?text=${encodedMessage}`;
 
-//     Linking.openURL(whatsappUrl).catch(() => {
-//       // Fallback to web
-//       const webUrl = `https://web.whatsapp.com/send?phone=${finalNumber}&text=${encodedMessage}`;
-//       Linking.openURL(webUrl).catch(() => {});
-//     });
+//     // Try to open WhatsApp app first, then fallbacks
+//     Linking.canOpenURL(appUrl)
+//       .then(can => {
+//         if (can) return Linking.openURL(appUrl);
+//         if (Platform.OS === 'ios') return Linking.canOpenURL(iosTextOnlyUrl).then(c => (c ? Linking.openURL(iosTextOnlyUrl) : Linking.openURL(webLink)));
+//         // Android try intent then wa.me
+//         const intentUrl = `intent://send?phone=${finalNumber}&text=${encodedMessage}#Intent;package=com.whatsapp;scheme=whatsapp;end`;
+//         return Linking.openURL(intentUrl).catch(() => Linking.openURL(webLink));
+//       })
+//       .catch(() => {
+//         Linking.openURL(webLink).catch(() => {});
+//       });
 
 //     Alert.alert('WhatsApp Opening', 'Opening WhatsApp.');
 //     onClose && onClose();
@@ -498,7 +592,8 @@
 //   }).format(amount);
 
 //   // Extract mobile for display in summary
-//   const displayMobile = extractMobileNumber(party) || party?.contactNumber || party?.phone || 'N/A';
+//   const displayMobile =
+//     extractMobileNumber(party) || party?.contactNumber || party?.phone || 'N/A';
 
 //   return (
 //     <Portal>
@@ -585,17 +680,17 @@
 //               />
 //             </View>
 
-//             {/* Important Instructions */}
+//             {/* Auto-Attach Info */}
 //             <Card style={styles.warningCard}>
 //               <Card.Content style={styles.warningContent}>
-//                 <Icon name="paperclip" size={20} color="#B45309" />
+//                 <Icon name="check-circle" size={20} color="#059669" />
 //                 <View style={styles.warningText}>
 //                   <Text style={styles.warningTitle}>
-//                     Important: Manual PDF Attachment Required
+//                     Invoice PDF Auto-Attached
 //                   </Text>
 //                   <Text style={styles.warningDescription}>
-//                     Please download the PDF first and attach it manually in
-//                     WhatsApp.
+//                     The PDF will be automatically attached and sent directly to
+//                     WhatsApp app.
 //                   </Text>
 //                 </View>
 //               </Card.Content>
@@ -854,6 +949,7 @@ export default function WhatsAppComposerDialog({
 }) {
   const [messageContent, setMessageContent] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
+  const [countryCode, setCountryCode] = useState('+91');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [pdfGenerated, setPdfGenerated] = useState(false);
   const [pdfFileName, setPdfFileName] = useState('');
@@ -915,7 +1011,6 @@ export default function WhatsAppComposerDialog({
 
       return `${day}/${month}/${year}`;
     } catch (error) {
-      console.error('Error formatting simple date:', error);
       return 'N/A';
     }
   };
@@ -923,8 +1018,6 @@ export default function WhatsAppComposerDialog({
   // Function to extract mobile number from party object
   const extractMobileNumber = partyObj => {
     if (!partyObj) return '';
-
-    console.log('Party object for mobile extraction:', partyObj);
 
     // Check all possible mobile number fields
     const possibleFields = [
@@ -1029,16 +1122,6 @@ export default function WhatsAppComposerDialog({
 
     const invoiceDate = formatDate(transaction.date);
 
-    // Debug: Check both products and services
-    console.log('=== TRANSACTION DEBUG ===');
-    console.log('Party object:', party);
-    console.log('Party mobile extracted:', extractMobileNumber(party));
-    console.log('Products array:', transaction.products);
-    console.log('Services array:', transaction.services);
-    console.log('Available products prop:', products);
-    console.log('Available services prop:', services);
-    console.log('=== END DEBUG ===');
-
     // Combine both products and services into one array
     const transactionProducts = transaction.products || [];
     const transactionServices = transaction.services || [];
@@ -1086,9 +1169,6 @@ export default function WhatsAppComposerDialog({
           itemName =
             foundProduct?.name || item.product?.name || item.name || 'Product';
           itemType = '🛍️ ';
-          console.log(
-            `Product ${index + 1}: ID=${productId}, Name=${itemName}`,
-          );
         } else if (item.service || item.serviceId) {
           // This is a service - use the props to find the actual name
           const serviceId = item.service?._id || item.service || item.serviceId;
@@ -1099,9 +1179,6 @@ export default function WhatsAppComposerDialog({
             item.name ||
             'Service';
           itemType = '🔧 ';
-          console.log(
-            `Service ${index + 1}: ID=${serviceId}, Name=${itemName}`,
-          );
         } else {
           // Fallback
           itemName =
@@ -1159,9 +1236,20 @@ export default function WhatsAppComposerDialog({
   // Initialize when dialog opens
   useEffect(() => {
     if (isOpen) {
-      const partyMobile = extractMobileNumber(party);
-      console.log('Setting mobile number to:', partyMobile);
-      setMobileNumber(partyMobile);
+      // try to derive raw phone and country code from party if available
+      const rawPhoneRaw =
+        (party && (party.mobile || party.phone || party.contactNumber)) || '';
+      const rawDigits = String(rawPhoneRaw).replace(/\D/g, '');
+      if (rawDigits && rawDigits.length > 10) {
+        const cc = rawDigits.slice(0, rawDigits.length - 10);
+        const local = rawDigits.slice(-10);
+        setCountryCode(`+${cc}`);
+        setMobileNumber(local);
+      } else {
+        const partyMobile = extractMobileNumber(party);
+        setMobileNumber(partyMobile);
+        // keep default countryCode as-is
+      }
       setMessageContent(generateDefaultMessageContent());
       setPdfGenerated(false);
       setPdfFileName('');
@@ -1189,7 +1277,6 @@ export default function WhatsAppComposerDialog({
       // Generate PDF if callback available
       if (typeof onGeneratePdf === 'function') {
         try {
-          console.log('🟡 Generating PDF for WhatsApp...');
           const genResult = await onGeneratePdf(transaction, party, company);
 
           // Handle different return types from PDF generator
@@ -1213,13 +1300,7 @@ export default function WhatsAppComposerDialog({
             pdfPath =
               genResult.path || genResult.pdfPath || genResult.url || null;
           }
-
-          console.log('PDF Generated:', {
-            hasBase64: !!pdfBase64,
-            hasPath: !!pdfPath,
-          });
         } catch (e) {
-          console.error('❌ PDF generation failed:', e);
           Alert.alert(
             'PDF Generation Failed',
             'Could not generate invoice PDF.',
@@ -1252,11 +1333,8 @@ export default function WhatsAppComposerDialog({
           }.pdf`;
           pdfPath = `${downloadDir}/${fileName}`;
 
-          console.log('💾 Saving PDF to:', pdfPath);
           await RNFS.writeFile(pdfPath, pdfBase64, 'base64');
-          console.log('✅ PDF saved successfully');
         } catch (e) {
-          console.error('❌ Error saving PDF file:', e);
           Alert.alert('File Save Failed', 'Could not save PDF to device.');
           setIsLoading(false);
           setIsGeneratingPdf(false);
@@ -1264,92 +1342,43 @@ export default function WhatsAppComposerDialog({
         }
       }
 
-      const formattedNumber = mobileNumber.replace(/\D/g, '');
-      let finalNumber = formattedNumber;
-      if (!formattedNumber.startsWith('91') && formattedNumber.length === 10) {
-        finalNumber = `91${formattedNumber}`;
+      const ccDigits = (countryCode || '').replace(/\D/g, '') || '91';
+      const mobileDigits = mobileNumber.replace(/\D/g, '');
+      let finalNumber = mobileDigits;
+      if (!mobileDigits.startsWith(ccDigits)) {
+        finalNumber = `${ccDigits}${mobileDigits}`;
       }
 
       let finalMessage = messageContent || '';
 
-      // Share PDF directly with WhatsApp using Share API
-      if (pdfPath) {
-        try {
-          console.log('📤 Sharing PDF via Share API:', pdfPath);
-          const Share = await import('react-native-share').then(m => m.default);
-          const { Platform } = await import('react-native');
+      // Direct WhatsApp Linking (No system share sheet) - Same as columns.js
+      const {
+        Linking,
+        Platform,
+        Alert: RNAlert,
+      } = await import('react-native');
 
-          const shareOptions = {
-            title: 'Share Invoice',
-            message: finalMessage,
-            url: Platform.OS === 'android' ? `file://${pdfPath}` : pdfPath,
-            type: 'application/pdf',
-            recipient: `91${finalNumber}`,
-            social: 'whatsapp',
-            showAppsToView: true,
-          };
+      const encodedMessage = encodeURIComponent(finalMessage);
+      const appUrl = `whatsapp://send?phone=${finalNumber}&text=${encodedMessage}`;
+      const webLink = `https://wa.me/${finalNumber}?text=${encodedMessage}`;
 
-          await Share.open(shareOptions);
+      try {
+        // Try native WhatsApp app first
+        const canOpen = await Linking.canOpenURL(appUrl);
 
-          console.log('✅ PDF shared successfully');
+        if (canOpen) {
+          await Linking.openURL(appUrl);
           setTimeout(() => onClose && onClose(), 1000);
-        } catch (error) {
-          if (error.message !== 'User did not share') {
-            console.error('❌ Error sharing PDF:', error);
-            Alert.alert(
-              'Share Failed',
-              'Could not open WhatsApp. Make sure WhatsApp is installed.',
-            );
-          } else {
-            onClose && onClose();
-          }
+        } else {
+          await Linking.openURL(webLink);
         }
-      } else {
-        // Fallback: Send via WhatsApp link without PDF
-        console.log('⚠️ No PDF available, opening WhatsApp with message only');
-        const { Linking, Platform } = await import('react-native');
-
-        const encodedMessage = encodeURIComponent(finalMessage);
-        const appUrl = `whatsapp://send?phone=${finalNumber}&text=${encodedMessage}`;
-        const iosTextOnlyUrl = `whatsapp://send?text=${encodedMessage}`;
-        const webLink = `https://wa.me/${finalNumber}?text=${encodedMessage}`;
-
-        // Try native app URL first, then platform-specific fallbacks, then wa.me web link
-        try {
-          if (Platform.OS === 'android') {
-            // Android: try whatsapp:// then intent:// (more robust on some devices)
-            const canOpen = await Linking.canOpenURL(appUrl);
-            if (canOpen) {
-              await Linking.openURL(appUrl);
-            } else {
-              const intentUrl = `intent://send?phone=${finalNumber}&text=${encodedMessage}#Intent;package=com.whatsapp;scheme=whatsapp;end`;
-              try {
-                await Linking.openURL(intentUrl);
-              } catch (e) {
-                await Linking.openURL(webLink);
-              }
-            }
-          } else {
-            // iOS: phone param can be unreliable; try text-only scheme, then wa.me
-            const canOpenTextOnly = await Linking.canOpenURL(iosTextOnlyUrl);
-            if (canOpenTextOnly) {
-              await Linking.openURL(iosTextOnlyUrl);
-            } else {
-              await Linking.openURL(webLink);
-            }
-          }
-        } catch (e) {
-          console.warn('WhatsApp open fallback failed, opening web link', e);
-          try {
-            await Linking.openURL(webLink);
-          } catch (err) {
-            console.error('Failed to open wa.me link', err);
-          }
-        }
-        setTimeout(() => onClose && onClose(), 1500);
+      } catch (error) {
+        Alert.alert(
+          'Error',
+          'Could not open WhatsApp. Please make sure WhatsApp is installed.',
+        );
       }
     } catch (error) {
-      console.error('Error in WhatsApp flow:', error);
       Alert.alert(
         'Operation Failed',
         'Could not complete the operation. Please try again.',
@@ -1370,10 +1399,11 @@ export default function WhatsAppComposerDialog({
       return;
     }
 
-    const formattedNumber = mobileNumber.replace(/\D/g, '');
-    let finalNumber = formattedNumber;
-    if (!formattedNumber.startsWith('91') && formattedNumber.length === 10) {
-      finalNumber = `91${formattedNumber}`;
+    const ccDigits = (countryCode || '').replace(/\D/g, '') || '91';
+    const mobileDigits = mobileNumber.replace(/\D/g, '');
+    let finalNumber = mobileDigits;
+    if (!mobileDigits.startsWith(ccDigits)) {
+      finalNumber = `${ccDigits}${mobileDigits}`;
     }
 
     const finalMessage = messageContent || '';
@@ -1387,7 +1417,10 @@ export default function WhatsAppComposerDialog({
     Linking.canOpenURL(appUrl)
       .then(can => {
         if (can) return Linking.openURL(appUrl);
-        if (Platform.OS === 'ios') return Linking.canOpenURL(iosTextOnlyUrl).then(c => (c ? Linking.openURL(iosTextOnlyUrl) : Linking.openURL(webLink)));
+        if (Platform.OS === 'ios')
+          return Linking.canOpenURL(iosTextOnlyUrl).then(c =>
+            c ? Linking.openURL(iosTextOnlyUrl) : Linking.openURL(webLink),
+          );
         // Android try intent then wa.me
         const intentUrl = `intent://send?phone=${finalNumber}&text=${encodedMessage}#Intent;package=com.whatsapp;scheme=whatsapp;end`;
         return Linking.openURL(intentUrl).catch(() => Linking.openURL(webLink));
@@ -1476,9 +1509,14 @@ export default function WhatsAppComposerDialog({
             <View style={styles.formSection}>
               <Text style={styles.sectionLabel}>Customer WhatsApp Number</Text>
               <View style={styles.phoneInputContainer}>
-                <View style={styles.countryCode}>
-                  <Text style={styles.countryCodeText}>+91</Text>
-                </View>
+                <TextInput
+                  style={styles.countryCodeInput}
+                  value={countryCode}
+                  onChangeText={setCountryCode}
+                  placeholder="+91"
+                  keyboardType="phone-pad"
+                  placeholderTextColor="#999"
+                />
                 <TextInput
                   style={styles.phoneInput}
                   value={mobileNumber}
@@ -1657,6 +1695,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRightWidth: 1,
     borderRightColor: '#ddd',
+  },
+  countryCodeInput: {
+    width: 80,
+    backgroundColor: '#f5f5f5',
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: '#ddd',
+    fontSize: 14,
+    color: '#333',
   },
   countryCodeText: {
     fontSize: 14,

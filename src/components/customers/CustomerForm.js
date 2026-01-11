@@ -1,4 +1,3 @@
-// CustomerForm.js
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -19,7 +18,7 @@ import { State, City } from 'country-state-city';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL as baseURL } from '../../config';
 import CustomDropdown from '../../components/ui/CustomDropdown';
-import { grey300 } from 'react-native-paper/lib/typescript/styles/themes/v2/colors';
+import { Check, X, ChevronsUpDown } from 'lucide-react-native';
 
 const gstRegistrationTypes = [
   'Regular',
@@ -76,6 +75,7 @@ const formSchema = z
     isTDSApplicable: z.boolean().default(false),
     tdsRate: z.coerce.number().optional(),
     tdsSection: z.string().optional(),
+    company: z.array(z.string()).min(1, 'Select at least one company'),
   })
   .superRefine((data, ctx) => {
     if (data.gstRegistrationType !== 'Unregistered') {
@@ -90,15 +90,18 @@ const formSchema = z
     }
   });
 
-// Searchable Picker Component (for state and city)
+// Searchable Picker Component (for state, city, and company)
 export const SearchablePicker = ({
   visible,
   onClose,
   options,
   onSelect,
+  onMultipleSelect,
   title,
   searchPlaceholder = 'Search...',
   disabled = false,
+  multiple = false,
+  selectedValues = [],
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -126,6 +129,23 @@ export const SearchablePicker = ({
           />
         </View>
 
+        {multiple && (
+          <View style={styles.multipleSelectHeader}>
+            <TouchableOpacity
+              style={styles.selectAllButton}
+              onPress={() => {
+                const allIds = options.map(o => o.value);
+                const isAllSelected = selectedValues.length === options.length;
+                onMultipleSelect(isAllSelected ? [] : allIds);
+              }}
+            >
+              <Text style={styles.selectAllText}>
+                {selectedValues.length === options.length ? 'Deselect All' : 'Select All'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <ScrollView style={styles.optionsContainer}>
           {filteredOptions.length === 0 ? (
             <Text style={styles.noResultsText}>No results found</Text>
@@ -134,19 +154,74 @@ export const SearchablePicker = ({
               <TouchableOpacity
                 key={option.value}
                 onPress={() => {
-                  onSelect(option);
-                  onClose();
+                  if (multiple) {
+                    const newSelected = selectedValues.includes(option.value)
+                      ? selectedValues.filter(v => v !== option.value)
+                      : [...selectedValues, option.value];
+                    onMultipleSelect(newSelected);
+                  } else {
+                    onSelect(option);
+                    onClose();
+                  }
                 }}
-                style={styles.optionItem}
+                style={[
+                  styles.optionItem,
+                  multiple && styles.optionItemMultiple,
+                  multiple && selectedValues.includes(option.value) && styles.optionItemSelected,
+                ]}
                 disabled={disabled}
               >
-                <Text style={styles.optionText}>{option.label}</Text>
+                {multiple && (
+                  <View style={styles.checkboxContainer}>
+                    <View style={[
+                      styles.checkbox,
+                      selectedValues.includes(option.value) && styles.checkboxSelected
+                    ]}>
+                      {selectedValues.includes(option.value) && (
+                        <Check size={12} color="white" />
+                      )}
+                    </View>
+                  </View>
+                )}
+                <Text style={[
+                  styles.optionText,
+                  multiple && selectedValues.includes(option.value) && styles.optionTextSelected
+                ]}>
+                  {option.label}
+                </Text>
               </TouchableOpacity>
             ))
+          )}
+          {multiple && filteredOptions.length > 0 && (
+            <TouchableOpacity
+              style={styles.doneButton}
+              onPress={onClose}
+            >
+              <Text style={styles.doneButtonText}>Done</Text>
+            </TouchableOpacity>
           )}
         </ScrollView>
       </View>
     </Modal>
+  );
+};
+
+// Company Badge Component
+const CompanyBadge = ({ company, companies, onRemove }) => {
+  const companyName = companies.find(c => c._id === company)?.businessName || company;
+  
+  return (
+    <View style={styles.badgeContainer}>
+      <View style={styles.badge}>
+        <Text style={styles.badgeText}>{companyName}</Text>
+        <TouchableOpacity
+          onPress={() => onRemove(company)}
+          style={styles.badgeRemoveButton}
+        >
+          <X size={12} color="#666" />
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 };
 
@@ -161,6 +236,9 @@ export function CustomerForm({
   const [stateCode, setStateCode] = useState(null);
   const [showStatePicker, setShowStatePicker] = useState(false);
   const [showCityPicker, setShowCityPicker] = useState(false);
+  const [showCompanyPicker, setShowCompanyPicker] = useState(false);
+  const [companies, setCompanies] = useState([]);
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
 
   const indiaStates = useMemo(() => State.getStatesOfCountry('IN'), []);
   const stateOptions = indiaStates
@@ -174,6 +252,12 @@ export function CustomerForm({
       .map(c => ({ value: c.name, label: c.name }))
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [stateCode]);
+
+  const companyOptions = useMemo(() => {
+    return companies
+      .map(c => ({ value: c._id, label: c.businessName }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [companies]);
 
   const gstTypeOptions = useMemo(
     () =>
@@ -200,16 +284,57 @@ export function CustomerForm({
       isTDSApplicable: customer?.isTDSApplicable || false,
       tdsRate: customer?.tdsRate || 0,
       tdsSection: customer?.tdsSection || '',
+      company: [],
     },
   });
 
   const regType = form.watch('gstRegistrationType');
   const isTDSApplicable = form.watch('isTDSApplicable');
+  const selectedCompanies = form.watch('company');
+
+  // Fetch companies on component mount
+  useEffect(() => {
+    const loadCompanies = async () => {
+      setIsLoadingCompanies(true);
+      try {
+        const token = await AsyncStorage.getItem('token');
+        const response = await fetch(`${baseURL}/api/companies/my`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to load companies');
+        }
+
+        const data = await response.json();
+        console.log('Fetched companies:', data);
+        setCompanies(data);
+
+        // Auto-select if only one company exists
+        if (data.length === 1) {
+          const currentSelected = form.getValues('company') || [];
+          if (!currentSelected.includes(data[0]._id)) {
+            form.setValue('company', [data[0]._id]);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load companies:', error);
+        // You might want to show a toast here
+      } finally {
+        setIsLoadingCompanies(false);
+      }
+    };
+
+    loadCompanies();
+  }, []);
 
   useEffect(() => {
     if (regType === 'Unregistered') form.setValue('gstin', '');
   }, [regType]);
 
+  // Initialize state code from existing customer data
   useEffect(() => {
     const currentStateName = form.getValues('state')?.trim();
     if (!currentStateName) {
@@ -220,7 +345,31 @@ export function CustomerForm({
       s => s.name.toLowerCase() === currentStateName.toLowerCase(),
     );
     setStateCode(found?.isoCode || null);
-  }, []);
+  }, [indiaStates]);
+
+  // Initialize company field from existing customer data
+  useEffect(() => {
+    if (customer && customer.company) {
+      let formattedCompanies = [];
+
+      if (Array.isArray(customer.company)) {
+        formattedCompanies = customer.company.map(c =>
+          typeof c === 'object' && c !== null ? c._id : c
+        );
+      } else if (typeof customer.company === 'string') {
+        formattedCompanies = [customer.company];
+      } else if (typeof customer.company === 'object' && customer.company !== null) {
+        formattedCompanies = [customer.company._id];
+      }
+
+      console.log('Customer company data:', customer.company);
+      console.log('Formatted companies:', formattedCompanies);
+
+      if (formattedCompanies.length > 0) {
+        form.setValue('company', formattedCompanies);
+      }
+    }
+  }, [customer]);
 
   const handleSubmit = async values => {
     setIsSubmitting(true);
@@ -234,8 +383,25 @@ export function CustomerForm({
 
       const method = customer ? 'PUT' : 'POST';
 
+      console.log('📤 Submitting customer data:', values);
+      console.log('📤 Company field being sent:', values.company);
+
+      // Sanitize input values
+      const sanitizedValues = {
+        ...values,
+        name: sanitizeInput(values.name),
+        email: sanitizeInput(values.email),
+        address: sanitizeInput(values.address),
+        city: sanitizeInput(values.city),
+        state: sanitizeInput(values.state),
+        pincode: sanitizeInput(values.pincode),
+        gstin: sanitizeInput(values.gstin),
+        pan: sanitizeInput(values.pan),
+        tdsSection: sanitizeInput(values.tdsSection),
+      };
+
       const cleanedValues = Object.fromEntries(
-        Object.entries(values).map(([key, value]) => [
+        Object.entries(sanitizedValues).map(([key, value]) => [
           key,
           key === 'contactNumber' && value
             ? value.replace(/\D/g, '')
@@ -255,6 +421,8 @@ export function CustomerForm({
       });
 
       const data = await res.json();
+      console.log('📥 Backend response:', data);
+      
       if (!res.ok) throw new Error(data.message || 'Failed operation');
 
       onSuccess(data.party);
@@ -263,6 +431,25 @@ export function CustomerForm({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Helper function to sanitize input
+  const sanitizeInput = (input) => {
+    if (!input) return '';
+    return input
+      .replace(/[<>]/g, '') // Remove < and > characters
+      .trim();
+  };
+
+  // Handle company selection
+  const handleCompanySelection = (newSelected) => {
+    form.setValue('company', newSelected);
+  };
+
+  // Remove single company badge
+  const removeCompany = (companyId) => {
+    const current = form.getValues('company') || [];
+    form.setValue('company', current.filter(id => id !== companyId));
   };
 
   return (
@@ -305,6 +492,66 @@ export function CustomerForm({
 
         {/* Form Section */}
         <View style={styles.formContainer}>
+          {/* Company Field */}
+          <Controller
+            control={form.control}
+            name="company"
+            render={({ field, fieldState }) => (
+              <View style={styles.field}>
+                <Text style={styles.label}>
+                  Company <Text style={styles.requiredStar}>*</Text>
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.companyDropdown,
+                    fieldState.error && styles.inputError,
+                  ]}
+                  onPress={() => setShowCompanyPicker(true)}
+                >
+                  {selectedCompanies && selectedCompanies.length > 0 ? (
+                    <View style={styles.selectedCompaniesContainer}>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        <View style={styles.badgesContainer}>
+                          {selectedCompanies.map(companyId => (
+                            <CompanyBadge
+                              key={companyId}
+                              company={companyId}
+                              companies={companies}
+                              onRemove={removeCompany}
+                            />
+                          ))}
+                        </View>
+                      </ScrollView>
+                      <ChevronsUpDown size={16} color="#666" style={styles.dropdownIcon} />
+                    </View>
+                  ) : (
+                    <View style={styles.companyDropdownPlaceholder}>
+                      <Text style={styles.placeholderText}>
+                        {isLoadingCompanies ? 'Loading companies...' : 'Select companies'}
+                      </Text>
+                      <ChevronsUpDown size={16} color="#999" style={styles.dropdownIcon} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+                {fieldState.error && (
+                  <Text style={styles.error}>{fieldState.error.message}</Text>
+                )}
+
+                <SearchablePicker
+                  visible={showCompanyPicker}
+                  onClose={() => setShowCompanyPicker(false)}
+                  options={companyOptions}
+                  onSelect={() => {}}
+                  onMultipleSelect={handleCompanySelection}
+                  title="Select Companies"
+                  searchPlaceholder="Search companies..."
+                  multiple={true}
+                  selectedValues={selectedCompanies || []}
+                />
+              </View>
+            )}
+          />
+
           {/* Name Field */}
           <Controller
             control={form.control}
@@ -375,7 +622,7 @@ export function CustomerForm({
             name="address"
             render={({ field }) => (
               <View style={styles.field}>
-                <Text style={styles.label}>Address</Text>
+                <Text style={styles.label}>Address Line (Street/Building)</Text>
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   placeholder="456 Park Avenue"
@@ -687,7 +934,7 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
-    // paddingBottom: 30,
+    paddingBottom: 30,
   },
   header: {
     backgroundColor: '#fff',
@@ -703,13 +950,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerCloseButton: {
-    padding: 4, // Extra box background hata diya
+    padding: 4,
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerCloseButtonText: {
-    fontSize: 22, // Thoda bada aur clean size
-    color: '#374151', // Dark grey standard color
+    fontSize: 22,
+    color: '#374151',
     fontWeight: '300',
   },
   headerTitle: {
@@ -721,9 +968,6 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 16,
     color: '#666',
-  },
-  formContainer: {
-    // padding: 20,
   },
   section: {
     marginBottom: 25,
@@ -740,17 +984,14 @@ const styles = StyleSheet.create({
   field: {
     marginBottom: 20,
   },
-  fieldRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
   label: {
     fontWeight: '600',
     marginBottom: 8,
     fontSize: 16,
     color: '#333',
+  },
+  requiredStar: {
+    color: '#ff3b30',
   },
   input: {
     borderWidth: 1,
@@ -858,7 +1099,62 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Modal Styles
+  // Company Field Styles
+  companyDropdown: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    minHeight: 50,
+    justifyContent: 'center',
+  },
+  selectedCompaniesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  badgesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    flex: 1,
+  },
+  badgeContainer: {
+    marginRight: 6,
+    marginBottom: 4,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  badgeText: {
+    fontSize: 14,
+    color: '#333',
+    marginRight: 4,
+  },
+  badgeRemoveButton: {
+    padding: 2,
+  },
+  companyDropdownPlaceholder: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: '#999',
+  },
+  dropdownIcon: {
+    marginLeft: 8,
+  },
+
+  // Searchable Picker Styles
   modalContainer: {
     flex: 1,
     backgroundColor: '#fff',
@@ -897,6 +1193,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#f9f9f9',
   },
+  multipleSelectHeader: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  selectAllButton: {
+    padding: 8,
+    alignItems: 'center',
+  },
+  selectAllText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#007AFF',
+  },
   optionsContainer: {
     flex: 1,
   },
@@ -905,9 +1215,49 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
+  optionItemMultiple: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  optionItemSelected: {
+    backgroundColor: '#f0f8ff',
+  },
+  checkboxContainer: {
+    marginRight: 12,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
   optionText: {
     fontSize: 16,
     color: '#333',
+    flex: 1,
+  },
+  optionTextSelected: {
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  doneButton: {
+    margin: 16,
+    padding: 16,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  doneButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   noResultsText: {
     textAlign: 'center',

@@ -432,7 +432,7 @@ export default function TemplateSettings() {
             dummyTransaction,
             dummyCompany,
             dummyParty,
-            null,
+            null, // shippingAddress (not applicable for thermal)
             dummyBank,
           );
           break;
@@ -486,9 +486,25 @@ export default function TemplateSettings() {
 
       // Prefer base64 if available (more reliable for preview rendering)
       let uri;
-      if (base64) {
-        uri = `data:application/pdf;base64,${base64}`;
-      } else if (finalPath) {
+
+      // ✅ VALIDATE base64 before using
+      if (base64 && typeof base64 === 'string' && base64.trim().length > 0) {
+        // Check if base64 looks valid (should start with PDF magic bytes in base64: JVBERi)
+        if (
+          base64.startsWith('JVBERi') ||
+          base64.startsWith('iVBORw') ||
+          base64.trim().length > 100
+        ) {
+          uri = `data:application/pdf;base64,${base64}`;
+        } else {
+          console.warn(
+            '[PDF Debug] base64 looks invalid (unexpected format). Trying file path instead.',
+          );
+          base64 = null;
+        }
+      }
+
+      if (!uri && finalPath) {
         uri = finalPath.startsWith('file://')
           ? finalPath
           : `file://${finalPath}`;
@@ -501,6 +517,8 @@ export default function TemplateSettings() {
         finalPath,
         'hasBase64=',
         !!base64,
+        'base64Sample=',
+        base64?.substring(0, 50),
         'uri=',
         uri,
       );

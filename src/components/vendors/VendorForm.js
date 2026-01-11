@@ -12,14 +12,13 @@ import {
   Platform,
   StyleSheet,
 } from 'react-native';
-import { X } from 'lucide-react-native';
+import { X, ChevronsUpDown, Check } from 'lucide-react-native';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, Controller } from 'react-hook-form';
 import { State, City } from 'country-state-city';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from '../../config';
-import CustomDropdown from '../../components/ui/CustomDropdown'; // Import the custom dropdown
 
 // --- Toast Modal Component ---
 const ToastModal = ({ visible, type, title, message, onClose }) => {
@@ -83,6 +82,9 @@ const SearchablePicker = ({
   title,
   searchPlaceholder = 'Search...',
   disabled = false,
+  multiple = false,
+  selectedValues = [],
+  onMultipleSelect,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -110,6 +112,23 @@ const SearchablePicker = ({
           />
         </View>
 
+        {multiple && (
+          <View style={styles.multipleSelectHeader}>
+            <TouchableOpacity
+              style={styles.selectAllButton}
+              onPress={() => {
+                const allIds = options.map(o => o.value);
+                const isAllSelected = selectedValues.length === options.length;
+                onMultipleSelect(isAllSelected ? [] : allIds);
+              }}
+            >
+              <Text style={styles.selectAllText}>
+                {selectedValues.length === options.length ? 'Deselect All' : 'Select All'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <ScrollView style={styles.optionsContainer}>
           {filteredOptions.length === 0 ? (
             <Text style={styles.noResultsText}>No results found</Text>
@@ -118,19 +137,74 @@ const SearchablePicker = ({
               <TouchableOpacity
                 key={option.value}
                 onPress={() => {
-                  onSelect(option);
-                  onClose();
+                  if (multiple) {
+                    const newSelected = selectedValues.includes(option.value)
+                      ? selectedValues.filter(v => v !== option.value)
+                      : [...selectedValues, option.value];
+                    onMultipleSelect(newSelected);
+                  } else {
+                    onSelect(option);
+                    onClose();
+                  }
                 }}
-                style={styles.optionItem}
+                style={[
+                  styles.optionItem,
+                  multiple && styles.optionItemMultiple,
+                  multiple && selectedValues.includes(option.value) && styles.optionItemSelected,
+                ]}
                 disabled={disabled}
               >
-                <Text style={styles.optionText}>{option.label}</Text>
+                {multiple && (
+                  <View style={styles.checkboxContainer}>
+                    <View style={[
+                      styles.checkbox,
+                      selectedValues.includes(option.value) && styles.checkboxSelected
+                    ]}>
+                      {selectedValues.includes(option.value) && (
+                        <Check size={12} color="white" />
+                      )}
+                    </View>
+                  </View>
+                )}
+                <Text style={[
+                  styles.optionText,
+                  multiple && selectedValues.includes(option.value) && styles.optionTextSelected
+                ]}>
+                  {option.label}
+                </Text>
               </TouchableOpacity>
             ))
+          )}
+          {multiple && filteredOptions.length > 0 && (
+            <TouchableOpacity
+              style={styles.doneButton}
+              onPress={onClose}
+            >
+              <Text style={styles.doneButtonText}>Done</Text>
+            </TouchableOpacity>
           )}
         </ScrollView>
       </View>
     </Modal>
+  );
+};
+
+// --- Company Badge Component ---
+const CompanyBadge = ({ company, companies, onRemove }) => {
+  const companyName = companies.find(c => c._id === company)?.businessName || company;
+  
+  return (
+    <View style={styles.badgeContainer}>
+      <View style={styles.badge}>
+        <Text style={styles.badgeText}>{companyName}</Text>
+        <TouchableOpacity
+          onPress={() => onRemove(company)}
+          style={styles.badgeRemoveButton}
+        >
+          <X size={12} color="#666" />
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 };
 
@@ -192,6 +266,7 @@ const formSchema = z.object({
   isTDSApplicable: z.boolean().default(false),
   tdsRate: z.coerce.number().optional(),
   tdsSection: z.string().optional(),
+  company: z.array(z.string()).min(1, 'Select at least one company'),
 });
 
 // --- Vendor Form ---
@@ -209,6 +284,9 @@ export function VendorForm({
   const [stateCode, setStateCode] = useState(null);
   const [showStatePicker, setShowStatePicker] = useState(false);
   const [showCityPicker, setShowCityPicker] = useState(false);
+  const [showCompanyPicker, setShowCompanyPicker] = useState(false);
+  const [companies, setCompanies] = useState([]);
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
 
   const {
     control,
@@ -232,11 +310,13 @@ export function VendorForm({
       isTDSApplicable: vendor?.isTDSApplicable || false,
       tdsRate: vendor?.tdsRate || 0,
       tdsSection: vendor?.tdsSection || '',
+      company: [],
     },
   });
 
   const isTDSApplicable = watch('isTDSApplicable');
   const gstRegistrationType = watch('gstRegistrationType');
+  const selectedCompanies = watch('company');
 
   const indiaStates = useMemo(() => State.getStatesOfCountry('IN'), []);
 
@@ -256,6 +336,54 @@ export function VendorForm({
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [stateCode]);
 
+  const companyOptions = useMemo(() => {
+    return companies
+      .map(c => ({ value: c._id, label: c.businessName }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [companies]);
+
+  // Fetch companies on component mount
+  useEffect(() => {
+    const loadCompanies = async () => {
+      setIsLoadingCompanies(true);
+      try {
+        const token = await AsyncStorage.getItem('token');
+        const response = await fetch(`${BASE_URL}/api/companies/my`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to load companies');
+        }
+
+        const data = await response.json();
+        setCompanies(data);
+
+        // Auto-select if only one company exists
+        if (data.length === 1) {
+          const currentSelected = getValues('company') || [];
+          if (!currentSelected.includes(data[0]._id)) {
+            setValue('company', [data[0]._id]);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load companies:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to load companies.',
+        });
+      } finally {
+        setIsLoadingCompanies(false);
+      }
+    };
+
+    loadCompanies();
+  }, []);
+
+  // Initialize state code from existing vendor data
   useEffect(() => {
     const currentStateName = getValues('state')?.trim();
     if (!currentStateName) {
@@ -268,6 +396,30 @@ export function VendorForm({
     setStateCode(found?.isoCode || null);
   }, [indiaStates]);
 
+  // Initialize company field from existing vendor data
+  useEffect(() => {
+    if (vendor && vendor.company) {
+      let formattedCompanies = [];
+
+      if (Array.isArray(vendor.company)) {
+        formattedCompanies = vendor.company.map(c =>
+          typeof c === 'object' && c !== null ? c._id : c
+        );
+      } else if (typeof vendor.company === 'string') {
+        formattedCompanies = [vendor.company];
+      } else if (typeof vendor.company === 'object' && vendor.company !== null) {
+        formattedCompanies = [vendor.company._id];
+      }
+
+      console.log('Vendor company data:', vendor.company);
+      console.log('Formatted companies:', formattedCompanies);
+
+      if (formattedCompanies.length > 0) {
+        setValue('company', formattedCompanies);
+      }
+    }
+  }, [vendor]);
+
   const onSubmit = async values => {
     setIsSubmitting(true);
     try {
@@ -279,6 +431,9 @@ export function VendorForm({
         : `${BASE_URL}/api/vendors`;
       const method = vendor ? 'PUT' : 'POST';
 
+      console.log('📤 Submitting vendor data:', values);
+      console.log('📤 Company field being sent:', values.company);
+
       const res = await fetch(url, {
         method,
         headers: {
@@ -289,6 +444,8 @@ export function VendorForm({
       });
 
       const data = await res.json();
+      console.log('📥 Backend response:', data);
+
       if (!res.ok)
         throw new Error(
           data.message || `Failed to ${vendor ? 'update' : 'create'} vendor.`,
@@ -302,6 +459,7 @@ export function VendorForm({
         description: `Vendor ${vendor ? 'updated' : 'created'} successfully.`,
       });
     } catch (error) {
+      console.error('❌ Submit error:', error);
       toast({
         variant: 'destructive',
         title: 'Operation Failed',
@@ -315,6 +473,17 @@ export function VendorForm({
 
   // Keyboard dismiss
   const dismissKeyboard = () => Keyboard.dismiss();
+
+  // Handle company selection
+  const handleCompanySelection = (newSelected) => {
+    setValue('company', newSelected);
+  };
+
+  // Remove single company badge
+  const removeCompany = (companyId) => {
+    const current = getValues('company') || [];
+    setValue('company', current.filter(id => id !== companyId));
+  };
 
   return (
     <TouchableWithoutFeedback onPress={dismissKeyboard}>
@@ -345,13 +514,76 @@ export function VendorForm({
 
           {/* Form Section */}
           <View style={styles.formContainer}>
+            
+            {/* Company Field */}
+            <Controller
+              control={control}
+              name="company"
+              render={({ field, fieldState }) => (
+                <View style={styles.field}>
+                  <Text style={styles.label}>
+                    Company <Text style={styles.requiredStar}>*</Text>
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.companyDropdown,
+                      fieldState.error && styles.inputError,
+                    ]}
+                    onPress={() => setShowCompanyPicker(true)}
+                  >
+                    {selectedCompanies && selectedCompanies.length > 0 ? (
+                      <View style={styles.selectedCompaniesContainer}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                          <View style={styles.badgesContainer}>
+                            {selectedCompanies.map(companyId => (
+                              <CompanyBadge
+                                key={companyId}
+                                company={companyId}
+                                companies={companies}
+                                onRemove={removeCompany}
+                              />
+                            ))}
+                          </View>
+                        </ScrollView>
+                        <ChevronsUpDown size={16} color="#666" style={styles.dropdownIcon} />
+                      </View>
+                    ) : (
+                      <View style={styles.companyDropdownPlaceholder}>
+                        <Text style={styles.placeholderText}>
+                          {isLoadingCompanies ? 'Loading companies...' : 'Select companies'}
+                        </Text>
+                        <ChevronsUpDown size={16} color="#999" style={styles.dropdownIcon} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                  {fieldState.error && (
+                    <Text style={styles.error}>{fieldState.error.message}</Text>
+                  )}
+
+                  <SearchablePicker
+                    visible={showCompanyPicker}
+                    onClose={() => setShowCompanyPicker(false)}
+                    options={companyOptions}
+                    onSelect={() => {}}
+                    onMultipleSelect={handleCompanySelection}
+                    title="Select Companies"
+                    searchPlaceholder="Search companies..."
+                    multiple={true}
+                    selectedValues={selectedCompanies || []}
+                  />
+                </View>
+              )}
+            />
+
             {/* Vendor Name */}
             <Controller
               control={control}
               name="vendorName"
               render={({ field, fieldState }) => (
                 <View style={styles.field}>
-                  <Text style={styles.label}>Vendor Name *</Text>
+                  <Text style={styles.label}>
+                    Vendor Name <Text style={styles.requiredStar}>*</Text>
+                  </Text>
                   <TextInput
                     style={[
                       styles.input,
@@ -426,7 +658,7 @@ export function VendorForm({
               name="address"
               render={({ field }) => (
                 <View style={styles.field}>
-                  <Text style={styles.label}>Address</Text>
+                  <Text style={styles.label}>Address Line (Street/Building)</Text>
                   <TextInput
                     style={[styles.input, styles.textArea]}
                     placeholder="123 Industrial Area"
@@ -526,22 +758,37 @@ export function VendorForm({
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>GST Details</Text>
 
-              {/* GST Registration Type - UPDATED WITH CUSTOM DROPDOWN */}
+              {/* GST Registration Type */}
               <Controller
                 control={control}
                 name="gstRegistrationType"
                 render={({ field, fieldState }) => (
                   <View style={styles.field}>
                     <Text style={styles.label}>GST Registration Type</Text>
-                    <CustomDropdown
-                      items={gstRegistrationTypes.map(type => ({
-                        value: type,
-                        label: type,
-                      }))}
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder="Select registration type"
-                    />
+                    <TouchableOpacity
+                      style={styles.dropdown}
+                      onPress={() => {
+                        // Show GST type picker
+                        const pickerOptions = gstRegistrationTypes.map(type => ({
+                          value: type,
+                          label: type,
+                        }));
+                        
+                        // You can use your existing SearchablePicker or create a simple modal
+                        setShowGSTTypePicker(true);
+                      }}
+                    >
+                      <Text
+                        style={
+                          field.value
+                            ? styles.dropdownTextSelected
+                            : styles.dropdownText
+                        }
+                      >
+                        {field.value || 'Select registration type'}
+                      </Text>
+                      <Text style={styles.dropdownArrow}>▼</Text>
+                    </TouchableOpacity>
                     {fieldState.error && (
                       <Text style={styles.error}>
                         {fieldState.error.message}
@@ -614,7 +861,6 @@ export function VendorForm({
               </View>
             </View>
 
-            {/* TDS Section */}
             {/* TDS Section */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>TDS Details</Text>
@@ -731,8 +977,6 @@ export function VendorForm({
                 </Text>
               )}
             </TouchableOpacity>
-
-            {/* Extra space for better scrolling */}
           </View>
         </ScrollView>
       </View>
@@ -743,6 +987,7 @@ export function VendorForm({
 const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
+    paddingBottom: 30,
   },
   headerWrapper: {
     backgroundColor: '#fff',
@@ -771,7 +1016,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   formContainer: {
-    // padding: 20,
+    padding: 20,
   },
   section: {
     marginBottom: 25,
@@ -788,17 +1033,14 @@ const styles = StyleSheet.create({
   field: {
     marginBottom: 20,
   },
-  fieldRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
   label: {
     fontWeight: '600',
     marginBottom: 8,
     fontSize: 16,
     color: '#333',
+  },
+  requiredStar: {
+    color: '#ff3b30',
   },
   input: {
     borderWidth: 1,
@@ -845,62 +1087,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 5,
   },
-  // Remove the old option styles since we're not using horizontal scroll anymore
-  optionScroll: {
-    marginHorizontal: -5,
-    marginBottom: 10,
-  },
-  optionButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  optionSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
-  optionText: {
-    color: '#333',
-    fontSize: 14,
-  },
-  optionTextSelected: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  switch: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#ddd',
-  },
-  switchActive: {
-    backgroundColor: '#007AFF',
-  },
-  switchText: {
-    color: 'white',
-    fontWeight: '500',
-    fontSize: 14,
-  },
-  tdsContainer: {
-    borderWidth: 1,
-    borderColor: '#eee',
-    borderRadius: 8,
-    padding: 16,
-    backgroundColor: '#fff',
-    marginTop: 10,
-  },
   submitButton: {
     backgroundColor: '#007AFF',
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
-    // marginTop: 20,
-    marginBottom: 10,
+    marginTop: 20,
   },
   submitButtonDisabled: {
     backgroundColor: '#ccc',
@@ -909,6 +1101,97 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+
+  // Company Field Styles
+  companyDropdown: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    minHeight: 50,
+    justifyContent: 'center',
+  },
+  selectedCompaniesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  badgesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    flex: 1,
+  },
+  badgeContainer: {
+    marginRight: 6,
+    marginBottom: 4,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  badgeText: {
+    fontSize: 14,
+    color: '#333',
+    marginRight: 4,
+  },
+  badgeRemoveButton: {
+    padding: 2,
+  },
+  companyDropdownPlaceholder: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: '#999',
+  },
+  dropdownIcon: {
+    marginLeft: 8,
+  },
+
+  // TDS Styles
+  tdsOptionsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  tdsOption: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  tdsOptionSelected: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  tdsOptionText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+  tdsOptionTextSelected: {
+    color: '#fff',
+  },
+  tdsDetailsContainer: {
+    borderWidth: 1,
+    borderColor: '#eee',
+    borderRadius: 8,
+    padding: 16,
+    backgroundColor: '#fff',
+    marginTop: 10,
   },
 
   // Toast Styles
@@ -937,7 +1220,8 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
   },
-  // Modal Styles
+  
+  // Searchable Picker Styles
   modalContainer: {
     flex: 1,
     backgroundColor: '#fff',
@@ -976,6 +1260,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#f9f9f9',
   },
+  multipleSelectHeader: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  selectAllButton: {
+    padding: 8,
+    alignItems: 'center',
+  },
+  selectAllText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#007AFF',
+  },
   optionsContainer: {
     flex: 1,
   },
@@ -984,48 +1282,54 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
+  optionItemMultiple: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  optionItemSelected: {
+    backgroundColor: '#f0f8ff',
+  },
+  checkboxContainer: {
+    marginRight: 12,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
   optionText: {
     fontSize: 16,
     color: '#333',
+    flex: 1,
+  },
+  optionTextSelected: {
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  doneButton: {
+    margin: 16,
+    padding: 16,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  doneButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   noResultsText: {
     textAlign: 'center',
     padding: 20,
     color: '#999',
     fontSize: 16,
-  },
-  tdsOptionsContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  tdsOption: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  tdsOptionSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
-  tdsOptionText: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '500',
-  },
-  tdsOptionTextSelected: {
-    color: '#fff',
-  },
-  tdsDetailsContainer: {
-    borderWidth: 1,
-    borderColor: '#eee',
-    borderRadius: 8,
-    padding: 16,
-    backgroundColor: '#fff',
-    marginTop: 10,
   },
 });

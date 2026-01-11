@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useNavigation } from '@react-navigation/native';
 import {
@@ -68,18 +68,8 @@ export default function ClientCard({
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      'Delete Client',
-      `Are you sure you want to delete ${client.contactName}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => onDelete(client._id),
-        },
-      ],
-    );
+    // Delegate confirmation to parent (custom AlertDialog)
+    onDelete();
   };
 
   // Navigation handler for View Analytics

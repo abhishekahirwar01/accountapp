@@ -31,6 +31,7 @@ import { useCompany } from '../../contexts/company-context';
 import UpdateWalkthrough from '../../components/notifications/UpdateWalkthrough';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
 import { usePermissions } from '../../contexts/permission-context'; // Import permission context
+import { useFocusEffect } from '@react-navigation/native';
 import { BASE_URL } from '../../config';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -70,9 +71,24 @@ const getAmount = (type, row) => {
 
 export default function UserDashboardScreen({ navigation, route }) {
   // --- State & Hooks
-  const { selectedCompanyId } = useCompany();
-  const { permissions: userCaps, isAllowed, refetch: refetchUserPermissions } = useUserPermissions();
+  const { selectedCompanyId, triggerCompaniesRefresh, refreshTrigger } =
+    useCompany();
+  const {
+    permissions: userCaps,
+    isAllowed,
+    refetch: refetchUserPermissions,
+  } = useUserPermissions();
   const { permissions, refetch: refetchPermissions } = usePermissions(); // Get permission refetch
+
+  // Trigger company refresh when screen gains focus
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log(
+        '🔄 UserDashboardScreen focused - triggering company refresh...',
+      );
+      triggerCompaniesRefresh();
+    }, [triggerCompaniesRefresh]),
+  );
 
   const [isLoading, setIsLoading] = useState(true);
   const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
@@ -231,17 +247,47 @@ export default function UserDashboardScreen({ navigation, route }) {
     fetchCompanyDashboard();
   }, [selectedCompanyId, fetchCompanyDashboard]);
 
-  // Add refresh function that also fetches permissions
+  // Add refresh function that also fetches permissions and companies
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     Promise.all([
       fetchCompanyDashboard(),
+      triggerCompaniesRefresh(),
       refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
       refetchPermissions ? refetchPermissions() : Promise.resolve(),
     ]).finally(() => {
       setRefreshing(false);
     });
-  }, [fetchCompanyDashboard, refetchUserPermissions, refetchPermissions]);
+  }, [
+    fetchCompanyDashboard,
+    triggerCompaniesRefresh,
+    refetchUserPermissions,
+    refetchPermissions,
+  ]);
+
+  // Fetch companies silently when global company refresh triggers — avoid full loading spinner
+  const fetchCompaniesOnly = useCallback(async () => {
+    try {
+      const data = await safeGet(`${BASE_URL}/api/companies/my`);
+      const comps = Array.isArray(data)
+        ? data
+        : data?.data || data?.companies || [];
+      setCompanies(comps);
+    } catch (err) {
+      console.error('fetchCompaniesOnly failed:', err);
+    }
+  }, [safeGet]);
+
+  React.useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      fetchCompaniesOnly().catch(err =>
+        console.error(
+          'UserDashboard fetchCompaniesOnly after trigger failed:',
+          err,
+        ),
+      );
+    }
+  }, [refreshTrigger, fetchCompaniesOnly]);
 
   const handleTransactionFormSubmit = () => {
     setIsTransactionFormOpen(false);
@@ -334,11 +380,7 @@ export default function UserDashboardScreen({ navigation, route }) {
                 style={[styles.btn, styles.btnSolid]}
                 activeOpacity={0.85}
               >
-                <PlusCircle
-                  size={16}
-                  style={{ marginRight: 8 }}
-                  color="#fff"
-                />
+                <PlusCircle size={16} style={{ marginRight: 8 }} color="#fff" />
                 <Text style={{ color: 'white' }}>New Transaction</Text>
               </TouchableOpacity>
             )}
@@ -392,13 +434,23 @@ export default function UserDashboardScreen({ navigation, route }) {
   if (companies.length === 0) {
     return (
       <AppLayout>
-        <View style={styles.emptyContainer}>
+        <ScrollView
+          contentContainerStyle={styles.emptyContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#0f62fe']}
+              tintColor="#0f62fe"
+            />
+          }
+        >
           <Building size={48} color="#ccc" />
           <Text style={styles.emptyTitle}>No Company Available</Text>
           <Text style={styles.emptyDescription}>
             You don't have access to any company yet. Please contact your admin.
           </Text>
-        </View>
+        </ScrollView>
       </AppLayout>
     );
   }

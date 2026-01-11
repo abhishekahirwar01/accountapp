@@ -20,7 +20,7 @@ import {
 import { capitalizeWords } from './utils';
 import { BASE_URL } from '../config';
 import { generatePDF } from 'react-native-html-to-pdf';
-import { parseHtmlToElements, renderParsedElements } from './HtmlNoteRenderer'
+import { parseHtmlToElements, renderParsedElements } from './HtmlNoteRenderer';
 
 // Constants
 const ITEMS_PER_PAGE = 40; // Maximum items per page
@@ -88,7 +88,17 @@ const splitItemsIntoPages = (items, itemsPerPage = ITEMS_PER_PAGE) => {
 };
 
 // Generate HSN Summary HTML for a specific page or all items
-const generateHsnSummaryHTML = (items, showIGST, showCGSTSGST, isGSTApplicable, totalTaxable, totalIGST, totalCGST, totalSGST, totalAmount) => {
+const generateHsnSummaryHTML = (
+  items,
+  showIGST,
+  showCGSTSGST,
+  isGSTApplicable,
+  totalTaxable,
+  totalIGST,
+  totalCGST,
+  totalSGST,
+  totalAmount,
+) => {
   if (!isGSTApplicable) return '';
 
   try {
@@ -110,9 +120,13 @@ const generateHsnSummaryHTML = (items, showIGST, showCGSTSGST, isGSTApplicable, 
     return `
       <div class="hsn-tax-table" style="border: 1px solid #0371C1; margin-top: 5px;">
         <div class="hsn-tax-table-header">
-          <div class="hsn-tax-header-cell" style="width: ${hsnColWidths[0]}">HSN / SAC</div>
+          <div class="hsn-tax-header-cell" style="width: ${
+            hsnColWidths[0]
+          }">HSN / SAC</div>
           
-          <div class="hsn-tax-header-cell" style="width: ${hsnColWidths[1]}">Taxable Value (Rs.)</div>
+          <div class="hsn-tax-header-cell" style="width: ${
+            hsnColWidths[1]
+          }">Taxable Value (Rs.)</div>
           
           ${
             showIGST || showCGSTSGST
@@ -153,16 +167,22 @@ const generateHsnSummaryHTML = (items, showIGST, showCGSTSGST, isGSTApplicable, 
               : ''
           }
 
-          <div class="hsn-tax-header-cell" style="width: ${hsnColWidths[hsnTotalColumnIndex]}; border-right: none;">Total</div>
+          <div class="hsn-tax-header-cell" style="width: ${
+            hsnColWidths[hsnTotalColumnIndex]
+          }; border-right: none;">Total</div>
         </div>
 
         ${hsnSummary
           .map(
             (hsnItem, index) => `
           <div class="hsn-tax-table-row">
-            <div class="hsn-tax-cell" style="width: ${hsnColWidths[0]}">${hsnItem.hsnCode}</div>
+            <div class="hsn-tax-cell" style="width: ${hsnColWidths[0]}">${
+              hsnItem.hsnCode
+            }</div>
             
-            <div class="hsn-tax-cell" style="width: ${hsnColWidths[1]}">${formatCurrency(hsnItem.taxableValue)}</div>
+            <div class="hsn-tax-cell" style="width: ${
+              hsnColWidths[1]
+            }">${formatCurrency(hsnItem.taxableValue)}</div>
             
             ${
               showIGST || showCGSTSGST
@@ -173,18 +193,24 @@ const generateHsnSummaryHTML = (items, showIGST, showCGSTSGST, isGSTApplicable, 
                 ? `
               <div class="igst-cell-hsn" style="width: 100%; border-right: 1px solid #0371C1;">
                 <div class="igst-percent">${hsnItem.taxRate}</div>
-                <div class="igst-amount">${formatCurrency(hsnItem.taxAmount)}</div>
+                <div class="igst-amount">${formatCurrency(
+                  hsnItem.taxAmount,
+                )}</div>
               </div>
             `
                 : showCGSTSGST
                 ? `
               <div class="igst-cell-hsn" style="width: 50%; border-right: 1px solid #0371C1;">
                 <div class="igst-percent">${hsnItem.taxRate / 2}</div>
-                <div class="igst-amount">${formatCurrency(hsnItem.cgstAmount)}</div>
+                <div class="igst-amount">${formatCurrency(
+                  hsnItem.cgstAmount,
+                )}</div>
               </div>
               <div class="igst-cell-hsn" style="width: 50%; border-right: 1px solid #0371C1;">
                 <div class="igst-percent">${hsnItem.taxRate / 2}</div>
-                <div class="igst-amount">${formatCurrency(hsnItem.sgstAmount)}</div>
+                <div class="igst-amount">${formatCurrency(
+                  hsnItem.sgstAmount,
+                )}</div>
               </div>
             `
                 : ''
@@ -194,15 +220,21 @@ const generateHsnSummaryHTML = (items, showIGST, showCGSTSGST, isGSTApplicable, 
                 : ''
             }
             
-            <div class="hsn-tax-cell" style="width: ${hsnColWidths[hsnTotalColumnIndex]}; border-right: none;">${formatCurrency(hsnItem.total)}</div>
+            <div class="hsn-tax-cell" style="width: ${
+              hsnColWidths[hsnTotalColumnIndex]
+            }; border-right: none;">${formatCurrency(hsnItem.total)}</div>
           </div>
-        `
+        `,
           )
           .join('')}
 
         <div class="hsn-tax-table-total-row">
-          <div class="hsn-tax-total-cell" style="width: ${hsnColWidths[0]}">Total</div>
-          <div class="hsn-tax-total-cell" style="width: ${hsnColWidths[1]}">${formatCurrency(totalTaxable)}</div>
+          <div class="hsn-tax-total-cell" style="width: ${
+            hsnColWidths[0]
+          }">Total</div>
+          <div class="hsn-tax-total-cell" style="width: ${
+            hsnColWidths[1]
+          }">${formatCurrency(totalTaxable)}</div>
 
           ${
             showIGST || showCGSTSGST
@@ -213,18 +245,24 @@ const generateHsnSummaryHTML = (items, showIGST, showCGSTSGST, isGSTApplicable, 
               ? `
             <div class="hsn-tax-total-cell" style="width: 100%;border-right: 1px solid #0371C1; display: flex; flex-direction: row; justify-content: center; align-items: center; padding: 0;">
               <div style="width: 30%; font-weight: bold; text-align: center; border-right: 1px solid #0371C1; padding: 2px;">-</div>
-              <div style="width: 70%; font-weight: bold; text-align: center; padding: 2px;">${formatCurrency(totalIGST)}</div>
+              <div style="width: 70%; font-weight: bold; text-align: center; padding: 2px;">${formatCurrency(
+                totalIGST,
+              )}</div>
             </div>
           `
               : showCGSTSGST
               ? `
             <div class="hsn-tax-total-cell" style="width: 50%; border-right: 1px solid #0371C1; display: flex; flex-direction: row; justify-content: center; align-items: center; padding: 0;">
               <div style="width: 30%; font-weight: bold; text-align: center; border-right: 1px solid #0371C1; padding: 2px;">-</div>
-              <div style="width: 70%; font-weight: bold; text-align: center; padding: 2px;">${formatCurrency(totalCGST)}</div>
+              <div style="width: 70%; font-weight: bold; text-align: center; padding: 2px;">${formatCurrency(
+                totalCGST,
+              )}</div>
             </div>
             <div class="hsn-tax-total-cell" style="width: 50%; border-right:1px solid #0371C1; display: flex; flex-direction: row; justify-content: center; align-items: center; padding: 0;">
               <div style="width: 30%; font-weight: bold; text-align: center; border-right: 1px solid #0371C1; padding: 2px;">-</div>
-              <div style="width: 70%; font-weight: bold; text-align: center; padding: 2px;">${formatCurrency(totalSGST)}</div>
+              <div style="width: 70%; font-weight: bold; text-align: center; padding: 2px;">${formatCurrency(
+                totalSGST,
+              )}</div>
             </div>
           `
               : ''
@@ -234,7 +272,9 @@ const generateHsnSummaryHTML = (items, showIGST, showCGSTSGST, isGSTApplicable, 
               : ''
           }
           
-          <div class="hsn-tax-total-cell" style="width: ${hsnColWidths[hsnTotalColumnIndex]}; border-right: none;">${formatCurrency(totalAmount)}</div>
+          <div class="hsn-tax-total-cell" style="width: ${
+            hsnColWidths[hsnTotalColumnIndex]
+          }; border-right: none;">${formatCurrency(totalAmount)}</div>
         </div>
       </div>
     `;
@@ -245,19 +285,42 @@ const generateHsnSummaryHTML = (items, showIGST, showCGSTSGST, isGSTApplicable, 
 };
 
 // Generate items table HTML for a specific page
-const generateItemsTableHTML = (items, pageIndex, totalPages, colWidths, totalColumnIndex, showIGST, showCGSTSGST, startIndex = 0) => {
+const generateItemsTableHTML = (
+  items,
+  pageIndex,
+  totalPages,
+  colWidths,
+  totalColumnIndex,
+  showIGST,
+  showCGSTSGST,
+  startIndex = 0,
+) => {
   return items
     .map(
       (item, index) => `
     <div class="items-table-row">
-      <div class="table-cell" style="width: ${colWidths[0]}">${startIndex + index + 1}</div>
-      <div class="table-cell product-cell" style="width: ${colWidths[1]}">${capitalizeWords(item.name)}</div>
-      <div class="table-cell" style="width: ${colWidths[2]}">${item.code || '-'}</div>
+      <div class="table-cell" style="width: ${colWidths[0]}">${
+        startIndex + index + 1
+      }</div>
+      <div class="table-cell product-cell" style="width: ${
+        colWidths[1]
+      }">${capitalizeWords(item.name)}</div>
+      <div class="table-cell" style="width: ${colWidths[2]}">${
+        item.code || '-'
+      }</div>
       <div class="table-cell" style="width: ${colWidths[3]}">
-        ${item.itemType === 'service' ? '-' : formatQuantity(item.quantity || 0, item.unit)}
+        ${
+          item.itemType === 'service'
+            ? '-'
+            : formatQuantity(item.quantity || 0, item.unit)
+        }
       </div>
-      <div class="table-cell" style="width: ${colWidths[4]}">${formatCurrency(item.pricePerUnit || 0)}</div>
-      <div class="table-cell" style="width: ${colWidths[5]}">${formatCurrency(item.taxableValue)}</div>
+      <div class="table-cell" style="width: ${colWidths[4]}">${formatCurrency(
+        item.pricePerUnit || 0,
+      )}</div>
+      <div class="table-cell" style="width: ${colWidths[5]}">${formatCurrency(
+        item.taxableValue,
+      )}</div>
       
       ${
         showIGST
@@ -281,9 +344,11 @@ const generateItemsTableHTML = (items, pageIndex, totalPages, colWidths, totalCo
           : ''
       }
       
-      <div class="table-cell" style="width: ${colWidths[totalColumnIndex]}">${formatCurrency(item.total)}</div>
+      <div class="table-cell" style="width: ${
+        colWidths[totalColumnIndex]
+      }">${formatCurrency(item.total)}</div>
     </div>
-  `
+  `,
     )
     .join('');
 };
@@ -312,7 +377,7 @@ const generatePageHTML = (
   totalAmount,
   itemsWithGST,
   startIndex = 0,
-  isLastPage = false
+  isLastPage = false,
 ) => {
   const formatDateSafe = dateString => {
     try {
@@ -323,7 +388,8 @@ const generatePageHTML = (
     }
   };
 
-  const companyName = company?.businessName || company?.companyName || 'Company Name';
+  const companyName =
+    company?.businessName || company?.companyName || 'Company Name';
 
   // Calculate the width for the merged 'Total' cell in the Item Table
   const totalLabelCellWidth =
@@ -359,13 +425,15 @@ const generatePageHTML = (
                   company?.Pincode,
                 ]
                   .filter(Boolean)
-                  .join(', ') || 'Address Line 1'
+                  .join(', ') || 'Address Line 1',
               )}
             </div>
             <div class="contact-info">
               <span class="contact-label">Phone No: </span>
               <span class="contact-value">
-                ${safeFormatPhoneNumber(company?.mobileNumber || company?.Telephone)}
+                ${safeFormatPhoneNumber(
+                  company?.mobileNumber || company?.Telephone,
+                )}
               </span>
             </div>
           </div>
@@ -411,11 +479,15 @@ const generatePageHTML = (
                 </div>
                 <div class="data-row">
                   <div class="table-label">Name:</div>
-                  <div class="table-value">${capitalizeWords(party?.name || 'N/A')}</div>
+                  <div class="table-value">${capitalizeWords(
+                    party?.name || 'N/A',
+                  )}</div>
                 </div>
                 <div class="data-row">
                   <div class="table-label">Address:</div>
-                  <div class="table-value">${capitalizeWords(getBillingAddress(party))}</div>
+                  <div class="table-value">${capitalizeWords(
+                    getBillingAddress(party),
+                  )}</div>
                 </div>
                 <div class="data-row">
                   <div class="table-label">Phone:</div>
@@ -436,7 +508,9 @@ const generatePageHTML = (
                   <div class="table-value">
                     ${
                       actualShippingAddress?.state
-                        ? `${actualShippingAddress.state} (${getStateCode(actualShippingAddress.state) || '-'})`
+                        ? `${actualShippingAddress.state} (${
+                            getStateCode(actualShippingAddress.state) || '-'
+                          })`
                         : party?.state
                         ? `${party.state} (${getStateCode(party.state) || '-'})`
                         : '-'
@@ -452,23 +526,33 @@ const generatePageHTML = (
                 <div class="data-row">
                   <div class="table-label">Name:</div>
                   <div class="table-value">
-                    ${capitalizeWords(actualShippingAddress?.label || party?.name || 'N/A')}
+                    ${capitalizeWords(
+                      actualShippingAddress?.label || party?.name || 'N/A',
+                    )}
                   </div>
                 </div>
                 <div class="data-row">
                   <div class="table-label">Address:</div>
                   <div class="table-value">
-                    ${capitalizeWords(getShippingAddress(actualShippingAddress, getBillingAddress(party)))}
+                    ${capitalizeWords(
+                      getShippingAddress(
+                        actualShippingAddress,
+                        getBillingAddress(party),
+                      ),
+                    )}
                   </div>
                 </div>
                 <div class="data-row">
                   <div class="table-label">Country:</div>
-                  <div class="table-value">${company?.Country }</div>
+                  <div class="table-value">${company?.Country}</div>
                 </div>
                 <div class="data-row">
                   <div class="table-label">Phone:</div>
                   <div class="table-value">
-                    ${safeFormatPhoneNumber(actualShippingAddress?.contactNumber || party?.contactNumber)}
+                    ${safeFormatPhoneNumber(
+                      actualShippingAddress?.contactNumber ||
+                        party?.contactNumber,
+                    )}
                   </div>
                 </div>
                 <div class="data-row">
@@ -480,7 +564,9 @@ const generatePageHTML = (
                   <div class="table-value">
                     ${
                       actualShippingAddress?.state
-                        ? `${actualShippingAddress.state} (${getStateCode(actualShippingAddress.state) || '-'})`
+                        ? `${actualShippingAddress.state} (${
+                            getStateCode(actualShippingAddress.state) || '-'
+                          })`
                         : party?.state
                         ? `${party.state} (${getStateCode(party.state) || '-'})`
                         : '-'
@@ -492,7 +578,9 @@ const generatePageHTML = (
               <div class="column">
                 <div class="data-row" style="gap: 5px;">
                   <div class="table-label">Invoice No:</div>
-                  <div class="table-value" style="text-align: right;">${transaction.invoiceNumber || 'N/A'}</div>
+                  <div class="table-value" style="text-align: right;">${
+                    transaction.invoiceNumber || 'N/A'
+                  }</div>
                 </div>
                 <div class="data-row" style="gap: 5px;">
                   <div class="table-label">Invoice Date:</div>
@@ -508,11 +596,15 @@ const generatePageHTML = (
                 </div>
                 <div class="data-row" style="gap: 5px;">
                   <div class="table-label">P.O. No:</div>
-                  <div class="table-value" style="text-align: right;">${transaction.voucher || '-'}</div>
+                  <div class="table-value" style="text-align: right;">${
+                    transaction.voucher || '-'
+                  }</div>
                 </div>
                 <div class="data-row" style="gap: 5px;">
                   <div class="table-label">E-Way No:</div>
-                  <div class="table-value" style="text-align: right;">${transaction.eway || '-'}</div>
+                  <div class="table-value" style="text-align: right;">${
+                    transaction.eway || '-'
+                  }</div>
                 </div>
               </div>
             </div>
@@ -522,12 +614,24 @@ const generatePageHTML = (
           <div class="section">
             <div class="table-container">
               <div class="items-table-header">
-                <div class="header-cell" style="width: ${colWidths[0]}">Sr. No.</div>
-                <div class="header-cell product-cell" style="width: ${colWidths[1]}">Name of Product/Service</div>
-                <div class="header-cell" style="width: ${colWidths[2]}">HSN/SAC</div>
-                <div class="header-cell" style="width: ${colWidths[3]}">Qty</div>
-                <div class="header-cell" style="width: ${colWidths[4]}">Rate (Rs.)</div>
-                <div class="header-cell" style="width: ${colWidths[5]}">Taxable Value (Rs.)</div>
+                <div class="header-cell" style="width: ${
+                  colWidths[0]
+                }">Sr. No.</div>
+                <div class="header-cell product-cell" style="width: ${
+                  colWidths[1]
+                }">Name of Product/Service</div>
+                <div class="header-cell" style="width: ${
+                  colWidths[2]
+                }">HSN/SAC</div>
+                <div class="header-cell" style="width: ${
+                  colWidths[3]
+                }">Qty</div>
+                <div class="header-cell" style="width: ${
+                  colWidths[4]
+                }">Rate (Rs.)</div>
+                <div class="header-cell" style="width: ${
+                  colWidths[5]
+                }">Taxable Value (Rs.)</div>
 
                 ${
                   showIGST
@@ -560,7 +664,9 @@ const generatePageHTML = (
                     : ''
                 }
 
-                <div class="header-cell" style="width: ${colWidths[totalColumnIndex]}">Total (Rs.)</div>
+                <div class="header-cell" style="width: ${
+                  colWidths[totalColumnIndex]
+                }">Total (Rs.)</div>
               </div>
 
               ${generateItemsTableHTML(
@@ -571,33 +677,45 @@ const generatePageHTML = (
                 totalColumnIndex,
                 showIGST,
                 showCGSTSGST,
-                startIndex
+                startIndex,
               )}
 
              ${
-  isLastPage
-    ? `
+               isLastPage
+                 ? `
     <!-- Total Row (only on last page) -->
     <div class="items-table-total-row">
       <!-- Sr. No. Column: Show dash -->
-      <div class="table-cell font-bold" style="width: ${colWidths[0]}; text-align: center;">-</div>
+      <div class="table-cell font-bold" style="width: ${
+        colWidths[0]
+      }; text-align: center;">-</div>
       
       <!-- Product Name Column: Show "Total" text -->
-      <div class="table-cell font-bold" style="width: ${colWidths[1]}; text-align: left; padding-left: 5px;">Total</div>
+      <div class="table-cell font-bold" style="width: ${
+        colWidths[1]
+      }; text-align: left; padding-left: 5px;">Total</div>
       
       <!-- HSN/SAC Column: Show dash -->
-      <div class="table-cell font-bold" style="width: ${colWidths[2]}; text-align: center;">-</div>
+      <div class="table-cell font-bold" style="width: ${
+        colWidths[2]
+      }; text-align: center;">-</div>
       
       <!-- Quantity Column: Show total quantity of ALL items -->
-      <div class="table-cell font-bold" style="width: ${colWidths[3]}; text-align: center;">
+      <div class="table-cell font-bold" style="width: ${
+        colWidths[3]
+      }; text-align: center;">
         ${itemsWithGST.reduce((sum, item) => sum + (item.quantity || 0), 0)}
       </div>
       
       <!-- Rate Column: Show dash -->
-      <div class="table-cell font-bold" style="width: ${colWidths[4]}; text-align: center;">-</div>
+      <div class="table-cell font-bold" style="width: ${
+        colWidths[4]
+      }; text-align: center;">-</div>
       
       <!-- Taxable Value Column: Show total taxable amount -->
-      <div class="table-cell font-bold" style="width: ${colWidths[5]}; text-align: center;">
+      <div class="table-cell font-bold" style="width: ${
+        colWidths[5]
+      }; text-align: center;">
         ${formatCurrency(totalTaxable)}
       </div>
       
@@ -606,7 +724,9 @@ const generatePageHTML = (
         showIGST
           ? `
       <!-- IGST Column -->
-      <div class="igst-cell font-bold" style="width: ${colWidths[6]}; text-align: center;">
+      <div class="igst-cell font-bold" style="width: ${
+        colWidths[6]
+      }; text-align: center;">
         <div class="igst-percent">-</div>
         <div class="igst-amount">${formatCurrency(totalIGST)}</div>
       </div>
@@ -614,12 +734,16 @@ const generatePageHTML = (
           : showCGSTSGST
           ? `
       <!-- CGST Column -->
-      <div class="igst-cell font-bold" style="width: ${colWidths[6]}; text-align: center;">
+      <div class="igst-cell font-bold" style="width: ${
+        colWidths[6]
+      }; text-align: center;">
         <div class="igst-percent">-</div>
         <div class="igst-amount">${formatCurrency(totalCGST)}</div>
       </div>
       <!-- SGST Column -->
-      <div class="igst-cell font-bold" style="width: ${colWidths[7]}; text-align: center;">
+      <div class="igst-cell font-bold" style="width: ${
+        colWidths[7]
+      }; text-align: center;">
         <div class="igst-percent">-</div>
         <div class="igst-amount">${formatCurrency(totalSGST)}</div>
       </div>
@@ -628,13 +752,15 @@ const generatePageHTML = (
       }
       
       <!-- Total Amount Column: Show final total -->
-      <div class="table-cell font-bold" style="width: ${colWidths[totalColumnIndex]}; text-align: center;">
+      <div class="table-cell font-bold" style="width: ${
+        colWidths[totalColumnIndex]
+      }; text-align: center;">
         ${formatCurrency(totalAmount)}
       </div>
     </div>
     `
-    : ''
-}
+                 : ''
+             }
             </div>
 
             ${
@@ -656,7 +782,7 @@ const generatePageHTML = (
                       totalIGST,
                       totalCGST,
                       totalSGST,
-                      totalAmount
+                      totalAmount,
                     )
                   : ''
               }
@@ -793,7 +919,9 @@ const generatePageHTML = (
                     <div class="total-row">
                       <div class="label">Total Tax</div>
                       <div class="value">
-                        ${formatCurrency(showIGST ? totalIGST : totalCGST + totalSGST)}
+                        ${formatCurrency(
+                          showIGST ? totalIGST : totalCGST + totalSGST,
+                        )}
                       </div>
                     </div>
                     `
@@ -803,7 +931,11 @@ const generatePageHTML = (
 
                   <div class="highlight-row">
                     <div class="label font-bold">
-                      ${isGSTApplicable ? 'Total Amount After Tax' : 'Total Amount'}
+                      ${
+                        isGSTApplicable
+                          ? 'Total Amount After Tax'
+                          : 'Total Amount'
+                      }
                     </div>
                     <div class="value font-bold">
                       ${formatCurrency(totalAmount)}
@@ -813,7 +945,9 @@ const generatePageHTML = (
 
                 <!-- Compact signature box -->
                 <div class="signature-box">
-                  <div class="signature-title">For ${capitalizeWords(companyName)}</div>
+                  <div class="signature-title">For ${capitalizeWords(
+                    companyName,
+                  )}</div>
                   <div class="authorized-text-container">
                     <div class="signature-line"></div>
                     <div class="authorized-text">Authorised Signatory</div>
@@ -846,7 +980,7 @@ const Template1 = ({
 }) => {
   // 1. Data Preparation and Calculations
   const actualShippingAddress = shippingAddress || transaction?.shippingAddress;
-  
+
   const {
     totals,
     totalTaxable,
@@ -869,7 +1003,7 @@ const Template1 = ({
   const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
 
   const bankData = bank || transaction?.bank || {};
-  
+
   // Check if any bank detail is available
   const isBankDetailAvailable =
     bankData?.bankName ||
@@ -941,7 +1075,7 @@ const Template1 = ({
         totalAmount,
         itemsWithGST,
         startIndex,
-        pageIndex === totalPages - 1 // isLastPage
+        pageIndex === totalPages - 1, // isLastPage
       );
       startIndex += pageItems.length;
       return pageHTML;
@@ -1673,17 +1807,39 @@ export const generatePdfForTemplate1 = async (
 
     const file = await generatePDF(options);
     console.log('🟢 PDF Generated Successfully!');
+    console.log('📊 PDF File Object:', {
+      type: typeof file,
+      constructor: file?.constructor?.name,
+      keys: Object.keys(file || {}),
+      hasBase64: typeof file?.base64,
+      base64Length: file?.base64?.length || 0,
+      hasFilePath: !!file?.filePath,
+    });
 
-    return {
+    // Return a wrapper object with the output method
+    const wrapper = {
       ...file,
       output: (format = 'base64') => {
-        if (format === 'base64') return file.base64;
-        if (format === 'filePath') return file.filePath;
+        console.log(`📋 output() called with format: ${format}`);
+        if (format === 'base64') {
+          console.log('📤 Returning base64, length:', file.base64?.length || 0);
+          return file.base64;
+        }
+        if (format === 'filePath') {
+          console.log('📤 Returning filePath:', file.filePath);
+          return file.filePath;
+        }
+        console.log('📤 Returning base64 (default)');
         return file.base64;
       },
     };
+
+    console.log('📦 Wrapper object keys:', Object.keys(wrapper));
+    return wrapper;
   } catch (error) {
-    console.error('Error generating PDF:', error);
+    console.error('❌ Error generating PDF:', error);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
     throw error;
   }
 };

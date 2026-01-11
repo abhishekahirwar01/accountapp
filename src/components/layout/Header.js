@@ -14,6 +14,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -24,6 +25,7 @@ import { useCompany } from '../../contexts/company-context';
 // Components
 import { CompanySwitcher } from './CompanySwitcher';
 import Notification from '../notifications/Notification';
+import SupportForm from '../support/SupportForm';
 
 // Config
 import { BASE_URL } from '../../config';
@@ -33,12 +35,18 @@ const logoPath2 = require('../../../assets/images/vinimay.png');
 // Role label mapping function (Next.js जैसा)
 function roleToLabel(role) {
   switch (role) {
-    case 'master':   return 'Master';
-    case 'admin':    return 'Admin';
-    case 'manager':  return 'Manager';
-    case 'customer': return 'Client';
-    case 'user':     return 'User';
-    default:         return 'User';
+    case 'master':
+      return 'Master';
+    case 'admin':
+      return 'Admin';
+    case 'manager':
+      return 'Manager';
+    case 'customer':
+      return 'Client';
+    case 'user':
+      return 'User';
+    default:
+      return 'User';
   }
 }
 
@@ -53,6 +61,7 @@ export default function Header() {
   const [showSearch, setShowSearch] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showSupportForm, setShowSupportForm] = useState(false);
   const [dateString, setDateString] = useState('');
   const [highlightCount, setHighlightCount] = useState(0);
   const [currentHighlightIndex, setCurrentHighlightIndex] = useState(0);
@@ -64,7 +73,15 @@ export default function Header() {
   const route = useRoute();
 
   // Context data
-  const { currentCompany } = useCompany();
+  const { triggerCompaniesRefresh } = useCompany();
+
+  // Refresh companies whenever Header comes to focus
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('🔄 Header focused - triggering company refresh...');
+      triggerCompaniesRefresh();
+    }, [triggerCompaniesRefresh]),
+  );
 
   useEffect(() => {
     const today = new Date();
@@ -138,8 +155,13 @@ export default function Header() {
     }
   };
 
+  const handleSupport = () => {
+    setShowDropdown(false);
+    setShowSupportForm(true);
+  };
+
   // Search highlight functionality
-  const handleSearchHighlight = (term) => {
+  const handleSearchHighlight = term => {
     if (!term.trim()) {
       setHighlightCount(0);
       setCurrentHighlightIndex(0);
@@ -162,47 +184,6 @@ export default function Header() {
       setCurrentHighlightIndex(prev => prev - 1);
     }
   };
-
-  // Logout functionality
-  // const handleLogout = async () => {
-  //   try {
-  //     const userRole = await AsyncStorage.getItem('role');
-  //     const slug =
-  //       (await AsyncStorage.getItem('tenantSlug')) ||
-  //       (await AsyncStorage.getItem('slug')) ||
-  //       (await AsyncStorage.getItem('clientUsername'));
-
-  //     Alert.alert('Logout', 'Are you sure you want to logout?', [
-  //       {
-  //         text: 'Cancel',
-  //         style: 'cancel',
-  //       },
-  //       {
-  //         text: 'Logout',
-  //         style: 'destructive',
-  //         onPress: async () => {
-  //           await AsyncStorage.clear();
-
-  //           let targetRoute = 'UserLoginScreen';
-  //           if (userRole === 'customer' && slug) {
-  //             targetRoute = 'ClientLoginScreen';
-  //           } else if (userRole === 'master') {
-  //             targetRoute = 'AdminLoginScreen';
-  //           }
-
-  //           navigation.reset({
-  //             index: 0,
-  //             routes: [{ name: targetRoute }],
-  //           });
-  //         },
-  //       },
-  //     ]);
-  //   } catch (error) {
-  //     console.error('Logout error:', error);
-  //     Alert.alert('Error', 'Failed to logout');
-  //   }
-  //   setShowDropdown(false);
-  // };
 
   const handleLogout = async () => {
     try {
@@ -233,7 +214,7 @@ export default function Header() {
     }
     setShowDropdown(false);
   };
-  
+
   // Search UI
   if (showSearch) {
     return (
@@ -421,6 +402,23 @@ export default function Header() {
                       <Text style={styles.dropdownText}>Settings</Text>
                     </TouchableOpacity>
 
+                    {/* Support Option */}
+                    {role !== 'master'&&(
+
+                      <TouchableOpacity
+                      style={styles.dropdownItem}
+                      onPress={handleSupport}
+                    >
+                      <Ionicons
+                        name="help-circle-outline"
+                        size={18}
+                        color="#64748b"
+                      />
+                      <Text style={styles.dropdownText}>Support</Text>
+                    </TouchableOpacity>
+                    )}
+                    
+
                     <TouchableOpacity
                       style={styles.dropdownItem}
                       onPress={handleLogout}
@@ -441,6 +439,12 @@ export default function Header() {
           </View>
         </View>
       </SafeAreaView>
+
+      {/* Support Form Modal */}
+      <SupportForm
+        isVisible={showSupportForm}
+        onClose={() => setShowSupportForm(false)}
+      />
     </>
   );
 }

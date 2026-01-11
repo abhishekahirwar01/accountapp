@@ -297,7 +297,7 @@ const Template17 = ({ transaction, company, party, shippingAddress, bank }) => {
           .party-heading { font-size: 8px; font-weight: bold; margin-bottom: 3px; color: ${PRIMARY_BLUE}; }
           .party-name { font-size: 9px; font-weight: bold; margin-bottom: 2px; }
           .party-line { font-size: 7.5px; margin-bottom: 1px; line-height: 1.2; }
-          .items-table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
+          .items-table { width: 100%; border-collapse: collapse;  }
           .items-table .table-header-row { background-color: ${LIGHT_BLUE}; }
           .items-table th { background-color: ${LIGHT_BLUE}; color: ${DARK_TEXT}; font-weight: bold; padding: 6px 4px; text-align: center; font-size: 7.5px; border: 1px solid ${PRIMARY_BLUE}; line-height: 1.2; }
           .items-table td { padding: 5px 4px; text-align: center; font-size: 8px; border: 1px solid ${PRIMARY_BLUE}; vertical-align: middle; }
@@ -306,12 +306,12 @@ const Template17 = ({ transaction, company, party, shippingAddress, bank }) => {
           .items-table td.left { text-align: left; padding-left: 6px; }
           .items-table td.right { text-align: right; padding-right: 6px; }
           .footer-total-row td { font-weight: bold; border: 1px solid ${PRIMARY_BLUE}; padding: 6px 4px; font-size: 8px; color: ${DARK_TEXT}; background-color: white; }
-          .amount-words { margin: 6px 0; padding: 6px; font-size: 8px; }
+          .amount-words {  padding: 4px; font-size: 8px; }
           .tax-summary {   }
           .tax-summary table { width: 100%; border-collapse: collapse; }
           .tax-summary th { background-color: ${LIGHT_BLUE}; padding: 4px; font-size: 7.5px; border: 1px solid ${PRIMARY_BLUE};  border-bottom: none; font-weight: bold; }
           .tax-summary td { padding: 3px 4px; font-size: 7.5px; border: 1px solid ${PRIMARY_BLUE}; text-align: right; }
-          .bank-sign-section { display: table; width: 100%; border: 1px solid ${PRIMARY_BLUE}; border-top:none; border-bottom:none;  min-height: 100px; }
+          .bank-sign-section { display: table; width: 100%; border: 1px solid ${PRIMARY_BLUE}; border-top:none;   min-height: 100px; }
           .bank-col-section { display: table-cell; width: 60%; padding: 8px 10px; vertical-align: top;  border-right: 1px solid ${PRIMARY_BLUE}; }
           .sign-col { display: table-cell; width: 40%; padding: 8px 10px; vertical-align: top; text-align: right; }
           .section-heading { font-size: 8px; font-weight: bold; margin-bottom: 4px; }
@@ -402,29 +402,29 @@ const Template17 = ({ transaction, company, party, shippingAddress, bank }) => {
                         ${taxSummaryArray.map(summary => `
                           <tr>
                             <td style="text-align: center;">${summary.hsn}</td>
-                            <td>${formatCurrency(summary.taxableValue)}</td>
+                            <td style="text-align: center;">${formatCurrency(summary.taxableValue)}</td>
                             <td style="text-align: center;">${summary.rate.toFixed(2)}</td>
                             ${showIGST ? `
-                              <td>${formatCurrency(summary.igst)}</td>
-                              <td>${formatCurrency(summary.total)}</td>
+                              <td style="text-align: center;">${formatCurrency(summary.igst)}</td>
+                              <td style="text-align: center;">${formatCurrency(summary.total)}</td>
                             ` : `
-                              <td>${formatCurrency(summary.cgst)}</td>
-                              <td>${formatCurrency(summary.sgst)}</td>
-                              <td>${formatCurrency(summary.total)}</td>
+                              <td style="text-align: center;">${formatCurrency(summary.cgst)}</td>
+                              <td style="text-align: center;">${formatCurrency(summary.sgst)}</td>
+                              <td style="text-align: center;">${formatCurrency(summary.total)}</td>
                             `}
                           </tr>
                         `).join('')}
                         <tr style="background-color: ${LIGHT_BLUE}; font-weight: bold;">
-                          <td style="text-align: center;">Total</td>
-                          <td>${formatCurrency(totalTaxable)}</td>
+                          <td style="text-align:center;">Total</td>
+                          <td style="text-align: center;">${formatCurrency(totalTaxable)}</td>
                           <td></td>
                           ${showIGST ? `
-                            <td>${formatCurrency(totalIGST)}</td>
-                            <td>${formatCurrency(totalIGST)}</td>
+                            <td style="text-align: center;">${formatCurrency(totalIGST)}</td>
+                            <td style="text-align: center;">${formatCurrency(totalIGST)}</td>
                           ` : `
-                            <td>${formatCurrency(totalCGST)}</td>
-                            <td>${formatCurrency(totalSGST)}</td>
-                            <td>${formatCurrency(totalCGST + totalSGST)}</td>
+                            <td style="text-align: center;">${formatCurrency(totalCGST)}</td>
+                            <td style="text-align: center;">${formatCurrency(totalSGST)}</td>
+                            <td style="text-align: center;">${formatCurrency(totalCGST + totalSGST)}</td>
                           `}
                         </tr>
                       </tbody>
