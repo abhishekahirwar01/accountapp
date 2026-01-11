@@ -789,10 +789,21 @@ export const SalesPurchasesFields = props => {
     setValue(`items.${index}.product`, value, { shouldValidate: true });
     const selectedProduct = value ? products.find(p => p._id === value) : null;
 
-    // Set HSN or clear it
-    setValue(`items.${index}.hsn`, selectedProduct?.hsn || '', {
-      shouldValidate: true,
-    });
+    // Set HSN or clear it (coerce and handle nested objects)
+    const prodHsn = (() => {
+      if (!selectedProduct) return '';
+      const v =
+        selectedProduct.hsn ??
+        selectedProduct.HSN_CD ??
+        selectedProduct.hsnCode ??
+        selectedProduct.hsn_code ??
+        null;
+      if (v === undefined || v === null) return '';
+      if (typeof v === 'object')
+        return String(v.HSN_CD ?? v.hsn ?? v.code ?? v.value ?? '');
+      return String(v);
+    })();
+    setValue(`items.${index}.hsn`, prodHsn, { shouldValidate: true });
 
     if (value && typeof value === 'string') {
       if (selectedProduct) {
@@ -1586,7 +1597,24 @@ export const SalesPurchasesFields = props => {
                     ? services.find(s => s._id === value)
                     : null;
 
-                  setValue(`items.${index}.sac`, selectedService?.sac || '', {
+                  // Robustly extract SAC (handles object or scalar)
+                  const svcSac = (() => {
+                    if (!selectedService) return '';
+                    const v =
+                      selectedService.sac ??
+                      selectedService.SAC_CD ??
+                      selectedService.sacCode ??
+                      selectedService.sac_code ??
+                      null;
+                    if (v === undefined || v === null) return '';
+                    if (typeof v === 'object')
+                      return String(
+                        v.SAC_CD ?? v.sac ?? v.code ?? v.value ?? '',
+                      );
+                    return String(v);
+                  })();
+
+                  setValue(`items.${index}.sac`, svcSac, {
                     shouldValidate: true,
                   });
 
@@ -2480,6 +2508,8 @@ export const SalesPurchasesFields = props => {
                           style={styles.invoiceTotalInput}
                           value={`₹${formatGrandTotal(watch('invoiceTotal'))}`}
                           editable={false}
+                          adjustsFontSizeToFit={true}
+                          numberOfLines={1}
                         />
                       </View>
                     </View>
@@ -3002,40 +3032,47 @@ const styles = StyleSheet.create({
   },
   totalsSection: {
     width: '100%',
-    maxWidth: 400,
+    marginTop: 10,
   },
   totalsContainer: {
     gap: 12,
+    width: '100%',
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 8,
+    flexWrap: 'wrap',
   },
   totalLabel: {
     fontSize: 14,
     fontWeight: '500',
+    flex: 1,
   },
   totalInputField: {
-    width: 150,
-    height: 40,
+    width: 140,
+    height: 45,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     backgroundColor: '#F9FAFB',
     fontSize: 14,
     textAlign: 'right',
+    color: '#111827',
   },
   invoiceTotalLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
+    flex: 1,
+    marginRight: 10,
   },
   invoiceTotalInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: 150,
-    height: 40,
+    minWidth: 140,
+    height: 50,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 6,
@@ -3050,7 +3087,7 @@ const styles = StyleSheet.create({
   },
   invoiceTotalInput: {
     flex: 1,
-    height: 40,
+    height: '100%',
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'right',

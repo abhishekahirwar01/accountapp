@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -13,6 +13,7 @@ import {
   RefreshControl,
   Dimensions,
   Platform,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -35,6 +36,7 @@ import {
   DownloadIcon,
 } from 'lucide-react-native';
 import { BASE_URL } from '../../../config';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 // Import your React Native components
 import {
@@ -51,10 +53,14 @@ import { VendorLedgerView as ImportedVendorLedgerView } from '../../../component
 import { ExpenseLedger as ImportedExpenseLedger } from '../../../components/Ledger/expense-ledger';
 import { VendorExpenseList as ImportedVendorExpenseList } from '../../../components/Ledger/vendor-expense-list';
 import { Skeleton } from '../../../components/ui/Skeleton';
+import { useCompany } from '../../../contexts/company-context';
+import { red100 } from 'react-native-paper/lib/typescript/styles/themes/v2/colors';
 
 export default function PayablesScreen() {
+  const navigation = useNavigation();
   const baseURL = BASE_URL;
   const [loading, setLoading] = useState(true);
+  const { selectedCompanyId } = useCompany();
   const [vendorsLoading, setVendorsLoading] = useState(true);
   const [expensesLoading, setExpensesLoading] = useState(true);
   const [ledgerData, setLedgerData] = useState(null);
@@ -87,14 +93,55 @@ export default function PayablesScreen() {
   const [showFromDatePicker, setShowFromDatePicker] = useState(false);
   const [showToDatePicker, setShowToDatePicker] = useState(false);
 
+  // Handle hardware back button and swipe gestures
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        // Check if viewing a specific vendor or expense detail
+        if (selectedVendor || selectedExpense) {
+          // Go back to list view
+          setSelectedVendor('');
+          setSelectedExpense('');
+          setSelectedVendorFilter('');
+          setSelectedExpenseFilter('');
+          AsyncStorage.removeItem('selectedVendor_payables');
+          return true; // Prevent default back behavior
+        }
+        // If on list view, allow default back behavior (go to dashboard)
+        return false;
+      };
+
+      // Add event listener for Android hardware back button
+      const backHandler = BackHandler.addEventListener(
+        'hardwareBackPress',
+        onBackPress
+      );
+
+      // Add listener for navigation back gesture (iOS swipe)
+      const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+        if (selectedVendor || selectedExpense) {
+          // Prevent leaving the screen
+          e.preventDefault();
+          // Go back to list instead
+          setSelectedVendor('');
+          setSelectedExpense('');
+          setSelectedVendorFilter('');
+          setSelectedExpenseFilter('');
+          AsyncStorage.removeItem('selectedVendor_payables');
+        }
+      });
+
+      return () => {
+        backHandler.remove();
+        unsubscribe();
+      };
+    }, [selectedVendor, selectedExpense, navigation])
+  );
+
   // For toast notifications
   const showToast = (title, description, type = 'success') => {
     Alert.alert(title, description);
   };
-
-  // Placeholder for company context
-  // const { selectedCompanyId } = useCompany();
-  const selectedCompanyId = null;
 
   // Date picker handlers
   const handleFromDatePickerChange = (event, selectedDate) => {
@@ -724,7 +771,7 @@ export default function PayablesScreen() {
               : `Filter ${currentView === 'vendor' ? 'Vendors' : 'Expenses'}`}
           </Text>
         </View>
-        <Badge variant="secondary">
+        <Badge style={styles.activeIcon}>
           <Text>{getActiveFilterCount()} active</Text>
         </Badge>
       </View>
@@ -862,24 +909,6 @@ export default function PayablesScreen() {
             <View style={styles.dateRangeContainer}>
               <TouchableOpacity
                 style={styles.dateButton}
-                onPress={() => setShowFromDatePicker(true)}
-              >
-                <Text style={styles.dateButtonText}>
-                  {dateRange.from || 'From date'}
-                </Text>
-                <Icon name="calendar" size={20} color="#3B82F6" />
-              </TouchableOpacity>
-              {showFromDatePicker && (
-                <DateTimePicker
-                  value={dateRange.from ? new Date(dateRange.from) : new Date()}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={handleFromDatePickerChange}
-                />
-              )}
-
-              <TouchableOpacity
-                style={styles.dateButton}
                 onPress={() => setShowToDatePicker(true)}
               >
                 <Text style={styles.dateButtonText}>
@@ -972,12 +1001,10 @@ export default function PayablesScreen() {
                 disabled={individualExportLoading || !isDetailOpen}
                 variant="outline"
                 style={styles.exportButton}
-                // icon={Download}
                 loading={individualExportLoading}
               >
                 <Icon name="download" size={20} />
                 <Text>
-                  {/* <Download/> */}
                   Export {currentView === 'vendor' ? 'Vendor' : 'Category'}
                 </Text>
               </Button>
@@ -993,12 +1020,9 @@ export default function PayablesScreen() {
 
           <FiltersSection />
 
-          {/* <StatsSection /> */}
-
           <View style={styles.mainContent}>
             {currentView === 'vendor' ? (
               selectedVendor ? (
-                // Using the IMPORTED VendorLedgerView component
                 <ImportedVendorLedgerView
                   loading={loading}
                   ledgerData={ledgerData}
@@ -1012,7 +1036,6 @@ export default function PayablesScreen() {
                   productsList={productsList}
                 />
               ) : (
-                // Using the IMPORTED VendorExpenseList component
                 <ImportedVendorExpenseList
                   currentView={currentView}
                   vendors={vendors}
@@ -1040,7 +1063,6 @@ export default function PayablesScreen() {
                 dateRange={dateRange}
               />
             ) : (
-              // Using the IMPORTED VendorExpenseList component
               <ImportedVendorExpenseList
                 currentView={currentView}
                 vendors={vendors}
@@ -1066,7 +1088,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
-    // paddingTop:-40
   },
   scrollView: {
     flex: 1,
@@ -1151,6 +1172,9 @@ const styles = StyleSheet.create({
   desktopToggle: {
     display: 'none',
   },
+  activeIcon:{
+    backgroundColor: '#b1c6f7ff'
+  },
   headerActions: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
@@ -1177,17 +1201,17 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   statCard: {
-    width: '48%', // Two boxes per row
+    width: '48%',
     backgroundColor: 'white',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     overflow: 'hidden',
     marginBottom: 10,
-    minHeight: 120, // Consistent height
+    minHeight: 120,
   },
   statCardContent: {
-    padding: 12, // Reduced padding
+    padding: 12,
     flex: 1,
     justifyContent: 'space-between',
   },
@@ -1197,7 +1221,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   statCardTitle: {
-    fontSize: 11, // Smaller font
+    fontSize: 11,
     fontWeight: '500',
     color: '#64748b',
     flex: 1,
@@ -1206,12 +1230,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   statCardValue: {
-    fontSize: 16, // Reduced from 20
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#0f172a',
   },
   statCardSubtitle: {
-    fontSize: 10, // Smaller font
+    fontSize: 10,
     color: '#94a3b8',
     lineHeight: 14,
   },
@@ -1260,9 +1284,6 @@ const styles = StyleSheet.create({
   },
   filterCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    // borderRadius: 12,
-    // borderWidth: 1,
-    // borderColor: '#e2e8f0',
     padding: 2,
   },
   filterRow: {

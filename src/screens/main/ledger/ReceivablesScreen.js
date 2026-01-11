@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,14 +12,16 @@ import {
   FlatList,
   Platform,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { format } from 'date-fns';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { BASE_URL } from '../../../config';
+import { capitalizeWords } from '../../../lib/utils';
 
 // Custom Components
 import CustomerListCard from '../../../components/Ledger/receivables/CustomerListCard';
@@ -64,6 +66,42 @@ const ReceivablesLedger = () => {
 
   const companyIdForBalances = selectedCompanyId || null;
   const baseURL = BASE_URL;
+
+  // Handle hardware back button and swipe gestures
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (selectedParty) {
+          // If viewing a specific customer, go back to customer list
+          setSelectedParty('');
+          return true; // Prevent default back behavior
+        }
+        // If on customer list, allow default back behavior (go to dashboard)
+        return false;
+      };
+
+      // Add event listener for Android hardware back button
+      const backHandler = BackHandler.addEventListener(
+        'hardwareBackPress',
+        onBackPress
+      );
+
+      // Add listener for navigation back gesture (iOS swipe)
+      const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+        if (selectedParty) {
+          // Prevent leaving the screen
+          e.preventDefault();
+          // Go back to customer list instead
+          setSelectedParty('');
+        }
+      });
+
+      return () => {
+        backHandler.remove();
+        unsubscribe();
+      };
+    }, [selectedParty, navigation])
+  );
 
   // Format Indian Number
   const formatIndianNumber = number => {
@@ -975,15 +1013,6 @@ const ReceivablesLedger = () => {
     }
   }, [selectedParty]);
 
-  // Capitalize words helper
-  const capitalizeWords = str => {
-    if (!str) return '';
-    return str
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ');
-  };
-
   // Render
   return (
     <ScrollView style={styles.container}>
@@ -1062,7 +1091,7 @@ const ReceivablesLedger = () => {
                 <Text style={styles.dateButtonText}>
                   {dateRange.startDate
                     ? format(dateRange.startDate, 'dd/MM/yyyy')
-                    : 'Select start date'}
+                    : 'Select date'}
                 </Text>
                 <Icon name="calendar" size={20} color="#666" />
               </TouchableOpacity>
@@ -1260,7 +1289,7 @@ const ReceivablesLedger = () => {
                   <Text style={styles.emptyText}>No transactions found</Text>
                 </View>
               ) : (
-                <ScrollView horizontal>
+                <ScrollView >
                   <View>
                     {/* Debit Side Header */}
                     <View
@@ -1561,7 +1590,7 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     flex: 1,
-    minWidth: Dimensions.get('window').width / 2 - 24,
+    minWidth: Dimensions.get('window').width / 3 - 24,
     margin: 4,
     backgroundColor: 'white',
     borderRadius: 8,
@@ -1627,6 +1656,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+    marginBottom:10
   },
   headerText: {
     fontSize: 16,

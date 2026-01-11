@@ -953,6 +953,7 @@ const generateHTMLContent = (transaction, company, party) => {
         .term-line {
           font-size: 10px;
           // margin-bottom: 2px;
+          padding-left:25px;
           color: #000000;
           text-align: left;
           text-decoration: none;

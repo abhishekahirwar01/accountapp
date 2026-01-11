@@ -34,6 +34,7 @@ import { useCompany } from '../../contexts/company-context';
 import { useSupport } from '../../contexts/support-context';
 import { usePermissions } from '../../contexts/permission-context';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
+import { useFocusEffect } from '@react-navigation/native';
 
 // Custom components - these must be re-written for React Native
 import { KpiCards } from '../../components/dashboard/KPICard';
@@ -173,8 +174,17 @@ const Button = ({
 export default function DashboardPage() {
   const navigation = useNavigation();
   const { toggleSupport } = useSupport();
-  const { selectedCompanyId } = useCompany();
+  const { selectedCompanyId, triggerCompaniesRefresh, refreshTrigger } =
+    useCompany();
   const { width } = useWindowDimensions();
+
+  // Trigger company refresh when screen gains focus
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('🔄 DashboardScreen focused - triggering company refresh...');
+      triggerCompaniesRefresh();
+    }, [triggerCompaniesRefresh]),
+  );
   const { permissions, refetch: refetchPermissions } = usePermissions();
   const { permissions: userCaps, refetch: refetchUserPermissions } =
     useUserPermissions();
@@ -286,9 +296,10 @@ export default function DashboardPage() {
       // Clear cache to force fresh data
       await AsyncStorage.removeItem(CACHE_KEY);
 
-      // Fetch fresh data and refresh permissions
+      // Fetch fresh data and refresh permissions and companies
       await Promise.all([
         fetchDashboardData(true),
+        triggerCompaniesRefresh(),
         refetchPermissions ? refetchPermissions() : Promise.resolve(),
         refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
       ]);
@@ -304,9 +315,39 @@ export default function DashboardPage() {
   }, [
     fetchDashboardData,
     showToast,
+    triggerCompaniesRefresh,
     refetchPermissions,
     refetchUserPermissions,
   ]);
+
+  // Re-fetch dashboard data when global company refresh is triggered
+  // Fetch companies only (silent) when global company refresh is triggered
+  const fetchCompaniesOnly = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return;
+
+      const res = await fetch(`${baseURL}/api/companies/my`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setCompanies(Array.isArray(data) ? data : data.data || []);
+    } catch (err) {
+      console.error('fetchCompaniesOnly failed:', err);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      fetchCompaniesOnly().catch(err =>
+        console.error(
+          'Dashboard fetchCompaniesOnly after trigger failed:',
+          err,
+        ),
+      );
+    }
+  }, [refreshTrigger, fetchCompaniesOnly]);
 
   const fetchSecondaryData = async (token, queryParam, initialData) => {
     try {

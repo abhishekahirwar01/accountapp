@@ -43,167 +43,217 @@ export async function generatePdfByTemplate(
   shippingAddress,
   bank,
 ) {
-  switch (selectedTemplate) {
-    case 'template1':
-      return generatePdfForTemplate1(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-        shippingAddress,
-        bank,
-      );
-    case 'template2':
-      return generatePdfForTemplate2(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-      );
-    case 'template3':
-      return generatePdfForTemplate3(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-      );
-    case 'template4':
-      return generatePdfForTemplate4(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-      );
-    case 'template5':
-      return generatePdfForTemplate5(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-      );
-    case 'template6':
-      return generatePdfForTemplate6(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-      );
-    case 'template7':
-      return generatePdfForTemplate7(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-      );
-    case 'template8':
-      return generatePdfForTemplate8(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-      );
-    case 'template11':
-      return generatePdfForTemplate11(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-      );
-    case 'template12':
-      return generatePdfForTemplate12(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-      );
-    case 'template16':
-      return generatePdfForTemplate16(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-        shippingAddress,
-      );
-    case 'template17':
-      return generatePdfForTemplate17(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-        shippingAddress,
-        bank,
-      );
-    case 'template18':
-      return generatePdfForTemplate18(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-        shippingAddress,
-        bank,
-      );
-    case 'template19':
-      return generatePdfForTemplate19(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-        shippingAddress,
-        bank,
-      );
-    case 'templateA5':
-      return generatePdfForTemplateA5(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-        shippingAddress,
-        bank,
-      );
-    case 'templateA5_2':
-      return generatePdfForTemplateA5_2(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-        shippingAddress,
-        bank,
-      );
-    case 'templateA5_3':
-      return generatePdfForTemplateA5_3(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-        shippingAddress,
-        bank,
-      );
-    case 'templateA5_4':
-      return generatePdfForTemplateA5_4(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-        shippingAddress,
-        bank,
-      );
-    case 'template-t3':
-      return generatePdfForTemplatet3(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        shippingAddress,
-        bank,
-      );
-    default:
-      return generatePdfForTemplate1(
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-        shippingAddress,
-        bank,
-      );
+  try {
+    console.log(
+      `📋 generatePdfByTemplate called with template: ${selectedTemplate}`,
+    );
+
+    let result;
+    switch (selectedTemplate) {
+      case 'template1':
+        result = await generatePdfForTemplate1(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+          shippingAddress,
+          bank,
+        );
+        break;
+      case 'template2':
+        result = await generatePdfForTemplate2(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+        );
+        break;
+      case 'template3':
+        result = await generatePdfForTemplate3(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+        );
+        break;
+      case 'template4':
+        result = await generatePdfForTemplate4(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+        );
+        break;
+      case 'template5':
+        result = await generatePdfForTemplate5(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+        );
+        break;
+      case 'template6':
+        result = await generatePdfForTemplate6(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+        );
+        break;
+      case 'template7':
+        result = await generatePdfForTemplate7(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+        );
+        break;
+      case 'template8':
+        result = await generatePdfForTemplate8(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+        );
+        break;
+      case 'template11':
+        result = await generatePdfForTemplate11(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+        );
+        break;
+      case 'template12':
+        result = await generatePdfForTemplate12(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+        );
+        break;
+      case 'template16':
+        result = await generatePdfForTemplate16(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+          shippingAddress,
+        );
+        break;
+      case 'template17':
+        result = await generatePdfForTemplate17(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+          shippingAddress,
+          bank,
+        );
+        break;
+      case 'template18':
+        result = await generatePdfForTemplate18(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+          shippingAddress,
+          bank,
+        );
+        break;
+      case 'template19':
+        result = await generatePdfForTemplate19(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+          shippingAddress,
+          bank,
+        );
+        break;
+      case 'templateA5':
+        result = await generatePdfForTemplateA5(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+          shippingAddress,
+          bank,
+        );
+        break;
+      case 'templateA5_2':
+        result = await generatePdfForTemplateA5_2(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+          shippingAddress,
+          bank,
+        );
+        break;
+      case 'templateA5_3':
+        result = await generatePdfForTemplateA5_3(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+          shippingAddress,
+          bank,
+        );
+        break;
+      case 'templateA5_4':
+        result = await generatePdfForTemplateA5_4(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+          shippingAddress,
+          bank,
+        );
+        break;
+      case 'template-t3':
+        result = await generatePdfForTemplatet3(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          shippingAddress,
+          bank,
+        );
+        break;
+      default:
+        console.warn(
+          `⚠️ Unknown template: ${selectedTemplate}, using template1 as fallback`,
+        );
+        result = await generatePdfForTemplate1(
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+          shippingAddress,
+          bank,
+        );
+        break;
+    }
+
+    console.log(`✅ generatePdfByTemplate completed for ${selectedTemplate}`);
+    console.log('📊 Result object:', {
+      type: typeof result,
+      constructor: result?.constructor?.name,
+      keys: Object.keys(result || {}),
+      hasOutput: typeof result?.output === 'function',
+      hasBase64: typeof result?.base64 === 'string',
+      base64Length: result?.base64?.length || 0,
+    });
+
+    return result;
+  } catch (error) {
+    console.error(
+      `❌ Error in generatePdfByTemplate(${selectedTemplate}):`,
+      error,
+    );
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
+    throw error;
   }
 }
 

@@ -38,6 +38,9 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCompanyModal, setShowCompanyModal] = useState(false);
   const [companySearch, setCompanySearch] = useState('');
+  
+  // 🔥 NEW: Temporary selection state
+  const [tempSelectedCompanies, setTempSelectedCompanies] = useState([]);
 
   const [formData, setFormData] = useState({
     userName: '',
@@ -90,13 +93,51 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
     }
   }, [roles, user]);
 
+  // 🔥 NEW: Open modal and initialize temp selection
+  const handleOpenModal = () => {
+    setTempSelectedCompanies([...formData.companies]);
+    setShowCompanyModal(true);
+  };
+
+  // 🔥 NEW: Toggle company in temporary selection
   const handleToggleCompany = id => {
+    setTempSelectedCompanies(prev =>
+      prev.includes(id)
+        ? prev.filter(c => c !== id)
+        : [...prev, id]
+    );
+  };
+
+  // 🔥 NEW: Handle Select All / Deselect All (works on temp selection)
+  const handleSelectAllCompanies = () => {
+    const filteredIds = filteredCompanies.map(c => c._id);
+    const allSelected = filteredIds.every(id => tempSelectedCompanies.includes(id));
+    
+    if (allSelected) {
+      // Deselect all filtered companies
+      setTempSelectedCompanies(prev => prev.filter(id => !filteredIds.includes(id)));
+    } else {
+      // Select all filtered companies
+      const uniqueCompanies = [...new Set([...tempSelectedCompanies, ...filteredIds])];
+      setTempSelectedCompanies(uniqueCompanies);
+    }
+  };
+
+  // 🔥 NEW: Apply temp selection to formData when Done is clicked
+  const handleDoneSelection = () => {
     setFormData(prev => ({
       ...prev,
-      companies: prev.companies.includes(id)
-        ? prev.companies.filter(c => c !== id)
-        : [...prev.companies, id],
+      companies: [...tempSelectedCompanies],
     }));
+    setShowCompanyModal(false);
+    setCompanySearch('');
+  };
+
+  // 🔥 NEW: Cancel and revert to original selection
+  const handleCancelSelection = () => {
+    setTempSelectedCompanies([...formData.companies]);
+    setShowCompanyModal(false);
+    setCompanySearch('');
   };
 
   // 🔥 Validation Functions
@@ -232,6 +273,10 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
   const filteredCompanies = allCompanies.filter(c =>
     c.businessName.toLowerCase().includes(companySearch.toLowerCase()),
   );
+
+  // 🔥 Check if all filtered companies are selected (in temp selection)
+  const allFilteredSelected = filteredCompanies.length > 0 && 
+    filteredCompanies.every(c => tempSelectedCompanies.includes(c._id));
 
   return (
     <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
@@ -395,13 +440,13 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
           <Text style={styles.label}>Companies Access</Text>
           <TouchableOpacity
             style={styles.dropdownTrigger}
-            onPress={() => setShowCompanyModal(true)}
+            onPress={handleOpenModal}
           >
             <Text style={styles.triggerText}>Select companies...</Text>
             <Icon name="chevron-down" size={20} color="#15803d" />
           </TouchableOpacity>
 
-          {/* Badges UI */}
+          {/* Badges UI - shows actual selected companies */}
           <View style={styles.badgeContainer}>
             {formData.companies.map(id => {
               const comp = allCompanies.find(c => c._id === id);
@@ -410,7 +455,12 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
                   <Text style={styles.badgeText} numberOfLines={1}>
                     {comp.businessName}
                   </Text>
-                  <TouchableOpacity onPress={() => handleToggleCompany(id)}>
+                  <TouchableOpacity onPress={() => {
+                    setFormData(prev => ({
+                      ...prev,
+                      companies: prev.companies.filter(c => c !== id)
+                    }));
+                  }}>
                     <Icon
                       name="close-circle"
                       size={16}
@@ -428,15 +478,16 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
         <Modal visible={showCompanyModal} transparent animationType="fade">
           <Pressable
             style={styles.modalOverlay}
-            onPress={() => setShowCompanyModal(false)}
+            onPress={handleCancelSelection}
           >
-            <View style={styles.modalContent}>
+            <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Choose Companies</Text>
-                <TouchableOpacity onPress={() => setShowCompanyModal(false)}>
+                <TouchableOpacity onPress={handleCancelSelection}>
                   <Icon name="close" size={24} color="#666" />
                 </TouchableOpacity>
               </View>
+              
               <View style={styles.searchContainer}>
                 <Icon name="magnify" size={20} color="#94a3b8" />
                 <TextInput
@@ -446,12 +497,31 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
                   onChangeText={setCompanySearch}
                 />
               </View>
+
+              {/* 🔥 Select All Button with new icon */}
+              <TouchableOpacity
+                style={styles.selectAllBtn}
+                onPress={handleSelectAllCompanies}
+              >
+                <Icon 
+                  name={allFilteredSelected ? "check-all" : "checkbox-blank-outline"} 
+                  size={22} 
+                  color={allFilteredSelected ? "#2563eb" : "#64748b"} 
+                />
+                <Text style={[
+                  styles.selectAllText,
+                  allFilteredSelected && styles.selectAllTextActive
+                ]}>
+                  {allFilteredSelected ? 'Deselect All' : 'Select All'}
+                </Text>
+              </TouchableOpacity>
+
               <ScrollView
                 style={{ maxHeight: 300 }}
                 keyboardShouldPersistTaps="handled"
               >
                 {filteredCompanies.map(c => {
-                  const isSelected = formData.companies.includes(c._id);
+                  const isSelected = tempSelectedCompanies.includes(c._id);
                   return (
                     <TouchableOpacity
                       key={c._id}
@@ -482,13 +552,15 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
                   );
                 })}
               </ScrollView>
+              
+              {/* Done Button */}
               <TouchableOpacity
                 style={styles.doneBtn}
-                onPress={() => setShowCompanyModal(false)}
+                onPress={handleDoneSelection}
               >
                 <Text style={styles.doneBtnText}>Done</Text>
               </TouchableOpacity>
-            </View>
+            </Pressable>
           </Pressable>
         </Modal>
 
@@ -543,7 +615,6 @@ const styles = StyleSheet.create({
   inputError: {
     borderColor: '#dc2626',
     borderWidth: 1,
-    // backgroundColor: '#fef2f2',
   },
   errorContainer: {
     flexDirection: 'row',
@@ -585,9 +656,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#cbd5e1',
     borderRadius: 8,
-    // backgroundColor: '#f0fdf4',
   },
-  triggerText: {  fontWeight: '600' },
+  triggerText: { fontWeight: '600' },
   badgeContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -636,6 +706,27 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   searchBar: { flex: 1, padding: 8, fontSize: 14 },
+  // 🔥 Select All Button Styles
+  selectAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 10,
+  },
+  selectAllText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  selectAllTextActive: {
+    color: '#2563eb',
+  },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -676,4 +767,4 @@ const styles = StyleSheet.create({
   saveText: { color: '#fff', fontWeight: 'bold' },
 });
 
-export default UserForm;  
+export default UserForm;

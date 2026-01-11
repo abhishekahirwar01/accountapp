@@ -38,7 +38,7 @@ const ExcelImportExport = ({
   const [importStatus, setImportStatus] = useState(''); // 'success', 'partial', 'failed'
   const [failedItems, setFailedItems] = useState([]);
 
-  // Download template function
+  // Download template function - Fixed for Android permissions
   const handleDownloadTemplate = async () => {
     try {
       const workbook = XLSX.utils.book_new();
@@ -67,12 +67,55 @@ const ExcelImportExport = ({
           { text: 'OK', style: 'default' },
         ]);
       } else {
-        // Android/iOS - save to Downloads folder
-        const filePath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
+        // Android/iOS - Fixed download path for better compatibility
+        let filePath = '';
+        let successMessage = '';
+
+        if (Platform.OS === 'android') {
+          // Use ExternalDirectoryPath instead of ExternalStorageDirectoryPath
+          filePath = `${RNFS.ExternalDirectoryPath}/${fileName}`;
+          successMessage = `File saved to App Files\n\nName: ${fileName}`;
+        } else {
+          // iOS
+          filePath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
+          successMessage = `File saved to Documents\n\nName: ${fileName}`;
+        }
+
         await RNFS.writeFile(filePath, wbout, 'base64');
 
+        // For Android, try to copy to Downloads folder if possible
+        if (Platform.OS === 'android') {
+          try {
+            // Try multiple possible Download paths
+            const downloadPaths = [
+              `${RNFS.ExternalStorageDirectoryPath}/Download/${fileName}`,
+              `${RNFS.DownloadDirectoryPath}/${fileName}`,
+              `/storage/emulated/0/Download/${fileName}`,
+            ];
+
+            for (const downloadPath of downloadPaths) {
+              try {
+                await RNFS.copyFile(filePath, downloadPath);
+                await RNFS.scanFile(downloadPath);
+                filePath = downloadPath;
+                successMessage = `File saved to Downloads\n\nName: ${fileName}`;
+                break;
+              } catch (copyErr) {
+                // Continue trying other paths
+                continue;
+              }
+            }
+          } catch (err) {
+            console.log('Could not copy to Downloads, using app storage:', err);
+            // Keep using app storage if download folder copy fails
+          }
+        }
+
+        // Scan the file to make it appear in file manager
+        await RNFS.scanFile(filePath);
+
         // Show success Alert for mobile
-        Alert.alert('Download Success', `Template saved to Downloads folder`, [
+        Alert.alert('Download Success', successMessage, [
           { text: 'OK', style: 'default' },
         ]);
       }

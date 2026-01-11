@@ -295,9 +295,9 @@ export default function AdminCompaniesPage() {
       {/* <SafeAreaView style={styles.headerSafeArea} edges={['top']}> */}
       <View style={styles.headerInner}>
         <View style={styles.headerLeft}>
-          <View style={styles.iconContainer}>
+          {/* <View style={styles.iconContainer}>
             <Icon name="office-building" size={24} color="#4f46e5" />
-          </View>
+          </View> */}
           <View style={styles.headerTextContent}>
             <Text style={styles.title}>Company Management</Text>
             <Text style={styles.subtitle}>
@@ -306,7 +306,7 @@ export default function AdminCompaniesPage() {
           </View>
         </View>
         <View style={styles.headerRight}>
-          <Button onPress={handleAddNew} size="sm" icon="plus">
+          <Button style={styles.button} onPress={handleAddNew} size="sm" icon="plus">
             Create
           </Button>
         </View>
@@ -400,7 +400,7 @@ export default function AdminCompaniesPage() {
             filteredCompanies.length === 0
               ? styles.emptyListContent
               : styles.listContent,
-            { paddingTop: 120 }, // Adjusted for tight UI spacing
+            { paddingTop: 140 }, // Adjusted for tight UI spacing
           ]}
           onScroll={Animated.event(
             [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTextContent: { flex: 1 },
-  title: { fontSize: 17, fontWeight: '700', color: '#111827' },
+  title: { fontSize: 20, fontWeight: '700', color: '#111827' },
   subtitle: { fontSize: 12, color: '#6b7280' },
   headerRight: { marginLeft: 8 },
   searchContainer: {
@@ -517,8 +517,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 10,
+    padding:10
   },
   buttonDefault: { backgroundColor: '#4f46e5' },
   buttonOutline: {

@@ -398,6 +398,37 @@ export function TransactionForm({
   const [creatingProductForIndex, setCreatingProductForIndex] = useState(null);
   const [creatingServiceForIndex, setCreatingServiceForIndex] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  // PDF generation queue to serialize conversions in this form
+  const pdfQueueRef = useRef([]);
+  const isProcessingPdfQueueRef = useRef(false);
+  const addToPdfQueue = useCallback(fn => {
+    return new Promise((resolve, reject) => {
+      pdfQueueRef.current.push({ fn, resolve, reject });
+      (async function process() {
+        if (isProcessingPdfQueueRef.current) return;
+        isProcessingPdfQueueRef.current = true;
+        try {
+          while (pdfQueueRef.current.length > 0) {
+            const {
+              fn: qfn,
+              resolve: qres,
+              reject: qrej,
+            } = pdfQueueRef.current.shift();
+            try {
+              const res = await qfn();
+              qres(res);
+            } catch (err) {
+              qrej(err);
+            }
+            // small delay to avoid native PDF engine contention
+            await new Promise(r => setTimeout(r, 800));
+          }
+        } finally {
+          isProcessingPdfQueueRef.current = false;
+        }
+      })();
+    });
+  }, []);
   const [showNotes, setShowNotes] = useState(false);
   const [existingUnits, setExistingUnits] = useState([]);
   const [unitOpen, setUnitOpen] = useState(false);
@@ -518,6 +549,9 @@ export function TransactionForm({
   const gstEnabled = !!(companyGSTIN && String(companyGSTIN).trim());
 
   const [role, setRole] = useState(null);
+  // Track when a user-initiated action (print/download/email) is running
+  const isActionInProgressRef = useRef(false);
+  const [isActionInProgress, setIsActionInProgress] = useState(false);
 
   useEffect(() => {
     const loadRole = async () => {
@@ -1155,35 +1189,52 @@ export function TransactionForm({
   }, [shippingStateCode]);
 
   const isInitialLoad = useRef(true);
-
   useEffect(() => {
     if (isInitialLoad.current) {
       isInitialLoad.current = false;
       return;
     }
+
     const items = form.getValues('items');
 
     if (items && items.length > 0) {
       const updatedItems = items.map(item => {
-        if (item.itemType === 'product') {
+        if (item.itemType === 'product' && item.product) {
+          const selectedProduct = products.find(p => p._id === item.product);
+
+          const newPrice =
+            type === 'sales'
+              ? Number(selectedProduct?.sellingPrice || 0)
+              : Number(selectedProduct?.costPrice || 0);
+
+          const qty = Number(item.quantity) || 1;
+          const newAmount = qty * newPrice;
+
           return {
             ...item,
-            pricePerUnit: 0,
-            amount: 0,
-            lineTax: 0,
-            lineTotal: 0,
+            pricePerUnit: newPrice,
+            amount: newAmount,
           };
         }
         return item;
       });
 
-      form.setValue('items', updatedItems);
+      // Update all item fields at once and request validation/dirty flag
+      form.setValue('items', updatedItems, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
 
-      form.setValue('totalAmount', 0);
-      form.setValue('taxAmount', 0);
-      form.setValue('invoiceTotal', 0);
+      // Trigger validation/calculation so watched effects recalc totals
+      setTimeout(() => {
+        if (typeof form.trigger === 'function') {
+          try {
+            form.trigger('items');
+          } catch (e) {}
+        }
+      }, 100);
     }
-  }, [type, form]);
+  }, [type, products]);
 
   useEffect(() => {
     if (transactionToEdit && banks.length > 0) {
@@ -1350,6 +1401,28 @@ export function TransactionForm({
       gstPercentage: p.gstPercentage ?? 18,
       lineTax: p.lineTax ?? 0,
       lineTotal: p.lineTotal ?? p.amount,
+      hsn: (() => {
+        const v =
+          p.hsn ??
+          (p.product && typeof p.product === 'object'
+            ? p.product.hsn
+            : undefined);
+        if (v === undefined || v === null) return '';
+        if (typeof v === 'object')
+          return String(v.HSN_CD ?? v.hsn ?? v.code ?? v.value ?? '');
+        return String(v);
+      })(),
+      sac: (() => {
+        const v =
+          p.sac ??
+          (p.product && typeof p.product === 'object'
+            ? p.product.sac
+            : undefined);
+        if (v === undefined || v === null) return '';
+        if (typeof v === 'object')
+          return String(v.SAC_CD ?? v.sac ?? v.code ?? v.value ?? '');
+        return String(v);
+      })(),
     });
 
     const toServiceId = s => {
@@ -1400,6 +1473,34 @@ export function TransactionForm({
       gstPercentage: i.gstPercentage ?? 18,
       lineTax: i.lineTax ?? 0,
       lineTotal: i.lineTotal ?? i.amount,
+      hsn: (() => {
+        const v =
+          i.hsn ??
+          (i.product && typeof i.product === 'object'
+            ? i.product.hsn
+            : undefined) ??
+          (i.service && typeof i.service === 'object'
+            ? i.service.hsn
+            : undefined);
+        if (v === undefined || v === null) return '';
+        if (typeof v === 'object')
+          return String(v.HSN_CD ?? v.hsn ?? v.code ?? v.value ?? '');
+        return String(v);
+      })(),
+      sac: (() => {
+        const v =
+          i.sac ??
+          (i.service && typeof i.service === 'object'
+            ? i.service.sac
+            : undefined) ??
+          (i.product && typeof i.product === 'object'
+            ? i.product.sac
+            : undefined);
+        if (v === undefined || v === null) return '';
+        if (typeof v === 'object')
+          return String(v.SAC_CD ?? v.sac ?? v.code ?? v.value ?? '');
+        return String(v);
+      })(),
     });
 
     let itemsToSet = [];
@@ -1776,8 +1877,16 @@ export function TransactionForm({
     };
 
     try {
+      console.log(
+        '🔵 pdfInstanceToBase64: Type =',
+        typeof pdfInstance,
+        'Constructor =',
+        pdfInstance?.constructor?.name,
+      );
+
       // ✅ FIRST AND MOST IMPORTANT: Check if base64 already exists in the object
       if (pdfInstance?.base64 && typeof pdfInstance.base64 === 'string') {
+        console.log('✅ Found base64 in pdfInstance.base64');
         return pdfInstance.base64;
       }
 
@@ -1785,102 +1894,189 @@ export function TransactionForm({
       if (typeof pdfInstance === 'string') {
         if (pdfInstance.startsWith('data:')) {
           const base64Data = pdfInstance.split(',')[1];
-
+          console.log('✅ Found data: URI');
           return base64Data || pdfInstance;
         }
 
+        // ✅ Check if string is a filePath (contains /) or base64
+        if (pdfInstance.includes('/') || pdfInstance.includes('\\')) {
+          console.log(
+            '📋 String looks like a filePath, attempting to read as base64',
+          );
+          // It's a filePath, try to read it
+          try {
+            const base64 = await RNFS.readFile(pdfInstance, 'base64');
+            if (base64 && typeof base64 === 'string' && base64.length > 0) {
+              console.log(
+                '✅ Successfully read base64 from filePath string, length =',
+                base64.length,
+              );
+              return base64;
+            }
+          } catch (e) {
+            console.log('⚠️ Failed to read filePath as base64:', e.message);
+          }
+        }
+
+        // Assume it's base64
+        console.log('✅ Assuming string is base64');
         return pdfInstance;
       }
 
       // ✅ THIRD: Try output('base64') directly
       if (pdfInstance && typeof pdfInstance.output === 'function') {
         try {
+          console.log('📋 Trying output("base64")');
           const base64 = pdfInstance.output('base64');
           if (base64 && typeof base64 === 'string' && base64.length > 0) {
+            console.log(
+              '✅ output("base64") succeeded, length =',
+              base64.length,
+            );
             return base64;
           }
-        } catch (e) {}
+        } catch (e) {
+          console.log('⚠️ output("base64") failed:', e.message);
+        }
       }
+
       // ✅ FOURTH: Traditional conversion methods (as fallback)
       if (typeof Blob !== 'undefined' && pdfInstance instanceof Blob) {
+        console.log('📋 Converting Blob to base64');
         const arrayBuffer = await pdfInstance.arrayBuffer();
-
         const u8 = new Uint8Array(arrayBuffer);
-
         const bin = uint8ToBinaryString(u8);
 
         if (typeof btoa === 'function') {
           const result = btoa(bin);
-
+          console.log('✅ Blob → btoa succeeded');
           return result;
         }
         if (typeof Buffer !== 'undefined') {
           const result = Buffer.from(u8).toString('base64');
-
+          console.log('✅ Blob → Buffer succeeded');
           return result;
         }
         const result = base64FromUint8(u8);
-
+        console.log('✅ Blob → base64FromUint8 succeeded');
         return result;
       }
 
       if (pdfInstance && typeof pdfInstance.save === 'function') {
+        console.log('📋 Trying pdfInstance.save()');
         const u8 = await pdfInstance.save();
-
         const bin = uint8ToBinaryString(u8);
 
         if (typeof btoa === 'function') {
           const result = btoa(bin);
-
+          console.log('✅ save() → btoa succeeded');
           return result;
         }
         if (typeof Buffer !== 'undefined') {
           const result = Buffer.from(u8).toString('base64');
-
+          console.log('✅ save() → Buffer succeeded');
           return result;
         }
         const result = base64FromUint8(u8);
-
+        console.log('✅ save() → base64FromUint8 succeeded');
         return result;
       }
 
       if (pdfInstance && typeof pdfInstance.output === 'function') {
         try {
+          console.log('📋 Trying output("arraybuffer")');
           const arr = pdfInstance.output('arraybuffer');
           if (arr && arr.byteLength > 0) {
             const u8 = new Uint8Array(arr);
-
             const bin = uint8ToBinaryString(u8);
 
             if (typeof btoa === 'function') {
               const result = btoa(bin);
-
+              console.log('✅ output("arraybuffer") → btoa succeeded');
               return result;
             }
             if (typeof Buffer !== 'undefined') {
               const result = Buffer.from(u8).toString('base64');
-
+              console.log('✅ output("arraybuffer") → Buffer succeeded');
               return result;
             }
             const result = base64FromUint8(u8);
-
+            console.log('✅ output("arraybuffer") → base64FromUint8 succeeded');
             return result;
           }
-        } catch (e) {}
+        } catch (e) {
+          console.log('⚠️ output("arraybuffer") failed:', e.message);
+        }
 
         try {
+          console.log('📋 Trying output() raw');
           const out = pdfInstance.output();
 
           if (typeof out === 'string') {
             if (out.startsWith('data:')) {
               const base64Data = out.split(',')[1];
-
+              console.log('✅ output() returned data: URI');
               return base64Data;
             } else {
+              console.log('✅ output() returned string');
               return out;
             }
           }
-        } catch (e) {}
+        } catch (e) {
+          console.log('⚠️ output() raw failed:', e.message);
+        }
+      }
+
+      const keys = Object.keys(pdfInstance || {});
+      const detailsObj = {
+        type: typeof pdfInstance,
+        constructor: pdfInstance?.constructor?.name,
+        keys,
+        hasOutput: typeof pdfInstance?.output === 'function',
+        hasSave: typeof pdfInstance?.save === 'function',
+      };
+
+      // Log diagnostics and attempt filePath fallback (not an immediate fatal error)
+      console.warn(
+        '⚠️ No immediate conversion method matched; attempting filePath fallback. Instance details:',
+        detailsObj,
+      );
+
+      // Log details of each key (warning-level)
+      keys.forEach(key => {
+        const value = pdfInstance[key];
+        console.warn(`   Key: "${key}"`, {
+          type: typeof value,
+          isString: typeof value === 'string',
+          length: typeof value === 'string' ? value.length : undefined,
+          sample: typeof value === 'string' ? value.substring(0, 50) : value,
+        });
+      });
+
+      // SPECIAL CASE: React Native HTML to PDF often returns {success, filePath, fileName}
+      // Try to read file from filePath and convert to base64 before failing
+      if (
+        pdfInstance &&
+        typeof pdfInstance === 'object' &&
+        pdfInstance.filePath &&
+        typeof pdfInstance.filePath === 'string'
+      ) {
+        try {
+          console.log(
+            '📋 Attempting to read PDF from filePath:',
+            pdfInstance.filePath,
+          );
+          const base64 = await RNFS.readFile(pdfInstance.filePath, 'base64');
+          if (base64 && typeof base64 === 'string' && base64.length > 0) {
+            console.log(
+              '✅ Successfully read base64 from filePath, length =',
+              base64.length,
+            );
+            return base64;
+          }
+        } catch (e) {
+          console.log('⚠️ Failed to read from filePath:', e.message);
+        }
       }
 
       throw new Error('Unable to convert PDF instance to base64');
@@ -2524,12 +2720,17 @@ export function TransactionForm({
   };
 
   const handleEmailInvoice = async () => {
-    if (!generatedInvoice) return;
+    if (!generatedInvoice) {
+      console.log('❌ handleEmailInvoice: generatedInvoice is null');
+      return;
+    }
 
     try {
       let transactionToUse = generatedInvoice;
       if (!isTransactionSaved) {
+        console.log('📧 Email: Transaction not saved yet, calling onSubmit...');
         const result = await onSubmit(form.getValues(), false);
+        console.log('📧 Email: onSubmit result:', result);
         if (result && result.entry) {
           const savedTransaction = result.entry;
           setSavedTransactionData(savedTransaction);
@@ -2551,6 +2752,9 @@ export function TransactionForm({
           };
           setGeneratedInvoice(updatedPreview);
           transactionToUse = updatedPreview;
+        } else {
+          console.log('❌ Email: onSubmit did not return expected result');
+          return;
         }
       } else {
         transactionToUse = savedTransactionData || generatedInvoice;
@@ -2598,14 +2802,17 @@ export function TransactionForm({
       const templateData = await templateRes.json();
       const selectedTemplate = templateData.defaultTemplate || 'template1';
 
-      const pdfDoc = await generatePdfByTemplate(
-        selectedTemplate,
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-        generatedInvoice.shippingAddress,
-        generatedInvoice.bank,
+      // Use local PDF queue to serialize generation and avoid "Another PDF conversion" errors
+      const pdfDoc = await addToPdfQueue(() =>
+        generatePdfByTemplate(
+          selectedTemplate,
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+          generatedInvoice.shippingAddress,
+          generatedInvoice.bank,
+        ),
       );
 
       const pdfInstance = await pdfDoc;
@@ -2656,6 +2863,10 @@ export function TransactionForm({
       setEmailDialogMessage(`Sent to ${partyDoc.email}`);
       setIsEmailDialogOpen(true);
     } catch (error) {
+      console.error('🔴 handleEmailInvoice error:', error);
+      console.error('🔴 Error message:', error.message);
+      console.error('🔴 Error stack:', error.stack);
+
       // Check if it's a Gmail connection error
       if (
         error.message?.includes('Gmail is not connected') ||
@@ -2762,14 +2973,16 @@ export function TransactionForm({
       const templateData = await templateRes.json();
       const selectedTemplate = templateData.defaultTemplate || 'template1';
 
-      const pdfDoc = await generatePdfByTemplate(
-        selectedTemplate,
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-        generatedInvoice.shippingAddress,
-        generatedInvoice.bank,
+      const pdfDoc = await addToPdfQueue(() =>
+        generatePdfByTemplate(
+          selectedTemplate,
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+          generatedInvoice.shippingAddress,
+          generatedInvoice.bank,
+        ),
       );
 
       const pdfInstance = await pdfDoc;
@@ -2921,14 +3134,16 @@ export function TransactionForm({
       const templateData = await templateRes.json();
       const selectedTemplate = templateData.defaultTemplate || 'template1';
 
-      const pdfDoc = await generatePdfByTemplate(
-        selectedTemplate,
-        enrichedTransaction,
-        companyDoc,
-        partyDoc,
-        serviceNameById,
-        generatedInvoice.shippingAddress,
-        generatedInvoice.bank,
+      const pdfDoc = await addToPdfQueue(() =>
+        generatePdfByTemplate(
+          selectedTemplate,
+          enrichedTransaction,
+          companyDoc,
+          partyDoc,
+          serviceNameById,
+          generatedInvoice.shippingAddress,
+          generatedInvoice.bank,
+        ),
       );
 
       const pdfInstance = await pdfDoc;
@@ -3029,7 +3244,7 @@ export function TransactionForm({
 
       const generatePreview = async () => {
         if (!invoiceData) return;
-
+        // Preview will queue along with actions - no pausing needed
         try {
           setLoading(true);
           setError(null);
@@ -3041,21 +3256,58 @@ export function TransactionForm({
             throw new Error('Company or party data is missing');
           }
 
-          const pdfDoc = await generatePdfByTemplate(
-            invoiceData.selectedTemplate || 'template1',
-            invoiceData,
-            companyDoc,
-            partyDoc,
-            invoiceData.serviceNameById || new Map(),
-            invoiceData.shippingAddress,
-            invoiceData.bank,
+          // Determine template: prefer invoiceData.selectedTemplate, then backend default, then 'template1'
+          let selectedTemplate = invoiceData.selectedTemplate || null;
+          if (!selectedTemplate) {
+            try {
+              const token = await AsyncStorage.getItem('token');
+              if (token) {
+                const tplRes = await fetch(
+                  `${BASE_URL}/api/settings/default-template`,
+                  {
+                    headers: { Authorization: `Bearer ${token}` },
+                  },
+                );
+                if (tplRes.ok) {
+                  const tplJson = await tplRes.json();
+                  selectedTemplate = tplJson.defaultTemplate || null;
+                }
+              }
+            } catch (e) {
+              console.log('⚠️ Could not fetch default template:', e.message);
+            }
+          }
+          if (!selectedTemplate) selectedTemplate = 'template1';
+
+          const pdfDoc = await addToPdfQueue(() =>
+            generatePdfByTemplate(
+              selectedTemplate,
+              invoiceData,
+              companyDoc,
+              partyDoc,
+              invoiceData.serviceNameById || new Map(),
+              invoiceData.shippingAddress,
+              invoiceData.bank,
+            ),
           );
+
+          console.log('📦 pdfDoc received from generatePdfByTemplate:', {
+            type: typeof pdfDoc,
+            constructor: pdfDoc?.constructor?.name,
+            keys: Object.keys(pdfDoc || {}),
+            hasOutput: typeof pdfDoc?.output === 'function',
+            hasBase64: typeof pdfDoc?.base64,
+            base64Length: pdfDoc?.base64?.length || 0,
+          });
 
           // Prefer centralized conversion helper if available
           let base64 = null;
           try {
             base64 = await pdfInstanceToBase64(pdfDoc);
           } catch (e) {
+            console.log(
+              '⚠️ pdfInstanceToBase64 failed, trying fallback methods',
+            );
             // fallback to older heuristics
             if (pdfDoc && typeof pdfDoc.output === 'function')
               base64 = pdfDoc.output('base64');
@@ -3065,6 +3317,28 @@ export function TransactionForm({
 
           if (!base64) {
             throw new Error('No PDF data generated');
+          }
+
+          // ✅ VALIDATE base64 before using
+          if (typeof base64 !== 'string' || base64.trim().length === 0) {
+            console.error('❌ Invalid base64 received:', {
+              type: typeof base64,
+              length: base64?.length || 0,
+              sample: base64?.substring(0, 50),
+            });
+            throw new Error('PDF conversion returned empty or invalid base64');
+          }
+
+          // Check if base64 starts with valid PDF magic bytes (base64 encoded: %PDF)
+          if (
+            !base64.startsWith('JVBERi') &&
+            !base64.startsWith('iVBORw') &&
+            !base64.trim().length
+          ) {
+            console.warn(
+              '⚠️ Base64 may not be valid PDF (unexpected start). Sample:',
+              base64.substring(0, 100),
+            );
           }
 
           const fileName = `invoice_preview_${Date.now()}.pdf`;
@@ -3213,7 +3487,29 @@ export function TransactionForm({
     }
   };
 
-  const productOptions = products.map(p => {
+  // Filter products by selected company
+  const filteredProducts = useMemo(() => {
+    if (!selectedCompanyIdWatch) return products;
+    return products.filter(
+      p =>
+        !p.company ||
+        p.company === selectedCompanyIdWatch ||
+        p.company?._id === selectedCompanyIdWatch,
+    );
+  }, [products, selectedCompanyIdWatch]);
+
+  // Filter services by selected company
+  const filteredServices = useMemo(() => {
+    if (!selectedCompanyIdWatch) return services;
+    return services.filter(
+      s =>
+        !s.company ||
+        s.company === selectedCompanyIdWatch ||
+        s.company?._id === selectedCompanyIdWatch,
+    );
+  }, [services, selectedCompanyIdWatch]);
+
+  const productOptions = filteredProducts.map(p => {
     const stockNum = Number(p.stocks ?? p.stock ?? 0);
 
     let stockLabel;
@@ -3231,7 +3527,7 @@ export function TransactionForm({
     };
   });
 
-  const serviceOptions = services.map(s => ({
+  const serviceOptions = filteredServices.map(s => ({
     value: s._id,
     label: s.serviceName,
   }));
@@ -3842,18 +4138,7 @@ export function TransactionForm({
             <IconAction
               iconName="email"
               label="Email"
-              onPress={async () => {
-                setIsPreviewProcessing(true);
-                setPreviewCurrentAction('Email');
-                try {
-                  await handleEmailInvoice();
-                } catch (err) {
-                  console.error('Email action error:', err);
-                } finally {
-                  setIsPreviewProcessing(false);
-                  setPreviewCurrentAction(null);
-                }
-              }}
+              onPress={handleEmailInvoice}
             />
             <IconAction
               iconName="printer"
@@ -3864,7 +4149,7 @@ export function TransactionForm({
         </View>
       </Modal>
 
-      {/* Email Status Dialog - commented out per request. Use Alert.alert instead.
+      {/* Email Status Dialog */}
       <Modal
         visible={isEmailDialogOpen}
         transparent
@@ -3888,7 +4173,6 @@ export function TransactionForm({
           </View>
         </View>
       </Modal>
-      */}
 
       {/* WhatsApp Composer Dialog */}
       <WhatsAppComposerDialog

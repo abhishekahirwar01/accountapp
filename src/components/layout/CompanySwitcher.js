@@ -9,8 +9,10 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  TouchableWithoutFeedback, // Import for better modal handling
+  TouchableWithoutFeedback,
+  AppState,
 } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useCompany } from '../../contexts/company-context';
 import { BASE_URL } from '../../config';
@@ -21,47 +23,91 @@ export function CompanySwitcher() {
   const [isLoading, setIsLoading] = useState(true);
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const { selectedCompanyId, setSelectedCompanyId, currentCompany } =
+  const { selectedCompanyId, setSelectedCompanyId, refreshTrigger } =
     useCompany();
 
-  useEffect(() => {
-    const fetchCompanies = async () => {
-      setIsLoading(true);
-      try {
-        const token = await AsyncStorage.getItem('token');
-        if (!token) throw new Error('Authentication token not found.');
+  // Fetch companies function
+  const fetchCompanies = async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found.');
 
-        const res = await fetch(`${BASE_URL}/api/companies/my`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+      const res = await fetch(`${BASE_URL}/api/companies/my`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-        if (!res.ok) {
-          const errorData = await res.json();
-          throw new Error(errorData.message || 'Failed to fetch companies.');
-        }
-        const data = await res.json();
-        setCompanies(data);
-        const savedCompanyId = await AsyncStorage.getItem('selectedCompanyId');
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to fetch companies.');
+      }
+      const data = await res.json();
+      setCompanies(data);
+      const savedCompanyId = await AsyncStorage.getItem('selectedCompanyId');
 
-        if (data.length > 0) {
-          if (savedCompanyId) {
+      if (data.length > 0) {
+        if (savedCompanyId) {
+          const companyExists = data.some(c => c._id === savedCompanyId);
+          if (companyExists) {
             setSelectedCompanyId(
               savedCompanyId === 'all' ? null : savedCompanyId,
             );
           } else {
+            // If saved company was deleted, select first one
             setSelectedCompanyId(data[0]._id);
+            await AsyncStorage.setItem('selectedCompanyId', data[0]._id);
           }
+        } else {
+          setSelectedCompanyId(data[0]._id);
         }
-      } catch (error) {
-        console.error('Company fetch error:', error);
-        // Don't show alert for now to avoid blocking UI
-      } finally {
-        setIsLoading(false);
       }
-    };
+    } catch (error) {
+      console.error('Company fetch error:', error);
+    } finally {
+      if (showLoading) setIsLoading(false);
+    }
+  };
 
-    fetchCompanies();
+  // Initial load
+  useEffect(() => {
+    fetchCompanies(true);
   }, []);
+
+  // Refresh when refreshTrigger changes (triggered from context)
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      console.log('🔄 Refreshing companies from context...');
+      fetchCompanies(false);
+    }
+  }, [refreshTrigger]);
+
+  // Refresh when screen comes to focus
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log(
+        '🔄 CompanySwitcher screen focused - refreshing companies...',
+      );
+      fetchCompanies(false);
+    }, []),
+  );
+
+  // Refresh when app comes to foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener(
+      'change',
+      handleAppStateChange,
+    );
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  const handleAppStateChange = async state => {
+    if (state === 'active') {
+      console.log('📱 App came to foreground - refreshing companies...');
+      await fetchCompanies(false);
+    }
+  };
 
   const handleCompanyChange = async companyId => {
     setSelectedCompanyId(companyId === 'all' ? null : companyId);

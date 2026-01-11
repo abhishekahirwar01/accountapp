@@ -15,6 +15,8 @@ import {
   RefreshControl,
   Animated,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -44,13 +46,23 @@ import {
   Filter,
   MoreHorizontal,
   ExternalLink,
+  Check,
+  Link,
 } from 'lucide-react-native';
 import ClientCard from '../../components/clients/ClientCard';
 import ClientForm from '../../components/clients/ClientForm';
 import { useToast } from '../../components/hooks/useToast';
 import { BASE_URL } from '../../config';
 import AppLayout from '../../components/layout/AppLayout';
-
+import {
+  AlertDialog,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '../../components/ui/AlertDialog';
 const { width, height } = Dimensions.get('window');
 
 const getAppOrigin = () => BASE_URL || 'https://yourapp.com';
@@ -58,6 +70,12 @@ const getAppLoginUrl = slug =>
   slug ? `${getAppOrigin()}/client-login/${slug}` : '';
 const getApiLoginUrl = (slug, base = BASE_URL) =>
   slug ? `${base}/api/clients/${slug}/login` : '';
+
+// Client Login Base URL
+const CLIENT_LOGIN_URL = 'https://vinimay.sharda.co.in/client-login';
+
+// Header height constant
+const HEADER_MAX_HEIGHT = 200;
 
 // ---------- UI COMPONENTS ----------
 const Card = ({ children, style }) => (
@@ -108,7 +126,10 @@ const Dialog = ({ visible, onClose, title, description, children }) => (
     onRequestClose={onClose}
     statusBarTranslucent={true}
   >
-    <View style={styles.modalOverlay}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.modalOverlay}
+    >
       <View style={styles.dialogContent}>
         <View style={styles.dialogHeader}>
           <Text style={styles.dialogTitle}>{title}</Text>
@@ -119,47 +140,47 @@ const Dialog = ({ visible, onClose, title, description, children }) => (
         </View>
         <View style={styles.dialogBody}>{children}</View>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   </Modal>
 );
 
-const AlertDialog = ({ visible, onClose, title, description, onConfirm }) => (
-  <Modal
-    visible={visible}
-    animationType="fade"
-    transparent={true}
-    onRequestClose={onClose}
-  >
-    <View style={styles.modalOverlay}>
-      <View style={styles.alertDialogContent}>
-        <Text style={styles.alertDialogTitle}>{title}</Text>
-        <Text style={styles.alertDialogDescription}>{description}</Text>
-        <View style={styles.alertDialogActions}>
-          <Button
-            variant="outline"
-            onPress={onClose}
-            style={styles.alertDialogButton}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="destructive"
-            onPress={onConfirm}
-            style={styles.alertDialogButton}
-          >
-            Continue
-          </Button>
-        </View>
-      </View>
-    </View>
-  </Modal>
-);
+// const AlertDialog = ({ visible, onClose, title, description, onConfirm }) => (
+//   <Modal
+//     visible={visible}
+//     animationType="fade"
+//     transparent={true}
+//     onRequestClose={onClose}
+//   >
+//     <View style={styles.modalOverlay}>
+//       <View style={styles.alertDialogContent}>
+//         <Text style={styles.alertDialogTitle}>{title}</Text>
+//         <Text style={styles.alertDialogDescription}>{description}</Text>
+//         <View style={styles.alertDialogActions}>
+//           <Button
+//             variant="outline"
+//             onPress={onClose}
+//             style={styles.alertDialogButton}
+//           >
+//             Cancel
+//           </Button>
+//           <Button
+//             variant="destructive"
+//             onPress={onConfirm}
+//             style={styles.alertDialogButton}
+//           >
+//             Continue
+//           </Button>
+//         </View>
+//       </View>
+//     </View>
+//   </Modal>
+// );
 
 // ---------- MAIN COMPONENT ----------
 export default function ClientManagementPage() {
-  // Animation refs
+  // Animation refs for collapsible header
   const scrollY = useRef(new Animated.Value(0)).current;
-  const HEADER_HEIGHT = 130;
+  const HEADER_HEIGHT = 200;
   const diffClamp = Animated.diffClamp(scrollY, 0, HEADER_HEIGHT);
   const headerTranslateY = diffClamp.interpolate({
     inputRange: [0, HEADER_HEIGHT],
@@ -186,7 +207,19 @@ export default function ClientManagementPage() {
   const [contactNameFilter, setContactNameFilter] = useState('');
   const [usernameFilter, setUsernameFilter] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const { showToast } = useToast();
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  // Copy URL to clipboard
+  const copyToClipboard = () => {
+    Clipboard.setString(CLIENT_LOGIN_URL);
+    setCopied(true);
+    toast({
+      title: 'Copied!',
+      description: 'Client login URL copied to clipboard',
+    });
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   // Fetch clients from API
   const fetchClients = useCallback(async () => {
@@ -208,18 +241,29 @@ export default function ClientManagementPage() {
       }
 
       const data = await response.json();
-      setClients(data);
+      const sortedClients = data.sort((a, b) => {
+        // Extract timestamp from MongoDB ObjectId (first 4 bytes)
+        // This is a simplified approach - for actual use, you might want a more robust solution
+        const timestampA = a._id
+          ? parseInt(a._id.substring(0, 8), 16) * 1000
+          : 0;
+        const timestampB = b._id
+          ? parseInt(b._id.substring(0, 8), 16) * 1000
+          : 0;
+        return timestampB - timestampA; // Newest first
+      });
+
+      setClients(sortedClients);
     } catch (error) {
-      showToast({
-        type: 'error',
+      toast({
         title: 'Failed to load clients',
-        message: error.message || 'Something went wrong.',
+        description: error.message || 'Something went wrong.',
       });
     } finally {
       setIsLoading(false);
       setRefreshing(false);
     }
-  }, [showToast]);
+  }, [toast]);
 
   useEffect(() => {
     fetchClients();
@@ -258,18 +302,16 @@ export default function ClientManagementPage() {
         throw new Error(errorData.message || 'Failed to delete client.');
       }
 
-      showToast({
-        type: 'success',
+      toast({
         title: 'Client Deleted',
-        message: `${clientToDelete.contactName} has been successfully deleted.`,
+        description: `${clientToDelete.contactName} has been successfully deleted.`,
       });
 
       setClients(clients.filter(c => c._id !== clientToDelete._id));
     } catch (error) {
-      showToast({
-        type: 'error',
+      toast({
         title: 'Deletion Failed',
-        message: error.message || 'Something went wrong.',
+        description: error.message || 'Something went wrong.',
       });
     } finally {
       setIsAlertOpen(false);
@@ -285,10 +327,9 @@ export default function ClientManagementPage() {
 
   const confirmResetPassword = async () => {
     if (!clientToResetPassword || !newPassword) {
-      showToast({
-        type: 'error',
+      toast({
         title: 'Validation Error',
-        message: 'New password cannot be empty.',
+        description: 'New password cannot be empty.',
       });
       return;
     }
@@ -315,16 +356,14 @@ export default function ClientManagementPage() {
         throw new Error(errorData.message || 'Failed to reset password.');
       }
 
-      showToast({
-        type: 'success',
+      toast({
         title: 'Password Reset Successful',
-        message: `Password for ${clientToResetPassword.contactName} has been updated.`,
+        description: `Password for ${clientToResetPassword.contactName} has been updated.`,
       });
     } catch (error) {
-      showToast({
-        type: 'error',
+      toast({
         title: 'Password Reset Failed',
-        message: error.message || 'Something went wrong.',
+        description: error.message || 'Something went wrong.',
       });
     } finally {
       setIsSubmittingPassword(false);
@@ -364,7 +403,6 @@ export default function ClientManagementPage() {
           canUpdateCompanies: data.canUpdateCompanies,
         });
       } else {
-        // Fallback to client data
         setCurrentPermissions({
           maxCompanies: client.maxCompanies || 5,
           maxUsers: client.maxUsers || 10,
@@ -380,7 +418,6 @@ export default function ClientManagementPage() {
         });
       }
     } catch (error) {
-      // Fallback in case of error
       setCurrentPermissions({
         maxCompanies: client.maxCompanies || 5,
         maxUsers: client.maxUsers || 10,
@@ -440,18 +477,16 @@ export default function ClientManagementPage() {
         throw new Error(errorData.message || 'Failed to update permissions.');
       }
 
-      await fetchClients(); // Refresh client list
-      showToast({
-        type: 'success',
+      await fetchClients();
+      toast({
         title: 'Permissions Updated',
-        message: `Permissions for ${clientForPermissions.contactName} have been saved.`,
+        description: `Permissions for ${clientForPermissions.contactName} have been saved.`,
       });
       setIsPermissionsDialogOpen(false);
     } catch (error) {
-      showToast({
-        type: 'error',
+      toast({
         title: 'Update Failed',
-        message: error.message || 'Something went wrong.',
+        description: error.message || 'Something went wrong.',
       });
     } finally {
       setIsSavingPermissions(false);
@@ -468,15 +503,6 @@ export default function ClientManagementPage() {
     setIsDialogOpen(true);
   };
 
-  const copyToClipboard = text => {
-    Clipboard.setString(text);
-    showToast({
-      type: 'success',
-      title: 'Copied',
-      message: 'URL copied to clipboard',
-    });
-  };
-
   const filteredClients = clients.filter(
     c =>
       (contactNameFilter
@@ -489,7 +515,7 @@ export default function ClientManagementPage() {
 
   const onFormSubmit = () => {
     setIsDialogOpen(false);
-    fetchClients(); // Refresh the list
+    fetchClients();
   };
 
   const handleClearFilters = () => {
@@ -498,7 +524,14 @@ export default function ClientManagementPage() {
   };
 
   const renderHeader = () => (
-    <View style={[styles.headerContainer, { height: HEADER_HEIGHT }]}>
+    <Animated.View
+      style={[
+        styles.headerContainer,
+        {
+          transform: [{ translateY: headerTranslateY }],
+        },
+      ]}
+    >
       <View style={styles.headerContent}>
         <View style={styles.titleSection}>
           <Text style={styles.mainTitle}>Client Management</Text>
@@ -512,7 +545,32 @@ export default function ClientManagementPage() {
         </TouchableOpacity>
       </View>
 
-      {/* Search Bar */}
+      <View style={styles.loginUrlCard}>
+        <View style={styles.loginUrlHeader}>
+          <View style={styles.loginUrlTextContainer}>
+            <Text
+              style={styles.loginUrlValue}
+              numberOfLines={1}
+              ellipsizeMode="middle"
+            >
+              {CLIENT_LOGIN_URL}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.copyUrlButton}
+            onPress={copyToClipboard}
+            activeOpacity={0.8}
+          >
+            {copied ? (
+              <Check size={16} color="#ffffff" />
+            ) : (
+              <Copy size={16} color="#ffffff" />
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <View style={styles.searchContainer}>
         <View style={styles.searchInputWrapper}>
           <Filter size={18} color="#999" style={styles.searchIcon} />
@@ -536,7 +594,7 @@ export default function ClientManagementPage() {
           )}
         </View>
       </View>
-    </View>
+    </Animated.View>
   );
 
   const renderEmptyState = () => (
@@ -569,12 +627,9 @@ export default function ClientManagementPage() {
 
   return (
     <AppLayout>
-      {/* Container without SafeAreaView */}
       <View style={styles.container}>
-        {/* Fixed Header */}
         {renderHeader()}
 
-        {/* Content with Refresh Control */}
         <Animated.FlatList
           data={filteredClients}
           renderItem={({ item: client }) => (
@@ -585,7 +640,13 @@ export default function ClientManagementPage() {
               onDelete={() => handleDelete(client)}
               onResetPassword={() => handleResetPassword(client)}
               onManagePermissions={() => handleManagePermissions(client)}
-              copyToClipboard={copyToClipboard}
+              copyToClipboard={text => {
+                Clipboard.setString(text);
+                toast({
+                  title: 'Copied',
+                  description: 'URL copied to clipboard',
+                });
+              }}
               getAppLoginUrl={getAppLoginUrl}
               getApiLoginUrl={slug => getApiLoginUrl(slug, BASE_URL)}
             />
@@ -595,7 +656,7 @@ export default function ClientManagementPage() {
             filteredClients.length === 0
               ? styles.emptyListContent
               : styles.listContent,
-            { paddingTop: HEADER_HEIGHT }, // Add padding to show content below header
+            { paddingTop: HEADER_HEIGHT + 10 },
           ]}
           style={styles.listContainer}
           onScroll={Animated.event(
@@ -614,12 +675,9 @@ export default function ClientManagementPage() {
           }
           ListEmptyComponent={renderEmptyState}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            <View style={{ height: 20 }} /> // Small padding at top of list
-          }
         />
 
-        {/* Add/Edit Modal */}
+        {/* All Modals remain the same */}
         <Dialog
           visible={isDialogOpen}
           onClose={() => setIsDialogOpen(false)}
@@ -631,9 +689,11 @@ export default function ClientManagementPage() {
           }
         >
           <ScrollView
-            style={{ flexGrow: 0, maxHeight: 700 }}
-            contentContainerStyle={{ paddingBottom: 16 }}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: 60 }}
             keyboardShouldPersistTaps="handled"
+            scrollEnabled={true}
+            nestedScrollEnabled={true}
           >
             <ClientForm
               client={selectedClient}
@@ -645,16 +705,32 @@ export default function ClientManagementPage() {
           </ScrollView>
         </Dialog>
 
-        {/* Delete Modal */}
         <AlertDialog
           visible={isAlertOpen}
           onClose={() => setIsAlertOpen(false)}
-          title="Confirm Delete"
-          description={`Are you sure you want to delete ${clientToDelete?.contactName}?`}
-          onConfirm={confirmDelete}
-        />
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the
+              client account and all associated data for{' '}
+              <Text style={{ fontWeight: '700', color: '#000' }}>
+                {clientToDelete?.contactName}
+              </Text>
+              .
+            </AlertDialogDescription>
+          </AlertDialogHeader>
 
-        {/* Reset Password Modal */}
+          <AlertDialogFooter>
+            <AlertDialogCancel onPress={() => setIsAlertOpen(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onPress={confirmDelete}>
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialog>
+
         <Modal
           visible={isResetPasswordDialogOpen}
           transparent
@@ -709,7 +785,6 @@ export default function ClientManagementPage() {
           </SafeAreaView>
         </Modal>
 
-        {/* Permissions Modal */}
         <Modal
           visible={isPermissionsDialogOpen}
           transparent
@@ -844,11 +919,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-
   listContainer: {
     flex: 1,
   },
-
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -860,7 +933,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6b7280',
   },
-
   headerContainer: {
     position: 'absolute',
     top: 0,
@@ -872,23 +944,21 @@ const styles = StyleSheet.create({
     zIndex: 10,
     elevation: 6,
     paddingHorizontal: 20,
-    // paddingTop: 50, // Added padding for status bar
-    paddingBottom: 0,
+    paddingBottom: 10,
+    paddingTop: 10,
   },
-
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
-
   titleSection: {
     flex: 1,
+    marginTop: 4,
   },
-
   mainTitle: {
-    fontSize: 26,
+    fontSize: 20,
     fontWeight: '700',
     color: '#1a1a1a',
     letterSpacing: -0.5,
@@ -896,16 +966,14 @@ const styles = StyleSheet.create({
   mainSubtitle: {
     fontSize: 13,
     color: '#8e8e93',
-    marginTop: 2,
-    letterSpacing: 0.2,
+    letterSpacing: 0.8,
   },
-
   modernAddButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#e3f2ff',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#007AFF20',
@@ -918,11 +986,80 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-
+  loginUrlCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 6,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: '#e0e7ff',
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  loginUrlHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  linkIcon: {
+    marginRight: 12,
+    backgroundColor: '#eef2ff',
+    padding: 10,
+    borderRadius: 10,
+  },
+  loginUrlTextContainer: {
+    flex: 1,
+    marginRight: 5,
+  },
+  loginUrlLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#4f46e5',
+    marginBottom: 6,
+    letterSpacing: 0.3,
+  },
+  loginUrlValue: {
+    fontSize: 13,
+    color: '#6366f1',
+    backgroundColor: '#f5f7ff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e0e7ff',
+  },
+  copyUrlButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4f46e5',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  copyText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  copiedText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    marginBottom: 10,
   },
   searchInputWrapper: {
     flex: 1,
@@ -947,17 +1084,15 @@ const styles = StyleSheet.create({
   clearIconButton: {
     padding: 4,
   },
-
   emptyListContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    minHeight: height - 180, // Ensure empty state is visible below header
+    minHeight: height - 250,
   },
   listContent: {
     paddingHorizontal: 10,
     paddingBottom: 20,
   },
-
   card: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -967,8 +1102,6 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
-
-  // Buttons
   button: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -989,8 +1122,6 @@ const styles = StyleSheet.create({
   buttonIcon: { marginRight: 8 },
   buttonText: { fontSize: 14, fontWeight: '500', color: '#fff' },
   buttonTextOutline: { color: '#374151' },
-
-  // Empty State
   emptyStateCard: {
     alignItems: 'center',
     padding: 48,
@@ -1011,8 +1142,6 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   emptyStateButton: { paddingHorizontal: 24, paddingVertical: 12 },
-
-  // Modals
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1039,7 +1168,6 @@ const styles = StyleSheet.create({
   dialogDescription: { fontSize: 14, color: '#6b7280', lineHeight: 20 },
   closeButton: { position: 'absolute', top: 16, right: 16, padding: 4 },
   dialogBody: { flex: 1 },
-
   alertDialogContent: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -1065,8 +1193,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   alertDialogButton: { minWidth: 80 },
-
-  // Modal styles
   modalSafeArea: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

@@ -1,14 +1,40 @@
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
-import React, { useState } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  ScrollView,
+  RefreshControl,
+} from 'react-native';
+import React, { useState, useCallback } from 'react';
 import PayablesScreen from './PayablesScreen';
 import ReceivablesScreen from './ReceivablesScreen';
+import { useCompany } from '../../../contexts/company-context';
 import AppLayout from '../../../components/layout/AppLayout';
 export default function Ledger() {
   const [activeTab, setActiveTab] = useState('payables');
+  const [refreshing, setRefreshing] = useState(false);
+  const { triggerCompaniesRefresh } = useCompany();
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    triggerCompaniesRefresh().finally(() => {
+      setRefreshing(false);
+    });
+  }, [triggerCompaniesRefresh]);
 
   return (
     <AppLayout>
-      <View style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#007AFF']}
+          />
+        }
+      >
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[
@@ -52,7 +78,7 @@ export default function Ledger() {
             <ReceivablesScreen />
           )}
         </View>
-      </View>
+      </ScrollView>
     </AppLayout>
   );
 }

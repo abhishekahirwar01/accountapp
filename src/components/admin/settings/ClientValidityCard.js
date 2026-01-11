@@ -8,6 +8,7 @@ import {
   Switch,
   ActivityIndicator,
   Platform,
+  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useToast } from '../../hooks/useToast';
@@ -81,7 +82,7 @@ export function ClientValidityCard({ clientId, onChanged }) {
         });
       }
     } catch (e) {
-      toast({ variant: 'destructive', title: "Load error", description: e.message });
+      Alert.alert('Load error', e.message);
     } finally {
       setLoading(false);
     }
@@ -139,10 +140,10 @@ export function ClientValidityCard({ clientId, onChanged }) {
 
       await load();
       setExactDate('');
-      toast({ title: 'Success', description: 'Changes applied' });
+      Alert.alert('Success', 'Changes applied');
       onChanged?.();
     } catch (e) {
-      toast({ variant: 'destructive', title: 'Error', description: e.message });
+      Alert.alert('Error', e.message);
     } finally {
       setSaving(false);
     }

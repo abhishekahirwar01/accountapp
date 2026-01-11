@@ -11,50 +11,55 @@ import {
   StatusBar,
   Keyboard,
   TouchableWithoutFeedback,
-  Animated,
+  Animated, // Animated API for Custom Toast
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { BASE_URL } from '../../config';
 
-const DURATION = 3000;
+// --- 1. Custom Toast Component (Kudsi Custom Toast) ---
+const DURATION = 3000; // Toast visibility time
 
 const ToastComponent = ({ isVisible, type, text1, text2, onHide }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (isVisible) {
+      // Show animation
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 300,
         useNativeDriver: true,
       }).start(() => {
+        // Auto hide after DURATION
         setTimeout(() => {
           Animated.timing(fadeAnim, {
             toValue: 0,
             duration: 300,
             useNativeDriver: true,
-          }).start(onHide);
-        }, DURATION - 300);
+          }).start(() => {
+            onHide();
+          });
+        }, DURATION - 300); // Wait for DURATION, then start hide animation
       });
     }
   }, [isVisible, fadeAnim, onHide]);
 
   if (!isVisible) return null;
 
+  // Define styles based on toast type
   let color, bgColor, borderColor, iconName;
   if (type === 'success') {
-    color = '#15803D';
+    color = '#15803D'; // Green
     bgColor = '#F0FDF4';
     borderColor = '#22C55E';
     iconName = 'checkmark-circle';
   } else if (type === 'error') {
-    color = '#B91C1C';
+    color = '#B91C1C'; // Red
     bgColor = '#FEF2F2';
     borderColor = '#EF4444';
     iconName = 'close-circle';
   } else if (type === 'info') {
-    color = '#1D4ED8';
+    color = '#1D4ED8'; // Blue
     bgColor = '#EFF6FF';
     borderColor = '#3B82F6';
     iconName = 'information-circle';
@@ -70,11 +75,12 @@ const ToastComponent = ({ isVisible, type, text1, text2, onHide }) => {
       style={[
         styles.customToast,
         {
-          opacity: fadeAnim,
+          opacity: fadeAnim, // Bind opacity to animated value
           backgroundColor: bgColor,
           borderLeftColor: borderColor,
-          top: Platform.OS === 'ios' ? 60 : 40,
         },
+        // Position at the top, adjusted for StatusBar/SafeArea
+        { top: Platform.OS === 'ios' ? 60 : 40 },
       ]}
     >
       <Ionicons
@@ -90,22 +96,14 @@ const ToastComponent = ({ isVisible, type, text1, text2, onHide }) => {
     </Animated.View>
   );
 };
+// --- End of Custom Toast Component ---
 
 export default function OTPVerificationScreen({ navigation, route }) {
-  const {
-    method,
-    email,
-    identifier,
-    userName,
-    otp: initialOtp,
-    role: initialRole,
-    fromServer,
-  } = route.params || {};
+  const { method, email, mobile, otp, role } = route.params;
   const [enteredOtp, setEnteredOtp] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(30);
-  const [loadingVerify, setLoadingVerify] = useState(false);
-  const [loadingResend, setLoadingResend] = useState(false);
 
+  // Custom Toast State
   const [toastVisible, setToastVisible] = useState(false);
   const [toastData, setToastData] = useState({
     type: 'info',
@@ -115,6 +113,18 @@ export default function OTPVerificationScreen({ navigation, route }) {
 
   const otpInputsRef = useRef([]);
 
+  // Function to show custom toast
+  const showToast = (type, text1, text2) => {
+    setToastData({ type, text1, text2 });
+    setToastVisible(true);
+  };
+
+  // Function to hide custom toast
+  const hideToast = () => {
+    setToastVisible(false);
+  };
+
+  // Timer countdown
   useEffect(() => {
     const interval = setInterval(() => {
       setTimer(prev => {
@@ -130,51 +140,40 @@ export default function OTPVerificationScreen({ navigation, route }) {
 
   const otpValue = enteredOtp.join('');
 
-  const showToast = (type, text1, text2) => {
-    setToastData({ type, text1, text2 });
-    setToastVisible(true);
-  };
-  const hideToast = () => setToastVisible(false);
-
-  // Build the message based on method
-  const getDisplayMessage = () => {
-    if (method === 'userId' || method === 'userid') {
-      return `Enter 6-digit code sent to registered email for ${
-        userName || identifier
-      }`;
-    } else if (method === 'email') {
-      return `Enter 6-digit code sent to ${email || identifier}`;
-    }
-    return `Enter the 6-digit code sent to ${email || identifier}`;
-  };
-
+  // 1. Auto focus next box on digit entry
   const handleChange = (value, index) => {
+    // Only allow single digit or empty string
     if (/^\d$/.test(value) || value === '') {
-      const updated = [...enteredOtp];
-      updated[index] = value;
-      setEnteredOtp(updated);
-      if (value && index < 5) otpInputsRef.current[index + 1]?.focus();
-      if (index === 5 && value) Keyboard.dismiss();
+      const updatedOtp = [...enteredOtp];
+      updatedOtp[index] = value;
+      setEnteredOtp(updatedOtp);
+
+      // Auto focus next box if a digit is entered and it's not the last box
+      if (value && index < 5) {
+        otpInputsRef.current[index + 1]?.focus();
+      }
+
+      // If the last digit is entered, dismiss keyboard
+      if (index === 5 && value) {
+        Keyboard.dismiss();
+      }
     }
   };
 
+  // 2. Auto focus previous box on Backspace
   const handleKeyPress = (e, index) => {
-    if (
-      e.nativeEvent.key === 'Backspace' &&
-      index > 0 &&
-      enteredOtp[index] === ''
-    ) {
-      otpInputsRef.current[index - 1]?.focus();
+    if (e.nativeEvent.key === 'Backspace') {
+      if (index > 0) {
+        if (enteredOtp[index] === '') {
+          otpInputsRef.current[index - 1]?.focus();
+        }
+      }
     }
   };
 
-  const navigateByRole = roleToUse => {
-    if (roleToUse === 'master') navigation.navigate('AdminLoginScreen');
-    else if (roleToUse === 'client') navigation.navigate('ClientLoginScreen');
-    else navigation.navigate('UserLoginScreen');
-  };
-
-  const handleVerify = async () => {
+  // --- Verification and Error Handling (Updated to use custom Toast) ---
+  const handleVerify = () => {
+    // Basic validation
     if (otpValue.length !== 6) {
       showToast(
         'error',
@@ -184,102 +183,50 @@ export default function OTPVerificationScreen({ navigation, route }) {
       return;
     }
 
-    const id = identifier || email || '';
-
-    // Master path
-    if (
-      initialRole === 'master' &&
-      initialOtp &&
-      String(otpValue) === String(initialOtp)
-    ) {
-      showToast('success', 'OTP Verified', 'Redirecting...');
-      setTimeout(() => navigateByRole('master'), 700);
-      return;
-    }
-
-    // Server verification path
-    setLoadingVerify(true);
-    try {
-      const res = await fetch(
-        `${BASE_URL.replace(/\/$/, '')}/api/auth/verify-otp`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ identifier: id, otp: otpValue }),
-        },
+    // OTP verification logic (client-side simple comparison for demo)
+    if (otpValue === otp) {
+      showToast(
+        'success',
+        'OTP Verified Successfully!',
+        'Redirecting to your account...',
       );
-      const json = await res.json();
-      if (!res.ok) {
-        showToast(
-          'error',
-          'Verification Failed',
-          json?.message || `Status ${res.status}`,
-        );
-        setLoadingVerify(false);
-        return;
-      }
 
-      const serverRole =
-        json?.user?.role ||
-        json?.role ||
-        (json.accountType === 'client' ? 'client' : 'user');
-      showToast('success', 'OTP Verified', 'Redirecting to your account...');
-      setTimeout(() => navigateByRole(serverRole), 700);
-    } catch (err) {
-      console.error('verify-otp error:', err);
-      showToast('error', 'Network Error', 'Could not verify OTP. Try again.');
-    } finally {
-      setLoadingVerify(false);
+      setTimeout(() => {
+        if (role === 'master') navigation.navigate('AdminLoginScreen');
+        else if (role === 'client') navigation.navigate('ClientLoginScreen');
+        else navigation.navigate('UserLoginScreen');
+      }, 800);
+    } else {
+      // Error Handling: Invalid OTP
+      showToast('error', 'Invalid OTP', 'Please check the code and try again.');
     }
   };
 
-  const handleResendOtp = async () => {
-    if (timer > 0) return;
-    const id = identifier || email || '';
-    setLoadingResend(true);
-    setTimer(30);
-    setEnteredOtp(['', '', '', '', '', '']);
-    try {
-      const res = await fetch(
-        `${BASE_URL.replace(/\/$/, '')}/api/auth/request-user-otp`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ identifier: id }),
-        },
-      );
-      const json = await res.json();
-      if (!res.ok) {
-        showToast(
-          'error',
-          'Resend Failed',
-          json?.message || `Status ${res.status}`,
-        );
-        setLoadingResend(false);
-        return;
-      }
+  const handleResendOtp = () => {
+    if (timer === 0) {
+      // In a real application, you would make an API call here to resend the OTP
+      // For this demo, we just reset the timer and show a success message.
 
-      if (json?.dev && json?.otp) {
-        showToast('info', 'OTP Sent (Dev)', `OTP: ${json.otp}`);
-      } else {
-        showToast(
-          'info',
-          'OTP Sent',
-          json?.message || 'OTP sent to registered email.',
-        );
-      }
-    } catch (err) {
-      console.error('request-user-otp error:', err);
-      showToast('error', 'Network Error', 'Could not resend OTP.');
-    } finally {
-      setLoadingResend(false);
-      setTimeout(() => otpInputsRef.current[0]?.focus(), 100);
+      setTimer(30);
+      setEnteredOtp(['', '', '', '', '', '']); // Clear the previous OTP
+      showToast(
+        'info',
+        'OTP Sent Successfully!',
+        `New verification code sent to your ${
+          method === 'email' ? 'email' : 'mobile'
+        }.`,
+      );
+      setTimeout(() => {
+        otpInputsRef.current[0]?.focus();
+      }, 100);
     }
   };
+  // --- End of Verification and Error Handling ---
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+
       <View style={styles.flatScreen}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -292,6 +239,7 @@ export default function OTPVerificationScreen({ navigation, route }) {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
+              {/* Header: Back Button and Title in one line */}
               <View style={styles.headerContainer}>
                 <TouchableOpacity
                   style={styles.backButton}
@@ -304,8 +252,12 @@ export default function OTPVerificationScreen({ navigation, route }) {
               </View>
 
               <View style={styles.contentArea}>
-                <Text style={styles.subHeader}>{getDisplayMessage()}</Text>
+                <Text style={styles.subHeader}>
+                  Enter the 6-digit code sent to{' '}
+                  {method === 'email' ? email : mobile}.
+                </Text>
 
+                {/* OTP Input Boxes */}
                 <View style={styles.otpRow}>
                   {enteredOtp.map((digit, index) => (
                     <TextInput
@@ -325,6 +277,7 @@ export default function OTPVerificationScreen({ navigation, route }) {
                   ))}
                 </View>
 
+                {/* Timer & Resend */}
                 <View style={styles.timerRow}>
                   <Text style={styles.timerText}>
                     {timer > 0
@@ -333,16 +286,15 @@ export default function OTPVerificationScreen({ navigation, route }) {
                   </Text>
                   <TouchableOpacity
                     onPress={handleResendOtp}
-                    disabled={timer > 0 || loadingResend}
+                    disabled={timer > 0}
                   >
                     <Text
                       style={[
                         styles.resendButtonText,
-                        (timer > 0 || loadingResend) &&
-                          styles.resendButtonDisabled,
+                        timer > 0 && styles.resendButtonDisabled,
                       ]}
                     >
-                      {loadingResend ? 'Sending...' : 'Resend'}
+                      Resend
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -353,10 +305,10 @@ export default function OTPVerificationScreen({ navigation, route }) {
                     otpValue.length !== 6 && styles.buttonDisabled,
                   ]}
                   onPress={handleVerify}
-                  disabled={loadingVerify || otpValue.length !== 6}
+                  disabled={otpValue.length !== 6}
                 >
                   <Text style={styles.primaryButtonText}>
-                    {loadingVerify ? 'Verifying...' : 'Verify & Continue'}
+                    Verify & Continue
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -364,6 +316,7 @@ export default function OTPVerificationScreen({ navigation, route }) {
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
 
+        {/* Custom Toast Integration */}
         <ToastComponent
           isVisible={toastVisible}
           type={toastData.type}
@@ -380,6 +333,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#ffffff' },
   flatScreen: { flex: 1, backgroundColor: '#ffffff' },
 
+  // --- Header Styles ---
   headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -402,11 +356,21 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     textAlign: 'center',
   },
-  placeholder: { width: 32 },
+  placeholder: {
+    width: 32,
+  },
 
-  container: { flexGrow: 1, paddingHorizontal: 20 },
-  contentArea: { width: '100%', paddingTop: 24 },
+  // --- Container & Content ---
+  container: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+  },
+  contentArea: {
+    width: '100%',
+    paddingTop: 24,
+  },
 
+  // --- Typography ---
   subHeader: {
     fontSize: 14,
     color: '#6b7280',
@@ -415,6 +379,7 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
 
+  // --- OTP Boxes ---
   otpRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -433,6 +398,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
   },
 
+  // --- Timer & Resend ---
   timerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -443,6 +409,7 @@ const styles = StyleSheet.create({
   resendButtonText: { color: '#4f46e5', fontWeight: '600', fontSize: 13 },
   resendButtonDisabled: { color: '#9ca3af' },
 
+  // --- Button Styles ---
   primaryButton: {
     backgroundColor: '#4f46e5',
     padding: 14,
@@ -453,8 +420,13 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  buttonDisabled: { backgroundColor: '#a5b4fc', elevation: 0, opacity: 0.8 },
+  buttonDisabled: {
+    backgroundColor: '#a5b4fc',
+    elevation: 0,
+    opacity: 0.8,
+  },
 
+  // --- Custom Toast Styles ---
   customToast: {
     position: 'absolute',
     left: 10,
@@ -464,16 +436,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: 70,
     borderRadius: 12,
-    borderLeftWidth: 5,
+    borderLeftWidth: 5, // For color indication
     borderWidth: 1,
-    borderColor: '#22C55E20',
+    borderColor: '#22C55E20', // General border (optional)
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
-  customToastContent: { flex: 1, paddingHorizontal: 15 },
-  customToastText1: { fontSize: 15, fontWeight: '700' },
-  customToastText2: { fontSize: 13, lineHeight: 18 },
+  customToastContent: {
+    flex: 1,
+    paddingHorizontal: 15,
+  },
+  customToastText1: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  customToastText2: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
 });

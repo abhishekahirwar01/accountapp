@@ -341,6 +341,28 @@ export const handleCreateTransactionWithPreview = async ({
           };
         }
 
+        // Fetch default template from backend
+        let selectedTemplate = 'template1';
+        try {
+          const token = await AsyncStorage.getItem('token');
+          if (token) {
+            const templateRes = await fetch(
+              `${BASE_URL}/api/settings/default-template`,
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              },
+            );
+            if (templateRes.ok) {
+              const templateData = await templateRes.json();
+              selectedTemplate = templateData.defaultTemplate || 'template1';
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching default template:', error);
+          // Fall back to template1 if fetch fails
+          selectedTemplate = 'template1';
+        }
+
         // Create final preview data
         const previewData = {
           ...savedTransaction,
@@ -362,6 +384,7 @@ export const handleCreateTransactionWithPreview = async ({
           shippingAddress: shippingAddressData,
           sameAsBilling: values.sameAsBilling,
           paymentMethod: values.paymentMethod,
+          selectedTemplate: selectedTemplate,
         };
 
         setGeneratedInvoice(previewData);

@@ -28,6 +28,7 @@ import {
 } from 'lucide-react-native';
 import { usePermissions } from '../../contexts/permission-context';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
+import { useCompany } from '../../contexts/company-context';
 import { BASE_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppLayout from '../../components/layout/AppLayout';
@@ -43,7 +44,8 @@ const CompaniesScreen = () => {
   const [clients, setClients] = useState([]);
 
   const { permissions, refetch, isLoading: isLoadingPerms } = usePermissions();
-  const { refetch: refetchUserPermissions } = useUserPermissions(); // Ye line add karein
+  const { refetch: refetchUserPermissions } = useUserPermissions();
+  const { triggerCompaniesRefresh, refreshTrigger } = useCompany();
 
   // Fetch companies from API
   const fetchCompanies = useCallback(async () => {
@@ -109,20 +111,54 @@ const CompaniesScreen = () => {
     fetchClients();
   }, [fetchCompanies, fetchClients]);
 
+  // Re-fetch companies silently when global company refresh is triggered
+  const fetchCompaniesSilent = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return;
+
+      const res = await fetch(`${BASE_URL}/api/companies/my`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setCompanies(Array.isArray(data) ? data : data?.data || []);
+    } catch (err) {
+      console.error('CompaniesScreen fetchCompaniesSilent failed:', err);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      fetchCompaniesSilent().catch(err =>
+        console.error(
+          'CompaniesScreen fetchCompaniesSilent after trigger failed:',
+          err,
+        ),
+      );
+    }
+  }, [refreshTrigger, fetchCompaniesSilent]);
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    
+
     // Saare data ko ek saath refresh karein
     Promise.all([
       fetchCompanies(),
       fetchClients(),
-      // Ye niche waali lines hi Bottom Navbar ko refresh trigger deti hain
+      triggerCompaniesRefresh(),
       refetch ? refetch() : Promise.resolve(),
       refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
     ]).finally(() => {
       setRefreshing(false);
     });
-  }, [fetchCompanies, fetchClients, refetch, refetchUserPermissions]);
+  }, [
+    fetchCompanies,
+    fetchClients,
+    triggerCompaniesRefresh,
+    refetch,
+    refetchUserPermissions,
+  ]);
 
   const handleAddNew = () => {
     setSelectedCompany(null);
@@ -360,7 +396,8 @@ const CompaniesScreen = () => {
   );
 
   // Loading State
-  if (isLoading || isLoadingPerms) { // isLoadingPerms add kiya
+  if (isLoading || isLoadingPerms) {
+    // isLoadingPerms add kiya
     return (
       <AppLayout>
         <SafeAreaView style={styles.safeArea}>
@@ -376,70 +413,67 @@ const CompaniesScreen = () => {
   return (
     <AppLayout>
       {/* <SafeAreaView style={styles.safeArea}> */}
-        <View style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerTitle}>
-              <Text style={styles.title}>Companies</Text>
-              <Text style={styles.subtitle}>
-                Manage all your business entities
-              </Text>
-            </View>
-            <View style={styles.headerActions}>
-              {permissions?.canCreateCompanies && (
-                <TouchableOpacity
-                  style={styles.addCompanyButton}
-                  onPress={handleAddNew}
-                >
-                  <PlusCircle size={16} color="white" />
-                  <Text style={styles.addCompanyButtonText}>Add Company</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerTitle}>
+            <Text style={styles.title}>Companies</Text>
+            <Text style={styles.subtitle}>
+              Manage all your business entities
+            </Text>
           </View>
-
-          {/* Content */}
-          {companies.length > 0 ? (
-            <View style={styles.content}>
-              <FlatList
-                data={companies}
-                keyExtractor={item => item._id}
-                renderItem={renderCompanyCard}
-                numColumns={1}
-                refreshControl={
-                  <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={onRefresh}
-                  />
-                }
-                contentContainerStyle={[
-                  styles.listContent,
-                  styles.cardListContent,
-                ]}
-                showsVerticalScrollIndicator={false}
-              />
-            </View>
-          ) : (
-            renderEmptyState()
-          )}
-
-          {/* Company Form Modal */}
-          <Modal
-            visible={isDialogOpen}
-            animationType="slide"
-            presentationStyle="pageSheet"
-            onRequestClose={() => setIsDialogOpen(false)}
-          >
-            <View style={{ flex: 1 }}>
-              <CompanyForm
-                company={selectedCompany || undefined}
-                clients={clients}
-                onFormSubmit={onFormSubmit}
-                onCancel={() => setIsDialogOpen(false)}
-              />
-            </View>
-          </Modal>
+          <View style={styles.headerActions}>
+            {permissions?.canCreateCompanies && (
+              <TouchableOpacity
+                style={styles.addCompanyButton}
+                onPress={handleAddNew}
+              >
+                <PlusCircle size={16} color="white" />
+                <Text style={styles.addCompanyButtonText}>Add Company</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
+
+        {/* Content */}
+        {companies.length > 0 ? (
+          <View style={styles.content}>
+            <FlatList
+              data={companies}
+              keyExtractor={item => item._id}
+              renderItem={renderCompanyCard}
+              numColumns={1}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              }
+              contentContainerStyle={[
+                styles.listContent,
+                styles.cardListContent,
+              ]}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        ) : (
+          renderEmptyState()
+        )}
+
+        {/* Company Form Modal */}
+        <Modal
+          visible={isDialogOpen}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setIsDialogOpen(false)}
+        >
+          <View style={{ flex: 1 }}>
+            <CompanyForm
+              company={selectedCompany || undefined}
+              clients={clients}
+              onFormSubmit={onFormSubmit}
+              onCancel={() => setIsDialogOpen(false)}
+            />
+          </View>
+        </Modal>
+      </View>
       {/* </SafeAreaView> */}
     </AppLayout>
   );

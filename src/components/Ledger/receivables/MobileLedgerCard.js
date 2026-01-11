@@ -96,7 +96,8 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 12,
     backgroundColor: 'white',
-    elevation: 1,
+    // elevation: 1,
+    width:'100%'
   },
   content: {
     padding: 12,

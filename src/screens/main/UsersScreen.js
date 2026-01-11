@@ -1,4 +1,4 @@
-// UsersScreen.js - FIXED VERSION with Alert.alert for errors
+// UsersScreen.js - Enhanced Header and URL Card Only
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   View,
@@ -7,7 +7,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Clipboard,
   Dimensions,
   RefreshControl,
@@ -44,6 +43,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import { usePermissions } from '../../contexts/permission-context';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
+import { useCompany } from '../../contexts/company-context';
 
 const base64Decode = str => {
   const chars =
@@ -74,7 +74,8 @@ export default function UsersPage() {
   const { toast } = useToast();
   const { permissions, refetch } = usePermissions();
   const { refetch: refetchUserPermissions } = useUserPermissions();
-  const userLoginUrl = 'https://yourapp.com/user-login';
+  const { triggerCompaniesRefresh, refreshTrigger } = useCompany();
+  const userLoginUrl = 'https://vinimay.sharda.co.in/user-login';
 
   useEffect(() => {
     const { width } = Dimensions.get('window');
@@ -91,7 +92,11 @@ export default function UsersPage() {
       });
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      Alert.alert('Error', 'Failed to copy URL. Please copy manually.');
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to copy URL. Please copy manually.',
+      });
     }
   };
 
@@ -129,7 +134,11 @@ export default function UsersPage() {
       setUsers(filteredUsers);
       setCompanies(companiesData);
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to fetch data');
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: err.message || 'Failed to fetch data',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -139,17 +148,50 @@ export default function UsersPage() {
     fetchUsersAndCompanies();
   }, [fetchUsersAndCompanies]);
 
+  // Re-fetch companies silently when global company refresh is triggered
+  const fetchCompaniesOnly = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return;
+
+      const res = await fetch(`${BASE_URL}/api/companies/my`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setCompanies(Array.isArray(data) ? data : data?.data || []);
+    } catch (err) {
+      console.error('UsersScreen fetchCompaniesOnly failed:', err);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      fetchCompaniesOnly().catch(err =>
+        console.error(
+          'UsersScreen fetchCompaniesOnly after trigger failed:',
+          err,
+        ),
+      );
+    }
+  }, [refreshTrigger, fetchCompaniesOnly]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await Promise.all([
         fetchUsersAndCompanies(true),
+        triggerCompaniesRefresh(),
         refetch ? refetch() : Promise.resolve(),
         refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
       ]);
       toast({ title: 'Users data refreshed successfully' });
     } catch (error) {
-      Alert.alert('Refresh Failed', error.message || 'Failed to refresh data');
+      toast({
+        variant: 'destructive',
+        title: 'Refresh Failed',
+        description: error.message || 'Failed to refresh data',
+      });
     } finally {
       setRefreshing(false);
     }
@@ -165,12 +207,15 @@ export default function UsersPage() {
     setSelectedUser(null);
   };
 
-  // 🔥 SOLUTION: Use Alert.alert for errors (shows above everything)
   const handleSave = async formDataFromForm => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        Alert.alert('Error', 'Authentication token not found.');
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Authentication token not found.',
+        });
         return;
       }
 
@@ -190,31 +235,37 @@ export default function UsersPage() {
 
       const data = await res.json();
 
-      // ✅ If error - show Alert.alert (native popup above everything)
       if (!res.ok) {
-        Alert.alert(
-          'Operation Failed',
-          data.message ||
+        toast({
+          variant: 'destructive',
+          title: 'Operation Failed',
+          description:
+            data.message ||
             `Failed to ${selectedUser ? 'update' : 'create'} user.`,
-          [{ text: 'OK' }],
-        );
-        return; // Keep dialog open
+        });
+        return;
       }
 
-      // ✅ Success - use toast and close dialog
       toast({
         title: `User ${selectedUser ? 'updated' : 'created'} successfully`,
       });
 
+      // 🔄 Refresh companies if they were assigned/modified
+      if (formDataFromForm.companies && formDataFromForm.companies.length > 0) {
+        console.log(
+          '🔄 Companies assigned/modified - triggering header refresh',
+        );
+        triggerCompaniesRefresh();
+      }
+
       await fetchUsersAndCompanies();
       handleCloseForm();
     } catch (error) {
-      // Network errors - show Alert.alert
-      Alert.alert(
-        'Operation Failed',
-        error.message || 'Something went wrong.',
-        [{ text: 'OK' }],
-      );
+      toast({
+        variant: 'destructive',
+        title: 'Operation Failed',
+        description: error.message || 'Something went wrong.',
+      });
     }
   };
 
@@ -228,7 +279,11 @@ export default function UsersPage() {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        Alert.alert('Error', 'Authentication token not found.');
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Authentication token not found.',
+        });
         return;
       }
 
@@ -247,7 +302,11 @@ export default function UsersPage() {
       setIsAlertOpen(false);
       setUserToDelete(null);
     } catch (error) {
-      Alert.alert('Deletion Failed', error.message || 'Something went wrong.');
+      toast({
+        variant: 'destructive',
+        title: 'Deletion Failed',
+        description: error.message || 'Something went wrong.',
+      });
     }
   };
 
@@ -333,42 +392,63 @@ export default function UsersPage() {
         }
       >
         <View style={styles.content}>
+          {/* Enhanced Header */}
           <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>Users</Text>
-              <Text style={styles.subtitle}>Manage your users</Text>
+            <View style={styles.headerLeft}>
+              <View>
+                <Text style={styles.title}>User Management</Text>
+                <View style={styles.subtitleRow}>
+                  <Text style={styles.subtitle}>Manage your users</Text>
+                </View>
+              </View>
             </View>
-            <View style={styles.headerActions}>
-              <View style={styles.viewToggle} />
-              {permissions?.canCreateUsers && (
-                <Button
-                  style={styles.addUser}
-                  onPress={() => handleOpenForm()}
-                  icon="plus-circle"
-                >
-                  Add User
-                </Button>
-              )}
-            </View>
+            {permissions?.canCreateUsers && (
+              <TouchableOpacity
+                style={styles.addUserButton}
+                onPress={() => handleOpenForm()}
+              >
+                <Icon name="plus" size={16} color="#fff" />
+                <Text style={styles.addUserButtonText}>Add User</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          <Card style={styles.urlCard}>
-            <CardContent style={styles.urlCardContent}>
-              <View style={styles.urlTextContainer}>
-                <Text style={styles.urlLabel}>User Login URL</Text>
-                <Text style={styles.urlValue}>{userLoginUrl}</Text>
+          {/* Enhanced URL Card */}
+          <View style={styles.urlCardWrapper}>
+            <View style={styles.urlCard}>
+              <View style={styles.urlCardContent}>
+                <View style={styles.urlLeftSection}>
+                  <View style={styles.urlIconContainer}>
+                    <Icon name="link" size={14} color="#3B82F6" />
+                  </View>
+                  <View style={styles.urlTextSection}>
+                    <Text style={styles.urlLabel}>User Login URL</Text>
+                    <Text style={styles.urlValue} numberOfLines={1}>
+                      {userLoginUrl}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={[styles.copyButton, copied && styles.copyButtonActive]}
+                  onPress={copyToClipboard}
+                >
+                  <Icon
+                    name={copied ? 'check' : 'copy'}
+                    size={14}
+                    color={copied ? '#10B981' : '#3B82F6'}
+                  />
+                  <Text
+                    style={[
+                      styles.copyButtonText,
+                      copied && styles.copyButtonTextActive,
+                    ]}
+                  >
+                    {copied ? 'Copied!' : 'Copy'}
+                  </Text>
+                </TouchableOpacity>
               </View>
-              <Button
-                size="sm"
-                variant="outline"
-                onPress={copyToClipboard}
-                style={styles.copyButton}
-                icon={copied ? 'check' : 'copy'}
-              >
-                {copied ? 'Copied!' : 'Copy URL'}
-              </Button>
-            </CardContent>
-          </Card>
+            </View>
+          </View>
 
           <Card>
             <CardContent
@@ -475,7 +555,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   content: {
-    padding: 8,
+    // padding: 8,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -563,74 +643,142 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontWeight: '500',
   },
-  urlCard: {
-    backgroundColor: '#dbeafe',
-    borderColor: '#93c5fd',
-    marginBottom: 6,
-    marginTop: 6,
-    paddingVertical: 6,
-  },
-  urlCardContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 16,
-  },
-  urlTextContainer: {
-    flex: 1,
-    paddingTop: 4,
-  },
-  urlLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1e40af',
-  },
-  urlValue: {
-    fontSize: 12,
-    color: '#1d4ed8',
-    backgroundColor: '#eff6ff',
-    padding: 4,
-    marginTop: 2,
-    borderRadius: 8,
-  },
-  copyButton: {
-    marginTop: 0,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
+  // Enhanced Header Styles
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-    marginTop: 6,
+    // marginBottom: 10,
+    // marginTop: 6,
+    margin: 8,
     paddingLeft: 10,
     paddingRight: 10,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  headerActions: {
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
-  viewToggle: {
+  headerIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1F2937',
+    // marginBottom: 2,
+  },
+  subtitleRow: {
     flexDirection: 'row',
-    backgroundColor: '#e5e7eb',
-    borderRadius: 6,
-    padding: 4,
-    gap: 4,
+    alignItems: 'center',
+    gap: 5,
   },
-  addUser: {
+  subtitle: {
+    fontSize: 13,
+    color: '#6B7280',
     fontWeight: '500',
   },
+  addUserButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3B82F6',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    gap: 6,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  addUserButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Enhanced URL Card Styles
+  urlCardWrapper: {
+    // marginBottom: 12,
+    marginLeft: 16,
+    marginRight: 16,
+  },
+  urlCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  urlCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  urlLeftSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
+  },
+  urlIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  urlTextSection: {
+    flex: 1,
+  },
+  urlLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  urlValue: {
+    fontSize: 12,
+    color: '#3B82F6',
+    fontWeight: '500',
+  },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  copyButtonActive: {
+    backgroundColor: '#D1FAE5',
+    borderColor: '#A7F3D0',
+  },
+  copyButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#3B82F6',
+  },
+  copyButtonTextActive: {
+    color: '#10B981',
+  },
+  // Rest of the styles remain the same
   cardContent: {
     padding: 0,
   },

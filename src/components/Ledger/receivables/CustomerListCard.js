@@ -6,10 +6,13 @@ import {
   FlatList,
   StyleSheet,
   Dimensions,
-  ActivityIndicator, // Use standard React Native ActivityIndicator
+  ActivityIndicator, 
+  ScrollView
 } from 'react-native';
 // Removed: import { Card, Button, ActivityIndicator } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+
+// import { capitalizeWords } from '../../../lib/utils';
 
 // Custom Button Component to replace react-native-paper Button
 const CustomButton = ({ onPress, disabled, style, textStyle, children }) => (
@@ -117,6 +120,7 @@ const CustomerListCard = ({
         ) : (
           <View style={styles.mainContainer}>
             {/* Customer List Container with fixed height */}
+            
             <View style={styles.listContainer}>
               <FlatList
                 data={parties}
@@ -213,7 +217,7 @@ const styles = StyleSheet.create({
   // -----------------------------------------------------------
 
   card: {
-    margin: 16,
+    margin: 10,
     marginTop: 8,
     flex: 1,
     // Note: elevation is now handled by cardBase
@@ -233,9 +237,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContainer: {
-    // Adjusted height to be less aggressive than 'window * 1'
-    // You may need to tune this to fit 7 items exactly on your target screen
-    height: LIST_HEIGHT,
+   
     minHeight: 400,
   },
   list: {

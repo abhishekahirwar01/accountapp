@@ -555,7 +555,7 @@ export default function ProductForm({
             )}
           </TouchableOpacity>
 
-          {product && (
+          {/* {product && (
             <TouchableOpacity
               style={styles.deleteButton}
               onPress={handleDelete}
@@ -567,7 +567,7 @@ export default function ProductForm({
                 <Text style={styles.buttonText}>Delete Product</Text>
               )}
             </TouchableOpacity>
-          )}
+          )} */}
         </View>
 
         {/* Company Modal */}

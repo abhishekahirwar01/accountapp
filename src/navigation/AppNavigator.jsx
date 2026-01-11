@@ -3,8 +3,16 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Header from '../components/layout/Header';
 
+// for devloment purposes
+import OTPVerificationScreen from '../screens/auth/otpverification/OTPVerificationScreen';
+import SendOtpScreen from '../screens/auth/otpverification/SendOtpScreen';
+
 import GettingStartedScreen from '../screens/auth/GettingStartedScreen';
-import OTPVerificationScreen from '../screens/auth/OTPVerificationScreen';
+
+// for production purposes
+// import OTPVerificationScreen from '../screens/auth/OTPVerificationScreen';
+// import SendOtpScreen from '../screens/auth/SendOtpScreen';
+
 import AdminLoginScreen from '../screens/auth/AdminLoginScreen';
 import UserLoginScreen from '../screens/auth/UserLoginScreen';
 import ClientLoginScreen from '../screens/auth/ClientLoginScreen';
@@ -14,7 +22,6 @@ import CustomerDashboardScreen from '../screens/main/DashboardScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import AdminSettingsScreen from '../screens/admin/SettingsScreen';
 import InvoicePreview from '../components/invoices/InvoicePreview';
-import SendOtpScreen from '../screens/auth/SendOtpScreen';
 import HistoryScreen from '../screens/admin/HistoryScreen';
 import AdminAnalyticsScreen from '../screens/admin/AnalyticsScreen';
 import AnalyticsScreen from '../screens/admin/AnalyticsScreen';
@@ -88,7 +95,7 @@ function MainTabNavigator({ route }) {
       <Tab.Screen
         name="Companies"
         component={CompaniesScreen}
-          options={{ headerShown: true, header: () => <Header /> }}
+        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="Users"
@@ -103,24 +110,24 @@ function MainTabNavigator({ route }) {
       <Tab.Screen
         name="Reports"
         component={Reports}
-         options={{ headerShown: true, header: () => <Header /> }}
+        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="Ledger"
         component={Ledger}
-       options={{ headerShown: true, header: () => <Header /> }}
+        options={{ headerShown: true, header: () => <Header /> }}
       />
 
       {/* Admin specific screens */}
       <Tab.Screen
         name="AdminAnalytics"
         component={AdminAnalyticsScreen}
-          options={{ headerShown: true, header: () => <Header /> }}
+        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="AnalyticsScreen"
         component={AnalyticsScreen}
-           options={{ headerShown: true, header: () => <Header /> }}
+        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="AdminCompanies"
@@ -130,7 +137,7 @@ function MainTabNavigator({ route }) {
       <Tab.Screen
         name="AdminClientManagement"
         component={AdminClientManagementPage}
-         options={{ headerShown: true, header: () => <Header /> }}
+        options={{ headerShown: true, header: () => <Header /> }}
       />
     </Tab.Navigator>
   );
