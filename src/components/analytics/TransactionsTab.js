@@ -963,7 +963,7 @@ const styles = StyleSheet.create({
   },
   contentScrollView: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 2,
   },
   contentScrollContainer: {
     paddingBottom: 40,

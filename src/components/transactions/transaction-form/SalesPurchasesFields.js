@@ -635,33 +635,21 @@ export const SalesPurchasesFields = props => {
         const currentStock = Number(selectedProduct.stocks) || 0;
         const requestedQuantity = Number(quantity) || 0;
 
+        // For both sales and purchases: Only show Toast, no alerts
         if (currentStock <= 0) {
-          Alert.alert(
-            'Out of Stock',
-            `${selectedProduct.name} is currently out of stock.`,
-            [{ text: 'OK' }],
-          );
-          return false;
+          Toast.show({
+            type: 'error',
+            text1: 'Out of Stock',
+            text2: `${selectedProduct.name} is currently out of stock.`,
+          });
+          return true; // Allow transaction to proceed
         } else if (requestedQuantity > currentStock) {
-          Alert.alert(
-            'Insufficient Stock',
-            `You're ordering ${requestedQuantity} units but only ${currentStock} are available for ${selectedProduct.name}.`,
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Proceed Anyway',
-                onPress: () => {
-                  // Allow user to proceed despite insufficient stock
-                  Toast.show({
-                    type: 'warning',
-                    text1: 'Insufficient Stock',
-                    text2: 'Proceeding with order despite low stock',
-                  });
-                },
-              },
-            ],
-          );
-          return false;
+          Toast.show({
+            type: 'error',
+            text1: 'Insufficient Stock',
+            text2: `Requesting ${requestedQuantity} units but only ${currentStock} available.`,
+          });
+          return true; // Allow transaction to proceed
         }
       }
     }
@@ -2530,6 +2518,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 0,
+    marginBottom: 0,
   },
   card: {
     backgroundColor: 'white',

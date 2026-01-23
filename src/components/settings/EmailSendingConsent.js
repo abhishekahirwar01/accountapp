@@ -9,6 +9,7 @@ import {
   AppState,
   Modal,
   TouchableWithoutFeedback,
+  ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Feather';
@@ -52,8 +53,8 @@ export function EmailSendingConsent() {
   useEffect(() => {
     GoogleSignin.configure({
       webClientId:
-        '627437378841-j3v3hhhos4db0mc7e1m7n2sfbddvgn3d.apps.googleusercontent.com', // Get from Firebase Console
-      offlineAccess: true, // Get refresh token
+        '627437378841-j3v3hhhos4db0mc7e1m7n2sfbddvgn3d.apps.googleusercontent.com',
+      offlineAccess: true,
       scopes: [
         'https://www.googleapis.com/auth/gmail.send',
         'https://www.googleapis.com/auth/userinfo.email',
@@ -68,7 +69,6 @@ export function EmailSendingConsent() {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (nextAppState === 'active') {
-        // App foreground आने पर status refresh करें
         refreshStatus();
       }
     });
@@ -275,12 +275,10 @@ export function EmailSendingConsent() {
 
     switch (error.code) {
       case statusCodes.SIGN_IN_CANCELLED:
-        // User cancelled the sign-in flow - silent fail
         console.log('User cancelled Google Sign-In');
         break;
 
       case statusCodes.IN_PROGRESS:
-        // Operation (e.g., sign in) is already in progress
         console.log('Google Sign-In already in progress');
         break;
 
@@ -293,7 +291,6 @@ export function EmailSendingConsent() {
         break;
 
       default:
-        // Check if it's a DEVELOPER_ERROR (Firebase config issue)
         if (
           error.code === 'DEVELOPER_ERROR' ||
           error.message?.includes('DEVELOPER_ERROR')
@@ -330,10 +327,8 @@ export function EmailSendingConsent() {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Sign out from Google
               await GoogleSignin.signOut();
 
-              // Disconnect from your backend
               const { token } = await getAuthToken();
               const response = await fetch(
                 `${BASE_URL}/api/integrations/gmail/disconnect`,
@@ -349,15 +344,13 @@ export function EmailSendingConsent() {
               if (!response.ok)
                 throw new Error('Failed to disconnect from backend');
 
-              // Update local state
               setStatus({
                 connected: false,
                 email: null,
-                termsAcceptedAt: status.termsAcceptedAt, // Keep terms acceptance
+                termsAcceptedAt: status.termsAcceptedAt,
               });
               setReconnectNotice(false);
 
-              // Remove from AsyncStorage
               await AsyncStorage.removeItem('gmailLinkedEmail');
 
               Alert.alert(
@@ -377,23 +370,19 @@ export function EmailSendingConsent() {
 
   const handleConnectFlow = () => {
     if (!status.termsAcceptedAt) {
-      // Show terms modal first
       setShowTermsModal(true);
     } else {
-      // Directly connect to Google
       handleGoogleSignIn();
     }
   };
 
   const handleAcceptTerms = async () => {
     try {
-      // Save terms acceptance
       const termsData = {
         acceptedAt: new Date().toISOString(),
         accepted: true,
       };
 
-      // Save to your backend
       const { token } = await getAuthToken();
       await fetch(`${BASE_URL}/api/integrations/gmail/accept-terms`, {
         method: 'POST',
@@ -404,22 +393,15 @@ export function EmailSendingConsent() {
         body: JSON.stringify(termsData),
       });
 
-      // Update local state
       setStatus(prev => ({ ...prev, termsAcceptedAt: termsData.acceptedAt }));
       setShowTermsModal(false);
 
-      // Now connect to Google
       handleGoogleSignIn();
     } catch (error) {
       console.error('Error accepting terms:', error);
       Alert.alert('Error', 'Failed to accept terms. Please try again.');
     }
   };
-
-  const needsReconnect =
-    reconnectNotice ||
-    (status.termsAcceptedAt && !!status.email && !status.connected) ||
-    (status.termsAcceptedAt && status.reason === 'token_expired');
 
   if (loading) {
     return (
@@ -432,112 +414,69 @@ export function EmailSendingConsent() {
 
   return (
     <View style={styles.container}>
-      {/* Reconnect Notice */}
-      {/* {needsReconnect && (
-        <View style={styles.alertContainer}>
-          <View style={styles.alertHeader}>
-            <Icon name="alert-triangle" size={20} color="#f59e0b" />
-            <Text style={styles.alertTitle}>
-              Gmail disconnected — action required
-            </Text>
-          </View>
-          <Text style={styles.alertDescription}>
-            {status.reason === 'token_expired'
-              ? 'Your Gmail session has expired. Please reconnect to continue emailing invoices.'
-              : 'To email invoices, please reconnect your Gmail account.'}
-          </Text>
-
-          {status.lastFailureAt ? (
-            <Text style={styles.failureText}>
-              Last send failure:{' '}
-              {new Date(status.lastFailureAt).toLocaleString()}
-            </Text>
-          ) : null}
-
-          <TouchableOpacity
-            style={styles.reconnectButton}
-            onPress={handleConnectFlow}
-            disabled={connecting}
-          >
-            {connecting ? (
-              <ActivityIndicator size="small" color="#ffffff" />
-            ) : (
-              <Text style={styles.reconnectButtonText}>
-                {status.email ? 'Reconnect Gmail' : 'Connect Gmail'}
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      )} */}
-
-      {/* Email Account Card */}
       <View style={styles.card}>
         <View style={styles.cardContent}>
-          <View style={styles.cardHeader}>
-            <View style={styles.emailInfo}>
-              <Icon name="mail" size={20} color="#64748b" />
-              <View style={styles.emailText}>
-                <Text style={styles.emailLabel}>Email account</Text>
-                {status.connected && status.email ? (
-                  <Text style={styles.connectedEmail}>{status.email}</Text>
-                ) : (
-                  <Text style={styles.noEmailText}>
-                    {status.termsAcceptedAt
-                      ? 'No email connected yet.'
-                      : 'Accept terms first to connect an email.'}
-                  </Text>
-                )}
-              </View>
+          {/* Top Section: Icon and Label */}
+          <View style={styles.headerInfo}>
+            <View style={styles.iconCircle}>
+              <Icon name="mail" size={18} color="#64748b" />
             </View>
-
-            <View style={styles.actionContainer}>
-              {status.connected ? (
-                <View style={styles.connectedContainer}>
-                  <View style={styles.connectedBadge}>
-                    <Icon name="check-circle" size={16} color="#10b981" />
-                    <Text style={styles.connectedText}>Connected</Text>
-                    {status.email && (
-                      <Text style={styles.emailTextSmall}>
-                        : {status.email}
-                      </Text>
-                    )}
-                  </View>
-                  <TouchableOpacity
-                    style={styles.disconnectButton}
-                    onPress={handleDisconnect}
-                  >
-                    <Text style={styles.disconnectButtonText}>Disconnect</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={styles.connectButton}
-                  onPress={handleConnectFlow}
-                  disabled={connecting}
-                >
-                  {connecting ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
-                  ) : (
-                    <>
-                      <Icon
-                        name="link"
-                        size={16}
-                        color="#ffffff"
-                        style={styles.buttonIcon}
-                      />
-                      <Text style={styles.connectButtonText}>
-                        {status.email ? 'Reconnect Gmail' : 'Connect Gmail'}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+            <View style={styles.labelContainer}>
+              <Text style={styles.emailLabel}>Email account</Text>
+              {!status.connected && (
+                <Text style={styles.subText}>
+                  {!status.termsAcceptedAt
+                    ? 'Accept terms first to connect an email.'
+                    : 'No email connected yet.'}
+                </Text>
               )}
             </View>
+          </View>
+
+          {/* Bottom Section: Status and Buttons */}
+          <View style={styles.footerActions}>
+            {status.connected ? (
+              <View style={styles.connectedRow}>
+                <View style={styles.badge}>
+                  <View style={styles.dot} />
+                  <View style={styles.emailTextContainer}>
+                    <Text style={styles.connectedLabel}>Connected:</Text>
+                    <Text
+                      style={styles.emailDisplay}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {status.email}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={styles.disconnectBtn}
+                  onPress={handleDisconnect}
+                >
+                  <Text style={styles.disconnectBtnText}>Disconnect</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.connectBtn}
+                onPress={handleConnectFlow}
+                disabled={connecting}
+              >
+                {connecting ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.connectBtnText}>
+                    {status.email ? 'Reconnect Gmail' : 'Connect Gmail'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
 
-      {/* Terms Modal (use RN Modal so overlay covers full screen) */}
+      {/* Terms Modal */}
       <Modal
         visible={showTermsModal}
         transparent
@@ -550,7 +489,7 @@ export function EmailSendingConsent() {
               <View style={styles.modalContent}>
                 <Text style={styles.modalTitle}>Terms & Conditions</Text>
 
-                <View style={styles.termsScroll}>
+                <ScrollView style={styles.termsScroll}>
                   <Text style={styles.termsSectionTitle}>
                     Email Sending Service
                   </Text>
@@ -572,7 +511,7 @@ export function EmailSendingConsent() {
                     You can revoke access at any time from your Google Account
                     settings or from within this app.
                   </Text>
-                </View>
+                </ScrollView>
 
                 <View style={styles.modalActions}>
                   <TouchableOpacity
@@ -601,169 +540,133 @@ export function EmailSendingConsent() {
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 8,
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 12,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: '#64748b',
-  },
-  alertContainer: {
-    backgroundColor: '#fef3c7',
-    borderWidth: 1,
-    borderColor: '#f59e0b',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 12,
-  },
-  alertHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  alertTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#92400e',
-  },
-  alertDescription: {
-    fontSize: 13,
-    color: '#92400e',
-    lineHeight: 18,
-    marginBottom: 8,
-  },
-  failureText: {
-    fontSize: 12,
-    color: '#92400e',
-    opacity: 0.8,
-    marginBottom: 12,
-  },
-  reconnectButton: {
-    backgroundColor: '#3b82f6',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 6,
-    alignItems: 'center',
-    minWidth: 140,
-  },
-  reconnectButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '500',
+    marginVertical: 20,
+    paddingHorizontal: 0,
+    marginTop: -4,
   },
   card: {
     backgroundColor: '#ffffff',
-    borderRadius: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    elevation: 0.5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowRadius: 2,
   },
   cardContent: {
     padding: 16,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  emailInfo: {
+  headerInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    flex: 1,
+    marginBottom: 8,
   },
-  emailText: {
+  iconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#f8fafc',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  labelContainer: {
     flex: 1,
   },
   emailLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 2,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0f172a',
   },
-  connectedEmail: {
-    fontSize: 13,
-    color: '#059669',
-    fontWeight: '500',
+  subText: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
   },
-  noEmailText: {
-    fontSize: 13,
-    color: '#6b7280',
+  footerActions: {
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    paddingTop: 8,
+    marginTop: 4,
   },
-  actionContainer: {
-    alignItems: 'flex-end',
-  },
-  connectedContainer: {
+  connectedRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  connectedBadge: {
+  badge: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#d1fae5',
+    alignItems: 'flex-start',
+    backgroundColor: '#f0fdf4',
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 6,
-    gap: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dcfce7',
+    flex: 1,
+    marginRight: 8,
   },
-  connectedText: {
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#22c55e',
+    marginRight: 8,
+    marginTop: 2,
+  },
+  emailTextContainer: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  connectedLabel: {
+    fontSize: 11,
+    color: '#166534',
+    fontWeight: '600',
+  },
+  emailDisplay: {
     fontSize: 12,
-    color: '#059669',
+    color: '#166534',
     fontWeight: '500',
+    flexShrink: 1,
   },
-  emailTextSmall: {
-    fontSize: 12,
-    color: '#059669',
-    fontWeight: '500',
-    maxWidth: 150,
-  },
-  disconnectButton: {
+  disconnectBtn: {
     backgroundColor: '#ef4444',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 6,
   },
-  disconnectButtonText: {
+  disconnectBtnText: {
     color: '#ffffff',
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
   },
-  connectButton: {
-    backgroundColor: '#3b82f6',
+  connectBtn: {
+    backgroundColor: '#4285F4',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  connectBtnText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 6,
-    gap: 8,
-    minWidth: 140,
-    justifyContent: 'center',
+    padding: 20,
   },
-  buttonIcon: {
-    marginRight: 4,
-  },
-  connectButtonText: {
-    color: '#ffffff',
+  loadingText: {
+    marginLeft: 8,
+    color: '#64748b',
     fontSize: 14,
-    fontWeight: '500',
   },
   modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -776,11 +679,6 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     maxHeight: '80%',
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 10,
   },
   modalTitle: {
     fontSize: 18,
@@ -792,7 +690,6 @@ const styles = StyleSheet.create({
   termsScroll: {
     maxHeight: 300,
     marginBottom: 20,
-    paddingRight: 8,
   },
   termsSectionTitle: {
     fontSize: 16,

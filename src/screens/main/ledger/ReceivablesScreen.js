@@ -22,6 +22,7 @@ import { format } from 'date-fns';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { BASE_URL } from '../../../config';
 import { capitalizeWords } from '../../../lib/utils';
+import { useCompany } from '../../../contexts/company-context';
 
 // Custom Components
 import CustomerListCard from '../../../components/Ledger/receivables/CustomerListCard';
@@ -52,6 +53,7 @@ const ReceivablesLedger = () => {
   const [isItemsDialogOpen, setIsItemsDialogOpen] = useState(false);
   const [itemsToView, setItemsToView] = useState([]);
   const [lastTransactionDates, setLastTransactionDates] = useState({});
+  const { selectedCompanyId } = useCompany();
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -62,9 +64,9 @@ const ReceivablesLedger = () => {
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
   // Company context (simplified)
-  const [selectedCompanyId, setSelectedCompanyId] = useState(null);
+  // const [selectedCompanyId, setSelectedCompanyId] = useState(null);
 
-  const companyIdForBalances = selectedCompanyId || null;
+  const companyIdForBalances = selectedCompanyId ;
   const baseURL = BASE_URL;
 
   // Handle hardware back button and swipe gestures
@@ -151,50 +153,83 @@ const ReceivablesLedger = () => {
   }, [dateRange.startDate, dateRange.endDate, companyIdForBalances, selectedParty]);
 
   // Calculate balances for all customers
-  const calculateAllCustomerBalances = async (partiesList, companyId) => {
-    setLoadingBalances(true);
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) return;
+ const calculateAllCustomerBalances = async (partiesList, companyId) => {
+  setLoadingBalances(true);
+  try {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) return;
 
-      let url = `${baseURL}/api/parties/balances`;
-      const params = new URLSearchParams();
-      if (companyId) {
-        params.append('companyId', companyId);
-      }
+    // ✅ Add isDashboard parameter
+    const params = new URLSearchParams();
+    if (companyId && companyId !== "all") {
+      params.append("companyId", companyId); // ✅ Changed from 'company' to 'companyId'
+    }
+    params.append("isDashboard", "true"); // ✅ CRITICAL: Added this parameter
 
-      if (params.toString()) {
-        url += `?${params.toString()}`;
-      }
+    const [salesRes, receiptRes] = await Promise.all([
+      fetch(`${baseURL}/api/sales?${params.toString()}`, { 
+        headers: { Authorization: `Bearer ${token}` } 
+      }),
+      fetch(`${baseURL}/api/receipts?${params.toString()}`, { 
+        headers: { Authorization: `Bearer ${token}` } 
+      }),
+    ]);
 
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
+    const salesData = await salesRes.json();
+    const receiptData = await receiptRes.json();
+    const allSales = salesData.data || [];
+    const allReceipts = receiptData.data || [];
+
+    const balances = {};
+    const lastDates = {};
+
+    // ✅ Fixed date handling
+    const startDate = dateRange.startDate 
+      ? new Date(new Date(dateRange.startDate).setHours(0, 0, 0, 0))
+      : null;
+    const endDate = dateRange.endDate 
+      ? new Date(new Date(dateRange.endDate).setHours(23, 59, 59, 999))
+      : null;
+
+    partiesList.forEach((party) => {
+      let totalCredit = 0;
+      let totalDebit = 0;
+      let latestDate = null;
+
+      allSales.forEach((sale) => {
+        if (String(sale.party?._id || sale.party) !== String(party._id)) return;
+        
+        const sDate = new Date(sale.date);
+        if ((!startDate || sDate >= startDate) && (!endDate || sDate <= endDate)) {
+          const amt = Number(sale.totalAmount || sale.invoiceTotal || 0);
+          totalCredit += amt;
+          if (sale.paymentMethod !== "Credit") totalDebit += amt;
+          if (!latestDate || sDate > latestDate) latestDate = sDate;
+        }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch balances');
-      }
+      allReceipts.forEach((receipt) => {
+        if (String(receipt.party?._id || receipt.party) !== String(party._id)) return;
+        
+        const rDate = new Date(receipt.date);
+        if ((!startDate || rDate >= startDate) && (!endDate || rDate <= endDate)) {
+          totalDebit += Number(receipt.amount || 0);
+          if (!latestDate || rDate > latestDate) latestDate = rDate;
+        }
+      });
 
-      const data = await response.json();
-      const storedBalances = data.balances || {};
+      balances[party._id] = totalCredit - totalDebit;
+      lastDates[party._id] = latestDate;
+    });
 
-      const balances = {};
-      for (const party of partiesList) {
-        balances[party._id] = storedBalances[party._id] || 0;
-      }
-
-      setCustomerBalances(balances);
-
-      // Calculate last transaction dates
-      await calculateLastTransactionDates(partiesList, companyId);
-    } catch (error) {
-      console.error('Error fetching customer balances:', error);
-      // Fallback to manual calculation
-      calculateBalancesManually(partiesList, companyId);
-    } finally {
-      setLoadingBalances(false);
-    }
-  };
+    setCustomerBalances(balances);
+    setLastTransactionDates(lastDates);
+  } catch (error) {
+    console.error("Sync Error:", error);
+  } finally {
+    setLoadingBalances(false);
+  }
+};
 
   // Calculate balances manually (fallback)
   const calculateBalancesManually = async (partiesList, companyId) => {
@@ -384,128 +419,96 @@ const ReceivablesLedger = () => {
   };
 
   // Calculate overall totals
-  const calculateOverallTotals = async () => {
-    setLoadingOverall(true);
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) return;
+ const calculateOverallTotals = async () => {
+  setLoadingOverall(true);
+  try {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) return;
 
-      const salesParams = new URLSearchParams();
-      const receiptsParams = new URLSearchParams();
+    // ✅ Build query parameters correctly
+    const params = new URLSearchParams();
+    if (companyIdForBalances && companyIdForBalances !== "all") {
+      params.append('companyId', companyIdForBalances); // ✅ Changed from 'company'
+    }
+    params.append('isDashboard', 'true'); // ✅ Added this parameter
 
-      if (companyIdForBalances) {
-        salesParams.append('company', companyIdForBalances);
-        receiptsParams.append('company', companyIdForBalances);
-      }
+    const [salesResponse, receiptResponse] = await Promise.all([
+      fetch(`${baseURL}/api/sales?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      fetch(`${baseURL}/api/receipts?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    ]);
 
-      const [salesResponse, receiptResponse] = await Promise.all([
-        fetch(`${baseURL}/api/sales?${salesParams.toString()}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${baseURL}/api/receipts?${receiptsParams.toString()}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
+    if (!salesResponse.ok || !receiptResponse.ok) {
+      throw new Error('Failed to fetch data');
+    }
 
-      if (!salesResponse.ok || !receiptResponse.ok) {
-        throw new Error('Failed to fetch data');
-      }
+    const salesData = await salesResponse.json();
+    const receiptData = await receiptResponse.json();
 
-      const salesData = await salesResponse.json();
-      const receiptData = await receiptResponse.json();
+    const allSales = salesData.data || salesData.sales || salesData.entries || [];
+    const allReceipts = receiptData.data || receiptData.receipts || receiptData.entries || [];
 
-      const allSales =
-        salesData.data || salesData.sales || salesData.entries || [];
-      const allReceipts =
-        receiptData.data || receiptData.receipts || receiptData.entries || [];
+    let totalCredit = 0;
+    let totalDebit = 0;
 
-      let totalCredit = 0;
-      let totalDebit = 0;
+    // ✅ Fixed date handling
+    const startDate = dateRange.startDate
+      ? new Date(new Date(dateRange.startDate).setHours(0, 0, 0, 0))
+      : null;
+    const endDate = dateRange.endDate
+      ? new Date(new Date(dateRange.endDate).setHours(23, 59, 59, 999))
+      : null;
 
-      // Process sales
-      allSales.forEach(sale => {
-        const saleCompanyId =
-          typeof sale.company === 'object'
-            ? sale.company?._id || sale.company?.id
-            : sale.company;
-        const matchesCompany =
-          !companyIdForBalances || saleCompanyId === companyIdForBalances;
+    // Process sales
+    allSales.forEach(sale => {
+      const saleDate = new Date(sale.date);
 
-        if (!matchesCompany) return;
+      const isInDateRange =
+        (!startDate || saleDate >= startDate) &&
+        (!endDate || saleDate <= endDate);
 
-        const saleDate = new Date(sale.date);
-        const startDate = dateRange.startDate
-          ? new Date(dateRange.startDate.getTime())
-          : null;
-        const endDate = dateRange.endDate
-          ? new Date(dateRange.endDate.getTime())
-          : null;
+      if (isInDateRange) {
+        const amount = sale.totalAmount || sale.amount || sale.invoiceTotal || 0;
+        totalCredit += amount;
 
-        if (startDate) startDate.setHours(0, 0, 0, 0);
-        if (endDate) endDate.setHours(23, 59, 59, 999);
-
-        const isInDateRange =
-          (!startDate || saleDate >= startDate) &&
-          (!endDate || saleDate <= endDate);
-
-        if (isInDateRange) {
-          const amount =
-            sale.totalAmount || sale.amount || sale.invoiceTotal || 0;
-          totalCredit += amount;
-
-          const isCreditTransaction = sale.paymentMethod === 'Credit';
-          if (!isCreditTransaction) {
-            totalDebit += amount;
-          }
-        }
-      });
-
-      // Process receipts
-      allReceipts.forEach(receipt => {
-        const receiptCompanyId =
-          typeof receipt.company === 'object'
-            ? receipt.company?._id || receipt.company?.id
-            : receipt.company;
-        const matchesCompany =
-          !companyIdForBalances || receiptCompanyId === companyIdForBalances;
-
-        if (!matchesCompany) return;
-
-        const receiptDate = new Date(receipt.date);
-        const startDate = dateRange.startDate
-          ? new Date(dateRange.startDate.getTime())
-          : null;
-        const endDate = dateRange.endDate
-          ? new Date(dateRange.endDate.getTime())
-          : null;
-
-        if (startDate) startDate.setHours(0, 0, 0, 0);
-        if (endDate) endDate.setHours(23, 59, 59, 999);
-
-        const isInDateRange =
-          (!startDate || receiptDate >= startDate) &&
-          (!endDate || receiptDate <= endDate);
-
-        if (isInDateRange) {
-          const amount = receipt.amount || 0;
+        const isCreditTransaction = sale.paymentMethod === 'Credit';
+        if (!isCreditTransaction) {
           totalDebit += amount;
         }
-      });
+      }
+    });
 
-      const overallBalance = totalCredit - totalDebit;
+    // Process receipts
+    allReceipts.forEach(receipt => {
+      const receiptDate = new Date(receipt.date);
 
-      setOverallTotals({
-        totalDebit,
-        totalCredit,
-        overallBalance,
-      });
-    } catch (error) {
-      console.error('Error calculating overall totals:', error);
-      calculateOverallTotalsFallback();
-    } finally {
-      setLoadingOverall(false);
-    }
-  };
+      const isInDateRange =
+        (!startDate || receiptDate >= startDate) &&
+        (!endDate || receiptDate <= endDate);
+
+      if (isInDateRange) {
+        const amount = receipt.amount || 0;
+        totalDebit += amount;
+      }
+    });
+
+    const overallBalance = totalCredit - totalDebit;
+
+    setOverallTotals({
+      totalDebit,
+      totalCredit,
+      overallBalance,
+    });
+  } catch (error) {
+    console.error('Error calculating overall totals:', error);
+    calculateOverallTotalsFallback();
+  } finally {
+    setLoadingOverall(false);
+  }
+};
 
   // Fallback for overall totals
   const calculateOverallTotalsFallback = async () => {
@@ -638,148 +641,143 @@ const ReceivablesLedger = () => {
 
   // Fetch ledger data
   const fetchLedgerData = async () => {
-    if (!selectedParty) {
-      setLedgerData([]);
-      return;
+  if (!selectedParty) {
+    setLedgerData([]);
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) throw new Error('Authentication token not found');
+
+    // ✅ Add isDashboard parameter
+    const params = new URLSearchParams();
+    if (companyIdForBalances && companyIdForBalances !== "all") {
+      params.append("companyId", companyIdForBalances); // ✅ Changed from 'company'
     }
+    params.append("isDashboard", "true"); // ✅ Added this
 
-    setLoading(true);
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('Authentication token not found');
+    const [salesResponse, receiptResponse] = await Promise.all([
+      fetch(`${baseURL}/api/sales?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      fetch(`${baseURL}/api/receipts?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    ]);
 
-      const [salesResponse, receiptResponse] = await Promise.all([
-        fetch(`${baseURL}/api/sales`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${baseURL}/api/receipts`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
+    const salesData = await salesResponse.json();
+    const receiptData = await receiptResponse.json();
 
-      const salesData = await salesResponse.json();
-      const receiptData = await receiptResponse.json();
+    const allSales = salesData.data || salesData.sales || salesData.entries || [];
+    const allReceipts = receiptData.data || receiptData.receipts || receiptData.entries || [];
 
-      const allSales =
-        salesData.data || salesData.sales || salesData.entries || [];
-      const allReceipts =
-        receiptData.data || receiptData.receipts || receiptData.entries || [];
+    const filteredSales = allSales.filter(sale => {
+      const salePartyId = sale.party?._id || sale.party;
+      const matchesParty = String(salePartyId) === String(selectedParty);
+      const saleCompanyId =
+        typeof sale.company === 'object'
+          ? sale.company?._id || sale.company?.id
+          : sale.company;
+      const matchesCompany =
+        !companyIdForBalances || saleCompanyId === companyIdForBalances;
+      return matchesParty && matchesCompany;
+    });
 
-      const filteredSales = allSales.filter(sale => {
-        const salePartyId = sale.party?._id || sale.party;
-        const matchesParty = String(salePartyId) === String(selectedParty);
-        const saleCompanyId =
-          typeof sale.company === 'object'
-            ? sale.company?._id || sale.company?.id
-            : sale.company;
-        const matchesCompany =
-          !companyIdForBalances || saleCompanyId === companyIdForBalances;
-        return matchesParty && matchesCompany;
-      });
+    const filteredReceipts = allReceipts.filter(receipt => {
+      const receiptPartyId = receipt.party?._id || receipt.party;
+      const matchesParty = String(receiptPartyId) === String(selectedParty);
+      const receiptCompanyId =
+        typeof receipt.company === 'object'
+          ? receipt.company?._id || receipt.company?.id
+          : receipt.company;
+      const matchesCompany =
+        !companyIdForBalances || receiptCompanyId === companyIdForBalances;
+      return matchesParty && matchesCompany;
+    });
 
-      const filteredReceipts = allReceipts.filter(receipt => {
-        const receiptPartyId = receipt.party?._id || receipt.party;
-        const matchesParty = String(receiptPartyId) === String(selectedParty);
-        const receiptCompanyId =
-          typeof receipt.company === 'object'
-            ? receipt.company?._id || receipt.company?.id
-            : receipt.company;
-        const matchesCompany =
-          !companyIdForBalances || receiptCompanyId === companyIdForBalances;
-        return matchesParty && matchesCompany;
-      });
+    const ledgerEntries = [];
 
-      const ledgerEntries = [];
+    // ✅ Fixed date handling
+    const startDate = dateRange.startDate
+      ? new Date(new Date(dateRange.startDate).setHours(0, 0, 0, 0))
+      : null;
+    const endDate = dateRange.endDate
+      ? new Date(new Date(dateRange.endDate).setHours(23, 59, 59, 999))
+      : null;
 
-      // Process sales
-      filteredSales.forEach(sale => {
-        const saleDate = new Date(sale.date);
-        const startDate = dateRange.startDate
-          ? new Date(dateRange.startDate.getTime())
-          : null;
-        const endDate = dateRange.endDate
-          ? new Date(dateRange.endDate.getTime())
-          : null;
+    // Process sales
+    filteredSales.forEach(sale => {
+      const saleDate = new Date(sale.date);
 
-        if (startDate) startDate.setHours(0, 0, 0, 0);
-        if (endDate) endDate.setHours(23, 59, 59, 999);
+      const isInDateRange =
+        (!startDate || saleDate >= startDate) &&
+        (!endDate || saleDate <= endDate);
 
-        const isInDateRange =
-          (!startDate || saleDate >= startDate) &&
-          (!endDate || saleDate <= endDate);
+      if (isInDateRange) {
+        ledgerEntries.push({
+          id: sale._id,
+          date: sale.date,
+          type: 'credit',
+          transactionType: 'Sales',
+          paymentMethod: sale.paymentMethod || 'Not Specified',
+          amount: sale.totalAmount || sale.amount || sale.invoiceTotal || 0,
+          referenceNumber: sale.invoiceNumber || sale.referenceNumber,
+          description: sale.description,
+        });
 
-        if (isInDateRange) {
+        const isCreditTransaction = sale.paymentMethod === 'Credit';
+        if (!isCreditTransaction) {
           ledgerEntries.push({
             id: sale._id,
             date: sale.date,
-            type: 'credit',
-            transactionType: 'Sales',
+            type: 'debit',
+            transactionType: 'Sales Payment',
             paymentMethod: sale.paymentMethod || 'Not Specified',
             amount: sale.totalAmount || sale.amount || sale.invoiceTotal || 0,
             referenceNumber: sale.invoiceNumber || sale.referenceNumber,
             description: sale.description,
           });
-
-          const isCreditTransaction = sale.paymentMethod === 'Credit';
-          if (!isCreditTransaction) {
-            ledgerEntries.push({
-              id: sale._id,
-              date: sale.date,
-              type: 'debit',
-              transactionType: 'Sales Payment',
-              paymentMethod: sale.paymentMethod || 'Not Specified',
-              amount: sale.totalAmount || sale.amount || sale.invoiceTotal || 0,
-              referenceNumber: sale.invoiceNumber || sale.referenceNumber,
-              description: sale.description,
-            });
-          }
         }
-      });
+      }
+    });
 
-      // Process receipts
-      filteredReceipts.forEach(receipt => {
-        const receiptDate = new Date(receipt.date);
-        const startDate = dateRange.startDate
-          ? new Date(dateRange.startDate.getTime())
-          : null;
-        const endDate = dateRange.endDate
-          ? new Date(dateRange.endDate.getTime())
-          : null;
+    // Process receipts
+    filteredReceipts.forEach(receipt => {
+      const receiptDate = new Date(receipt.date);
 
-        if (startDate) startDate.setHours(0, 0, 0, 0);
-        if (endDate) endDate.setHours(23, 59, 59, 999);
+      const isInDateRange =
+        (!startDate || receiptDate >= startDate) &&
+        (!endDate || receiptDate <= endDate);
 
-        const isInDateRange =
-          (!startDate || receiptDate >= startDate) &&
-          (!endDate || receiptDate <= endDate);
+      if (isInDateRange) {
+        ledgerEntries.push({
+          id: receipt._id,
+          date: receipt.date,
+          type: 'debit',
+          transactionType: 'Receipt',
+          paymentMethod: receipt.paymentMethod || 'Not Specified',
+          amount: receipt.amount || 0,
+          referenceNumber: receipt.referenceNumber,
+          description: receipt.description,
+        });
+      }
+    });
 
-        if (isInDateRange) {
-          ledgerEntries.push({
-            id: receipt._id,
-            date: receipt.date,
-            type: 'debit',
-            transactionType: 'Receipt',
-            paymentMethod: receipt.paymentMethod || 'Not Specified',
-            amount: receipt.amount || 0,
-            referenceNumber: receipt.referenceNumber,
-            description: receipt.description,
-          });
-        }
-      });
+    // Sort by date (newest first)
+    ledgerEntries.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
 
-      // Sort by date (newest first)
-      ledgerEntries.sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-      );
-
-      setLedgerData(ledgerEntries);
-    } catch (error) {
-      console.error('Error fetching ledger data:', error);
-      Alert.alert('Error', 'Failed to fetch ledger data');
-    } finally {
-      setLoading(false);
-    }
-  };
+    setLedgerData(ledgerEntries);
+  } catch (error) {
+    console.error('Error fetching ledger data:', error);
+    Alert.alert('Error', 'Failed to fetch ledger data');
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Handle viewing items for a transaction
   const handleViewItems = async entry => {
@@ -1363,7 +1361,7 @@ const ReceivablesLedger = () => {
                     </ScrollView>
 
                     {/* Totals Row */}
-                    <View style={styles.totalsRow}>
+                    {/* <View style={styles.totalsRow}>
                       <View style={styles.totalItem}>
                         <Text style={styles.totalLabel}>Total Debit:</Text>
                         <Text style={[styles.totalValue, { color: '#dc2626' }]}>
@@ -1376,10 +1374,10 @@ const ReceivablesLedger = () => {
                           ₹{formatIndianNumber(totals.totalCredit)}
                         </Text>
                       </View>
-                    </View>
+                    </View> */}
 
                     {/* Balance Row */}
-                    <View
+                    {/* <View
                       style={[
                         styles.balanceRow,
                         { backgroundColor: '#e0f2fe' },
@@ -1395,7 +1393,7 @@ const ReceivablesLedger = () => {
                         ₹{formatIndianNumber(Math.abs(balance))}{' '}
                         {balance >= 0 ? '(Customer Owes)' : '(You Owe)'}
                       </Text>
-                    </View>
+                    </View> */}
                   </View>
                 </ScrollView>
               )}
@@ -1663,7 +1661,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   sectionContainer: {
-    maxHeight: 300,
+    // maxHeight: 300,
   },
   noDataContainer: {
     padding: 20,

@@ -10,7 +10,6 @@ import {
   Alert,
   ActivityIndicator,
   FlatList,
-
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, Button } from 'react-native-paper';
@@ -72,46 +71,49 @@ export default function SettingsPage() {
     }
   };
 
-  const handleClientClick = (client) => {
+  const handleClientClick = client => {
     setSelectedClient(client);
     setIsClientDialogOpen(true);
   };
 
-  const handleClientFormSubmit = async (clientData) => {
+  const handleClientFormSubmit = async clientData => {
     try {
       setLoading(true);
-      
+
       // Get auth token from AsyncStorage
       const token = await AsyncStorage.getItem('authToken');
-      
+
       let response;
       if (selectedClient) {
-        // Update existing client
-        response = await fetch(`${BASE_URL}/clients/${selectedClient.id}`, {
+        // Update existing client - /api/ जोड़ा गया
+        response = await fetch(`${BASE_URL}/api/clients/${selectedClient.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(clientData),
         });
       } else {
-        // Create new client
-        response = await fetch(`${BASE_URL}/clients`, {
+        // Create new client - /api/ जोड़ा गया
+        response = await fetch(`${BASE_URL}/api/clients`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(clientData),
         });
       }
 
       if (response.ok) {
-        Alert.alert('Success', `Client ${selectedClient ? 'updated' : 'created'} successfully`);
+        Alert.alert(
+          'Success',
+          `Client ${selectedClient ? 'updated' : 'created'} successfully`,
+        );
         setIsClientDialogOpen(false);
         setSelectedClient(null);
-        
+
         // Refresh clients list in ClientsValidityManager
         // You might want to use a callback or context to refresh the list
       } else {
@@ -128,13 +130,14 @@ export default function SettingsPage() {
   const handleSaveProfile = async () => {
     try {
       setLoading(true);
-      
+
       const token = await AsyncStorage.getItem('authToken');
-      const response = await fetch(`${BASE_URL}/profile`, {
+      // /api/ जोड़ा गया
+      const response = await fetch(`${BASE_URL}/api/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           fullName: formData.fullName,
@@ -154,7 +157,7 @@ export default function SettingsPage() {
         };
         await AsyncStorage.setItem('userData', JSON.stringify(updatedUserData));
         setUserData(updatedUserData);
-        
+
         Alert.alert('Success', 'Profile settings saved successfully');
       } else {
         throw new Error('Failed to save profile');
@@ -170,11 +173,12 @@ export default function SettingsPage() {
   const handleSaveNotificationSettings = async () => {
     try {
       const token = await AsyncStorage.getItem('authToken');
-      const response = await fetch(`${BASE_URL}/notification-settings`, {
+      // /api/ जोड़ा गया
+      const response = await fetch(`${BASE_URL}/api/notification-settings`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           invoiceEmails: formData.invoiceEmails,
@@ -190,14 +194,17 @@ export default function SettingsPage() {
       }
     } catch (error) {
       console.error('Error saving notification settings:', error);
-      Alert.alert('Error', 'Failed to save notification settings. Please try again.');
+      Alert.alert(
+        'Error',
+        'Failed to save notification settings. Please try again.',
+      );
     }
   };
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
@@ -214,7 +221,9 @@ export default function SettingsPage() {
           <Icon name="account-circle" size={24} color="#666" />
           <View style={styles.cardHeaderText}>
             <Text style={styles.cardTitle}>Profile Settings</Text>
-            <Text style={styles.cardDescription}>Update your personal information</Text>
+            <Text style={styles.cardDescription}>
+              Update your personal information
+            </Text>
           </View>
         </View>
 
@@ -224,7 +233,7 @@ export default function SettingsPage() {
             <TextInput
               style={styles.input}
               value={formData.fullName}
-              onChangeText={(value) => handleInputChange('fullName', value)}
+              onChangeText={value => handleInputChange('fullName', value)}
               placeholder="Full Name"
             />
           </View>
@@ -234,7 +243,7 @@ export default function SettingsPage() {
             <TextInput
               style={styles.input}
               value={formData.email}
-              onChangeText={(value) => handleInputChange('email', value)}
+              onChangeText={value => handleInputChange('email', value)}
               placeholder="Email Address"
               keyboardType="email-address"
               autoCapitalize="none"
@@ -246,7 +255,7 @@ export default function SettingsPage() {
             <TextInput
               style={styles.input}
               value={formData.phone}
-              onChangeText={(value) => handleInputChange('phone', value)}
+              onChangeText={value => handleInputChange('phone', value)}
               placeholder="Phone Number"
               keyboardType="phone-pad"
             />
@@ -257,7 +266,7 @@ export default function SettingsPage() {
             <View style={styles.pickerContainer}>
               <Picker
                 selectedValue={formData.timezone}
-                onValueChange={(value) => handleInputChange('timezone', value)}
+                onValueChange={value => handleInputChange('timezone', value)}
                 style={styles.picker}
               >
                 <Picker.Item label="Eastern Time (UTC-5)" value="utc-5" />
@@ -269,15 +278,20 @@ export default function SettingsPage() {
           </View>
         </View>
       </Card.Content>
-      
+
       <Card.Actions style={styles.cardActions}>
-        <Button 
-          mode="contained" 
+        <Button
+          mode="contained"
           onPress={handleSaveProfile}
           style={styles.saveButton}
           disabled={loading}
         >
-          <Icon name="content-save" size={20} color="white" style={styles.buttonIcon} />
+          <Icon
+            name="content-save"
+            size={20}
+            color="white"
+            style={styles.buttonIcon}
+          />
           Save Profile
         </Button>
       </Card.Actions>
@@ -291,7 +305,9 @@ export default function SettingsPage() {
           <Icon name="bell" size={24} color="#666" />
           <View style={styles.cardHeaderText}>
             <Text style={styles.cardTitle}>Notification Settings</Text>
-            <Text style={styles.cardDescription}>Configure how you receive notifications</Text>
+            <Text style={styles.cardDescription}>
+              Configure how you receive notifications
+            </Text>
           </View>
         </View>
 
@@ -304,7 +320,7 @@ export default function SettingsPage() {
           </View>
           <Switch
             value={formData.invoiceEmails}
-            onValueChange={(value) => handleInputChange('invoiceEmails', value)}
+            onValueChange={value => handleInputChange('invoiceEmails', value)}
           />
         </View>
 
@@ -319,7 +335,7 @@ export default function SettingsPage() {
           </View>
           <Switch
             value={formData.reportEmails}
-            onValueChange={(value) => handleInputChange('reportEmails', value)}
+            onValueChange={value => handleInputChange('reportEmails', value)}
           />
         </View>
 
@@ -334,11 +350,11 @@ export default function SettingsPage() {
           </View>
           <Switch
             value={formData.securityAlerts}
-            onValueChange={(value) => handleInputChange('securityAlerts', value)}
+            onValueChange={value => handleInputChange('securityAlerts', value)}
           />
         </View>
       </Card.Content>
-      
+
       {/* <Card.Actions style={styles.cardActions}>
         <Button 
           mode="contained" 
@@ -378,13 +394,15 @@ export default function SettingsPage() {
       case 'header':
         return (
           <View style={styles.headerRow}>
-            
             <View style={styles.headerTextWrap}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' , }}>
-                <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-              <Icon name="arrow-left" size={24} color="#666" />
-            </TouchableOpacity>
-              <Text style={styles.title}>Settings</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TouchableOpacity
+                  onPress={handleBack}
+                  style={styles.backButton}
+                >
+                  <Icon name="arrow-left" size={24} color="#666" />
+                </TouchableOpacity>
+                <Text style={styles.title}>Settings</Text>
               </View>
               <Text style={styles.subtitle}>
                 Manage your account and system preferences
@@ -396,7 +414,7 @@ export default function SettingsPage() {
         return renderProfileSection();
       case 'clients':
         return (
-          <ClientsValidityManager 
+          <ClientsValidityManager
             onClientClick={handleClientClick}
             baseUrl={BASE_URL}
           />
@@ -410,64 +428,64 @@ export default function SettingsPage() {
 
   return (
     <AppLayout>
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {loading && (
-          <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#0000ff" />
-          </View>
-        )}
-
-        <FlatList
-          data={settingsSections}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-        />
-
-        {/* Client Dialog Modal */}
-        <Modal
-          visible={isClientDialogOpen}
-          animationType="slide"
-          presentationStyle="pageSheet"
-          onRequestClose={handleCloseClientDialog}
-        >
-          <SafeAreaView style={styles.modalSafeArea}>
-            <View style={styles.modalContainer}>
-              <View style={styles.modalHeader}>
-                <View style={styles.modalHeaderText}>
-                  <Text style={styles.modalTitle}>
-                    {selectedClient ? 'Edit Client' : 'Add New Client'}
-                  </Text>
-                  <Text style={styles.modalDescription}>
-                    {selectedClient
-                      ? `Update the details for ${selectedClient.contactName}.`
-                      : 'Fill in the form below to add a new client.'}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={handleCloseClientDialog}
-                  style={styles.closeButton}
-                >
-                  <Icon name="close" size={24} color="#666" />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.modalContent}>
-                <ClientForm
-                  client={selectedClient || undefined}
-                  onFormSubmit={handleClientFormSubmit}
-                  onCancel={handleCloseClientDialog}
-                  loading={loading}
-                  baseUrl={BASE_URL}
-                />
-              </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.container}>
+          {loading && (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator size="large" color="#0000ff" />
             </View>
-          </SafeAreaView>
-        </Modal>
-      </View>
-    </SafeAreaView>
+          )}
+
+          <FlatList
+            data={settingsSections}
+            renderItem={renderItem}
+            keyExtractor={item => item.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContent}
+          />
+
+          {/* Client Dialog Modal */}
+          <Modal
+            visible={isClientDialogOpen}
+            animationType="slide"
+            presentationStyle="pageSheet"
+            onRequestClose={handleCloseClientDialog}
+          >
+            <SafeAreaView style={styles.modalSafeArea}>
+              <View style={styles.modalContainer}>
+                <View style={styles.modalHeader}>
+                  <View style={styles.modalHeaderText}>
+                    <Text style={styles.modalTitle}>
+                      {selectedClient ? 'Edit Client' : 'Add New Client'}
+                    </Text>
+                    <Text style={styles.modalDescription}>
+                      {selectedClient
+                        ? `Update the details for ${selectedClient.contactName}.`
+                        : 'Fill in the form below to add a new client.'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={handleCloseClientDialog}
+                    style={styles.closeButton}
+                  >
+                    <Icon name="close" size={24} color="#666" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.modalContent}>
+                  <ClientForm
+                    client={selectedClient || undefined}
+                    onFormSubmit={handleClientFormSubmit}
+                    onCancel={handleCloseClientDialog}
+                    loading={loading}
+                    baseUrl={BASE_URL}
+                  />
+                </View>
+              </View>
+            </SafeAreaView>
+          </Modal>
+        </View>
+      </SafeAreaView>
     </AppLayout>
   );
 }
@@ -510,8 +528,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginRight: 10,
-   
-   
+
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

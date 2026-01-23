@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
-  
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -52,86 +51,84 @@ export function VendorExpenseList({
   vendors,
   expenses,
   expenseTotals,
+  vendorBalances,
+  loadingBalances,
+  transactionTotals,
+  loadingTotals,
   onSelect,
-  selectedCompanyId
+  selectedCompanyId,
+  dateRange, // Add dateRange as prop
+  formatCurrency // Add formatCurrency as prop
 }) {
-  const [loadingBalances, setLoadingBalances] = useState({});
-  const [vendorBalances, setVendorBalances] = useState({});
-  const [transactionTotals, setTransactionTotals] = useState({
-    totalCredit: 0,
-    totalDebit: 0,
-  });
-  const [loadingTotals, setLoadingTotals] = useState(false);
   const [vendorLastTransactionDates, setVendorLastTransactionDates] = useState({});
   const [expenseLastTransactionDates, setExpenseLastTransactionDates] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const itemsPerPage = 7;
-  const baseURL = BASE_URL; 
+  const baseURL = BASE_URL;
 
-  // Calculate statistics
+  // Calculate statistics based on props
   const stats = useMemo(() => {
-    const vendorBalancesArray = vendors.map((vendor) =>
-      vendorBalances[vendor._id] !== undefined
-        ? vendorBalances[vendor._id]
-        : 0
-    );
+    if (currentView === 'vendor') {
+      const settledVendors = vendors.filter(v => {
+        const balance = vendorBalances[v._id];
+        return balance !== undefined && balance === 0;
+      }).length;
 
-    const netBalance = transactionTotals.totalCredit - transactionTotals.totalDebit;
-    const settledVendors = vendorBalancesArray.filter((b) => b === 0).length;
+      const netBalance = transactionTotals.totalDebit - transactionTotals.totalCredit;
 
-    // console.log('Company-wise stats calculation:', {
-    //   selectedCompanyId: selectedCompanyId || 'all',
-    //   netBalance,
-    //   totalCredit: transactionTotals.totalCredit,
-    //   totalDebit: transactionTotals.totalDebit,
-    //   settledVendors,
-    //   totalVendors: vendors.length
-    // });
+      return {
+        totalVendors: vendors.length,
+        totalExpenses: expenses.length,
+        netBalance,
+        totalExpenseAmount: Object.values(expenseTotals).reduce(
+          (sum, amount) => sum + amount,
+          0
+        ),
+        settledVendors,
+        totalCredit: transactionTotals.totalCredit,
+        totalDebit: transactionTotals.totalDebit,
+      };
+    } else {
+      return {
+        totalVendors: vendors.length,
+        totalExpenses: expenses.length,
+        netBalance: 0,
+        totalExpenseAmount: Object.values(expenseTotals).reduce(
+          (sum, amount) => sum + amount,
+          0
+        ),
+        settledVendors: 0,
+        totalCredit: 0,
+        totalDebit: 0,
+      };
+    }
+  }, [vendors, expenses, expenseTotals, vendorBalances, transactionTotals, selectedCompanyId, currentView]);
 
-    return {
-      totalVendors: vendors.length,
-      totalExpenses: expenses.length,
-      netBalance,
-      totalExpenseAmount: Object.values(expenseTotals).reduce(
-        (sum, amount) => sum + amount,
-        0
-      ),
-      settledVendors,
-      totalCredit: transactionTotals.totalCredit,
-      totalDebit: transactionTotals.totalDebit,
-    };
-  }, [vendors, expenses, expenseTotals, vendorBalances, transactionTotals, selectedCompanyId]);
-
-  const formatCurrency = (amount) => {
-    if (!amount) return '₹0.00';
-    return `₹${amount.toLocaleString('en-IN', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
-  };
-
-  // Fetch overall transaction totals
-  const fetchOverallTotals = async (vendorsList, expensesList) => {
+  // Fetch last transaction dates for sorting (without date filters)
+  const fetchLastTransactionDates = async () => {
     try {
-      setLoadingTotals(true);
       const token = await AsyncStorage.getItem('token');
       if (!token) {
         console.error('Authentication token not found.');
         return;
       }
 
-      let totalCredit = 0;
-      let totalDebit = 0;
       const vendorLastDates = {};
       const expenseLastDates = {};
 
-      // Fetch ledger data for each vendor
-      const vendorPromises = vendorsList.map(async (vendor) => {
+      // Fetch last transaction dates for vendors
+      const vendorPromises = vendors.map(async (vendor) => {
         try {
           const params = new URLSearchParams();
           params.append('vendorId', vendor._id);
           if (selectedCompanyId) params.append('companyId', selectedCompanyId);
+          
+          // IMPORTANT: Do NOT add date filters here for list view
+          // The list should show overall data, not filtered data
+          // if (dateRange.from) params.append('fromDate', dateRange.from);
+          // if (dateRange.to) params.append('toDate', dateRange.to);
+
           const response = await fetch(
             `${baseURL}/api/ledger/vendor-payables?${params.toString()}`,
             {
@@ -144,22 +141,6 @@ export function VendorExpenseList({
 
           if (response.ok) {
             const data = await response.json();
-            const debitTotal = (data.debit || []).reduce(
-              (sum, entry) => sum + (entry.amount || 0),
-              0
-            );
-
-            const creditPurchaseEntries = (data.debit || []).filter(
-              (entry) => entry.paymentMethod !== 'Credit'
-            );
-            const creditPaymentEntries = data.credit || [];
-
-            const creditTotal = [
-              ...creditPurchaseEntries,
-              ...creditPaymentEntries,
-            ].reduce((sum, entry) => sum + (entry.amount || 0), 0);
-
-            // Find the most recent transaction date
             const allEntries = [...(data.debit || []), ...(data.credit || [])];
             if (allEntries.length > 0) {
               const mostRecentDate = allEntries.reduce((latest, entry) => {
@@ -169,28 +150,23 @@ export function VendorExpenseList({
               }, allEntries[0].date);
               vendorLastDates[vendor._id] = mostRecentDate;
             }
-
-            return {
-              debit: debitTotal,
-              credit: creditTotal,
-              vendorName: vendor.vendorName,
-            };
-          } else {
-            console.error(`Failed to fetch ledger data for vendor ${vendor._id}`);
-            return { debit: 0, credit: 0, vendorName: vendor.vendorName };
           }
         } catch (error) {
-          console.error(`Error fetching ledger data for vendor ${vendor._id}:`, error);
-          return { debit: 0, credit: 0, vendorName: vendor.vendorName };
+          console.error(`Error fetching last transaction date for vendor ${vendor._id}:`, error);
         }
       });
 
-      // Fetch ledger data for each expense
-      const expensePromises = expensesList.map(async (expense) => {
+      // Fetch last transaction dates for expenses
+      const expensePromises = expenses.map(async (expense) => {
         try {
           const params = new URLSearchParams();
           params.append('expenseId', expense._id);
           if (selectedCompanyId) params.append('companyId', selectedCompanyId);
+          
+          // IMPORTANT: Do NOT add date filters here for list view
+          // if (dateRange.from) params.append('fromDate', dateRange.from);
+          // if (dateRange.to) params.append('toDate', dateRange.to);
+
           const response = await fetch(
             `${baseURL}/api/ledger/expense-payables?${params.toString()}`,
             {
@@ -203,7 +179,6 @@ export function VendorExpenseList({
 
           if (response.ok) {
             const data = await response.json();
-
             const allEntries = [...(data.debit || []), ...(data.credit || [])];
             if (allEntries.length > 0) {
               const mostRecentDate = allEntries.reduce((latest, entry) => {
@@ -213,105 +188,24 @@ export function VendorExpenseList({
               }, allEntries[0].date);
               expenseLastDates[expense._id] = mostRecentDate;
             }
-
-            return { success: true };
-          } else {
-            console.error(`Failed to fetch ledger data for expense ${expense._id}`);
-            return { success: false };
           }
         } catch (error) {
-          console.error(`Error fetching ledger data for expense ${expense._id}:`, error);
-          return { success: false };
+          console.error(`Error fetching last transaction date for expense ${expense._id}:`, error);
         }
       });
 
-      const [vendorResults, expenseResults] = await Promise.all([
-        Promise.all(vendorPromises),
-        Promise.all(expensePromises),
-      ]);
-
-      // Sum up all vendor totals
-      vendorResults.forEach((result) => {
-        totalDebit += result.debit;
-        totalCredit += result.credit;
-      });
-
-      setTransactionTotals({
-        totalCredit,
-        totalDebit,
-      });
-
+      await Promise.all([...vendorPromises, ...expensePromises]);
       setVendorLastTransactionDates(vendorLastDates);
       setExpenseLastTransactionDates(expenseLastDates);
     } catch (error) {
-      console.error('Error fetching overall totals:', error);
-      setTransactionTotals({
-        totalCredit: 0,
-        totalDebit: 0,
-      });
-    } finally {
-      setLoadingTotals(false);
+      console.error('Error fetching last transaction dates:', error);
     }
   };
 
-  // Fetch balance for a vendor
-  const fetchVendorBalance = async (vendorId) => {
-    if (!vendorId || vendorBalances[vendorId] !== undefined) return;
-
-    try {
-      setLoadingBalances((prev) => ({ ...prev, [vendorId]: true }));
-
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        console.error('Authentication token not found.');
-        return;
-      }
-
-      const params = new URLSearchParams();
-      if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-      const response = await fetch(
-        `${baseURL}/api/vendors/${vendorId}/balance?${params.toString()}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        setVendorBalances((prev) => ({
-          ...prev,
-          [vendorId]: data.balance || 0,
-        }));
-      } else {
-        console.error(`Failed to fetch balance for vendor ${vendorId}`);
-        setVendorBalances((prev) => ({
-          ...prev,
-          [vendorId]: 0,
-        }));
-      }
-    } catch (error) {
-      console.error(`Error fetching balance for vendor ${vendorId}:`, error);
-      setVendorBalances((prev) => ({
-        ...prev,
-        [vendorId]: 0,
-      }));
-    } finally {
-      setLoadingBalances((prev) => ({ ...prev, [vendorId]: false }));
-    }
-  };
-
-  // Fetch balances for all vendors and overall totals
+  // Fetch last transaction dates on component mount
   useEffect(() => {
-    if (currentView === 'vendor') {
-      vendors.forEach((vendor) => {
-        fetchVendorBalance(vendor._id);
-      });
-      fetchOverallTotals(vendors, expenses);
-    }
-  }, [vendors, expenses, currentView, selectedCompanyId]);
+    fetchLastTransactionDates();
+  }, [vendors, expenses, selectedCompanyId, currentView]);
 
   const getBalanceVariant = (amount) => {
     if (amount < 0) return 'destructive';
@@ -401,7 +295,7 @@ export function VendorExpenseList({
     );
   };
 
-  // Prepare items list
+  // Prepare items list - sort by last transaction date
   const items = currentView === 'vendor'
     ? [...vendors].sort((a, b) => {
         const aDate = vendorLastTransactionDates[a._id];
@@ -451,9 +345,7 @@ export function VendorExpenseList({
 
   const onRefreshList = async () => {
     setRefreshing(true);
-    if (currentView === 'vendor') {
-      await fetchOverallTotals(vendors, expenses);
-    }
+    await fetchLastTransactionDates();
     setRefreshing(false);
   };
 
@@ -466,7 +358,7 @@ export function VendorExpenseList({
         : item.balance || 0
       : expenseTotals[item._id] || 0;
     const id = item._id;
-    const isLoading = loadingBalances[id];
+    const isLoading = loadingBalances && loadingBalances[id];
     const balanceColor = getBalanceColor(total);
 
     return (

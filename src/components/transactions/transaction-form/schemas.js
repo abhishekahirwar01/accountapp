@@ -208,7 +208,7 @@ export const useTransactionForm = (
 ) => {
   return useForm({
     resolver: zodResolver(formSchema),
-    mode: 'onChange',
+    mode: 'onSubmit',
     reValidateMode: 'onChange',
     defaultValues: React.useMemo(() => {
       // If prefillFrom is provided (e.g., from proforma), use its data

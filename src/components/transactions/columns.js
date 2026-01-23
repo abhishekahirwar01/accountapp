@@ -56,6 +56,7 @@ import { generatePdfForTemplate8 } from '../../lib/pdf-template8';
 import { generatePdfForTemplateA5_2 } from '../../lib/pdf-templateA3-2';
 
 // Import utilities
+import { useUserPermissions } from '../../contexts/user-permissions-context';
 import { getUnifiedLines, capitalizeWords } from '../../lib/utils';
 import { PaymentMethodCell } from './PaymentMethodCell';
 import WhatsAppComposerDialog from './WhatsAppComposerDialog';
@@ -1006,6 +1007,10 @@ const TransactionActions = ({
   serviceNameById,
   parties = [],
 }) => {
+
+  const { permissions } = useUserPermissions();
+  const canEmail = !!permissions?.canSendInvoiceEmail;
+  const canWhatsApp = !!permissions?.canSendInvoiceWhatsapp;
   // console.log('TRANSACTION ACTIONS RENDERED:', transaction._id);
   const [isWhatsAppDialogOpen, setIsWhatsAppDialogOpen] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
@@ -1266,9 +1271,10 @@ const TransactionActions = ({
             else handleSendWhatsApp();
           }}
           icon={{ type: FontAwesome5, name: 'whatsapp', color: '#25D366' }}
-          disabled={!isWhatsAppAllowed}
+          disabled={!isWhatsAppAllowed || !canWhatsApp}
         >
           Send on WhatsApp
+          {!canWhatsApp && " (No permission)"}
         </DropdownMenuItem>
 
         {/* 2) Send via Email */}
@@ -1293,7 +1299,7 @@ const TransactionActions = ({
             }
           }}
           icon={{ type: Feather, name: 'send' }}
-          disabled={!isInvoiceable || isSendingEmail}
+          disabled={!isInvoiceable || isSendingEmail || !canEmail}
         >
           {isSendingEmail ? 'Sending...' : 'Send Invoice via Email'}
         </DropdownMenuItem>

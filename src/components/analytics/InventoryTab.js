@@ -285,9 +285,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
     borderWeight: 1,
     borderColor: '#f1f5f9',
+    margin:10,
+    marginBottom:5
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   iconBox: {

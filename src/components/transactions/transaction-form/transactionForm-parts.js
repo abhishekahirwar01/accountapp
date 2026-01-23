@@ -1570,19 +1570,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
+    padding: 12,
+    paddingBottom: 120,
   },
   keyboardOpen: {
     paddingBottom: 100,
   },
   mobileTypeSelector: {
-    marginBottom: 16,
+    marginBottom: 0,
   },
   mobileSelectorLabel: {
     fontSize: 14,
     fontWeight: '500',
-    marginBottom: 8,
+    marginBottom: 10,
     color: '#374151',
   },
   chipContainer: {

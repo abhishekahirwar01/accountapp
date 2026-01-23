@@ -9,9 +9,10 @@ import {
   Alert,
   ScrollView,
   Switch,
-  SafeAreaView,
+  // SafeAreaView,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from '../../config'; // Make sure BASE_URL is defined here
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';

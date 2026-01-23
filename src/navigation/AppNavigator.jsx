@@ -36,6 +36,7 @@ import Reports from '../screens/main/reports/Reports';
 import Ledger from '../screens/main/ledger/Ledger';
 import { CompanyForm } from '../components/companies/CompanyForm';
 import { TransactionForm } from '../components/transactions/TransactionForm';
+import SupportFormScreen from '../screens/support/SupportFormScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -165,6 +166,31 @@ export default function AppNavigator() {
       <Stack.Screen name="TransactionForm" component={TransactionForm} />
       <Stack.Screen name="InvoicePreview" component={InvoicePreview} />
       <Stack.Screen name="CompanyForm" component={CompanyForm} />
+      <Stack.Screen
+        name="SupportFormScreen"
+        component={SupportFormScreen}
+        options={{
+          headerShown: false,
+          animationEnabled: true,
+          cardStyle: { backgroundColor: 'transparent' },
+          cardOverlayEnabled: true,
+          cardStyleInterpolator: ({ current: { progress } }) => ({
+            cardStyle: {
+              opacity: progress.interpolate({
+                inputRange: [0, 0.5, 1],
+                outputRange: [0, 0.25, 1],
+              }),
+            },
+            overlayStyle: {
+              opacity: progress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 0.5],
+                extrapolate: 'clamp',
+              }),
+            },
+          }),
+        }}
+      />
     </Stack.Navigator>
   );
 }

@@ -107,12 +107,12 @@ export function Combobox({
     Keyboard.dismiss();
   };
 
-  // Check if we should show create option
+  // Check if we should show create option - FIXED LOGIC
   const showCreateOption =
     creatable &&
     searchValue.trim() &&
-    !options.some(
-      opt => opt.label.toLowerCase() === searchValue.trim().toLowerCase(),
+    !options.some(opt => 
+      opt.label.toLowerCase().includes(searchValue.trim().toLowerCase())
     );
 
   const handleTriggerPress = () => {

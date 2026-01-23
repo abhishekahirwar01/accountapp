@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
     maxHeight: 600,
   },
   scrollContent: {
-    padding: 20,
+    // padding: 20,
     paddingBottom: 40,
   },
   field: {

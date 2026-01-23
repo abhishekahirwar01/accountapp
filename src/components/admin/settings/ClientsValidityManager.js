@@ -24,10 +24,10 @@ const ClientsValidityManager = ({ onClientClick }) => {
   const [validityByClient, setValidityByClient] = useState({});
   const [isValidityLoading, setIsValidityLoading] = useState(false);
 
-  const lower = (v) => ((v ?? '').toString().toLowerCase());
+  const lower = v => (v ?? '').toString().toLowerCase();
   const hasText = (v, q) => lower(v).includes(q);
 
-  const toValidity = (raw) => {
+  const toValidity = raw => {
     const v = raw?.validity ?? raw?.data ?? raw ?? {};
     const allowed = new Set([
       'active',
@@ -37,11 +37,22 @@ const ClientsValidityManager = ({ onClientClick }) => {
       'unknown',
       'disabled',
     ]);
-    const status = allowed.has(v?.status) ? v.status : 'unknown';
+    let status = allowed.has(v?.status) ? v.status : 'unknown';
+    const expiresAt = v?.expiresAt ?? null;
+
+    // Mobile में भी web जैसा logic: अगर expiry date निकल गई है तो "expired" दिखाओ
+    if (status === 'active' && expiresAt) {
+      const expiryDate = new Date(expiresAt).getTime();
+      const now = new Date().getTime();
+      if (expiryDate < now) {
+        status = 'expired';
+      }
+    }
+
     return {
       enabled: status === 'active' || status === 'unlimited',
       status,
-      expiresAt: v?.expiresAt ?? null,
+      expiresAt: expiresAt,
       startAt: v?.startAt ?? null,
     };
   };
@@ -58,36 +69,50 @@ const ClientsValidityManager = ({ onClientClick }) => {
       const data = await res.json();
 
       const list = Array.isArray(data) ? data : data.clients || [];
+      console.log('📦 Clients fetched:', list.length, 'clients');
       setClients(list);
 
       setIsValidityLoading(true);
       const results = await Promise.allSettled(
-        list.map(async (c) => {
+        list.map(async c => {
           try {
-            const vr = await fetch(`${BASE_URL}/api/account/${c._id}/validity`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
+            const vr = await fetch(
+              `${BASE_URL}/api/account/${c._id}/validity`,
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              },
+            );
 
-            if (vr.status === 404) return { id: c._id, validity: null };
+            if (vr.status === 404) {
+              console.warn(`⚠️ Validity not found for ${c.clientUsername}`);
+              return { id: c._id, validity: null };
+            }
 
             if (!vr.ok) {
               const body = await vr.text().catch(() => '');
+              console.error(
+                `❌ GET validity ${vr.status} for ${c.clientUsername}: ${body}`,
+              );
               throw new Error(
-                `GET validity ${vr.status} for ${c.clientUsername}: ${body}`
+                `GET validity ${vr.status} for ${c.clientUsername}: ${body}`,
               );
             }
 
             const json = await vr.json();
+            console.log(`✅ Validity fetched for ${c.clientUsername}:`, json);
             return { id: c._id, validity: toValidity(json) };
           } catch (error) {
-            console.warn(`Failed to fetch validity for ${c.clientUsername}:`, error);
+            console.warn(
+              `Failed to fetch validity for ${c.clientUsername}:`,
+              error,
+            );
             return { id: c._id, validity: null };
           }
-        })
+        }),
       );
 
       const map = {};
-      results.forEach((r) => {
+      results.forEach(r => {
         if (r.status === 'fulfilled') {
           map[r.value.id] = r.value.validity ?? {
             enabled: false,
@@ -97,9 +122,14 @@ const ClientsValidityManager = ({ onClientClick }) => {
           };
         }
       });
+
+      // Debugging: यह log देखो कि validity data सही आ रहा है या नहीं
+      console.log('✅ Validity Map Mobile:', JSON.stringify(map, null, 2));
+
       setValidityByClient(map);
       setIsValidityLoading(false);
     } catch (error) {
+      console.error('❌ Error loading clients:', error);
       Alert.alert('Error', 'Failed to load clients: ' + error.message);
     } finally {
       setIsLoading(false);
@@ -116,10 +146,10 @@ const ClientsValidityManager = ({ onClientClick }) => {
     fetchClients();
   };
 
-  const filteredClients = clients.filter((c) => {
+  const filteredClients = clients.filter(c => {
     const q = lower(search.trim());
     const clientValidity = validityByClient[c?._id];
-    
+
     const matchesSearch =
       q.length === 0 ||
       hasText(c?.clientUsername, q) ||
@@ -132,9 +162,12 @@ const ClientsValidityManager = ({ onClientClick }) => {
       statusFilter === 'all' ||
       (statusFilter === 'active' && clientValidity?.status === 'active') ||
       (statusFilter === 'expired' && clientValidity?.status === 'expired') ||
-      (statusFilter === 'suspended' && clientValidity?.status === 'suspended') ||
-      (statusFilter === 'unlimited' && clientValidity?.status === 'unlimited') ||
-      (statusFilter === 'unknown' && (!clientValidity || clientValidity.status === 'unknown'));
+      (statusFilter === 'suspended' &&
+        clientValidity?.status === 'suspended') ||
+      (statusFilter === 'unlimited' &&
+        clientValidity?.status === 'unlimited') ||
+      (statusFilter === 'unknown' &&
+        (!clientValidity || clientValidity.status === 'unknown'));
 
     return matchesSearch && matchesFilter;
   });
@@ -191,9 +224,9 @@ const ClientsValidityManager = ({ onClientClick }) => {
 
     return (
       <View style={[styles.badge, { backgroundColor: config.backgroundColor }]}>
-        <Icon 
-          name={config.icon} 
-          size={14} 
+        <Icon
+          name={config.icon}
+          size={14}
           color={config.iconColor}
           style={styles.badgeIcon}
         />
@@ -204,48 +237,97 @@ const ClientsValidityManager = ({ onClientClick }) => {
     );
   };
 
-  const fmt = (d) => {
+  const fmt = d => {
     if (!d) return '—';
-    const t = new Date(d).getTime();
-    if (Number.isNaN(t)) return '—';
-    return new Intl.DateTimeFormat(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    }).format(new Date(t));
+    try {
+      const t = new Date(d).getTime();
+      if (Number.isNaN(t)) return '—';
+
+      // Fallback date formatting के लिए (Android पर Intl support issue)
+      try {
+        return new Intl.DateTimeFormat(undefined, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        }).format(new Date(t));
+      } catch (intlError) {
+        // Intl fail होने पर simple format use करो
+        console.warn('Intl.DateTimeFormat not supported, using fallback');
+        const date = new Date(t);
+        const months = [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
+        ];
+        return `${
+          months[date.getMonth()]
+        } ${date.getDate()}, ${date.getFullYear()}`;
+      }
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return '—';
+    }
   };
 
-  const handleManage = (client) => {
+  const handleManage = client => {
     onClientClick?.(client);
   };
 
   const renderStats = () => (
     <View style={styles.statsContainer}>
       <View style={[styles.statCard, { backgroundColor: '#dbeafe' }]}>
-        <Text style={[styles.statNumber, { color: '#1e40af' }]}>{clients.length}</Text>
-        <Text style={[styles.statLabel, { color: '#1e40af' }]}>Total Clients</Text>
+        <Text style={[styles.statNumber, { color: '#1e40af' }]}>
+          {clients.length}
+        </Text>
+        <Text style={[styles.statLabel, { color: '#1e40af' }]}>
+          Total Clients
+        </Text>
       </View>
       <View style={[styles.statCard, { backgroundColor: '#d1fae5' }]}>
         <Text style={[styles.statNumber, { color: '#065f46' }]}>
-          {clients.filter((c) => validityByClient[c._id]?.status === 'active').length}
+          {
+            clients.filter(c => validityByClient[c._id]?.status === 'active')
+              .length
+          }
         </Text>
         <Text style={[styles.statLabel, { color: '#065f46' }]}>Active</Text>
       </View>
       <View style={[styles.statCard, { backgroundColor: '#fee2e2' }]}>
         <Text style={[styles.statNumber, { color: '#991b1b' }]}>
-          {clients.filter((c) => validityByClient[c._id]?.status === 'expired').length}
+          {
+            clients.filter(c => validityByClient[c._id]?.status === 'expired')
+              .length
+          }
         </Text>
         <Text style={[styles.statLabel, { color: '#991b1b' }]}>Expired</Text>
       </View>
       <View style={[styles.statCard, { backgroundColor: '#fef3c7' }]}>
         <Text style={[styles.statNumber, { color: '#92400e' }]}>
-          {clients.filter((c) => validityByClient[c._id]?.status === 'suspended').length}
+          {
+            clients.filter(c => validityByClient[c._id]?.status === 'suspended')
+              .length
+          }
         </Text>
         <Text style={[styles.statLabel, { color: '#92400e' }]}>Disabled</Text>
       </View>
       <View style={[styles.statCard, { backgroundColor: '#f3f4f6' }]}>
         <Text style={[styles.statNumber, { color: '#374151' }]}>
-          {clients.filter((c) => !validityByClient[c._id] || validityByClient[c._id]?.status === 'unknown').length}
+          {
+            clients.filter(
+              c =>
+                !validityByClient[c._id] ||
+                validityByClient[c._id]?.status === 'unknown',
+            ).length
+          }
         </Text>
         <Text style={[styles.statLabel, { color: '#374151' }]}>Unknown</Text>
       </View>
@@ -254,9 +336,9 @@ const ClientsValidityManager = ({ onClientClick }) => {
 
   const renderClientItem = ({ item: client }) => {
     const validity = validityByClient[client._id];
-    
+
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.clientCard}
         onPress={() => handleManage(client)}
       >
@@ -267,9 +349,9 @@ const ClientsValidityManager = ({ onClientClick }) => {
           </View>
           <StatusBadge validity={validity} />
         </View>
-        
+
         <Text style={styles.contactName}>{client.contactName}</Text>
-        
+
         <View style={styles.contactInfo}>
           <View style={styles.contactRow}>
             <Icon name="email" size={16} color="#6b7280" />
@@ -282,14 +364,14 @@ const ClientsValidityManager = ({ onClientClick }) => {
             </View>
           )}
         </View>
-        
+
         <View style={styles.expiryRow}>
           <Icon name="calendar" size={16} color="#6b7280" />
           <Text style={styles.expiryLabel}>Expires: </Text>
           <Text style={styles.expiryDate}>{fmt(validity?.expiresAt)}</Text>
         </View>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.manageButton}
           onPress={() => handleManage(client)}
         >
@@ -307,11 +389,13 @@ const ClientsValidityManager = ({ onClientClick }) => {
           <Icon name="account-group" size={24} color="#1f2937" />
           <Text style={styles.title}>Client Validity Management</Text>
         </View>
-        <Text style={styles.subtitle}>Manage account validity for all clients</Text>
+        <Text style={styles.subtitle}>
+          Manage account validity for all clients
+        </Text>
       </View>
-      
+
       {renderStats()}
-      
+
       <View style={styles.searchSection}>
         <View style={styles.searchContainer}>
           <Icon name="magnify" size={20} color="#6b7280" />
@@ -323,7 +407,7 @@ const ClientsValidityManager = ({ onClientClick }) => {
             onChangeText={setSearch}
           />
         </View>
-        
+
         <View style={styles.filterRow}>
           <View style={styles.filterContainer}>
             <Icon name="filter" size={16} color="#6b7280" />
@@ -336,8 +420,8 @@ const ClientsValidityManager = ({ onClientClick }) => {
                   { value: 'expired', label: 'Expired' },
                   { value: 'suspended', label: 'Suspended' },
                   { value: 'unlimited', label: 'Unlimited' },
-                  { value: 'unknown', label: 'Unknown' }
-                ].map((filter) => (
+                  { value: 'unknown', label: 'Unknown' },
+                ].map(filter => (
                   <TouchableOpacity
                     key={filter.value}
                     style={[
@@ -349,7 +433,8 @@ const ClientsValidityManager = ({ onClientClick }) => {
                     <Text
                       style={[
                         styles.filterChipText,
-                        statusFilter === filter.value && styles.filterChipTextActive,
+                        statusFilter === filter.value &&
+                          styles.filterChipTextActive,
                       ]}
                     >
                       {filter.label}
@@ -359,8 +444,8 @@ const ClientsValidityManager = ({ onClientClick }) => {
               </View>
             </ScrollView>
           </View>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.clearButton}
             onPress={() => {
               setSearch('');
@@ -402,12 +487,12 @@ const ClientsValidityManager = ({ onClientClick }) => {
       <FlatList
         data={filteredClients}
         renderItem={renderClientItem}
-        keyExtractor={(item) => item._id}
+        keyExtractor={item => item._id}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmptyState}
         refreshControl={
-          <RefreshControl 
-            refreshing={isRefreshing} 
+          <RefreshControl
+            refreshing={isRefreshing}
             onRefresh={onRefresh}
             colors={['#3b82f6']}
             tintColor="#3b82f6"

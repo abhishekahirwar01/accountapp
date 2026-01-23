@@ -278,7 +278,16 @@ const Snackbar = ({ visible, children, onDismiss, duration, style }) => {
 
   return (
     <View style={[styles.snackbar, style]}>
-      <Text style={styles.snackbarText}>{children}</Text>
+      {/* Yahan style update kiya gaya hai taaki text wrap ho aur kate nahi */}
+      <RNTextInput
+        editable={false}
+        multiline={true} // Isse text wrap hoga
+        scrollEnabled={false} // Scrolling off taaki sirf display ho
+        style={[styles.snackbarText, { paddingLeft: 5 }]} // Thodi padding add ki
+      >
+        {children}
+      </RNTextInput>
+
       <TouchableOpacity onPress={onDismiss} style={styles.snackbarCloseButton}>
         <Icon name="close" size={20} color="#fff" />
       </TouchableOpacity>
@@ -634,8 +643,6 @@ export function TransactionForm({
   });
   const type = form.watch('type');
 
-  // Reset UI-only state when switching transaction type to avoid leftover
-  // open dropdowns, dialogs or menus causing layout issues.
   useEffect(() => {
     // Close common dropdowns and dialogs
     setPartyDropdownOpen(false);
@@ -660,9 +667,6 @@ export function TransactionForm({
 
     // Reset transient UI helpers
     setItemRenderKeys({});
-
-    // Note: per-component `expandedSections` is managed inside the
-    // SalesPurchasesFields component. Do not call setExpandedSections here.
   }, [type]);
 
   const partyCreatable = useMemo(() => {
@@ -1226,13 +1230,13 @@ export function TransactionForm({
       });
 
       // Trigger validation/calculation so watched effects recalc totals
-      setTimeout(() => {
-        if (typeof form.trigger === 'function') {
-          try {
-            form.trigger('items');
-          } catch (e) {}
-        }
-      }, 100);
+      // setTimeout(() => {
+      //   if (typeof form.trigger === 'function') {
+      //     try {
+      //       form.trigger('items');
+      //     } catch (e) {}
+      //   }
+      // }, 100);
     }
   }, [type, products]);
 
@@ -1782,6 +1786,51 @@ export function TransactionForm({
     form.watch('sameAsBilling'),
     form.watch('shippingAddress'),
     shippingAddresses,
+    transactionToEdit,
+  ]);
+  // Reset party/customer selection when company changes
+  useEffect(() => {
+    const currentPartyId = form.getValues('party');
+
+    // AGAR:
+    // 1. Koi party selected nahi hai
+    // 2. Ya abhi data load ho raha hai (isLoading)
+    // 3. Ya hum EDIT mode mein hain (transactionToEdit)
+    // TOH: Humein validation karne ki zarurat nahi hai.
+    if (!currentPartyId || isLoading || transactionToEdit) return;
+
+    // Check if current party belongs to selected company
+    const isValid =
+      type === 'sales' || type === 'receipt'
+        ? filteredParties.some(p => p._id === currentPartyId)
+        : filteredVendors.some(v => v._id === currentPartyId);
+
+    // Web ki tarah behavior: Tabhi reset karein jab lists load ho chuki hon (length > 0)
+    const isListReady =
+      type === 'sales' || type === 'receipt'
+        ? filteredParties.length > 0
+        : filteredVendors.length > 0;
+
+    if (!isValid && isListReady) {
+      form.setValue('party', '', { shouldValidate: true });
+      setPartyBalance(null);
+      setVendorBalance(null);
+      setBalance(null);
+
+      setSnackbar({
+        visible: true,
+        message:
+          'Customer/Vendor cleared - not associated with selected company',
+        type: 'info',
+      });
+    }
+    // Dependencies mein filtered lists add karna zaruri hai
+  }, [
+    selectedCompanyIdWatch,
+    type,
+    isLoading,
+    filteredParties,
+    filteredVendors,
     transactionToEdit,
   ]);
 
@@ -3428,7 +3477,7 @@ export function TransactionForm({
 
   const getPartyOptions = () => {
     if (type === 'sales' || type === 'receipt') {
-      const source = parties;
+      const source = filteredParties;
 
       const nameCount = source.reduce((acc, p) => {
         const name = p.name || '';
@@ -3450,13 +3499,15 @@ export function TransactionForm({
     }
 
     if (type === 'purchases' || type === 'payment') {
-      const nameCount = vendors.reduce((acc, v) => {
+      const source = filteredVendors;
+
+      const nameCount = source.reduce((acc, v) => {
         const name = v.vendorName || '';
         acc[name] = (acc[name] || 0) + 1;
         return acc;
       }, {});
 
-      return vendors.map(v => {
+      return source.map(v => {
         const name = v.vendorName || '';
         const hasDuplicates = nameCount[name] > 1;
         const label = hasDuplicates
@@ -3489,25 +3540,61 @@ export function TransactionForm({
 
   // Filter products by selected company
   const filteredProducts = useMemo(() => {
-    if (!selectedCompanyIdWatch) return products;
-    return products.filter(
-      p =>
-        !p.company ||
-        p.company === selectedCompanyIdWatch ||
-        p.company?._id === selectedCompanyIdWatch,
-    );
+    if (!selectedCompanyIdWatch) return []; // List khali rakhein agar company select nahi hai
+    return products.filter(p => {
+      const prodCompanies = Array.isArray(p.company) ? p.company : (p.company ? [p.company] : []);
+      if (prodCompanies.length === 0) return true; // Global products
+      return prodCompanies.some(comp => {
+          const compId = typeof comp === 'object' && comp !== null ? comp._id : comp;
+          return String(compId) === String(selectedCompanyIdWatch);
+      });
+    });
   }, [products, selectedCompanyIdWatch]);
 
   // Filter services by selected company
   const filteredServices = useMemo(() => {
-    if (!selectedCompanyIdWatch) return services;
-    return services.filter(
-      s =>
-        !s.company ||
-        s.company === selectedCompanyIdWatch ||
-        s.company?._id === selectedCompanyIdWatch,
-    );
+    if (!selectedCompanyIdWatch) return [];
+    return services.filter(s => {
+      const serviceCompanies = Array.isArray(s.company) ? s.company : (s.company ? [s.company] : []);
+      if (serviceCompanies.length === 0) return true; // Global services
+      return serviceCompanies.some(comp => {
+          const compId = typeof comp === 'object' && comp !== null ? comp._id : comp;
+          return String(compId) === String(selectedCompanyIdWatch);
+      });
+    });
   }, [services, selectedCompanyIdWatch]);
+
+  // Filter parties/customers based on selected company
+  const filteredParties = useMemo(() => {
+    if (!selectedCompanyIdWatch) return [];
+
+    return parties.filter(p => {
+      const partyCompanies = Array.isArray(p.company) ? p.company : (p.company ? [p.company] : []);
+      if (partyCompanies.length === 0) return true;
+
+      return partyCompanies.some(comp => {
+        const compId =
+          typeof comp === 'object' && comp !== null ? comp._id : comp;
+        return String(compId) === String(selectedCompanyIdWatch);
+      });
+    });
+  }, [parties, selectedCompanyIdWatch]);
+
+  // Filter vendors based on selected company
+  const filteredVendors = useMemo(() => {
+    if (!selectedCompanyIdWatch) return [];
+
+    return vendors.filter(v => {
+      const vendorCompanies = Array.isArray(v.company) ? v.company : (v.company ? [v.company] : []);
+      if (vendorCompanies.length === 0) return true;
+
+      return vendorCompanies.some(comp => {
+        const compId =
+          typeof comp === 'object' && comp !== null ? comp._id : comp;
+        return String(compId) === String(selectedCompanyIdWatch);
+      });
+    });
+  }, [vendors, selectedCompanyIdWatch]);
 
   const productOptions = filteredProducts.map(p => {
     const stockNum = Number(p.stocks ?? p.stock ?? 0);
@@ -3645,7 +3732,7 @@ export function TransactionForm({
 
   return (
     <View style={styles.container}>
-      <KeyboardAwareScrollView
+      <View
         ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: 140 }}
@@ -3777,7 +3864,7 @@ export function TransactionForm({
             canCreateVendor,
           }}
         />
-      </KeyboardAwareScrollView>
+      </View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -4477,7 +4564,7 @@ const styles = StyleSheet.create({
   snackbar: {
     backgroundColor: '#2c2c2c',
     position: 'absolute',
-    bottom: 20,
+    bottom: 90, // Submit button ke thoda upar rakhein taaki button ise na dhake
     left: 16,
     right: 16,
     borderRadius: 12,
@@ -4486,20 +4573,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    zIndex: 9999, // Sabse upar dikhane ke liye
+    elevation: 10, // Android ke liye shadow aur layer
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
   },
   snackbarText: {
     color: '#fff',
-    flex: 1,
+    flex: 1, // Poori width lega
     fontSize: 14,
     fontWeight: '500',
     lineHeight: 20,
+    textAlignVertical: 'center', // Android ke liye
+    paddingRight: 10, // Close button se doori
+    minHeight: 40, // Minimum height taaki text kate nahi
   },
   snackbarCloseButton: {
     padding: 6,

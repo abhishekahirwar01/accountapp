@@ -20,6 +20,10 @@ export default function DataTable({
   onLoadMore,
   refreshing = false,
   onRefresh = null,
+  onFilterButtonPress,
+  isFilterActive = false,
+  dateRange = { startDate: '', endDate: '' },
+  onFilterReset,
 }) {
   const [sortKey, setSortKey] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
@@ -106,29 +110,83 @@ export default function DataTable({
 
   return (
     <View style={styles.container}>
-      {/* Search Container - यहीं रहेगा original जगह पर */}
-      <View style={styles.searchContainer}>
-        <Feather
-          name="search"
-          size={20}
-          color="#6b7280"
-          style={styles.searchIcon}
-        />
-        <TextInput
-          placeholder="Filter by party, product, or description..."
-          value={localFilter}
-          onChangeText={setLocalFilter}
-          style={styles.search}
-          placeholderTextColor="#9ca3af"
-        />
-        {localFilter.length > 0 && (
-          <TouchableOpacity
-            onPress={() => setLocalFilter('')}
-            style={styles.clearButton}
-          >
-            <Feather name="x" size={18} color="#6b7280" />
-          </TouchableOpacity>
-        )}
+      {/* Search and Filter Container */}
+      <View style={styles.searchFilterWrapper}>
+        <View style={styles.searchContainer}>
+          <Feather
+            name="search"
+            size={20}
+            color="#6b7280"
+            style={styles.searchIcon}
+          />
+          <TextInput
+            placeholder="Filter by party, product, or description..."
+            value={localFilter}
+            onChangeText={setLocalFilter}
+            style={styles.search}
+            placeholderTextColor="#9ca3af"
+          />
+          {localFilter.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setLocalFilter('')}
+              style={styles.clearButton}
+            >
+              <Feather name="x" size={18} color="#6b7280" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Filter by Date Button */}
+        <TouchableOpacity
+          style={[
+            styles.filterButton,
+            isFilterActive && styles.filterButtonActive,
+          ]}
+          onPress={onFilterButtonPress}
+        >
+          <View style={styles.filterIconAndDot}>
+            <Feather
+              name="calendar"
+              size={16}
+              color={isFilterActive ? 'white' : '#374151'}
+            />
+            {isFilterActive && <View style={styles.miniActiveDot} />}
+          </View>
+
+          <View style={styles.filterButtonContent}>
+            <Text
+              style={[
+                styles.filterButtonText,
+                isFilterActive && styles.filterButtonTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              {isFilterActive && dateRange.startDate
+                ? `${new Date(dateRange.startDate).toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                  })} - ${new Date(dateRange.endDate).toLocaleDateString(
+                    'en-IN',
+                    {
+                      day: 'numeric',
+                      month: 'short',
+                    },
+                  )}`
+                : 'Filter By Date'}
+            </Text>
+            {isFilterActive && onFilterReset && (
+              <TouchableOpacity
+                style={styles.filterResetIcon}
+                onPress={e => {
+                  e.stopPropagation();
+                  onFilterReset();
+                }}
+              >
+                <Feather name="x" size={12} color="white" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </TouchableOpacity>
       </View>
 
       {filter.length > 0 && (
@@ -189,6 +247,7 @@ const styles = StyleSheet.create({
   },
 
   searchContainer: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'white',
@@ -196,8 +255,7 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
     borderRadius: 8,
     paddingHorizontal: 12,
-    marginBottom: 12,
-    marginHorizontal: 4,
+    height: 48,
   },
 
   searchIcon: { marginRight: 8 },
@@ -210,6 +268,74 @@ const styles = StyleSheet.create({
   },
 
   clearButton: { padding: 4 },
+
+  searchFilterWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+    marginHorizontal: 4,
+    marginTop: 8,
+  },
+
+  filterButton: {
+    height: 48,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'column',
+    minWidth: 60,
+  },
+
+  filterButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+
+  filterButtonActive: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
+    minWidth: 100,
+  },
+
+  filterIconAndDot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+
+  miniActiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#ef4444',
+    marginLeft: 4,
+  },
+
+  filterButtonText: {
+    fontSize: 9,
+    color: '#374151',
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+
+  filterButtonTextActive: {
+    color: 'white',
+    fontSize: 8.5,
+  },
+
+  filterResetIcon: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 10,
+    padding: 1,
+    marginLeft: 2,
+  },
 
   resultsCount: { paddingHorizontal: 4, paddingBottom: 8 },
 

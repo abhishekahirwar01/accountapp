@@ -1515,7 +1515,8 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    padding: 16,
+    padding: 10,
+    paddingTop:0
   },
   header: {
     marginBottom: 24,

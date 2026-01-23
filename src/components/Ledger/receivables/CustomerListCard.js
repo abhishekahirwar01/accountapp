@@ -3,18 +3,14 @@ import {
   View,
   Text,
   TouchableOpacity,
-  FlatList,
+  ScrollView,
   StyleSheet,
   Dimensions,
-  ActivityIndicator, 
-  ScrollView
+  ActivityIndicator,
 } from 'react-native';
-// Removed: import { Card, Button, ActivityIndicator } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
-// import { capitalizeWords } from '../../../lib/utils';
-
-// Custom Button Component to replace react-native-paper Button
+// Custom Button Component
 const CustomButton = ({ onPress, disabled, style, textStyle, children }) => (
   <TouchableOpacity
     onPress={onPress}
@@ -32,12 +28,12 @@ const CustomButton = ({ onPress, disabled, style, textStyle, children }) => (
   </TouchableOpacity>
 );
 
-// Custom Card Component to replace react-native-paper Card
+// Custom Card Component
 const CustomCard = ({ style, children }) => (
   <View style={[styles.cardBase, style]}>{children}</View>
 );
 
-// Helper for Card.Content (just a View with padding)
+// Helper for Card.Content
 const CustomCardContent = ({ style, children }) => (
   <View style={style}>{children}</View>
 );
@@ -57,51 +53,6 @@ const CustomerListCard = ({
   goToPrevPage,
   capitalizeWords,
 }) => {
-  const renderCustomerItem = ({ item, index }) => (
-    <CustomCard
-      style={[
-        styles.customerCard,
-        index % 2 === 0 ? styles.evenCard : styles.oddCard,
-      ]}
-    >
-      <CustomCardContent style={styles.cardContent}>
-        <View style={styles.customerRow}>
-          <View style={styles.customerInfo}>
-            <Text style={styles.customerName}>
-              {capitalizeWords(item.name)}
-            </Text>
-            {item.contactNumber && (
-              <Text style={styles.customerContact}>{item.contactNumber}</Text>
-            )}
-          </View>
-          <View style={styles.customerBalance}>
-            <Text
-              style={[
-                styles.balanceAmount,
-                (customerBalances[item._id] || 0) >= 0
-                  ? styles.positiveBalance
-                  : styles.negativeBalance,
-              ]}
-            >
-              ₹{formatIndianNumber(Math.abs(customerBalances[item._id] || 0))}
-            </Text>
-            <Text style={styles.balanceNote}>
-              {(customerBalances[item._id] || 0) >= 0
-                ? 'Customer Owes'
-                : 'You Owe'}
-            </Text>
-          </View>
-        </View>
-        <CustomButton
-          onPress={() => setSelectedParty(item._id)}
-          style={styles.viewButton}
-        >
-          View Ledger
-        </CustomButton>
-      </CustomCardContent>
-    </CustomCard>
-  );
-
   return (
     <CustomCard style={styles.card}>
       <CustomCardContent style={styles.cardContentContainer}>
@@ -119,25 +70,63 @@ const CustomerListCard = ({
           </View>
         ) : (
           <View style={styles.mainContainer}>
-            {/* Customer List Container with fixed height */}
-            
-            <View style={styles.listContainer}>
-              <FlatList
-                data={parties}
-                renderItem={renderCustomerItem}
-                keyExtractor={item => item._id}
-                scrollEnabled={false}
-                showsVerticalScrollIndicator={false}
-                style={styles.list}
-                contentContainerStyle={styles.listContent}
-                initialNumToRender={7}
-                maxToRenderPerBatch={10}
-                windowSize={5}
-              />
-            </View>
+            {/* Customer List Container with ScrollView */}
+            <ScrollView 
+              style={styles.listContainer}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+            >
+              {parties.map((item, index) => (
+                <CustomCard
+                  key={item._id}
+                  style={[
+                    styles.customerCard,
+                    index % 2 === 0 ? styles.evenCard : styles.oddCard,
+                  ]}
+                >
+                  <CustomCardContent style={styles.cardContent}>
+                    <View style={styles.customerRow}>
+                      <View style={styles.customerInfo}>
+                        <Text style={styles.customerName}>
+                          {capitalizeWords(item.name)}
+                        </Text>
+                        {item.contactNumber && (
+                          <Text style={styles.customerContact}>
+                            {item.contactNumber}
+                          </Text>
+                        )}
+                      </View>
+                      <View style={styles.customerBalance}>
+                        <Text
+                          style={[
+                            styles.balanceAmount,
+                            (customerBalances[item._id] || 0) >= 0
+                              ? styles.positiveBalance
+                              : styles.negativeBalance,
+                          ]}
+                        >
+                          ₹{formatIndianNumber(Math.abs(customerBalances[item._id] || 0))}
+                        </Text>
+                        <Text style={styles.balanceNote}>
+                          {(customerBalances[item._id] || 0) >= 0
+                            ? 'Customer Owes'
+                            : 'You Owe'}
+                        </Text>
+                      </View>
+                    </View>
+                    <CustomButton
+                      onPress={() => setSelectedParty(item._id)}
+                      style={styles.viewButton}
+                    >
+                      View Ledger
+                    </CustomButton>
+                  </CustomCardContent>
+                </CustomCard>
+              ))}
+            </ScrollView>
 
             {/* Pagination */}
-            {totalItems > 7 && ( // Only show pagination if more than 7 items
+            {totalItems > 7 && (
               <View style={styles.pagination}>
                 <View style={styles.paginationInfo}>
                   <Text style={styles.paginationText}>
@@ -173,23 +162,18 @@ const CustomerListCard = ({
   );
 };
 
-// You can use a smaller percentage or calculate a height based on item height
-// e.g., if one card is ~60 height, 7 items is ~420.
-const LIST_HEIGHT = Dimensions.get('window').height * 0.55;
-
 const styles = StyleSheet.create({
-  // --- Custom Button Styles (replaces react-native-paper Button) ---
   buttonBase: {
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 4,
-    minHeight: 30, // Approximate compact height
+    minHeight: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonOutlined: {
     borderWidth: 1,
-    borderColor: '#3b82f6', // Use a primary color
+    borderColor: '#3b82f6',
     backgroundColor: 'transparent',
   },
   buttonText: {
@@ -202,9 +186,6 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.5,
   },
-  // -----------------------------------------------------------------
-
-  // --- Custom Card Styles (replaces react-native-paper Card) ---
   cardBase: {
     backgroundColor: '#ffffff',
     borderRadius: 8,
@@ -214,16 +195,14 @@ const styles = StyleSheet.create({
     shadowRadius: 1.41,
     elevation: 2,
   },
-  // -----------------------------------------------------------
-
   card: {
     margin: 10,
     marginTop: 8,
     flex: 1,
-    // Note: elevation is now handled by cardBase
   },
   cardContentContainer: {
     padding: 0,
+    flex: 1,
   },
   cardTitle: {
     fontSize: 20,
@@ -237,13 +216,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContainer: {
-   
-    minHeight: 400,
-  },
-  list: {
-    flex: 1,
-  },
-  listContent: {
+    // maxHeight: 400,
     paddingHorizontal: 16,
     paddingBottom: 8,
   },
@@ -252,7 +225,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    elevation: 0, // Remove shadow for inner card
+    elevation: 0,
   },
   evenCard: {
     backgroundColor: '#ffffff',
@@ -307,12 +280,12 @@ const styles = StyleSheet.create({
   viewButton: {
     alignSelf: 'flex-start',
     marginTop: 4,
-    // compact is now handled by the custom button's default padding
   },
   loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     padding: 40,
+    flex: 1,
   },
   loadingText: {
     marginTop: 12,
@@ -335,6 +308,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
     backgroundColor: '#f8fafc',
+    marginTop: 8,
   },
   paginationInfo: {
     marginBottom: 12,

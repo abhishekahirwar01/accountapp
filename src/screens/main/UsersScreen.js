@@ -414,7 +414,7 @@ export default function UsersPage() {
           </View>
 
           {/* Enhanced URL Card */}
-          <View style={styles.urlCardWrapper}>
+          {/* <View style={styles.urlCardWrapper}>
             <View style={styles.urlCard}>
               <View style={styles.urlCardContent}>
                 <View style={styles.urlLeftSection}>
@@ -448,7 +448,7 @@ export default function UsersPage() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </View> */}
 
           <Card>
             <CardContent
@@ -696,6 +696,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 3,
+    marginTop:6
   },
   addUserButtonText: {
     color: '#FFFFFF',

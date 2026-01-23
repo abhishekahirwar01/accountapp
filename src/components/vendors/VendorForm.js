@@ -19,6 +19,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { State, City } from 'country-state-city';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from '../../config';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/Dialog';
 
 // --- Toast Modal Component ---
 const ToastModal = ({ visible, type, title, message, onClose }) => {
@@ -73,6 +74,119 @@ const useToast = () => {
   return { toast: showToast, toastConfig, hideToast };
 };
 
+// --- Company Selection Dialog Component ---
+const CompanySelectionDialog = ({
+  visible,
+  onClose,
+  companies,
+  selectedCompanies,
+  onSelectionChange,
+}) => {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredCompanies = companies.filter(company =>
+    company.businessName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const toggleCompany = (companyId) => {
+    const isSelected = selectedCompanies.includes(companyId);
+    const newSelection = isSelected
+      ? selectedCompanies.filter(id => id !== companyId)
+      : [...selectedCompanies, companyId];
+    onSelectionChange(newSelection);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedCompanies.length === companies.length) {
+      onSelectionChange([]);
+    } else {
+      onSelectionChange(companies.map(c => c._id));
+    }
+  };
+
+  return (
+    <Dialog open={visible} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Select Companies</DialogTitle>
+        </DialogHeader>
+
+        <View style={styles.dialogBody}>
+          {/* Search Input */}
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search companies..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoFocus={true}
+            />
+          </View>
+
+          {/* Select All Button */}
+          <View style={styles.selectAllContainer}>
+            <TouchableOpacity
+              style={styles.selectAllButton}
+              onPress={toggleSelectAll}
+            >
+              <Text style={styles.selectAllText}>
+                {selectedCompanies.length === companies.length
+                  ? 'Deselect All'
+                  : 'Select All'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Company List */}
+          <ScrollView style={styles.companyList}>
+            {filteredCompanies.length === 0 ? (
+              <Text style={styles.noResultsText}>No companies found</Text>
+            ) : (
+              filteredCompanies.map(company => {
+                const isSelected = selectedCompanies.includes(company._id);
+                return (
+                  <TouchableOpacity
+                    key={company._id}
+                    style={[
+                      styles.companyItem,
+                      isSelected && styles.companyItemSelected,
+                    ]}
+                    onPress={() => toggleCompany(company._id)}
+                  >
+                    <View style={styles.checkboxContainer}>
+                      <View
+                        style={[
+                          styles.checkbox,
+                          isSelected && styles.checkboxSelected,
+                        ]}
+                      >
+                        {isSelected && <Check size={12} color="white" />}
+                      </View>
+                    </View>
+                    <Text
+                      style={[
+                        styles.companyName,
+                        isSelected && styles.companyNameSelected,
+                      ]}
+                    >
+                      {company.businessName}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </ScrollView>
+
+          {/* Done Button */}
+          <TouchableOpacity style={styles.doneButton} onPress={onClose}>
+            <Text style={styles.doneButtonText}>Done</Text>
+          </TouchableOpacity>
+        </View>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 // --- Searchable Picker Component ---
 const SearchablePicker = ({
   visible,
@@ -82,14 +196,11 @@ const SearchablePicker = ({
   title,
   searchPlaceholder = 'Search...',
   disabled = false,
-  multiple = false,
-  selectedValues = [],
-  onMultipleSelect,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredOptions = options.filter(option =>
-    option.label.toLowerCase().includes(searchQuery.toLowerCase()),
+    option.label.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -112,23 +223,6 @@ const SearchablePicker = ({
           />
         </View>
 
-        {multiple && (
-          <View style={styles.multipleSelectHeader}>
-            <TouchableOpacity
-              style={styles.selectAllButton}
-              onPress={() => {
-                const allIds = options.map(o => o.value);
-                const isAllSelected = selectedValues.length === options.length;
-                onMultipleSelect(isAllSelected ? [] : allIds);
-              }}
-            >
-              <Text style={styles.selectAllText}>
-                {selectedValues.length === options.length ? 'Deselect All' : 'Select All'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
         <ScrollView style={styles.optionsContainer}>
           {filteredOptions.length === 0 ? (
             <Text style={styles.noResultsText}>No results found</Text>
@@ -137,51 +231,15 @@ const SearchablePicker = ({
               <TouchableOpacity
                 key={option.value}
                 onPress={() => {
-                  if (multiple) {
-                    const newSelected = selectedValues.includes(option.value)
-                      ? selectedValues.filter(v => v !== option.value)
-                      : [...selectedValues, option.value];
-                    onMultipleSelect(newSelected);
-                  } else {
-                    onSelect(option);
-                    onClose();
-                  }
+                  onSelect(option);
+                  onClose();
                 }}
-                style={[
-                  styles.optionItem,
-                  multiple && styles.optionItemMultiple,
-                  multiple && selectedValues.includes(option.value) && styles.optionItemSelected,
-                ]}
+                style={styles.optionItem}
                 disabled={disabled}
               >
-                {multiple && (
-                  <View style={styles.checkboxContainer}>
-                    <View style={[
-                      styles.checkbox,
-                      selectedValues.includes(option.value) && styles.checkboxSelected
-                    ]}>
-                      {selectedValues.includes(option.value) && (
-                        <Check size={12} color="white" />
-                      )}
-                    </View>
-                  </View>
-                )}
-                <Text style={[
-                  styles.optionText,
-                  multiple && selectedValues.includes(option.value) && styles.optionTextSelected
-                ]}>
-                  {option.label}
-                </Text>
+                <Text style={styles.optionText}>{option.label}</Text>
               </TouchableOpacity>
             ))
-          )}
-          {multiple && filteredOptions.length > 0 && (
-            <TouchableOpacity
-              style={styles.doneButton}
-              onPress={onClose}
-            >
-              <Text style={styles.doneButtonText}>Done</Text>
-            </TouchableOpacity>
           )}
         </ScrollView>
       </View>
@@ -191,8 +249,9 @@ const SearchablePicker = ({
 
 // --- Company Badge Component ---
 const CompanyBadge = ({ company, companies, onRemove }) => {
-  const companyName = companies.find(c => c._id === company)?.businessName || company;
-  
+  const companyName =
+    companies.find(c => c._id === company)?.businessName || company;
+
   return (
     <View style={styles.badgeContainer}>
       <View style={styles.badge}>
@@ -231,7 +290,7 @@ const formSchema = z.object({
         const mobileRegex = /^[6-9]\d{9}$/;
         return mobileRegex.test(val.replace(/\D/g, ''));
       },
-      { message: 'Enter valid 10-digit Indian mobile number' },
+      { message: 'Enter valid 10-digit Indian mobile number' }
     ),
   email: z
     .string()
@@ -247,7 +306,7 @@ const formSchema = z.object({
           return false;
         }
       },
-      { message: 'Enter a valid email' },
+      { message: 'Enter a valid email' }
     ),
   address: z.string().optional(),
   city: z.string().optional(),
@@ -284,7 +343,8 @@ export function VendorForm({
   const [stateCode, setStateCode] = useState(null);
   const [showStatePicker, setShowStatePicker] = useState(false);
   const [showCityPicker, setShowCityPicker] = useState(false);
-  const [showCompanyPicker, setShowCompanyPicker] = useState(false);
+  const [showCompanyDialog, setShowCompanyDialog] = useState(false);
+  const [showGSTTypePicker, setShowGSTTypePicker] = useState(false);
   const [companies, setCompanies] = useState([]);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
 
@@ -325,7 +385,7 @@ export function VendorForm({
       indiaStates
         .map(s => ({ value: s.isoCode, label: s.name }))
         .sort((a, b) => a.label.localeCompare(b.label)),
-    [indiaStates],
+    [indiaStates]
   );
 
   const cityOptions = useMemo(() => {
@@ -336,11 +396,10 @@ export function VendorForm({
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [stateCode]);
 
-  const companyOptions = useMemo(() => {
-    return companies
-      .map(c => ({ value: c._id, label: c.businessName }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [companies]);
+  const gstTypeOptions = useMemo(
+    () => gstRegistrationTypes.map(type => ({ value: type, label: type })),
+    []
+  );
 
   // Fetch companies on component mount
   useEffect(() => {
@@ -391,7 +450,7 @@ export function VendorForm({
       return;
     }
     const found = indiaStates.find(
-      s => s.name.toLowerCase() === currentStateName.toLowerCase(),
+      s => s.name.toLowerCase() === currentStateName.toLowerCase()
     );
     setStateCode(found?.isoCode || null);
   }, [indiaStates]);
@@ -411,9 +470,6 @@ export function VendorForm({
         formattedCompanies = [vendor.company._id];
       }
 
-      console.log('Vendor company data:', vendor.company);
-      console.log('Formatted companies:', formattedCompanies);
-
       if (formattedCompanies.length > 0) {
         setValue('company', formattedCompanies);
       }
@@ -431,9 +487,6 @@ export function VendorForm({
         : `${BASE_URL}/api/vendors`;
       const method = vendor ? 'PUT' : 'POST';
 
-      console.log('📤 Submitting vendor data:', values);
-      console.log('📤 Company field being sent:', values.company);
-
       const res = await fetch(url, {
         method,
         headers: {
@@ -444,11 +497,10 @@ export function VendorForm({
       });
 
       const data = await res.json();
-      console.log('📥 Backend response:', data);
 
       if (!res.ok)
         throw new Error(
-          data.message || `Failed to ${vendor ? 'update' : 'create'} vendor.`,
+          data.message || `Failed to ${vendor ? 'update' : 'create'} vendor.`
         );
 
       onSuccess(data.vendor);
@@ -459,7 +511,7 @@ export function VendorForm({
         description: `Vendor ${vendor ? 'updated' : 'created'} successfully.`,
       });
     } catch (error) {
-      console.error('❌ Submit error:', error);
+      console.error('Submit error:', error);
       toast({
         variant: 'destructive',
         title: 'Operation Failed',
@@ -471,18 +523,18 @@ export function VendorForm({
     }
   };
 
-  // Keyboard dismiss
   const dismissKeyboard = () => Keyboard.dismiss();
 
-  // Handle company selection
-  const handleCompanySelection = (newSelected) => {
+  const handleCompanySelection = newSelected => {
     setValue('company', newSelected);
   };
 
-  // Remove single company badge
-  const removeCompany = (companyId) => {
+  const removeCompany = companyId => {
     const current = getValues('company') || [];
-    setValue('company', current.filter(id => id !== companyId));
+    setValue(
+      'company',
+      current.filter(id => id !== companyId)
+    );
   };
 
   return (
@@ -514,7 +566,6 @@ export function VendorForm({
 
           {/* Form Section */}
           <View style={styles.formContainer}>
-            
             {/* Company Field */}
             <Controller
               control={control}
@@ -529,11 +580,14 @@ export function VendorForm({
                       styles.companyDropdown,
                       fieldState.error && styles.inputError,
                     ]}
-                    onPress={() => setShowCompanyPicker(true)}
+                    onPress={() => setShowCompanyDialog(true)}
                   >
                     {selectedCompanies && selectedCompanies.length > 0 ? (
                       <View style={styles.selectedCompaniesContainer}>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                        >
                           <View style={styles.badgesContainer}>
                             {selectedCompanies.map(companyId => (
                               <CompanyBadge
@@ -545,14 +599,24 @@ export function VendorForm({
                             ))}
                           </View>
                         </ScrollView>
-                        <ChevronsUpDown size={16} color="#666" style={styles.dropdownIcon} />
+                        <ChevronsUpDown
+                          size={16}
+                          color="#666"
+                          style={styles.dropdownIcon}
+                        />
                       </View>
                     ) : (
                       <View style={styles.companyDropdownPlaceholder}>
                         <Text style={styles.placeholderText}>
-                          {isLoadingCompanies ? 'Loading companies...' : 'Select companies'}
+                          {isLoadingCompanies
+                            ? 'Loading companies...'
+                            : 'Select companies'}
                         </Text>
-                        <ChevronsUpDown size={16} color="#999" style={styles.dropdownIcon} />
+                        <ChevronsUpDown
+                          size={16}
+                          color="#999"
+                          style={styles.dropdownIcon}
+                        />
                       </View>
                     )}
                   </TouchableOpacity>
@@ -560,16 +624,12 @@ export function VendorForm({
                     <Text style={styles.error}>{fieldState.error.message}</Text>
                   )}
 
-                  <SearchablePicker
-                    visible={showCompanyPicker}
-                    onClose={() => setShowCompanyPicker(false)}
-                    options={companyOptions}
-                    onSelect={() => {}}
-                    onMultipleSelect={handleCompanySelection}
-                    title="Select Companies"
-                    searchPlaceholder="Search companies..."
-                    multiple={true}
-                    selectedValues={selectedCompanies || []}
+                  <CompanySelectionDialog
+                    visible={showCompanyDialog}
+                    onClose={() => setShowCompanyDialog(false)}
+                    companies={companies}
+                    selectedCompanies={selectedCompanies || []}
+                    onSelectionChange={handleCompanySelection}
                   />
                 </View>
               )}
@@ -585,10 +645,7 @@ export function VendorForm({
                     Vendor Name <Text style={styles.requiredStar}>*</Text>
                   </Text>
                   <TextInput
-                    style={[
-                      styles.input,
-                      fieldState.error && styles.inputError,
-                    ]}
+                    style={[styles.input, fieldState.error && styles.inputError]}
                     placeholder="e.g. Acme Supplies"
                     value={field.value}
                     onChangeText={field.onChange}
@@ -608,17 +665,12 @@ export function VendorForm({
                 <View style={styles.field}>
                   <Text style={styles.label}>Mobile Number</Text>
                   <TextInput
-                    style={[
-                      styles.input,
-                      fieldState.error && styles.inputError,
-                    ]}
+                    style={[styles.input, fieldState.error && styles.inputError]}
                     placeholder="9876543210"
                     keyboardType="phone-pad"
                     value={field.value}
                     maxLength={10}
-                    onChangeText={text =>
-                      field.onChange(text.replace(/\D/g, ''))
-                    }
+                    onChangeText={text => field.onChange(text.replace(/\D/g, ''))}
                   />
                   {fieldState.error && (
                     <Text style={styles.error}>{fieldState.error.message}</Text>
@@ -635,10 +687,7 @@ export function VendorForm({
                 <View style={styles.field}>
                   <Text style={styles.label}>Email</Text>
                   <TextInput
-                    style={[
-                      styles.input,
-                      fieldState.error && styles.inputError,
-                    ]}
+                    style={[styles.input, fieldState.error && styles.inputError]}
                     placeholder="contact@acme.com"
                     value={field.value}
                     onChangeText={field.onChange}
@@ -658,7 +707,9 @@ export function VendorForm({
               name="address"
               render={({ field }) => (
                 <View style={styles.field}>
-                  <Text style={styles.label}>Address Line (Street/Building)</Text>
+                  <Text style={styles.label}>
+                    Address Line (Street/Building)
+                  </Text>
                   <TextInput
                     style={[styles.input, styles.textArea]}
                     placeholder="123 Industrial Area"
@@ -767,16 +818,7 @@ export function VendorForm({
                     <Text style={styles.label}>GST Registration Type</Text>
                     <TouchableOpacity
                       style={styles.dropdown}
-                      onPress={() => {
-                        // Show GST type picker
-                        const pickerOptions = gstRegistrationTypes.map(type => ({
-                          value: type,
-                          label: type,
-                        }));
-                        
-                        // You can use your existing SearchablePicker or create a simple modal
-                        setShowGSTTypePicker(true);
-                      }}
+                      onPress={() => setShowGSTTypePicker(true)}
                     >
                       <Text
                         style={
@@ -789,6 +831,16 @@ export function VendorForm({
                       </Text>
                       <Text style={styles.dropdownArrow}>▼</Text>
                     </TouchableOpacity>
+
+                    <SearchablePicker
+                      visible={showGSTTypePicker}
+                      onClose={() => setShowGSTTypePicker(false)}
+                      options={gstTypeOptions}
+                      onSelect={selected => field.onChange(selected.value)}
+                      title="Select GST Registration Type"
+                      searchPlaceholder="Search type..."
+                    />
+
                     {fieldState.error && (
                       <Text style={styles.error}>
                         {fieldState.error.message}
@@ -814,9 +866,7 @@ export function VendorForm({
                           ]}
                           placeholder="15-digit GSTIN"
                           value={field.value}
-                          onChangeText={text =>
-                            field.onChange(text.toUpperCase())
-                          }
+                          onChangeText={text => field.onChange(text.toUpperCase())}
                           maxLength={15}
                           autoCapitalize="characters"
                         />
@@ -843,9 +893,7 @@ export function VendorForm({
                           ]}
                           placeholder="10-digit PAN"
                           value={field.value}
-                          onChangeText={text =>
-                            field.onChange(text.toUpperCase())
-                          }
+                          onChangeText={text => field.onChange(text.toUpperCase())}
                           maxLength={10}
                           autoCapitalize="characters"
                         />
@@ -1015,9 +1063,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
-  formContainer: {
-    padding: 20,
-  },
+  // formContainer: {
+  //   padding: 20,
+  // },
   section: {
     marginBottom: 25,
     padding: 16,
@@ -1158,6 +1206,76 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 
+  // Dialog-specific styles
+  dialogBody: {
+    paddingTop: 16,
+  },
+  selectAllContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  selectAllButton: {
+    padding: 8,
+    alignItems: 'center',
+  },
+  selectAllText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#007AFF',
+  },
+  companyList: {
+    maxHeight: 400,
+  },
+  companyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  companyItemSelected: {
+    backgroundColor: '#f0f8ff',
+  },
+  checkboxContainer: {
+    marginRight: 12,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  companyName: {
+    fontSize: 16,
+    color: '#333',
+    flex: 1,
+  },
+  companyNameSelected: {
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  doneButton: {
+    margin: 16,
+    padding: 16,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  doneButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
   // TDS Styles
   tdsOptionsContainer: {
     flexDirection: 'row',
@@ -1220,7 +1338,7 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
   },
-  
+
   // Searchable Picker Styles
   modalContainer: {
     flex: 1,
@@ -1240,9 +1358,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
   },
-  closeButton: {
-    padding: 4,
-  },
   closeButtonText: {
     fontSize: 20,
     color: '#666',
@@ -1260,20 +1375,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#f9f9f9',
   },
-  multipleSelectHeader: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  selectAllButton: {
-    padding: 8,
-    alignItems: 'center',
-  },
-  selectAllText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#007AFF',
-  },
   optionsContainer: {
     flex: 1,
   },
@@ -1282,49 +1383,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
-  optionItemMultiple: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  optionItemSelected: {
-    backgroundColor: '#f0f8ff',
-  },
-  checkboxContainer: {
-    marginRight: 12,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: '#ddd',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
   optionText: {
     fontSize: 16,
     color: '#333',
-    flex: 1,
-  },
-  optionTextSelected: {
-    color: '#007AFF',
-    fontWeight: '500',
-  },
-  doneButton: {
-    margin: 16,
-    padding: 16,
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  doneButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
   noResultsText: {
     textAlign: 'center',
