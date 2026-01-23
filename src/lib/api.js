@@ -5,10 +5,13 @@ import { BASE_URL } from '../config';
 
 const api = axios.create({
   baseURL: BASE_URL,
+  headers: {
+    'x-platform': 'mobile', // 👈 Yeh hamesha rahega
+  },
   withCredentials: false,
 });
 
-api.interceptors.request.use(async (config) => {
+api.interceptors.request.use(async config => {
   const token = await AsyncStorage.getItem('token');
   if (token) {
     config.headers = config.headers || {};
@@ -18,8 +21,8 @@ api.interceptors.request.use(async (config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
+  response => response,
+  async error => {
     const status = error?.response?.status;
 
     if (status === 401) {
@@ -29,8 +32,7 @@ api.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
-
 
 export default api;

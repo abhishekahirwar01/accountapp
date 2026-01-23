@@ -1,4 +1,4 @@
-// src/screens/dashboard/UserDashboardScreen.jsx
+
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
@@ -30,7 +30,7 @@ import { TransactionForm } from '../../components/transactions/TransactionForm';
 import { useCompany } from '../../contexts/company-context';
 import UpdateWalkthrough from '../../components/notifications/UpdateWalkthrough';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
-import { usePermissions } from '../../contexts/permission-context'; // Import permission context
+import { usePermissions } from '../../contexts/permission-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { BASE_URL } from '../../config';
 
@@ -70,7 +70,7 @@ const getAmount = (type, row) => {
 };
 
 export default function UserDashboardScreen({ navigation, route }) {
-  // --- State & Hooks
+  
   const { selectedCompanyId, triggerCompaniesRefresh, refreshTrigger } =
     useCompany();
   const {
@@ -78,9 +78,9 @@ export default function UserDashboardScreen({ navigation, route }) {
     isAllowed,
     refetch: refetchUserPermissions,
   } = useUserPermissions();
-  const { permissions, refetch: refetchPermissions } = usePermissions(); // Get permission refetch
+  const { permissions, refetch: refetchPermissions } = usePermissions();
 
-  // Trigger company refresh when screen gains focus
+  
   useFocusEffect(
     React.useCallback(() => {
       console.log(
@@ -98,7 +98,7 @@ export default function UserDashboardScreen({ navigation, route }) {
   const [serviceNameById, setServiceNameById] = useState(new Map());
   const [refreshing, setRefreshing] = useState(false);
 
-  // Read role from AsyncStorage
+  
   const [role, setRole] = useState('user');
 
   useEffect(() => {
@@ -118,7 +118,7 @@ export default function UserDashboardScreen({ navigation, route }) {
     [companies, selectedCompanyId],
   );
 
-  // Safe fetch helper
+  
   const safeGet = useCallback(async url => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -134,14 +134,40 @@ export default function UserDashboardScreen({ navigation, route }) {
     }
   }, []);
 
-  // Fetch dashboard data
+  
   const fetchCompanyDashboard = useCallback(async () => {
     setIsLoading(true);
     try {
-      const queryParam = selectedCompanyId
-        ? `?companyId=${selectedCompanyId}`
-        : '';
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Toast.show({
+          type: 'error',
+          text1: 'Authentication Error',
+          text2: 'Authentication token not found.',
+          position: 'bottom',
+        });
+        throw new Error('Authentication token not found.');
+      }
 
+      const authHeaders = { Authorization: `Bearer ${token}` };
+
+      
+      const queryParam = selectedCompanyId
+        ? `?companyId=${selectedCompanyId}&isDashboard=true`
+        : `?companyId=all&isDashboard=true`;
+
+      
+      const safeFetch = async url => {
+        try {
+          const r = await fetch(url, { headers: authHeaders });
+          if (!r.ok) return {};
+          return await r.json();
+        } catch {
+          return {};
+        }
+      };
+
+      
       const [
         rawSales,
         rawPurchases,
@@ -151,51 +177,64 @@ export default function UserDashboardScreen({ navigation, route }) {
         companiesData,
         servicesJson,
       ] = await Promise.all([
-        safeGet(`${BASE_URL}/api/sales${queryParam}`),
-        safeGet(`${BASE_URL}/api/purchase${queryParam}`),
-        safeGet(`${BASE_URL}/api/receipts${queryParam}`),
-        safeGet(`${BASE_URL}/api/payments${queryParam}`),
-        safeGet(`${BASE_URL}/api/journals${queryParam}`),
-        safeGet(`${BASE_URL}/api/companies/my`),
-        safeGet(`${BASE_URL}/api/services`),
+        safeFetch(`${BASE_URL}/api/sales${queryParam}`),
+        safeFetch(`${BASE_URL}/api/purchase${queryParam}`),
+        safeFetch(`${BASE_URL}/api/receipts${queryParam}`),
+        safeFetch(`${BASE_URL}/api/payments${queryParam}`),
+        safeFetch(`${BASE_URL}/api/journals${queryParam}`),
+        safeFetch(`${BASE_URL}/api/companies/my`),
+        safeFetch(`${BASE_URL}/api/services`),
       ]);
 
-      // Only admins can see users count
+      console.log('📊 Dashboard API Responses:', {
+        sales: rawSales,
+        purchases: rawPurchases,
+        companies: companiesData,
+      });
+
+      
       let usersCount = 0;
       if (isAdmin) {
-        const usersJson = await safeGet(`${BASE_URL}/api/users`);
+        const usersJson = await safeFetch(`${BASE_URL}/api/users`);
         usersCount = Array.isArray(usersJson)
           ? usersJson.length
           : usersJson?.length || 0;
       }
 
-      // Services map
+      
       const servicesArr = Array.isArray(servicesJson)
         ? servicesJson
         : servicesJson?.services || [];
       const sMap = new Map();
-      servicesArr.forEach(s => {
-        if (s?._id) {
+      for (const s of servicesArr) {
+        if (s?._id)
           sMap.set(String(s._id), s.serviceName || s.name || 'Service');
-        }
-      });
+      }
       setServiceNameById(sMap);
 
-      // Companies
+      
       const comps = Array.isArray(companiesData)
         ? companiesData
         : companiesData?.data || [];
       setCompanies(comps);
 
-      // Normalize arrays
+      
       const salesArr = toArray(rawSales);
       const purchasesArr = toArray(rawPurchases);
       const receiptsArr = toArray(rawReceipts);
       const paymentsArr = toArray(rawPayments);
       const journalsArr = toArray(rawJournals);
 
-      // Combine all transactions
-      const allTransactions = [
+      console.log('📈 Transaction Counts:', {
+        sales: salesArr.length,
+        purchases: purchasesArr.length,
+        receipts: receiptsArr.length,
+        payments: paymentsArr.length,
+        journals: journalsArr.length,
+      });
+
+      
+      let allTransactions = [
         ...salesArr.map(s => ({ ...s, type: 'sales' })),
         ...purchasesArr.map(p => ({ ...p, type: 'purchases' })),
         ...receiptsArr.map(r => ({ ...r, type: 'receipt' })),
@@ -205,11 +244,23 @@ export default function UserDashboardScreen({ navigation, route }) {
           description: j?.narration ?? j?.description ?? '',
           type: 'journal',
         })),
-      ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      ];
+
+      if (selectedCompanyId && selectedCompanyId !== 'all') {
+        allTransactions = allTransactions.filter(t => {
+          const transCompanyId =
+            typeof t.company === 'object' ? t.company?._id : t.company;
+          return transCompanyId === selectedCompanyId;
+        });
+      }
+
+      allTransactions.sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+      );
 
       setRecentTransactions(allTransactions.slice(0, 5));
 
-      // Calculate KPIs
+      
       const totalSales = salesArr.reduce(
         (acc, row) => acc + getAmount('sales', row),
         0,
@@ -224,30 +275,40 @@ export default function UserDashboardScreen({ navigation, route }) {
         ? comps.length
         : 0;
 
+      console.log('💰 Calculated KPIs:', {
+        totalSales,
+        totalPurchases,
+        companiesCount,
+        usersCount,
+      });
+
       setCompanyData({
         totalSales,
         totalPurchases,
-        users: usersCount,
+        users: usersCount, 
         companies: companiesCount,
       });
     } catch (error) {
+      console.error('❌ Dashboard fetch error:', error);
       Toast.show({
         type: 'error',
-        text1: 'Failed to load dashboard',
-        text2: error instanceof Error ? error.message : 'Something went wrong.',
+        text1: 'Failed to load dashboard data',
+        text2:
+          error instanceof Error ? error.message : 'Something went wrong.',
         position: 'bottom',
       });
       setCompanyData(null);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedCompanyId, isAdmin, safeGet]);
+  }, [selectedCompanyId, isAdmin]);
 
+  
   useEffect(() => {
     fetchCompanyDashboard();
   }, [selectedCompanyId, fetchCompanyDashboard]);
 
-  // Add refresh function that also fetches permissions and companies
+  
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     Promise.all([
@@ -265,10 +326,18 @@ export default function UserDashboardScreen({ navigation, route }) {
     refetchPermissions,
   ]);
 
-  // Fetch companies silently when global company refresh triggers — avoid full loading spinner
+ 
   const fetchCompaniesOnly = useCallback(async () => {
     try {
-      const data = await safeGet(`${BASE_URL}/api/companies/my`);
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch(`${BASE_URL}/api/companies/my`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+
+      const data = await response.json();
       const comps = Array.isArray(data)
         ? data
         : data?.data || data?.companies || [];
@@ -276,9 +345,9 @@ export default function UserDashboardScreen({ navigation, route }) {
     } catch (err) {
       console.error('fetchCompaniesOnly failed:', err);
     }
-  }, [safeGet]);
+  }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (refreshTrigger && refreshTrigger > 0) {
       fetchCompaniesOnly().catch(err =>
         console.error(
@@ -294,7 +363,7 @@ export default function UserDashboardScreen({ navigation, route }) {
     fetchCompanyDashboard();
   };
 
-  // --- KPI Cards
+  
   const kpis = [
     {
       key: 'sales',
@@ -304,14 +373,14 @@ export default function UserDashboardScreen({ navigation, route }) {
       description: selectedCompanyId
         ? 'For selected company'
         : 'Across all companies',
-      show: isAdmin || isAllowed('canCreateSaleEntries'),
+      show: isAdmin || (isAllowed && isAllowed('canCreateSaleEntries')),
     },
     {
       key: 'purchases',
       title: 'Total Purchases',
       value: formatCurrency(companyData?.totalPurchases || 0),
       icon: CreditCard,
-      show: isAdmin || isAllowed('canCreatePurchaseEntries'),
+      show: isAdmin || (isAllowed && isAllowed('canCreatePurchaseEntries')),
     },
     {
       key: 'users',
@@ -333,7 +402,7 @@ export default function UserDashboardScreen({ navigation, route }) {
   const handleSettingsPress = () => navigation.navigate('ProfileScreen');
   const handleTransactionPress = () => setIsTransactionFormOpen(true);
 
-  // --- KPI Card Component
+  
   const KPICard = ({ title, value, Icon, description }) => (
     <View style={[styles.kpiCard, { width: SCREEN_WIDTH * 0.6 }]}>
       <View style={styles.cardHeader}>
@@ -349,7 +418,7 @@ export default function UserDashboardScreen({ navigation, route }) {
     </View>
   );
 
-  // --- List Header Component
+  
   const renderHeader = () => (
     <View>
       {/* Header */}
@@ -365,6 +434,9 @@ export default function UserDashboardScreen({ navigation, route }) {
 
         {companies.length > 0 && (
           <View style={styles.headerActions}>
+            <UpdateWalkthrough />
+
+            
             {/* <TouchableOpacity
               onPress={handleSettingsPress}
               style={[styles.btn, styles.btnOutline]}
@@ -389,21 +461,23 @@ export default function UserDashboardScreen({ navigation, route }) {
       </View>
 
       {/* KPI Cards */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ marginBottom: 24 }}
-      >
-        {kpis.map(k => (
-          <KPICard
-            key={k.key}
-            title={k.title}
-            value={k.value}
-            Icon={k.icon}
-            description={k.description}
-          />
-        ))}
-      </ScrollView>
+      {kpis.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginBottom: 24 }}
+        >
+          {kpis.map(k => (
+            <KPICard
+              key={k.key}
+              title={k.title}
+              value={k.value}
+              Icon={k.icon}
+              description={k.description}
+            />
+          ))}
+        </ScrollView>
+      ) : null}
     </View>
   );
 
@@ -430,7 +504,7 @@ export default function UserDashboardScreen({ navigation, route }) {
     );
   }
 
-  // --- Render Empty State
+  
   if (companies.length === 0) {
     return (
       <AppLayout>
@@ -455,11 +529,11 @@ export default function UserDashboardScreen({ navigation, route }) {
     );
   }
 
-  // --- Main Render with FlatList
+  
   return (
     <AppLayout>
       <FlatList
-        data={[]} // We don't need actual data since we're using ListHeaderComponent
+        data={[]}
         renderItem={null}
         ListHeaderComponent={renderHeader}
         ListFooterComponent={renderContent}
@@ -475,7 +549,7 @@ export default function UserDashboardScreen({ navigation, route }) {
         showsVerticalScrollIndicator={false}
       />
 
-      {/* Transaction Modal */}
+      
       <Modal
         visible={isTransactionFormOpen}
         animationType="fade"

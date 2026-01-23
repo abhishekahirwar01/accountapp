@@ -339,8 +339,19 @@ const ProductStock = ({
       });
 
       if (!res.ok) throw new Error('Failed to fetch products.');
-      const data = await res.json();
-      setProducts(Array.isArray(data) ? data : data.products || []);
+      let data = await res.json();
+      let productsList = Array.isArray(data) ? data : data.products || [];
+
+      // Client-side extra safety filter
+      if (selectedCompanyId) {
+        productsList = productsList.filter(p => {
+          // Product's company can be an object or a string ID
+          const cId = typeof p.company === 'object' ? p.company?._id : p.company;
+          return cId === selectedCompanyId || !cId; // !cId handles products that are globally available
+        });
+      }
+
+      setProducts(productsList);
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -437,12 +448,24 @@ const ProductStock = ({
     />
   );
 
-  if (
-    !(permissions?.canCreateProducts ?? permissions?.canCreateInventory) &&
-    !(userCaps?.canCreateProducts ?? userCaps?.canCreateInventory) &&
-    (permissions?.maxInventories ?? 0) === 0
-  ) {
-    return null;
+  const shouldShowComponent = () => {
+    const hasProductPermission = permissions?.canCreateProducts;
+    const hasUserInventoryPermission = userCaps?.canCreateInventory;
+    const maxInventories = permissions?.maxInventories ?? 0;
+    
+
+    if (!hasProductPermission && !hasUserInventoryPermission && maxInventories === 0) {
+      console.log('🚫 Hiding ProductStock component - No permissions');
+      return false;
+    }
+    
+    console.log('✅ Showing ProductStock component');
+    return true;
+  };
+
+  // Hide component if user has no permissions
+  if (!shouldShowComponent()) {
+    return null; // Component will not render
   }
 
   return (
@@ -469,13 +492,11 @@ const ProductStock = ({
           {showCreateButtons && !isTablet && (
             <View style={styles.mobileHeaderButtonsContainer}>
               <MobileHeaderButton
-                // icon="package-variant-plus"
                 label="Add Product"
                 color="#486adaff"
                 onPress={() => setIsAddProductOpen(true)}
               />
               <MobileHeaderButton
-                // icon="server-plus"
                 label="Add Service"
                 color="#2b9775ff"
                 onPress={() => setIsAddServiceOpen(true)}
@@ -679,7 +700,6 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#fff',
     borderRadius: 16,
-    marginHorizontal: 16,
     marginBottom: 16,
     marginTop: 8,
     shadowColor: '#000',
@@ -741,14 +761,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     gap: 10,
   },
-  // mobileHeaderIconContainer: {
-  //   width: 28,
-  //   height: 28,
-  //   borderRadius: 16,
-  //   backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  //   alignItems: 'center',
-  //   justifyContent: 'center',
-  // },
   mobileHeaderButtonText: {
     fontSize: 15,
     fontWeight: '600',

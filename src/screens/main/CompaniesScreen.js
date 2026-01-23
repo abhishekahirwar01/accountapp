@@ -486,13 +486,15 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'white',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     padding: 16,
+    paddingTop:4,
+    paddingBottom:8
   },
   headerTitle: {
     flex: 1,
@@ -511,6 +513,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    marginTop:9
   },
   addCompanyButton: {
     flexDirection: 'row',
@@ -548,7 +551,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   cardListContent: {
-    gap: 12,
+    // gap: 8,
   },
   card: {
     backgroundColor: 'white',

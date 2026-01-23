@@ -1488,7 +1488,7 @@ const Template1 = ({
           
           .left-section {
             width: 65%;
-            border-right: 1.5pt solid #0371C1; 
+            // border-right: 1.5pt solid #0371C1; 
             padding: 5pt;
             display: flex;
             flex-direction: column;
@@ -1498,7 +1498,7 @@ const Template1 = ({
           
           .right-section {
             width: 35%;
-            // border-left: 1.5pt solid #0371C1; 
+            border-left: 1pt solid #0371C1; 
             // padding: 5pt;
             display: flex;
             flex-direction: column;
@@ -1654,6 +1654,7 @@ const Template1 = ({
           /* Signature Block */
           .signature-box {
             border-top: 1pt solid #0371C1;
+            // border-left: 1px solid #0371C1;
             width: 100%;
             min-height: 84pt;
             display: flex;

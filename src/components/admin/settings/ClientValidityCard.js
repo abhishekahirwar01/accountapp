@@ -28,8 +28,15 @@ function Badge({ text, variant = 'outline' }) {
   const theme = themes[variant] || themes.outline;
 
   return (
-    <View style={[styles.badge, { backgroundColor: theme.bg, borderColor: theme.border }]}>
-      <Text style={[styles.badgeText, { color: theme.text }]}>{text.toUpperCase()}</Text>
+    <View
+      style={[
+        styles.badge,
+        { backgroundColor: theme.bg, borderColor: theme.border },
+      ]}
+    >
+      <Text style={[styles.badgeText, { color: theme.text }]}>
+        {text.toUpperCase()}
+      </Text>
     </View>
   );
 }
@@ -37,12 +44,16 @@ function Badge({ text, variant = 'outline' }) {
 function StatCard({ icon, label, value, color = '#3b82f6' }) {
   return (
     <View style={styles.statCard}>
-      <View style={[styles.statIconContainer, { backgroundColor: `${color}10` }]}>
+      <View
+        style={[styles.statIconContainer, { backgroundColor: `${color}10` }]}
+      >
         <Icon name={icon} size={18} color={color} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.statLabel}>{label}</Text>
-        <Text style={styles.statValue} numberOfLines={1}>{value}</Text>
+        <Text style={styles.statValue} numberOfLines={1}>
+          {value}
+        </Text>
       </View>
     </View>
   );
@@ -60,8 +71,29 @@ export function ClientValidityCard({ clientId, onChanged }) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
+  // ✅ Date formatting function - "Mar 31, 2026" फॉर्मेट
+  const formatDate = useCallback((date) => {
+    if (!date) return 'N/A';
+    try {
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return 'N/A';
+      
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const month = months[d.getMonth()];
+      const day = d.getDate();
+      const year = d.getFullYear();
+      
+      return `${month} ${day}, ${year}`;
+    } catch (error) {
+      return 'N/A';
+    }
+  }, []);
+
   const getToken = useCallback(async () => {
-    return await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
+    return (
+      (await AsyncStorage.getItem('token')) ||
+      (await AsyncStorage.getItem('userToken'))
+    );
   }, []);
 
   const load = useCallback(async () => {
@@ -88,17 +120,24 @@ export function ClientValidityCard({ clientId, onChanged }) {
     }
   }, [baseURL, clientId, toast, getToken]);
 
-  useEffect(() => { load(); }, [load]);
-  
-  useEffect(() => { 
-    if (validity) setDraft({ enabled: validity.status !== 'disabled' }); 
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    if (validity) setDraft({ enabled: validity.status !== 'disabled' });
   }, [validity]);
 
-  const expiresAtDate = useMemo(() => validity?.expiresAt ? new Date(validity.expiresAt) : null, [validity]);
-  
+  const expiresAtDate = useMemo(
+    () => (validity?.expiresAt ? new Date(validity.expiresAt) : null),
+    [validity],
+  );
+
   const daysLeft = useMemo(() => {
     if (!expiresAtDate) return null;
-    const diff = Math.ceil((expiresAtDate - new Date()) / (1000 * 60 * 60 * 24));
+    const diff = Math.ceil(
+      (expiresAtDate - new Date()) / (1000 * 60 * 60 * 24),
+    );
     return diff > 0 ? diff : 0;
   }, [expiresAtDate]);
 
@@ -114,28 +153,46 @@ export function ClientValidityCard({ clientId, onChanged }) {
     setSaving(true);
     try {
       const token = await getToken();
-      
+
       // Handle Status Change
       if (draft.enabled !== (validity?.status !== 'disabled')) {
         const endpoint = draft.enabled ? '' : '/disable';
         const method = draft.enabled ? 'PUT' : 'PATCH';
-        const body = draft.enabled ? JSON.stringify({ years: 0, months: 0, days: 1 }) : null;
+        const body = draft.enabled
+          ? JSON.stringify({ years: 0, months: 0, days: 1 })
+          : null;
         await fetch(`${baseURL}/api/account/${clientId}/validity${endpoint}`, {
           method,
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body,
         });
       }
 
       // Handle Date Change
       if (exactDate) {
-         const target = new Date(`${exactDate}T00:00:00`);
-         const days = Math.max(1, Math.ceil((target - new Date()) / (1000 * 60 * 60 * 24)));
-         await fetch(`${baseURL}/api/account/${clientId}/validity`, {
-            method: 'PUT',
-            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ years: 0, months: 0, days, startAt: new Date().toISOString() }),
-         });
+        // mm/dd/yyyy फॉर्मेट को सही तरीके से parse करो
+        const [month, day, year] = exactDate.split('/');
+        const target = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        const days = Math.max(
+          1,
+          Math.ceil((target - new Date()) / (1000 * 60 * 60 * 24)),
+        );
+        await fetch(`${baseURL}/api/account/${clientId}/validity`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            years: 0,
+            months: 0,
+            days,
+            startAt: new Date().toISOString(),
+          }),
+        });
       }
 
       await load();
@@ -153,7 +210,12 @@ export function ClientValidityCard({ clientId, onChanged }) {
     if (Platform.OS === 'android') setShowDatePicker(false);
     if (date) {
       setSelectedDate(date);
-      setExactDate(date.toISOString().split('T')[0]);
+      // mm/dd/yyyy फॉर्मेट में convert करो
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const year = date.getFullYear();
+      const formattedDate = `${month}/${day}/${year}`;
+      setExactDate(formattedDate);
     }
   };
 
@@ -170,24 +232,24 @@ export function ClientValidityCard({ clientId, onChanged }) {
           <Icon name="shield-check-outline" size={22} color="#2563eb" />
           <Text style={styles.headerTitle}>Account Validity</Text>
         </View>
-        <Badge 
-          text={validity?.status || '...'} 
-          variant={validity?.status === 'active' ? 'success' : 'outline'} 
+        <Badge
+          text={validity?.status || '...'}
+          variant={validity?.status === 'active' ? 'success' : 'outline'}
         />
       </View>
 
       <ScrollView scrollEnabled={false}>
         {/* STATS ROW */}
         <View style={styles.statsRow}>
-          <StatCard 
-            icon="calendar-range" 
-            label="Expiry" 
-            value={expiresAtDate ? expiresAtDate.toLocaleDateString() : 'N/A'} 
+          <StatCard
+            icon="calendar-range"
+            label="Expires On"
+            value={formatDate(validity?.expiresAt)}
           />
-          <StatCard 
-            icon="clock-outline" 
-            label="Remaining" 
-            value={daysLeft !== null ? `${daysLeft}d` : '0d'} 
+          <StatCard
+            icon="clock-outline"
+            label="Days Left"
+            value={daysLeft !== null ? `${daysLeft}` : '0d'}
             color="#f59e0b"
           />
         </View>
@@ -196,12 +258,14 @@ export function ClientValidityCard({ clientId, onChanged }) {
         <View style={styles.section}>
           <View style={styles.rowBetween}>
             <View>
-              <Text style={styles.sectionLabel}>Access Switch</Text>
-              <Text style={styles.sectionSub}>Enable or disable user access</Text>
+              <Text style={styles.sectionLabel}>Account Status</Text>
+              <Text style={styles.sectionSub}>
+                {draft.enabled ? 'Enabled' : 'Disabled'}
+              </Text>
             </View>
             <Switch
               value={draft.enabled}
-              onValueChange={(v) => setDraft(d => ({ ...d, enabled: v }))}
+              onValueChange={v => setDraft(d => ({ ...d, enabled: v }))}
               trackColor={{ false: '#cbd5e1', true: '#10b981' }}
               thumbColor="#ffffff"
             />
@@ -210,14 +274,14 @@ export function ClientValidityCard({ clientId, onChanged }) {
 
         {/* DATE PICKER */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Override Expiration</Text>
-          <TouchableOpacity 
-            style={styles.dateSelector} 
+          <Text style={styles.sectionLabel}>Expiry date</Text>
+          <TouchableOpacity
+            style={styles.dateSelector}
             onPress={() => setShowDatePicker(true)}
           >
             <Icon name="calendar-edit" size={18} color="#64748b" />
             <Text style={[styles.dateValue, !exactDate && styles.placeholder]}>
-              {exactDate ? `Target: ${exactDate}` : 'Select a specific date'}
+              {exactDate || 'mm/dd/yyyy'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -225,16 +289,23 @@ export function ClientValidityCard({ clientId, onChanged }) {
 
       {/* FIXED FOOTER - ALWAYS VISIBLE */}
       <View style={styles.footer}>
-        <TouchableOpacity 
-          style={styles.btnReset} 
+        <TouchableOpacity
+          style={styles.btnReset}
           onPress={resetChanges}
           disabled={!hasPending || saving}
         >
-          <Text style={[styles.btnResetText, !hasPending && styles.textDisabled]}>Reset</Text>
+          <Text
+            style={[styles.btnResetText, !hasPending && styles.textDisabled]}
+          >
+            Reset
+          </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.btnSave, (!hasPending || saving) && styles.btnSaveDisabled]} 
+        <TouchableOpacity
+          style={[
+            styles.btnSave,
+            (!hasPending || saving) && styles.btnSaveDisabled,
+          ]}
           onPress={commitChanges}
           disabled={!hasPending || saving}
         >

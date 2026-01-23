@@ -114,11 +114,11 @@ export default function PayablesScreen() {
       // Add event listener for Android hardware back button
       const backHandler = BackHandler.addEventListener(
         'hardwareBackPress',
-        onBackPress
+        onBackPress,
       );
 
       // Add listener for navigation back gesture (iOS swipe)
-      const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      const unsubscribe = navigation.addListener('beforeRemove', e => {
         if (selectedVendor || selectedExpense) {
           // Prevent leaving the screen
           e.preventDefault();
@@ -135,7 +135,7 @@ export default function PayablesScreen() {
         backHandler.remove();
         unsubscribe();
       };
-    }, [selectedVendor, selectedExpense, navigation])
+    }, [selectedVendor, selectedExpense, navigation]),
   );
 
   // For toast notifications
@@ -907,12 +907,37 @@ export default function PayablesScreen() {
           <View style={styles.filterInputContainer}>
             <Text style={styles.filterLabel}>Date Range</Text>
             <View style={styles.dateRangeContainer}>
+              {/* From Date Picker */}
               <TouchableOpacity
-                style={styles.dateButton}
+                style={[styles.dateButton, styles.dateButtonLeft]}
+                onPress={() => setShowFromDatePicker(true)}
+              >
+                <Text style={styles.dateButtonText}>
+                  {dateRange.from ? formatDate(dateRange.from) : 'From date'}
+                </Text>
+                <Icon name="calendar" size={20} color="#3B82F6" />
+              </TouchableOpacity>
+              {showFromDatePicker && (
+                <DateTimePicker
+                  value={dateRange.from ? new Date(dateRange.from) : new Date()}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={handleFromDatePickerChange}
+                />
+              )}
+
+              {/* Separator */}
+              <View style={styles.dateSeparator}>
+                <Text style={styles.dateSeparatorText}>to</Text>
+              </View>
+
+              {/* To Date Picker */}
+              <TouchableOpacity
+                style={[styles.dateButton, styles.dateButtonRight]}
                 onPress={() => setShowToDatePicker(true)}
               >
                 <Text style={styles.dateButtonText}>
-                  {dateRange.to || 'To date'}
+                  {dateRange.to ? formatDate(dateRange.to) : 'To date'}
                 </Text>
                 <Icon name="calendar" size={20} color="#3B82F6" />
               </TouchableOpacity>
@@ -1051,6 +1076,7 @@ export default function PayablesScreen() {
                     AsyncStorage.setItem('selectedVendor_payables', id);
                   }}
                   selectedCompanyId={selectedCompanyId}
+                  dateRange={dateRange}
                   formatCurrency={formatCurrency}
                 />
               )
@@ -1088,6 +1114,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
+    paddingTop: -50,
   },
   scrollView: {
     flex: 1,
@@ -1095,12 +1122,12 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 6,
-    marginTop: -10,
+    // marginTop: -10,
   },
   loadingScreen: {
     flex: 1,
     backgroundColor: '#f8fafc',
-    padding: 16,
+    // padding: 16,
   },
   loadingContent: {
     flex: 1,
@@ -1172,8 +1199,8 @@ const styles = StyleSheet.create({
   desktopToggle: {
     display: 'none',
   },
-  activeIcon:{
-    backgroundColor: '#b1c6f7ff'
+  activeIcon: {
+    backgroundColor: '#b1c6f7ff',
   },
   headerActions: {
     flexDirection: 'row',
@@ -1316,7 +1343,8 @@ const styles = StyleSheet.create({
   },
   dateRangeContainer: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    gap: 4,
   },
   dateButton: {
     flex: 1,
@@ -1331,9 +1359,31 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     minHeight: 44,
   },
+  dateButtonLeft: {
+    borderTopLeftRadius: 8,
+    borderBottomLeftRadius: 8,
+    borderRightWidth: 0,
+  },
+  dateButtonRight: {
+    borderTopRightRadius: 8,
+    borderBottomRightRadius: 8,
+  },
   dateButtonText: {
     fontSize: 14,
     color: '#0f172a',
+    fontWeight: '500',
+  },
+
+  dateSeparator: {
+    paddingHorizontal: 8,
+    backgroundColor: '#f8fafc',
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dateSeparatorText: {
+    fontSize: 14,
+    color: '#64748b',
     fontWeight: '500',
   },
   dateInputContainer: {

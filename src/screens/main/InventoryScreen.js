@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePermissions } from '../../contexts/permission-context';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
 import { useCompany } from '../../contexts/company-context';
+import { useSocket } from '../../components/hooks/useSocket';
 import { useToast } from '../../components/hooks/useToast';
 import { BASE_URL } from '../../config';
 import { useFocusEffect } from '@react-navigation/native';
@@ -35,6 +36,7 @@ import ProductForm from '../../components/products/ProductForm';
 import ServiceForm from '../../components/services/ServiceForm';
 import ExcelImportExport from '../../components/ui/ExcelImportExport';
 import AppLayout from '../../components/layout/AppLayout';
+import InventorySocketListener from '../../socketlisteners/InventorySocketListener';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
@@ -68,6 +70,25 @@ export default function InventoryScreen() {
   const { permissions, refetch, isLoading: isLoadingPerms } = usePermissions();
   const { selectedCompanyId, triggerCompaniesRefresh, refreshTrigger } =
     useCompany();
+
+  const { socket } = useSocket();
+
+  // Load user data from AsyncStorage
+  const [user, setUser] = useState(null);
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const userData = await AsyncStorage.getItem('user');
+        if (userData) {
+          setUser(JSON.parse(userData));
+          console.log('📱 InventoryScreen: User loaded from storage');
+        }
+      } catch (error) {
+        console.error('❌ InventoryScreen: Failed to load user:', error);
+      }
+    };
+    loadUser();
+  }, []);
 
   // Trigger company refresh when screen gains focus
   useFocusEffect(
@@ -150,60 +171,78 @@ export default function InventoryScreen() {
     }
   }, [toast]);
 
-  const fetchProducts = useCallback(async () => {
-    setIsLoadingProducts(true);
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('Authentication token not found.');
+  const fetchProducts = useCallback(
+    async (isSilent = false) => {
+      if (!isSilent) setIsLoadingProducts(true);
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) throw new Error('Authentication token not found.');
 
-      const queryParam = selectedCompanyId
-        ? `?companyId=${selectedCompanyId}`
-        : '';
+        const queryParam = selectedCompanyId
+          ? `?companyId=${selectedCompanyId}`
+          : '';
 
-      const res = await fetch(`${BASE_URL}/api/products${queryParam}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error('Failed to fetch products.');
-      const data = await res.json();
-      setProducts(Array.isArray(data) ? data : data.products || []);
-      setProductCurrentPage(1);
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Failed to load products',
-        description:
-          error instanceof Error ? error.message : 'Something went wrong.',
-      });
-    } finally {
-      setIsLoadingProducts(false);
-    }
-  }, [toast, selectedCompanyId]);
+        const res = await fetch(`${BASE_URL}/api/products${queryParam}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error('Failed to fetch products.');
+        const data = await res.json();
+        setProducts(Array.isArray(data) ? data : data.products || []);
+        setProductCurrentPage(1);
 
-  const fetchServices = useCallback(async () => {
-    setIsLoadingServices(true);
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('Authentication token not found.');
+        if (isSilent) {
+          console.log('✅ Products updated silently via socket');
+        }
+      } catch (error) {
+        if (!isSilent) {
+          toast({
+            variant: 'destructive',
+            title: 'Failed to load products',
+            description:
+              error instanceof Error ? error.message : 'Something went wrong.',
+          });
+        }
+      } finally {
+        if (!isSilent) setIsLoadingProducts(false);
+      }
+    },
+    [toast, selectedCompanyId],
+  );
 
-      // Services are global (same for all companies) — fetch without company filter
-      const res = await fetch(`${BASE_URL}/api/services`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error('Failed to fetch services.');
-      const data = await res.json();
-      setServices(Array.isArray(data) ? data : data.services || []);
-      setServiceCurrentPage(1);
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Failed to load services',
-        description:
-          error instanceof Error ? error.message : 'Something went wrong.',
-      });
-    } finally {
-      setIsLoadingServices(false);
-    }
-  }, [toast]);
+  const fetchServices = useCallback(
+    async (isSilent = false) => {
+      if (!isSilent) setIsLoadingServices(true);
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) throw new Error('Authentication token not found.');
+
+        // Services are global (same for all companies) — fetch without company filter
+        const res = await fetch(`${BASE_URL}/api/services`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error('Failed to fetch services.');
+        const data = await res.json();
+        setServices(Array.isArray(data) ? data : data.services || []);
+        setServiceCurrentPage(1);
+
+        if (isSilent) {
+          console.log('✅ Services updated silently via socket');
+        }
+      } catch (error) {
+        if (!isSilent) {
+          toast({
+            variant: 'destructive',
+            title: 'Failed to load services',
+            description:
+              error instanceof Error ? error.message : 'Something went wrong.',
+          });
+        }
+      } finally {
+        if (!isSilent) setIsLoadingServices(false);
+      }
+    },
+    [toast],
+  );
 
   useEffect(() => {
     fetchCompanies();
@@ -501,7 +540,6 @@ export default function InventoryScreen() {
     return data;
   }, [services, selectedCompanyId, userAllowedCompanyIds]);
 
-
   const productTotalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
   const serviceTotalPages = Math.ceil(filteredServices.length / ITEMS_PER_PAGE);
 
@@ -673,179 +711,180 @@ export default function InventoryScreen() {
   // ==========================================
   // PRODUCT CARD (EDIT/DELETE KE PERMISSION CHECKS HATAYE)
   // ==========================================
- const renderProductCard = (item, index) => {
-  const isLowStock = (item.stocks ?? 0) <= 10;
+  const renderProductCard = (item, index) => {
+    const isLowStock = (item.stocks ?? 0) <= 10;
 
-  return (
-    <View style={styles.card} key={item._id}>
-      {/* Header - Product Info */}
-      <View style={styles.cardHeader}>
-        <View style={styles.productInfo}>
-          <View style={styles.iconCircle}>
-            <Icon name="inventory-2" size={20} color="#3b82f6" />
-          </View>
-          <View style={styles.productDetails}>
-            <Text style={styles.productName} numberOfLines={1}>
-              {item.name?.charAt(0).toUpperCase() + item.name?.slice(1)}
-            </Text>
-            <Text style={styles.companyName} numberOfLines={1}>
-              {typeof item.company === 'object' && item.company
-                ? item.company.businessName
-                : 'No Company'}
-            </Text>
+    return (
+      <View style={styles.card} key={item._id}>
+        {/* Header - Product Info */}
+        <View style={styles.cardHeader}>
+          <View style={styles.productInfo}>
+            <View style={styles.iconCircle}>
+              <Icon name="inventory-2" size={20} color="#3b82f6" />
+            </View>
+            <View style={styles.productDetails}>
+              <Text style={styles.productName} numberOfLines={1}>
+                {item.name?.charAt(0).toUpperCase() + item.name?.slice(1)}
+              </Text>
+              <Text style={styles.companyName} numberOfLines={1}>
+                {typeof item.company === 'object' && item.company
+                  ? item.company.businessName
+                  : 'No Company'}
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
 
-      {/* Body - Stock Left, Prices Right */}
-      <View style={styles.cardBody}>
-        <View style={styles.mainInfoRow}>
-          {/* Left Side - Stock */}
-          <View style={styles.stockSection}>
-            <Text style={styles.label}>Stock</Text>
-            <View style={styles.stockDisplay}>
-              <Text
-                style={[
-                  styles.stockValue,
-                  (item.stocks ?? 0) > 10
-                    ? styles.stockGood
-                    : (item.stocks ?? 0) > 0
-                    ? styles.stockWarning
-                    : styles.stockDanger,
-                ]}
-              >
-                {item.stocks ?? 0}
-              </Text>
-              <Text style={styles.unit}>{item.unit ?? 'Piece'}</Text>
-            </View>
-            {isLowStock && (item.stocks ?? 0) > 0 && (
-              <View style={styles.lowStockBadge}>
-                <Text style={styles.lowStockText}>Low Stock</Text>
+        {/* Body - Stock Left, Prices Right */}
+        <View style={styles.cardBody}>
+          <View style={styles.mainInfoRow}>
+            {/* Left Side - Stock */}
+            <View style={styles.stockSection}>
+              <Text style={styles.label}>Stock</Text>
+              <View style={styles.stockDisplay}>
+                <Text
+                  style={[
+                    styles.stockValue,
+                    (item.stocks ?? 0) > 10
+                      ? styles.stockGood
+                      : (item.stocks ?? 0) > 0
+                      ? styles.stockWarning
+                      : styles.stockDanger,
+                  ]}
+                >
+                  {item.stocks ?? 0}
+                </Text>
+                <Text style={styles.unit}>{item.unit ?? 'Piece'}</Text>
               </View>
-            )}
-          </View>
-
-          {/* Right Side - Prices */}
-          <View style={styles.priceSection}>
-            <View style={styles.priceItem}>
-              <Text style={styles.label}>Cost Price</Text>
-              <Text style={styles.costPrice}>
-                {item.costPrice ? formatCurrencyINR(item.costPrice) : '—'}
-              </Text>
+              {isLowStock && (item.stocks ?? 0) > 0 && (
+                <View style={styles.lowStockBadge}>
+                  <Text style={styles.lowStockText}>Low Stock</Text>
+                </View>
+              )}
             </View>
-            <View style={styles.priceItem}>
-              <Text style={styles.label}>Selling Price</Text>
-              <Text style={styles.sellingPrice}>
-                {item.sellingPrice ? formatCurrencyINR(item.sellingPrice) : '—'}
-              </Text>
-            </View>
-          </View>
-        </View>
 
-        {/* HSN if available */}
-        {item.hsn && (
-          <View style={styles.hsnRow}>
-            <Text style={styles.hsnLabel}>HSN: </Text>
-            <Text style={styles.hsnValue}>{item.hsn}</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Footer - Date & Edit */}
-      <View style={styles.cardFooter}>
-        <Text style={styles.dateText}>
-          {item.createdAt
-            ? new Date(item.createdAt).toLocaleDateString('en-IN', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-              })
-            : '—'}
-        </Text>
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => openEditProduct(item)}
-        >
-          <Icon name="edit" size={16} color="#3b82f6" />
-          <Text style={styles.editButtonText}>Edit</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
-
-  
- const renderServiceCard = item => {
-  return (
-    <View style={styles.card} key={item._id}>
-      {/* Header - Service Info */}
-      <View style={styles.cardHeader}>
-        <View style={styles.serviceInfo}>
-          <View style={[styles.iconCircle, { backgroundColor: '#fce7f3' }]}>
-            <Icon name="build" size={20} color="#ec4899" />
-          </View>
-          <View style={styles.serviceDetails}>
-            <Text style={styles.serviceName} numberOfLines={1}>
-              {item.serviceName}
-            </Text>
-            <Text style={styles.serviceSubtext}>Service</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Body - Amount & SAC */}
-      <View style={styles.cardBody}>
-        <View style={styles.serviceInfoRow}>
-          {/* Left Side - Amount */}
-          <View style={styles.serviceAmountBox}>
-            <Text style={styles.label}>Amount</Text>
-            <Text style={styles.serviceAmount}>
-              {formatCurrencyINR(item.amount)}
-            </Text>
-          </View>
-
-          {/* Right Side - SAC Badge (if available) */}
-          {item.sac && (
-            <View style={styles.sacBadgeContainer}>
-              <View style={styles.sacBadge}>
-                <Text style={styles.sacLabel}>SAC</Text>
-                <Text style={styles.sacValue}>{item.sac}</Text>
+            {/* Right Side - Prices */}
+            <View style={styles.priceSection}>
+              <View style={styles.priceItem}>
+                <Text style={styles.label}>Cost Price</Text>
+                <Text style={styles.costPrice}>
+                  {item.costPrice ? formatCurrencyINR(item.costPrice) : '—'}
+                </Text>
               </View>
+              <View style={styles.priceItem}>
+                <Text style={styles.label}>Selling Price</Text>
+                <Text style={styles.sellingPrice}>
+                  {item.sellingPrice
+                    ? formatCurrencyINR(item.sellingPrice)
+                    : '—'}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* HSN if available */}
+          {item.hsn && (
+            <View style={styles.hsnRow}>
+              <Text style={styles.hsnLabel}>HSN: </Text>
+              <Text style={styles.hsnValue}>{item.hsn}</Text>
             </View>
           )}
         </View>
-      </View>
 
-      {/* Footer - Date & Actions */}
-      <View style={styles.cardFooter}>
-        <Text style={styles.dateText}>
-          {item.createdAt
-            ? new Date(item.createdAt).toLocaleDateString('en-IN', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-              })
-            : '—'}
-        </Text>
-        <View style={styles.serviceActionsContainer}>
+        {/* Footer - Date & Edit */}
+        <View style={styles.cardFooter}>
+          <Text style={styles.dateText}>
+            {item.createdAt
+              ? new Date(item.createdAt).toLocaleDateString('en-IN', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                })
+              : '—'}
+          </Text>
           <TouchableOpacity
             style={styles.editButton}
-            onPress={() => openEditService(item)}
+            onPress={() => openEditProduct(item)}
           >
             <Icon name="edit" size={16} color="#3b82f6" />
             <Text style={styles.editButtonText}>Edit</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.deleteButtonCompact}
-            onPress={() => confirmDeleteService(item)}
-          >
-            <Icon name="delete" size={16} color="#ef4444" />
-          </TouchableOpacity>
         </View>
       </View>
-    </View>
-  );
-};
+    );
+  };
+
+  const renderServiceCard = item => {
+    return (
+      <View style={styles.card} key={item._id}>
+        {/* Header - Service Info */}
+        <View style={styles.cardHeader}>
+          <View style={styles.serviceInfo}>
+            <View style={[styles.iconCircle, { backgroundColor: '#fce7f3' }]}>
+              <Icon name="build" size={20} color="#ec4899" />
+            </View>
+            <View style={styles.serviceDetails}>
+              <Text style={styles.serviceName} numberOfLines={1}>
+                {item.serviceName}
+              </Text>
+              <Text style={styles.serviceSubtext}>Service</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Body - Amount & SAC */}
+        <View style={styles.cardBody}>
+          <View style={styles.serviceInfoRow}>
+            {/* Left Side - Amount */}
+            <View style={styles.serviceAmountBox}>
+              <Text style={styles.label}>Amount</Text>
+              <Text style={styles.serviceAmount}>
+                {formatCurrencyINR(item.amount)}
+              </Text>
+            </View>
+
+            {/* Right Side - SAC Badge (if available) */}
+            {item.sac && (
+              <View style={styles.sacBadgeContainer}>
+                <View style={styles.sacBadge}>
+                  <Text style={styles.sacLabel}>SAC</Text>
+                  <Text style={styles.sacValue}>{item.sac}</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Footer - Date & Actions */}
+        <View style={styles.cardFooter}>
+          <Text style={styles.dateText}>
+            {item.createdAt
+              ? new Date(item.createdAt).toLocaleDateString('en-IN', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                })
+              : '—'}
+          </Text>
+          <View style={styles.serviceActionsContainer}>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => openEditService(item)}
+            >
+              <Icon name="edit" size={16} color="#3b82f6" />
+              <Text style={styles.editButtonText}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.deleteButtonCompact}
+              onPress={() => confirmDeleteService(item)}
+            >
+              <Icon name="delete" size={16} color="#ef4444" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  };
 
   // ==========================================
   // HEADER COMPONENT
@@ -1185,6 +1224,24 @@ export default function InventoryScreen() {
   return (
     <AppLayout>
       <View style={styles.container}>
+        {/* 🔌 Live Socket Listener - Listen for product/service updates */}
+        {socket && user && (
+          <InventorySocketListener
+            socket={socket}
+            user={user}
+            onProductUpdate={() => {
+              fetchProducts(true); // Silent update
+              refetch?.(); // Refresh permissions silently
+              refetchUserPermissions?.(); // Refresh user permissions silently
+            }}
+            onServiceUpdate={() => {
+              fetchServices(true); // Silent update
+              refetch?.(); // Refresh permissions silently
+              refetchUserPermissions?.(); // Refresh user permissions silently
+            }}
+          />
+        )}
+
         <FlatList
           data={getData()}
           keyExtractor={item => item._id}
@@ -1326,7 +1383,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   contentContainer: {
-    padding: 16,
+    padding: 14,
+    paddingTop: 4,
     flexGrow: 1,
   },
 
@@ -1346,13 +1404,13 @@ const styles = StyleSheet.create({
 
   // Header Section
   header: {
-    marginBottom: 20,
+    marginBottom: 14,
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
     color: '#0f172a',
-    marginBottom: 4,
+    // marginBottom: 4,
   },
   subtitle: {
     fontSize: 15,
@@ -1363,7 +1421,7 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 16,
+    marginTop: 12,
   },
   button: {
     flexDirection: 'row',
@@ -1393,13 +1451,20 @@ const styles = StyleSheet.create({
 
   // Tabs
   tabsContainer: {
-    marginBottom: 16,
+    marginBottom: 10,
   },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 10,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
     padding: 4,
+    // margin: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   tab: {
     flex: 1,
@@ -1409,7 +1474,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   activeTab: {
-    backgroundColor: 'white',
+    backgroundColor: '#3b82f6',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -1422,7 +1487,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   activeTabText: {
-    color: '#0f172a',
+    color: 'white',
   },
 
   // Bulk Actions
@@ -1431,9 +1496,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
 
-  // ==========================================
-  // CARD STYLES - SHARED (PRODUCT & SERVICE)
-  // ==========================================
   card: {
     backgroundColor: 'white',
     borderRadius: 12,
@@ -1453,7 +1515,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
-  
+
   // Icon Circle (Shared)
   iconCircle: {
     width: 40,

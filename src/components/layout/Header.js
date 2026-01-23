@@ -25,10 +25,8 @@ import { useCompany } from '../../contexts/company-context';
 // Components
 import { CompanySwitcher } from './CompanySwitcher';
 import Notification from '../notifications/Notification';
-import SupportForm from '../support/SupportForm';
 
-// Config
-import { BASE_URL } from '../../config';
+// Config (removed unused BASE_URL import)
 
 const logoPath2 = require('../../../assets/images/vinimay.png');
 
@@ -61,7 +59,6 @@ export default function Header() {
   const [showSearch, setShowSearch] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [showSupportForm, setShowSupportForm] = useState(false);
   const [dateString, setDateString] = useState('');
   const [highlightCount, setHighlightCount] = useState(0);
   const [currentHighlightIndex, setCurrentHighlightIndex] = useState(0);
@@ -157,7 +154,7 @@ export default function Header() {
 
   const handleSupport = () => {
     setShowDropdown(false);
-    setShowSupportForm(true);
+    navigation.navigate('SupportFormScreen');
   };
 
   // Search highlight functionality
@@ -332,7 +329,7 @@ export default function Header() {
             {/* Notification Component */}
             {showNotification && (
               <View style={styles.notificationContainer}>
-                <Notification />
+                <Notification socket={null} />
               </View>
             )}
 
@@ -403,21 +400,19 @@ export default function Header() {
                     </TouchableOpacity>
 
                     {/* Support Option */}
-                    {role !== 'master'&&(
-
+                    {role !== 'master' && (
                       <TouchableOpacity
-                      style={styles.dropdownItem}
-                      onPress={handleSupport}
-                    >
-                      <Ionicons
-                        name="help-circle-outline"
-                        size={18}
-                        color="#64748b"
-                      />
-                      <Text style={styles.dropdownText}>Support</Text>
-                    </TouchableOpacity>
+                        style={styles.dropdownItem}
+                        onPress={handleSupport}
+                      >
+                        <Ionicons
+                          name="help-circle-outline"
+                          size={18}
+                          color="#64748b"
+                        />
+                        <Text style={styles.dropdownText}>Support</Text>
+                      </TouchableOpacity>
                     )}
-                    
 
                     <TouchableOpacity
                       style={styles.dropdownItem}
@@ -439,12 +434,6 @@ export default function Header() {
           </View>
         </View>
       </SafeAreaView>
-
-      {/* Support Form Modal */}
-      <SupportForm
-        isVisible={showSupportForm}
-        onClose={() => setShowSupportForm(false)}
-      />
     </>
   );
 }

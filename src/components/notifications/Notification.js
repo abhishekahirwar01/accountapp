@@ -1,21 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Alert,
   Modal,
   RefreshControl,
 } from 'react-native';
-import {
-  IconButton,
-  Badge,
-  ActivityIndicator,
-  Card,
-  Divider,
-} from 'react-native-paper';
+import { Badge, ActivityIndicator, Card, Divider } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
@@ -24,17 +18,17 @@ import { BASE_URL } from '../../config';
 
 const Notification = ({ socket }) => {
   const [notifications, setNotifications] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       setIsLoading(true);
+      setError(null);
 
       const token = await AsyncStorage.getItem('token');
-
       if (!token) {
         setError('Authentication required');
         setIsLoading(false);
@@ -42,7 +36,6 @@ const Notification = ({ socket }) => {
       }
 
       const userData = await AsyncStorage.getItem('user');
-
       if (!userData) {
         setError('User data not found');
         setIsLoading(false);
@@ -50,7 +43,6 @@ const Notification = ({ socket }) => {
       }
 
       const user = JSON.parse(userData);
-
       const userId = user.id || user._id || user.userId || user.userID;
 
       if (!userId) {
@@ -66,23 +58,18 @@ const Notification = ({ socket }) => {
         apiUrl = `${BASE_URL}/api/notifications/user/${userId}`;
       } else {
         let clientId = user.clientId || user.clientID || user.client;
-
         if (!clientId && user.companies && user.companies.length > 0) {
           clientId = user.companies[0]._id;
         }
-
         if (!clientId) {
           clientId = userId;
         }
-
         apiUrl = `${BASE_URL}/api/notifications/client/${clientId}`;
       }
 
       try {
         const response = await axios.get(apiUrl, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         if (Array.isArray(response.data)) {
@@ -107,27 +94,21 @@ const Notification = ({ socket }) => {
           fallbackUrl = `${BASE_URL}/api/notifications/user/${userId}`;
         }
 
-        try {
-          const fallbackResponse = await axios.get(fallbackUrl, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+        const fallbackResponse = await axios.get(fallbackUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-          if (Array.isArray(fallbackResponse.data)) {
-            notificationsData = fallbackResponse.data;
-          } else if (
-            fallbackResponse.data.notifications &&
-            Array.isArray(fallbackResponse.data.notifications)
-          ) {
-            notificationsData = fallbackResponse.data.notifications;
-          } else if (Array.isArray(fallbackResponse.data.data)) {
-            notificationsData = fallbackResponse.data.data;
-          } else {
-            notificationsData = fallbackResponse.data || [];
-          }
-        } catch (fallbackError) {
-          throw new Error('Could not fetch notifications from any endpoint');
+        if (Array.isArray(fallbackResponse.data)) {
+          notificationsData = fallbackResponse.data;
+        } else if (
+          fallbackResponse.data.notifications &&
+          Array.isArray(fallbackResponse.data.notifications)
+        ) {
+          notificationsData = fallbackResponse.data.notifications;
+        } else if (Array.isArray(fallbackResponse.data.data)) {
+          notificationsData = fallbackResponse.data.data;
+        } else {
+          notificationsData = fallbackResponse.data || [];
         }
       }
 
@@ -152,85 +133,95 @@ const Notification = ({ socket }) => {
       } else {
         setError(err.response?.data?.message || 'Failed to load notifications');
       }
-
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchNotifications();
     setRefreshing(false);
-  };
+  }, [fetchNotifications]);
 
+  // Fetch notifications on component mount (immediate) - यह तुरंत डेटा लोड करेगा
   useEffect(() => {
     fetchNotifications();
-  }, []);
+  }, [fetchNotifications]);
 
+  // Also refetch when modal opens (to get fresh data)
   useEffect(() => {
     if (isModalVisible) {
       fetchNotifications();
     }
-  }, [isModalVisible]);
+  }, [isModalVisible, fetchNotifications]);
 
-  const handleNewNotification = () => {
+  const handleNewNotification = useCallback(() => {
     fetchNotifications();
-  };
+  }, [fetchNotifications]);
 
-  const markAsRead = async notificationId => {
+  const markAsRead = useCallback(async notificationId => {
     try {
       const token = await AsyncStorage.getItem('token');
-      await axios.patch(
-        `${BASE_URL}/api/notifications/mark-as-read/${notificationId}`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
 
-      setNotifications(
-        notifications.map(notification =>
+      // Optimistically update UI
+      setNotifications(prev =>
+        prev.map(notification =>
           notification._id === notificationId
             ? { ...notification, read: true }
             : notification,
         ),
       );
+
+      // Then make API call
+      await axios.patch(
+        `${BASE_URL}/api/notifications/mark-as-read/${notificationId}`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
     } catch (err) {
+      // Revert on error
+      setNotifications(prev =>
+        prev.map(notification =>
+          notification._id === notificationId
+            ? { ...notification, read: false }
+            : notification,
+        ),
+      );
       Alert.alert('Error', 'Failed to mark notification as read');
     }
-  };
+  }, []);
 
-  const markAllAsRead = async () => {
+  const markAllAsRead = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('token');
+      const unreadNotifications = notifications.filter(n => !n.read);
 
-      for (const notification of notifications.filter(n => !n.read)) {
-        try {
-          await axios.patch(
+      // Optimistically update UI
+      setNotifications(prev =>
+        prev.map(notification => ({ ...notification, read: true })),
+      );
+
+      // Make API calls in parallel
+      await Promise.allSettled(
+        unreadNotifications.map(notification =>
+          axios.patch(
             `${BASE_URL}/api/notifications/mark-as-read/${notification._id}`,
             {},
             {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
+              headers: { Authorization: `Bearer ${token}` },
             },
-          );
-        } catch (err) {
-          // Continue with other notifications even if one fails
-        }
-      }
-
-      setNotifications(
-        notifications.map(notification => ({ ...notification, read: true })),
+          ),
+        ),
       );
     } catch (err) {
       Alert.alert('Error', 'Failed to mark all notifications as read');
+      fetchNotifications(); // Refresh to get correct state
     }
-  };
+  }, [notifications, fetchNotifications]);
 
-  const getNotificationIcon = (type, action) => {
+  const getNotificationIcon = useCallback((type, action) => {
     switch (type) {
       case 'sales':
         return 'cart';
@@ -245,9 +236,9 @@ const Notification = ({ socket }) => {
       default:
         return action === 'create' ? 'check-circle' : 'alert-circle';
     }
-  };
+  }, []);
 
-  const getIconColor = type => {
+  const getIconColor = useCallback(type => {
     switch (type) {
       case 'sales':
         return '#3b82f6';
@@ -262,9 +253,9 @@ const Notification = ({ socket }) => {
       default:
         return '#6b7280';
     }
-  };
+  }, []);
 
-  const formatDate = dateString => {
+  const formatDate = useCallback(dateString => {
     if (!dateString) return 'Unknown date';
 
     try {
@@ -289,15 +280,108 @@ const Notification = ({ socket }) => {
     } catch (error) {
       return 'Unknown date';
     }
-  };
+  }, []);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = useMemo(
+    () => notifications.filter(n => !n.read).length,
+    [notifications],
+  );
+
+  const renderNotificationItem = useCallback(
+    ({ item: notification }) => (
+      <Card
+        style={[
+          styles.notificationCard,
+          notification.read && styles.readNotification,
+        ]}
+      >
+        <Card.Content>
+          <View style={styles.notificationContent}>
+            <View style={styles.iconContainer}>
+              <Icon
+                name={getNotificationIcon(
+                  notification.type,
+                  notification.action,
+                )}
+                size={20}
+                color={getIconColor(notification.type)}
+              />
+            </View>
+            <View style={styles.notificationText}>
+              <View style={styles.notificationHeader}>
+                <Text
+                  style={[
+                    styles.notificationTitle,
+                    notification.read && styles.readText,
+                  ]}
+                  numberOfLines={2}
+                >
+                  {notification.title}
+                </Text>
+                {!notification.read && (
+                  <TouchableOpacity
+                    onPress={() => markAsRead(notification._id)}
+                    style={styles.markReadButton}
+                  >
+                    <Text style={styles.markReadText}>Mark read</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <Text style={styles.notificationMessage} numberOfLines={3}>
+                {notification.message}
+              </Text>
+              <Text style={styles.notificationTime}>
+                {formatDate(
+                  notification.metadata?.createdAt || notification.createdAt,
+                )}
+              </Text>
+            </View>
+          </View>
+        </Card.Content>
+      </Card>
+    ),
+    [getNotificationIcon, getIconColor, formatDate, markAsRead],
+  );
+
+  const keyExtractor = useCallback(item => item._id, []);
+
+  const ListEmptyComponent = useMemo(
+    () => (
+      <View style={styles.centerContent}>
+        {isLoading ? (
+          <>
+            <ActivityIndicator size="large" color="#6366f1" />
+            <Text style={styles.loadingText}>Loading notifications...</Text>
+          </>
+        ) : error ? (
+          <>
+            <Icon name="alert-circle" size={48} color="#ef4444" />
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={fetchNotifications}
+            >
+              <Text style={styles.retryButtonText}>Try Again</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Icon name="bell" size={48} color="#6b7280" />
+            <Text style={styles.emptyText}>No notifications yet</Text>
+            <Text style={styles.emptySubtext}>
+              Notifications will appear here when available
+            </Text>
+          </>
+        )}
+      </View>
+    ),
+    [isLoading, error, fetchNotifications],
+  );
 
   return (
     <>
       <SocketListener socket={socket} onNotification={handleNewNotification} />
 
-      {/* Notification Bell Icon */}
       <TouchableOpacity
         style={styles.bellContainer}
         onPress={() => setIsModalVisible(true)}
@@ -310,23 +394,23 @@ const Notification = ({ socket }) => {
         )}
       </TouchableOpacity>
 
-      {/* Notifications Modal */}
       <Modal
         visible={isModalVisible}
         animationType="slide"
         onRequestClose={() => setIsModalVisible(false)}
       >
         <View style={styles.modalContainer}>
-          {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerTop}>
-              <TouchableOpacity
-                onPress={() => setIsModalVisible(false)}
-                style={styles.backButton}
-              >
-                <Icon name="arrow-left" size={24} color="#000" />
-              </TouchableOpacity>
-              <Text style={styles.headerTitle}>Notifications</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TouchableOpacity
+                  onPress={() => setIsModalVisible(false)}
+                  style={styles.backButton}
+                >
+                  <Icon name="arrow-left" size={24} color="#000" />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Notifications</Text>
+              </View>
               {unreadCount > 0 && (
                 <TouchableOpacity onPress={markAllAsRead}>
                   <Text style={styles.markAllText}>Mark all read</Text>
@@ -344,93 +428,29 @@ const Notification = ({ socket }) => {
 
           <Divider />
 
-          {/* Notifications List */}
-          <ScrollView
-            style={styles.notificationsList}
+          <FlatList
+            data={notifications}
+            renderItem={renderNotificationItem}
+            keyExtractor={keyExtractor}
+            ListEmptyComponent={ListEmptyComponent}
+            contentContainerStyle={[
+              styles.notificationsList,
+              notifications.length === 0 && styles.emptyListContent,
+            ]}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
-          >
-            {isLoading ? (
-              <View style={styles.centerContent}>
-                <ActivityIndicator size="large" color="#6366f1" />
-                <Text style={styles.loadingText}>Loading notifications...</Text>
-              </View>
-            ) : error ? (
-              <View style={styles.centerContent}>
-                <Icon name="alert-circle" size={48} color="#ef4444" />
-                <Text style={styles.errorText}>{error}</Text>
-                <TouchableOpacity
-                  style={styles.retryButton}
-                  onPress={fetchNotifications}
-                >
-                  <Text style={styles.retryButtonText}>Try Again</Text>
-                </TouchableOpacity>
-              </View>
-            ) : notifications.length === 0 ? (
-              <View style={styles.centerContent}>
-                <Icon name="bell" size={48} color="#6b7280" />
-                <Text style={styles.emptyText}>No notifications yet</Text>
-                <Text style={styles.emptySubtext}>
-                  Notifications will appear here when available
-                </Text>
-              </View>
-            ) : (
-              notifications.map(notification => (
-                <Card
-                  key={notification._id}
-                  style={[
-                    styles.notificationCard,
-                    notification.read && styles.readNotification,
-                  ]}
-                >
-                  <Card.Content>
-                    <View style={styles.notificationContent}>
-                      <View style={styles.iconContainer}>
-                        <Icon
-                          name={getNotificationIcon(
-                            notification.type,
-                            notification.action,
-                          )}
-                          size={20}
-                          color={getIconColor(notification.type)}
-                        />
-                      </View>
-                      <View style={styles.notificationText}>
-                        <View style={styles.notificationHeader}>
-                          <Text
-                            style={[
-                              styles.notificationTitle,
-                              notification.read && styles.readText,
-                            ]}
-                          >
-                            {notification.title}
-                          </Text>
-                          {!notification.read && (
-                            <TouchableOpacity
-                              onPress={() => markAsRead(notification._id)}
-                              style={styles.markReadButton}
-                            >
-                              <Text style={styles.markReadText}>Mark read</Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                        <Text style={styles.notificationMessage}>
-                          {notification.message}
-                        </Text>
-                        <Text style={styles.notificationTime}>
-                          {formatDate(
-                            notification.metadata?.createdAt ||
-                              notification.createdAt,
-                          )}
-                        </Text>
-                      </View>
-                    </View>
-                  </Card.Content>
-                </Card>
-              ))
-            )}
-          </ScrollView>
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            updateCellsBatchingPeriod={50}
+            initialNumToRender={10}
+            windowSize={10}
+            getItemLayout={(data, index) => ({
+              length: 120,
+              offset: 120 * index,
+              index,
+            })}
+          />
         </View>
       </Modal>
     </>
@@ -454,7 +474,6 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 16,
-    paddingTop: 60,
   },
   headerTop: {
     flexDirection: 'row',
@@ -478,8 +497,10 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   notificationsList: {
-    flex: 1,
     padding: 16,
+  },
+  emptyListContent: {
+    flexGrow: 1,
   },
   centerContent: {
     flex: 1,
@@ -545,7 +566,7 @@ const styles = StyleSheet.create({
   notificationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 4,
   },
   notificationTitle: {
@@ -553,17 +574,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     marginRight: 8,
+    flexShrink: 1,
   },
   readText: {
     color: '#6b7280',
   },
   markReadButton: {
-    padding: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
   },
   markReadText: {
     color: '#6366f1',
     fontSize: 12,
     fontWeight: '500',
+    flexShrink: 0,
   },
   notificationMessage: {
     fontSize: 14,

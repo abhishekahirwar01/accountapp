@@ -67,25 +67,9 @@ const toArray = data => {
   return [];
 };
 
-const num = v => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-};
-
 const getAmount = (type, row) => {
-  switch (type) {
-    case 'sales':
-      return num(row?.amount ?? row?.totalAmount);
-    case 'purchases':
-      return num(row?.totalAmount ?? row?.amount);
-    case 'receipt':
-    case 'payment':
-      return num(row?.amount ?? row?.totalAmount);
-    case 'journal':
-      return 0;
-    default:
-      return 0;
-  }
+  const val = row?.amount ?? row?.totalAmount ?? 0;
+  return Number(val) || 0;
 };
 
 // --- Skeleton Components (Simplified for RN) ---
@@ -225,9 +209,10 @@ export default function DashboardPage() {
           }
         }
 
-        const queryParam = selectedCompanyId
-          ? `?companyId=${selectedCompanyId}`
-          : '';
+        const queryParam =
+          selectedCompanyId && selectedCompanyId !== 'all'
+            ? `?companyId=${selectedCompanyId}&limit=10000`
+            : '?limit=10000';
 
         // Batch critical API calls first
         const [salesRes, purchasesRes, companiesRes] = await Promise.all([
@@ -268,7 +253,7 @@ export default function DashboardPage() {
           users: 0, // Will be updated in secondary load
           companies: companiesCount,
           recentTransactions: [],
-          serviceNameById: new Map(),
+          serviceNameById: {},
         };
 
         setDashboardData(initialData);
@@ -408,7 +393,7 @@ export default function DashboardPage() {
       const paymentsArr = toArray(rawPayments);
       const journalsArr = toArray(rawJournals);
 
-      const allTransactions = [
+      let allTransactions = [
         ...salesArr.map(s => ({ ...s, type: 'sales' })),
         ...purchasesArr.map(p => ({ ...p, type: 'purchases' })),
         ...receiptsArr.map(r => ({ ...r, type: 'receipt' })),
@@ -418,7 +403,20 @@ export default function DashboardPage() {
           description: j?.narration ?? j?.description ?? '',
           type: 'journal',
         })),
-      ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      ];
+
+      // If a company is selected on the dashboard, filter the transactions
+      if (selectedCompanyId && selectedCompanyId !== 'all') {
+        allTransactions = allTransactions.filter(t => {
+          const transCompanyId =
+            typeof t.company === 'object' ? t.company?._id : t.company;
+          return transCompanyId === selectedCompanyId;
+        });
+      }
+
+      allTransactions.sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+      );
 
       const servicesArr = Array.isArray(servicesJson)
         ? servicesJson
@@ -432,7 +430,7 @@ export default function DashboardPage() {
       const updatedData = {
         ...initialData,
         users: usersData?.length || 0,
-        recentTransactions: allTransactions.slice(0, 4),
+        recentTransactions: allTransactions.slice(0, 4), // Top 4 filtered transactions
         serviceNameById: sMap,
       };
 
@@ -482,49 +480,44 @@ export default function DashboardPage() {
             Dashboard
           </Text>
 
+          {/* Replace the button group section with this improved version */}
           <View style={styles.buttonGroup}>
-            {/* Refresh Button */}
-            {/* <TouchableOpacity
-              onPress={handleRefresh}
-              style={[styles.refreshButton, refreshing && styles.refreshButtonActive]}
-              disabled={refreshing}
-            >
-              <RefreshCw
-                size={18}
-                color="#3b82f6"
-                style={[styles.refreshIcon, refreshing && styles.refreshIconActive]}
-              />
-            </TouchableOpacity> */}
-
+            {/* Update Walkthrough */}
             <Suspense fallback={null}>
               <UpdateWalkthrough />
             </Suspense>
 
-            <Button
+            {/* White Outline Button for Proforma */}
+            <TouchableOpacity
               onPress={() => setIsProformaFormOpen(true)}
-              icon={FileText}
-              iconColor="#3b82f6"
-              style={[styles.actionButton, styles.roleBadgeButton]}
-              labelStyle={[styles.smallButtonLabel, styles.roleBadgeButtonText]}
               disabled={companies.length === 0}
-            >
-              Proforma
-            </Button>
-
-            <Button
-              onPress={() => setIsTransactionFormOpen(true)}
-              icon={PlusCircle}
-              iconColor="#3b82f6"
               style={[
-                styles.actionButton,
-                styles.primaryActionButton,
-                styles.roleBadgeButton,
+                styles.improvedButton,
+                styles.whiteButton,
+                companies.length === 0 && styles.buttonDisabled,
               ]}
-              labelStyle={[styles.smallButtonLabel, styles.roleBadgeButtonText]}
-              disabled={companies.length === 0}
             >
-              Transaction
-            </Button>
+              <FileText size={16} color="#3b82f6" style={styles.buttonIcon} />
+              <Text style={[styles.buttonText, styles.whiteButtonText]}>
+                Proforma
+              </Text>
+            </TouchableOpacity>
+
+            {/* Blue Filled Button for Transaction */}
+            <TouchableOpacity
+              onPress={() => setIsTransactionFormOpen(true)}
+              disabled={companies.length === 0}
+              style={[
+                styles.improvedButton,
+                styles.blueButton,
+                companies.length === 0 && styles.buttonDisabled,
+              ]}
+            >
+              <PlusCircle size={16} color="#ffffff" style={styles.buttonIcon} />
+              <Text style={[styles.buttonText, styles.blueButtonText]}>
+                Transaction
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -543,6 +536,16 @@ export default function DashboardPage() {
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+        bouncesZoom={true}
+        scrollEventThrottle={16}
+        decelerationRate="normal"
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        initialNumToRender={10}
+        windowSize={21}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -623,7 +626,19 @@ export default function DashboardPage() {
           </View>
 
           {/* Content */}
-          <ScrollView style={styles.modalScroll}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            bounces={true}
+            bouncesZoom={true}
+            scrollEventThrottle={16}
+            decelerationRate="normal"
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            updateCellsBatchingPeriod={50}
+            initialNumToRender={10}
+            windowSize={21}
+            style={styles.modalScroll}
+          >
             <Suspense
               fallback={<ActivityIndicator style={{ marginTop: 20 }} />}
             >
@@ -673,7 +688,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 0,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#ffffff',
   },
   contentContainer: {
     paddingBottom: 20,
@@ -711,13 +726,60 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6b7280',
     opacity: 0.9,
-    marginTop: 8,
+    // marginTop: 8,
   },
   buttonGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
     marginTop: 0,
+  },
+
+  improvedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 8,
+    minHeight: 30,
+    minWidth: 100,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  whiteButton: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#3b82f6',
+  },
+  blueButton: {
+    backgroundColor: '#4272f7',
+    borderWidth: 1.5,
+    borderColor: '#3b82f6',
+  },
+  buttonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  whiteButtonText: {
+    color: '#3b82f6',
+  },
+  blueButtonText: {
+    color: '#ffffff',
+  },
+  buttonIcon: {
+    marginRight: 6,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
   actionButton: {
     marginLeft: 6,
@@ -728,6 +790,7 @@ const styles = StyleSheet.create({
   },
   primaryActionButton: {
     minWidth: 110,
+    // backgroundColor: '#3b82f6',
   },
   smallButtonLabel: {
     fontSize: 12,
@@ -857,6 +920,7 @@ const styles = StyleSheet.create({
   dataContainer: {
     gap: 12,
     marginTop: 8,
+    margin: 12,
   },
   productStockSkeleton: {
     height: 200,

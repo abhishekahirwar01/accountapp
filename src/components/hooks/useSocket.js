@@ -1,63 +1,127 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import io from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BASE_URL } from "../../config";
+import { BASE_URL } from '../../config';
+
+let socketInstance = null;
 
 export const useSocket = () => {
-  const [socket, setSocket] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(
+    socketInstance?.connected || false,
+  );
+  const isJoined = useRef(false);
 
-  useEffect(() => {
-    let newSocket;
-    
-    const initializeSocket = async () => {
-      const token = await AsyncStorage.getItem("token");
-      const userData = await AsyncStorage.getItem("user");
-
-      if (!token || !userData) return;
+  const joinRooms = useCallback(async socket => {
+    if (isJoined.current) return;
+    try {
+      const userData = await AsyncStorage.getItem('user');
+      if (!userData) return;
 
       const user = JSON.parse(userData);
-      const userId = user.id || user._id || user.userId || user.userID;
-      const clientId = user.clientId || user.clientID || user.client || userId;
+      const userId = user.id || user._id || user.userId;
+      const clientId = user.clientId || userId;
 
       if (!userId) return;
 
-      // Connect to socket server using BASE_URL
-      newSocket = io(BASE_URL, {
-        auth: { token }
-      });
+      console.log('📤 [Socket] Sending IDENTIFY & joinRoom for:', userId);
 
-      newSocket.on('connect', () => {
-        console.log('🔔 Connected to notification socket', new Date().toISOString());
-        setIsConnected(true);
+      // Backend expects these two specifically
+      socket.emit('IDENTIFY', { userId, clientId });
+      socket.emit('joinRoom', { userId, role: user.role, clientId });
 
-        // Join appropriate room
-        if (user.role === 'master') {
-          newSocket.emit('joinRoom', { userId, role: user.role, clientId });
-          console.log('🔔 Joined master room:', `master-${userId}`);
-        } else if (user.role === 'client' || user.role === 'user' || user.role === 'admin') {
-          newSocket.emit('joinRoom', { userId, role: user.role, clientId });
-          console.log('🔔 Joined rooms:', `user-${userId}`, `client-${clientId}`);
-        }
-      });
-
-      newSocket.on('disconnect', () => {
-        console.log('🔔 Disconnected from notification socket');
-        setIsConnected(false);
-      });
-
-      setSocket(newSocket);
-    };
-
-    initializeSocket();
-
-    return () => {
-      if (newSocket) {
-        newSocket.disconnect();
-        setIsConnected(false);
-      }
-    };
+      isJoined.current = true;
+    } catch (error) {
+      console.error('❌ [Socket] Join Error:', error);
+    }
   }, []);
 
-  return { socket, isConnected };
+  useEffect(() => {
+    if (!socketInstance) {
+      console.log('🔔 [Socket] Initializing Singleton Connection...');
+      socketInstance = io(BASE_URL, {
+        path: '/socket.io/',
+        transports: ['websocket'],
+        reconnection: true,
+        forceNew: false,
+        multiplex: true,
+      });
+    }
+
+    const onConnect = () => {
+      console.log('✅ [Socket] Connected. ID:', socketInstance.id);
+      setIsConnected(true);
+      joinRooms(socketInstance);
+    };
+
+    const onDisconnect = () => {
+      console.log('❌ [Socket] Disconnected');
+      setIsConnected(false);
+      isJoined.current = false;
+    };
+
+    socketInstance.on('connect', onConnect);
+    socketInstance.on('disconnect', onDisconnect);
+
+    if (socketInstance.connected && !isJoined.current) onConnect();
+
+    return () => {
+      socketInstance.off('connect', onConnect);
+      socketInstance.off('disconnect', onDisconnect);
+    };
+  }, [joinRooms]);
+
+  return { socket: socketInstance, isConnected };
+};
+
+/**
+ * Account Level Listener (Backend uses PERMISSION_UPDATE)
+ */
+export const usePermissionSocket = onPermissionUpdate => {
+  const { socket } = useSocket();
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handler = payload => {
+      // Backend sends data inside { type, data }
+      if (payload?.type === 'PERMISSION_UPDATE') {
+        console.log('--- 🛡️ SOCKET: Account Update Received ---');
+        onPermissionUpdate(payload.data);
+      }
+    };
+
+    socket.on('PERMISSION_UPDATE', handler);
+    return () => socket.off('PERMISSION_UPDATE', handler);
+  }, [socket, onPermissionUpdate]);
+};
+
+/**
+ * User Level Listener (Backend also uses PERMISSION_UPDATE for users)
+ */
+export const useUserPermissionSocket = onUserUpdate => {
+  const { socket } = useSocket();
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handler = payload => {
+      // Backend controller line 86: { type: 'USER_PERMISSION_UPDATE', data: doc }
+      if (payload?.type === 'USER_PERMISSION_UPDATE') {
+        console.log('--- 👤 SOCKET: User Permission Update Received ---');
+        onUserUpdate(payload.data);
+      }
+    };
+
+    // YAHAN GALTI THI: Backend direct USER_PERMISSION_UPDATE nahi bhejta
+    // Wo PERMISSION_UPDATE bhejta hai aur andar type batata hai
+    socket.on('PERMISSION_UPDATE', handler);
+
+    // Backup: Agar backend kabhi direct bhej de
+    socket.on('USER_PERMISSION_UPDATE', onUserUpdate);
+
+    return () => {
+      socket.off('PERMISSION_UPDATE', handler);
+      socket.off('USER_PERMISSION_UPDATE', onUserUpdate);
+    };
+  }, [socket, onUserUpdate]);
 };

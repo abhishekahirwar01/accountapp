@@ -273,7 +273,7 @@ export const ReceiptPaymentFields = props => {
   return (
     <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: 40 }]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.fieldContainer}>

@@ -293,7 +293,7 @@ const Template17 = ({ transaction, company, party, shippingAddress, bank }) => {
           .invoice-value { font-size: 8px; }
           .party-table { width: 100%; border-collapse: collapse; border: 1px solid ${PRIMARY_BLUE}; border-top: none; margin-bottom: 10px; }
           .party-col { width: 50%; padding: 8px 10px; vertical-align: top; }
-          .party-col-right { border-left: 2px solid ${PRIMARY_BLUE}; }
+          .party-col-right { border-left: 1px solid ${PRIMARY_BLUE}; }
           .party-heading { font-size: 8px; font-weight: bold; margin-bottom: 3px; color: ${PRIMARY_BLUE}; }
           .party-name { font-size: 9px; font-weight: bold; margin-bottom: 2px; }
           .party-line { font-size: 7.5px; margin-bottom: 1px; line-height: 1.2; }
