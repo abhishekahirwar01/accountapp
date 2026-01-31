@@ -597,10 +597,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#007AFF',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    // paddingVertical: 12,
     borderRadius: 8,
     gap: 8,
-    minHeight: 44,
+    minHeight: 34,
   },
   buttonText: {
     color: '#007AFF',

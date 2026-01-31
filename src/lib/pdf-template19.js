@@ -82,7 +82,6 @@ const safeFormatPhoneNumber = phoneNumber => {
     if (!phoneNumber) return '-';
     return formatPhoneNumber(phoneNumber);
   } catch (error) {
-    console.error('Error formatting phone number:', error);
     return phoneNumber || '-';
   }
 };
@@ -91,17 +90,16 @@ const safeNumberToWords = amount => {
   try {
     return numberToWords(amount);
   } catch (error) {
-    console.error('Error converting number to words:', error);
     return `Rupees ${money(amount)} Only`;
   }
 };
 
-const formatAddress = (address) => {
+const formatAddress = address => {
   if (!address || address === 'Address not available') return address;
   return address;
 };
 
-const escapeHtml = (text) => {
+const escapeHtml = text => {
   if (typeof text !== 'string') return text;
   return text
     .replace(/&/g, '&amp;')
@@ -121,7 +119,13 @@ const splitItemsIntoPages = (items, itemsPerPage = ITEMS_PER_PAGE) => {
 };
 
 // Generate items table HTML for a specific page
-const generateItemsTableHTML = (items, colWidths, showIGST, showCGSTSGST, startIndex = 0) => {
+const generateItemsTableHTML = (
+  items,
+  colWidths,
+  showIGST,
+  showCGSTSGST,
+  startIndex = 0,
+) => {
   return items
     .map((item, index) => {
       const baseData = [
@@ -129,10 +133,12 @@ const generateItemsTableHTML = (items, colWidths, showIGST, showCGSTSGST, startI
         item.name || 'N/A',
         item.code || item.hsnSac || 'N/A',
         money(item.pricePerUnit || 0),
-        item.itemType === 'service' ? '-' : formatQuantity(Number(item.quantity || 0), item.unit || 'PCS'),
+        item.itemType === 'service'
+          ? '-'
+          : formatQuantity(Number(item.quantity || 0), item.unit || 'PCS'),
         money(item.taxableValue || 0),
       ];
-      
+
       let rowData;
       if (showIGST) {
         rowData = [
@@ -153,9 +159,16 @@ const generateItemsTableHTML = (items, colWidths, showIGST, showCGSTSGST, startI
       } else {
         rowData = [...baseData, money(item.total || 0)];
       }
-      
+
       return `<tr class="table-row">
-        ${rowData.map((cell, cellIndex) => `<td class="table-cell ${cellIndex === 1 ? 'table-cell-left' : ''}">${escapeHtml(cell)}</td>`).join('')}
+        ${rowData
+          .map(
+            (cell, cellIndex) =>
+              `<td class="table-cell ${
+                cellIndex === 1 ? 'table-cell-left' : ''
+              }">${escapeHtml(cell)}</td>`,
+          )
+          .join('')}
       </tr>`;
     })
     .join('');
@@ -187,7 +200,7 @@ const generatePageHTML = (
   transaction,
   title,
   startIndex = 0,
-  isLastPage = false
+  isLastPage = false,
 ) => {
   return `
     <div class="page">
@@ -195,39 +208,90 @@ const generatePageHTML = (
       <div class="page-header">
         <div class="title">${escapeHtml(title)}</div>
         <div class="company-name">${escapeHtml(invoiceData.company.name)}</div>
-       <div class="company-details"><span class="label">GSTIN: </span>${escapeHtml(invoiceData.company.gstin)}</div>
-        <div class="company-details">${escapeHtml(invoiceData.company.address)}</div>
-         <div class="company-details">${escapeHtml(invoiceData.company.city)}</div>
-        ${invoiceData.company.pan !== '-' ? `<div class="company-details"><span class="label">PAN: </span>${escapeHtml(invoiceData.company.pan)}</div>` : ''}
-        <div class="company-details"><span class="label">Phone: </span>${safeFormatPhoneNumber(invoiceData.company.phone)}</div>
-        <div class="company-details"><span class="label">State: </span>${escapeHtml(invoiceData.company.state)}</div>
+       <div class="company-details"><span class="label">GSTIN: </span>${escapeHtml(
+         invoiceData.company.gstin,
+       )}</div>
+        <div class="company-details">${escapeHtml(
+          invoiceData.company.address,
+        )}</div>
+         <div class="company-details">${escapeHtml(
+           invoiceData.company.city,
+         )}</div>
+        ${
+          invoiceData.company.pan !== '-'
+            ? `<div class="company-details"><span class="label">PAN: </span>${escapeHtml(
+                invoiceData.company.pan,
+              )}</div>`
+            : ''
+        }
+        <div class="company-details"><span class="label">Phone: </span>${safeFormatPhoneNumber(
+          invoiceData.company.phone,
+        )}</div>
+        <div class="company-details"><span class="label">State: </span>${escapeHtml(
+          invoiceData.company.state,
+        )}</div>
         <div class="separator"></div>
         
         <!-- Customer and Meta Block -->
         <div class="customer-section">
           <div class="customer-details">
             <div class="section-title">Details of Buyer | Billed to :</div>
-            <div class="customer-name">${escapeHtml(invoiceData.invoiceTo.name)}</div>
-            <div class="address">${escapeHtml(invoiceData.invoiceTo.billingAddress)}</div>
-            <div class="address"><span class="label">Phone No: </span>${safeFormatPhoneNumber(party?.contactNumber || party?.phone || party?.mobileNumber || '-')}</div>
-            <div class="address"><span class="label">GSTIN: </span>${escapeHtml(invoiceData.invoiceTo.gstin)}</div>
-            <div class="address"><span class="label">PAN: </span>${escapeHtml(invoiceData.invoiceTo.pan)}</div>
-            <div class="address"><span class="label">Place of Supply: </span>${escapeHtml(placeOfSupply)}</div>
+            <div class="customer-name">${escapeHtml(
+              invoiceData.invoiceTo.name,
+            )}</div>
+            <div class="address">${escapeHtml(
+              invoiceData.invoiceTo.billingAddress,
+            )}</div>
+            <div class="address"><span class="label">Phone No: </span>${safeFormatPhoneNumber(
+              party?.contactNumber ||
+                party?.phone ||
+                party?.mobileNumber ||
+                '-',
+            )}</div>
+            <div class="address"><span class="label">GSTIN: </span>${escapeHtml(
+              invoiceData.invoiceTo.gstin,
+            )}</div>
+            <div class="address"><span class="label">PAN: </span>${escapeHtml(
+              invoiceData.invoiceTo.pan,
+            )}</div>
+            <div class="address"><span class="label">Place of Supply: </span>${escapeHtml(
+              placeOfSupply,
+            )}</div>
             
             <div class="section-title" style="margin-top: 12px;">Details of Consignee | Shipped to :</div>
-            <div class="customer-name">${escapeHtml(invoiceData.shippingAddress.name)}</div>
-            <div class="address">${escapeHtml(invoiceData.shippingAddress.address)}</div>
-            <div class="address"><span class="label">Phone No: </span>${safeFormatPhoneNumber(shippingPhone)}</div>
-            <div class="address"><span class="label">GSTIN: </span>${escapeHtml(shippingGSTIN)}</div>
-            <div class="address"><span class="label">State: </span>${escapeHtml(invoiceData.shippingAddress.state)}</div>
+            <div class="customer-name">${escapeHtml(
+              invoiceData.shippingAddress.name,
+            )}</div>
+            <div class="address">${escapeHtml(
+              invoiceData.shippingAddress.address,
+            )}</div>
+            <div class="address"><span class="label">Phone No: </span>${safeFormatPhoneNumber(
+              shippingPhone,
+            )}</div>
+            <div class="address"><span class="label">GSTIN: </span>${escapeHtml(
+              shippingGSTIN,
+            )}</div>
+            <div class="address"><span class="label">State: </span>${escapeHtml(
+              invoiceData.shippingAddress.state,
+            )}</div>
           </div>
           
           <div class="meta-details">
-            <div class="address"><span class="label">Invoice # : </span>${escapeHtml(invoiceData.invoiceNumber)}</div>
-            <div class="address"><span class="label">Invoice Date : </span>${escapeHtml(invoiceData.date)}</div>
-            <div class="address"><span class="label">P.O. No : </span>${escapeHtml(invoiceData.poNumber)}</div>
-            <div class="address"><span class="label">P.O. Date : </span>${escapeHtml(invoiceData.poDate)}</div>
-            <div class="address"><span class="label">E-Way No : </span>${escapeHtml(invoiceData.eWayNo)}</div>
+            <div class="address"><span class="label">Invoice # : </span>${escapeHtml(
+              invoiceData.invoiceNumber,
+            )}</div>
+            <div class="address"><span class="label">Invoice Date : </span>${escapeHtml(
+              invoiceData.date,
+            )}</div>
+            <div class="address"><span class="label">P.O. No : </span>${escapeHtml(
+              invoiceData.poNumber,
+            )}</div>
+            <div class="address"><span class="label">P.O. Date : </span>${escapeHtml(
+              invoiceData.poDate,
+            )}</div>
+            <div class="address"><span class="label">E-Way No : </span>${escapeHtml(
+              invoiceData.eWayNo,
+            )}</div>
           </div>
         </div>
       </div>
@@ -240,29 +304,60 @@ const generatePageHTML = (
       <table class="table">
         <thead class="table-header">
           <tr>
-            ${headers.map((header, index) => `<th style="width: ${colWidths[index]}">${escapeHtml(header)}</th>`).join('')}
+            ${headers
+              .map(
+                (header, index) =>
+                  `<th style="width: ${colWidths[index]}">${escapeHtml(
+                    header,
+                  )}</th>`,
+              )
+              .join('')}
           </tr>
         </thead>
         <tbody style="border-left: 0.5px solid ${BORDER}; border-right: 0.5px solid ${BORDER};">
-          ${generateItemsTableHTML(pageData, colWidths, showIGST, showCGSTSGST, startIndex)}
+          ${generateItemsTableHTML(
+            pageData,
+            colWidths,
+            showIGST,
+            showCGSTSGST,
+            startIndex,
+          )}
         </tbody>
      
       </table>
           <!-- Summary -->
       <div class="summary-text">
-        Total Items / Qty : ${totalItems} / ${totalQty % 1 === 0 ? totalQty.toFixed(0) : totalQty.toFixed(2)}
+        Total Items / Qty : ${totalItems} / ${
+    totalQty % 1 === 0 ? totalQty.toFixed(0) : totalQty.toFixed(2)
+  }
       </div>
       
 
-      ${isLastPage ? `
+      ${
+        isLastPage
+          ? `
       <!-- Totals (only on last page) -->
       <div class="totals-section">
         <div class="total-row">
           <div class="total-label">Taxable Amount</div>
           <div class="total-value">Rs. ${money(subtotal)}</div>
         </div>
-        ${isGSTApplicable && showIGST ? `<div class="total-row"><div class="total-label">IGST</div><div class="total-value">Rs. ${money(totalIGST)}</div></div>` : ''}
-        ${isGSTApplicable && showCGSTSGST ? `<div class="total-row"><div class="total-label">CGST</div><div class="total-value">Rs. ${money(totalCGST)}</div></div><div class="total-row"><div class="total-label">SGST</div><div class="total-value">Rs. ${money(totalSGST)}</div></div>` : ''}
+        ${
+          isGSTApplicable && showIGST
+            ? `<div class="total-row"><div class="total-label">IGST</div><div class="total-value">Rs. ${money(
+                totalIGST,
+              )}</div></div>`
+            : ''
+        }
+        ${
+          isGSTApplicable && showCGSTSGST
+            ? `<div class="total-row"><div class="total-label">CGST</div><div class="total-value">Rs. ${money(
+                totalCGST,
+              )}</div></div><div class="total-row"><div class="total-label">SGST</div><div class="total-value">Rs. ${money(
+                totalSGST,
+              )}</div></div>`
+            : ''
+        }
         <div class="total-row-bold">
           <div class="total-label">Total</div>
           <div class="total-value">Rs. ${money(invoiceTotal)}</div>
@@ -272,7 +367,9 @@ const generatePageHTML = (
       <!-- Amount in Words -->
       <div class="amount-in-words">
         <div class="amount-label">Total amount (in words):</div>
-        <div class="amount-words">${escapeHtml(safeNumberToWords(invoiceTotal))}</div>
+        <div class="amount-words">${escapeHtml(
+          safeNumberToWords(invoiceTotal),
+        )}</div>
       </div>
 
       <div class="separator"></div>
@@ -281,17 +378,63 @@ const generatePageHTML = (
       <div class="footer clearfix">
         <div class="bank-details">
           <div class="bank-title">Bank Details:</div>
-          ${bank ? `
-            ${bank.bankName ? `<div class="bank-text">Bank Name: ${escapeHtml(bank.bankName)}</div>` : ''}
-             ${bank.accountNumber || bank.accountNo ? `<div class="bank-text">Acc. Number: ${escapeHtml(bank.accountNumber || bank.accountNo || '-')}</div>` : ''}
-              ${bank.ifscCode ? `<div class="bank-text">IFSC: ${escapeHtml(bank.ifscCode)}</div>` : ''}
-            ${bank.branchName || bank.branchAddress ? `<div class="bank-text">Branch: ${escapeHtml(bank.branchName || bank.branchAddress || '-')}</div>` : ''}
-            ${bank?.upiDetails?.upiId? `<div class="bank-text">UPI ID: ${escapeHtml(bank.upiDetails.upiId)}</div>` : ''}
-            ${bank?.upiDetails?.upiName? `<div class="bank-text">UPI Name: ${escapeHtml(bank.upiDetails.upiName)}</div>` : ''}
-            ${bank?.upiDetails?.upiMobile? `<div class="bank-text">UPI Mobile: ${escapeHtml(bank.upiDetails.upiMobile)}</div>` : ''}
+          ${
+            bank
+              ? `
+            ${
+              bank.bankName
+                ? `<div class="bank-text">Bank Name: ${escapeHtml(
+                    bank.bankName,
+                  )}</div>`
+                : ''
+            }
+             ${
+               bank.accountNumber || bank.accountNo
+                 ? `<div class="bank-text">Acc. Number: ${escapeHtml(
+                     bank.accountNumber || bank.accountNo || '-',
+                   )}</div>`
+                 : ''
+             }
+              ${
+                bank.ifscCode
+                  ? `<div class="bank-text">IFSC: ${escapeHtml(
+                      bank.ifscCode,
+                    )}</div>`
+                  : ''
+              }
+            ${
+              bank.branchName || bank.branchAddress
+                ? `<div class="bank-text">Branch: ${escapeHtml(
+                    bank.branchName || bank.branchAddress || '-',
+                  )}</div>`
+                : ''
+            }
+            ${
+              bank?.upiDetails?.upiId
+                ? `<div class="bank-text">UPI ID: ${escapeHtml(
+                    bank.upiDetails.upiId,
+                  )}</div>`
+                : ''
+            }
+            ${
+              bank?.upiDetails?.upiName
+                ? `<div class="bank-text">UPI Name: ${escapeHtml(
+                    bank.upiDetails.upiName,
+                  )}</div>`
+                : ''
+            }
+            ${
+              bank?.upiDetails?.upiMobile
+                ? `<div class="bank-text">UPI Mobile: ${escapeHtml(
+                    bank.upiDetails.upiMobile,
+                  )}</div>`
+                : ''
+            }
            
            
-          ` : `<div class="bank-text">No bank details available</div>`}
+          `
+              : `<div class="bank-text">No bank details available</div>`
+          }
         </div>
         
         <div class="signature">
@@ -301,13 +444,19 @@ const generatePageHTML = (
       </div>
 
       <!-- Terms and Conditions -->
-      ${transaction?.notes ? `
+      ${
+        transaction?.notes
+          ? `
         <div class="terms">
           
           <div class="terms-content">${renderNotesHTML(transaction.notes)}</div>
         </div>
-      ` : ''}
-      ` : ''}
+      `
+          : ''
+      }
+      `
+          : ''
+      }
 
       <!-- Page Number -->
       <div class="page-number">Page ${pageIndex + 1} of ${totalPages}</div>
@@ -325,7 +474,7 @@ const Template19 = ({
   preparedData,
 }) => {
   const billingAddress = getBillingAddressUtil(party);
-  const shippingAddressStr = shippingAddress 
+  const shippingAddressStr = shippingAddress
     ? getShippingAddressUtil(shippingAddress, billingAddress)
     : billingAddress;
 
@@ -355,7 +504,9 @@ const Template19 = ({
   const invoiceTotal = totalAmount;
 
   const invoiceData = {
-    invoiceNumber: handleUndefined(transaction?.invoiceNumber || transaction?.id),
+    invoiceNumber: handleUndefined(
+      transaction?.invoiceNumber || transaction?.id,
+    ),
     date: handleUndefined(fmtDate(transaction?.date) || fmtDate(new Date())),
     poNumber: handleUndefined(transaction?.poNumber, '-'),
     poDate: handleUndefined(fmtDate(transaction?.poDate), '-'),
@@ -366,10 +517,9 @@ const Template19 = ({
         company?.businessName || company?.companyName,
         'Company Name',
       ),
-      address: formatAddress(handleUndefined(
-        company?.address,
-        'Address not available',
-      )),
+      address: formatAddress(
+        handleUndefined(company?.address, 'Address not available'),
+      ),
       gstin: handleUndefined(companyGSTIN, '-'),
       pan: handleUndefined(company?.panNumber || company?.pan, '-'),
       state: handleUndefined(
@@ -385,7 +535,9 @@ const Template19 = ({
 
     invoiceTo: {
       name: handleUndefined(party?.name, 'Client Name'),
-      billingAddress: formatAddress(handleUndefined(billingAddress, 'Address not available')),
+      billingAddress: formatAddress(
+        handleUndefined(billingAddress, 'Address not available'),
+      ),
       gstin: handleUndefined(partyGSTIN, '-'),
       pan: handleUndefined(party?.panNumber || party?.pan, '-'),
       state: handleUndefined(
@@ -400,10 +552,14 @@ const Template19 = ({
         shippingAddress?.name || shippingAddress?.label || party?.name,
         'Client Name',
       ),
-      address: formatAddress(handleUndefined(shippingAddressStr, 'Address not available')),
+      address: formatAddress(
+        handleUndefined(shippingAddressStr, 'Address not available'),
+      ),
       state: handleUndefined(
         shippingAddress?.state
-          ? `${shippingAddress.state} (${getStateCode(shippingAddress.state) || '-'})`
+          ? `${shippingAddress.state} (${
+              getStateCode(shippingAddress.state) || '-'
+            })`
           : party?.state
           ? `${party.state} (${getStateCode(party.state) || '-'})`
           : '-',
@@ -413,7 +569,19 @@ const Template19 = ({
 
   const getColWidths = () => {
     if (showCGSTSGST) {
-      return ['5%', '25%', '8%', '8%', '6%', '10%', '6%', '8%', '6%', '8%', '10%'];
+      return [
+        '5%',
+        '25%',
+        '8%',
+        '8%',
+        '6%',
+        '10%',
+        '6%',
+        '8%',
+        '6%',
+        '8%',
+        '10%',
+      ];
     } else if (showIGST) {
       return ['5%', '30%', '8%', '8%', '7%', '12%', '10%', '10%', '10%'];
     } else {
@@ -443,7 +611,7 @@ const Template19 = ({
       party?.contactNumber ||
       party?.phone ||
       party?.mobileNumber,
-    '-'
+    '-',
   );
 
   const getHeaders = () => {
@@ -507,7 +675,7 @@ const Template19 = ({
         transaction,
         title,
         startIndex,
-        pageIndex === totalPages - 1 // isLastPage
+        pageIndex === totalPages - 1, // isLastPage
       );
       startIndex += pageItems.length;
       return pageHTML;
@@ -814,8 +982,6 @@ export const generatePdfForTemplate19 = async (
   shippingAddress,
   bank,
 ) => {
-  console.log('Template19 - Starting PDF generation...');
-  
   try {
     const preparedData = prepareTemplate8Data(
       transaction,
@@ -823,9 +989,7 @@ export const generatePdfForTemplate19 = async (
       party,
       shippingAddress,
     );
-    
-    console.log('Template19 - Data prepared successfully');
-    
+
     const htmlContent = Template19({
       transaction,
       company,
@@ -834,34 +998,32 @@ export const generatePdfForTemplate19 = async (
       bank,
       preparedData,
     });
-    
+
     if (!htmlContent || htmlContent.trim().length === 0) {
       throw new Error('Generated HTML content is empty');
     }
-    
-    console.log('Template19 - HTML content generated, length:', htmlContent.length);
-    
+
     const options = {
       html: htmlContent,
-      fileName: `invoice_${transaction?.invoiceNumber || 'document'}_${Date.now()}`,
+      fileName: `invoice_${
+        transaction?.invoiceNumber || 'document'
+      }_${Date.now()}`,
       directory: 'Documents',
       width: PAGE_WIDTH,
       height: PAGE_HEIGHT,
       padding: 0,
     };
-    
-    console.log('Template19 - Generating PDF with options:', options.fileName);
+
     const file = await generatePDF(options);
-    console.log('Template19 - PDF generated successfully:', file.filePath);
+
     return file;
-    
   } catch (error) {
-    console.error('Template19 - Error generating PDF:', error);
-    
     if (error.message.includes('retry')) {
-      throw new Error('PDF generation failed. Please check your data and try again.');
+      throw new Error(
+        'PDF generation failed. Please check your data and try again.',
+      );
     }
-    
+
     throw error;
   }
 };

@@ -1043,7 +1043,7 @@ export default function WhatsAppComposerDialog({
         const num = String(partyObj[field]).trim();
         if (num) {
           foundNumber = num;
-          console.log(`Found mobile in field "${field}": ${num}`);
+
           break;
         }
       }
@@ -1060,7 +1060,7 @@ export default function WhatsAppComposerDialog({
             const num = String(partyObj.contactDetails[field]).trim();
             if (num) {
               foundNumber = num;
-              console.log(`Found mobile in contactDetails.${field}: ${num}`);
+
               break;
             }
           }
@@ -1074,7 +1074,7 @@ export default function WhatsAppComposerDialog({
             const num = String(partyObj.profile[field]).trim();
             if (num) {
               foundNumber = num;
-              console.log(`Found mobile in profile.${field}: ${num}`);
+
               break;
             }
           }
@@ -1087,7 +1087,7 @@ export default function WhatsAppComposerDialog({
             const num = String(partyObj.primaryContact[field]).trim();
             if (num) {
               foundNumber = num;
-              console.log(`Found mobile in primaryContact.${field}: ${num}`);
+
               break;
             }
           }

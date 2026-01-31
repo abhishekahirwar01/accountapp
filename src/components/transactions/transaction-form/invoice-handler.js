@@ -44,10 +44,6 @@ export async function generatePdfByTemplate(
   bank,
 ) {
   try {
-    console.log(
-      `📋 generatePdfByTemplate called with template: ${selectedTemplate}`,
-    );
-
     let result;
     switch (selectedTemplate) {
       case 'template1':
@@ -221,9 +217,6 @@ export async function generatePdfByTemplate(
         );
         break;
       default:
-        console.warn(
-          `⚠️ Unknown template: ${selectedTemplate}, using template1 as fallback`,
-        );
         result = await generatePdfForTemplate1(
           enrichedTransaction,
           companyDoc,
@@ -235,24 +228,8 @@ export async function generatePdfByTemplate(
         break;
     }
 
-    console.log(`✅ generatePdfByTemplate completed for ${selectedTemplate}`);
-    console.log('📊 Result object:', {
-      type: typeof result,
-      constructor: result?.constructor?.name,
-      keys: Object.keys(result || {}),
-      hasOutput: typeof result?.output === 'function',
-      hasBase64: typeof result?.base64 === 'string',
-      base64Length: result?.base64?.length || 0,
-    });
-
     return result;
   } catch (error) {
-    console.error(
-      `❌ Error in generatePdfByTemplate(${selectedTemplate}):`,
-      error,
-    );
-    console.error('❌ Error message:', error.message);
-    console.error('❌ Error stack:', error.stack);
     throw error;
   }
 }
@@ -312,7 +289,6 @@ const InvoiceTemplateRenderer = ({ invoiceData }) => {
           // Already base64 string
           finalBase64 = pdfResult;
         } else {
-          console.warn('Unexpected PDF format, trying default output method');
           // Last resort - try to use output method if available
           if (pdfResult && typeof pdfResult.output === 'function') {
             finalBase64 = pdfResult.output('base64');
@@ -328,7 +304,6 @@ const InvoiceTemplateRenderer = ({ invoiceData }) => {
         setPdfBase64(finalBase64);
         await savePdfToFileSystem(finalBase64);
       } catch (error) {
-        console.error('Error generating preview:', error);
         Toast.show({
           type: 'error',
           text1: 'Generation Failed',
@@ -352,7 +327,6 @@ const InvoiceTemplateRenderer = ({ invoiceData }) => {
       }
       return btoa(binary);
     } catch (error) {
-      console.error('Error converting array buffer to base64:', error);
       throw new Error('Failed to convert PDF data to base64');
     }
   };
@@ -367,10 +341,7 @@ const InvoiceTemplateRenderer = ({ invoiceData }) => {
       await FileSystem.writeFile(path, base64Data, 'base64');
       setPdfPath(path);
       setPdfUri(`file://${path}`);
-
-      console.log('PDF saved at:', path);
     } catch (error) {
-      console.error('Error saving PDF:', error);
       Toast.show({
         type: 'error',
         text1: 'Save Failed',
@@ -400,7 +371,6 @@ const InvoiceTemplateRenderer = ({ invoiceData }) => {
       await Share.open(shareOptions);
     } catch (error) {
       if (error.message !== 'User did not share') {
-        console.error('Error sharing PDF:', error);
         Toast.show({
           type: 'error',
           text1: 'Share Failed',
@@ -431,7 +401,6 @@ const InvoiceTemplateRenderer = ({ invoiceData }) => {
   };
 
   const handleWebViewError = () => {
-    console.log('WebView failed to load PDF, trying fallback...');
     setUseFallbackViewer(true);
 
     Toast.show({
@@ -495,7 +464,7 @@ const InvoiceTemplateRenderer = ({ invoiceData }) => {
         startInLoadingState={true}
         scalesPageToFit={true}
         onError={handleWebViewError}
-        onLoadEnd={() => console.log('PDF loaded successfully')}
+        onLoadEnd={() => {}}
         renderError={() => (
           <View style={styles.webviewError}>
             <Text style={styles.webviewErrorText}>

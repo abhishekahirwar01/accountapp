@@ -4,9 +4,6 @@ export function getUnifiedLines(tx, serviceNameById) {
 
   // ✅ FIX: Agar transaction undefined hai toh return empty array
   if (!tx) {
-    console.error(
-      '❌ getUnifiedLines: tx is NULL/UNDEFINED - Returning empty array',
-    );
     return [];
   }
 
@@ -82,12 +79,10 @@ export function getUnifiedLines(tx, serviceNameById) {
   // Process products
 
   if (Array.isArray(tx.products)) {
-    console.log(`   Found ${tx.products.length} products`);
     tx.products.forEach((p, index) => {
       pushRow(p, 'product');
     });
   } else {
-    console.log('   ⚠️ No products array found or not an array:', tx.products);
   }
 
   // Process services
@@ -97,27 +92,19 @@ export function getUnifiedLines(tx, serviceNameById) {
       pushRow(s, 'service');
     });
   } else {
-    console.log('   ⚠️ No services array found or not an array:', tx.services);
   }
 
   // Legacy support
 
   if (Array.isArray(tx.service)) {
-    console.log(`   Found ${tx.service.length} legacy services`);
     tx.service.forEach((s, index) => {
-      console.log(`   📋 Processing legacy service ${index + 1}:`, s);
       pushRow(s, 'service');
     });
   } else {
-    console.log('   ℹ️ No legacy service array found:', tx.service);
   }
 
   // If no items found, create a default item from transaction level data
   if (out.length === 0) {
-    console.log(
-      '⚠️ No items found - creating default item from transaction data',
-    );
-
     const amount = num(tx.amount);
     const gstPercentage = num(tx.gstPercentage);
     const lineTax = num(tx.lineTax) || (amount * gstPercentage) / 100;
@@ -138,15 +125,6 @@ export function getUnifiedLines(tx, serviceNameById) {
 
     out.push(defaultItem);
   }
-
-  console.log('🎉 getUnifiedLines FINAL RESULT:', {
-    totalItems: out.length,
-    items: out,
-    itemsBreakdown: {
-      products: out.filter(item => item.itemType === 'product').length,
-      services: out.filter(item => item.itemType === 'service').length,
-    },
-  });
 
   return out;
 }

@@ -19,6 +19,7 @@ import { searchHSNCodes, getHSNByCode } from '../../lib/hsnProduct';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useCompany } from '../../contexts/company-context';
 import { z } from 'zod';
 
 // Form Schema with Zod
@@ -80,6 +81,7 @@ export default function ProductForm({
   const [companies, setCompanies] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const { selectedCompanyId } = useCompany();
 
   // HSN Search States
   const [hsnSuggestions, setHsnSuggestions] = useState([]);
@@ -159,7 +161,7 @@ export default function ProductForm({
         ? typeof product.company === 'object' && product.company
           ? product.company._id
           : product.company
-        : '',
+        : selectedCompanyId || '',
     },
   });
 
@@ -770,7 +772,7 @@ const styles = StyleSheet.create({
 
   modalOverlayUnit: {
     flex: 1,
-    // backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     padding: 20,
   },

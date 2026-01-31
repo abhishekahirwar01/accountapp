@@ -1,4 +1,3 @@
-// ProductSettings.js (React Native) - Complete Working Code
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
@@ -78,7 +77,7 @@ export default function ProductSettings() {
     refetch: refetchAccountPermissions,
   } = usePermissions();
 
-  // Prefer account-level permissions (from `usePermissions`) when available.
+  
   const canCreateProducts =
     accountPermissions?.canCreateProducts ??
     accountPermissions?.canCreateInventory ??
@@ -135,7 +134,7 @@ export default function ProductSettings() {
 
       const data = response.data;
       setProducts(Array.isArray(data) ? data : data.products || []);
-      setCurrentPage(1); // Reset to first page
+      setCurrentPage(1); 
     } catch (error) {
       Toast.show({
         type: 'error',
@@ -879,7 +878,7 @@ const styles = StyleSheet.create({
   },
   headerButtons: {
     flexDirection: 'row',
-    justifyContent: 'flex-start', // 'space-between' ki jagah 'flex-start' use karein taaki buttons pass aa jayein
+    justifyContent: 'flex-start',
     alignItems: 'center',
     gap: 8,
   },
@@ -887,8 +886,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#3b82f6',
-    paddingHorizontal: 20, // Horizontal padding thodi kam ki
-    paddingVertical: 15,
+    paddingHorizontal: 20, 
+    paddingVertical: 8,
     borderRadius: 8,
     gap: 8,
   },

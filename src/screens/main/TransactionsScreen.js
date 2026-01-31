@@ -1089,10 +1089,8 @@ const TransactionsScreen = ({ navigation }) => {
   };
 
   const handleSendInvoice = async tx => {
-    console.log('🟢 handleSendInvoice called with tx:', tx?._id);
     try {
       if (tx.type !== 'sales' && tx.type !== 'proforma') {
-        console.log('❌ Invalid transaction type:', tx.type);
         setEmailDialogTitle('❌ Cannot Send Email');
         setEmailDialogMessage(
           'Only sales and proforma transactions can be emailed as invoices.',
@@ -1104,7 +1102,6 @@ const TransactionsScreen = ({ navigation }) => {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
 
-      console.log('📤 Checking Gmail status...');
       setIsSendingEmail(true);
 
       // Check Gmail connection status
@@ -1115,17 +1112,13 @@ const TransactionsScreen = ({ navigation }) => {
         },
       );
 
-      console.log('✅ Gmail status response:', statusRes.status);
-
       if (!statusRes.ok) {
         throw new Error('Could not check email status');
       }
 
       const emailStatus = await statusRes.json();
-      console.log('📧 Gmail connected:', emailStatus.connected);
 
       if (!emailStatus.connected) {
-        console.log('⚠️ Gmail not connected - showing settings dialog');
         setIsGmailNotConnected(true);
         setIsSendingEmail(false);
         return;
@@ -1135,19 +1128,15 @@ const TransactionsScreen = ({ navigation }) => {
       const pv = tx.party || tx.vendor;
       const partyId = pv?._id || null;
 
-      console.log('👤 Party/Vendor info:', { partyId, pv });
-
       if (!partyId) {
         throw new Error('Customer details not found');
       }
 
       // Fetch complete party details
-      console.log('🔍 Fetching party details for ID:', partyId);
+
       const partyRes = await fetch(`${BASE_URL}/api/parties/${partyId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      console.log('✅ Party response:', partyRes.status);
 
       if (!partyRes.ok) {
         throw new Error('Failed to fetch customer details');
@@ -1155,13 +1144,7 @@ const TransactionsScreen = ({ navigation }) => {
 
       const partyToUse = await partyRes.json();
 
-      console.log('👤 Party data:', {
-        email: partyToUse?.email,
-        name: partyToUse?.name,
-      });
-
       if (!partyToUse?.email) {
-        console.log('❌ Customer has no email');
         setEmailDialogTitle('❌ No Email Found');
         setEmailDialogMessage(
           "Customer doesn't have an email address on file.",
@@ -1175,19 +1158,15 @@ const TransactionsScreen = ({ navigation }) => {
       const companyId =
         typeof tx.company === 'object' ? tx.company._id : tx.company || '';
 
-      console.log('🏢 Company ID:', companyId);
-
       if (!companyId) {
         throw new Error('Company not found');
       }
 
       // Fetch company details
-      console.log('🔍 Fetching company details...');
+
       const companyRes = await fetch(`${BASE_URL}/api/companies/${companyId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      console.log('✅ Company response:', companyRes.status);
 
       if (!companyRes.ok) {
         throw new Error('Failed to fetch company details');
@@ -1195,20 +1174,14 @@ const TransactionsScreen = ({ navigation }) => {
 
       const companyToUse = await companyRes.json();
 
-      console.log('🏢 Company data:', {
-        businessName: companyToUse?.businessName,
-      });
-
       // Generate PDF using template1
-      console.log('📄 Generating PDF...');
+
       const pdfResult = await generatePdfForTemplate1(
         tx,
         companyToUse || null,
         partyToUse,
         serviceNameById,
       );
-
-      console.log('✅ PDF generated, extracting base64...');
 
       // Extract base64 from PDF result
       let base64Data = '';
@@ -1230,8 +1203,6 @@ const TransactionsScreen = ({ navigation }) => {
         throw new Error('Failed to generate PDF base64 data');
       }
 
-      console.log('✅ Base64 extracted, building email...');
-
       // Build email content
       const subject = `Invoice from ${
         companyToUse?.businessName || 'Your Company'
@@ -1246,8 +1217,6 @@ const TransactionsScreen = ({ navigation }) => {
       const fileName = `${
         tx.invoiceNumber || tx.referenceNumber || 'invoice'
       }.pdf`;
-
-      console.log('📧 Sending email to:', partyToUse.email);
 
       // Send email API call
       const sendRes = await fetch(
@@ -1270,16 +1239,13 @@ const TransactionsScreen = ({ navigation }) => {
         },
       );
 
-      console.log('✅ Email API response:', sendRes.status);
-
       if (sendRes.ok) {
-        console.log('🎉 Email sent successfully');
         setEmailDialogTitle('✅ Invoice Sent');
         setEmailDialogMessage(`Email sent successfully to ${partyToUse.email}`);
         setIsEmailDialogOpen(true);
       } else {
         const errorData = await sendRes.json().catch(() => ({}));
-        console.log('❌ Email send failed:', errorData);
+
         throw new Error(errorData.message || 'Failed to send email');
       }
     } catch (e) {
@@ -1485,28 +1451,28 @@ const TransactionsScreen = ({ navigation }) => {
       );
     }
 
-    if (dataForTab.length === 0) {
-      return (
-        <View style={styles.emptyContainer}>
-          <Icon name="receipt" size={80} color="#d1d5db" />
-          <Text style={styles.emptyText}>No transactions found</Text>
-          <Text style={styles.emptySubtext}>
-            Create your first transaction to get started
-          </Text>
-          {canCreateAny && (
-            <TouchableOpacity
-              style={styles.createFirstButton}
-              onPress={() => handleOpenForm(null)}
-            >
-              <Icon name="add" size={20} color="white" />
-              <Text style={styles.createFirstButtonText}>
-                Create First Transaction
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      );
-    }
+    // if (dataForTab.length === 0) {
+    //   return (
+    //     <View style={styles.emptyContainer}>
+    //       <Icon name="receipt" size={80} color="#d1d5db" />
+    //       <Text style={styles.emptyText}>No transactions found</Text>
+    //       <Text style={styles.emptySubtext}>
+    //         Create your first transaction to get started
+    //       </Text>
+    //       {canCreateAny && (
+    //         <TouchableOpacity
+    //           style={styles.createFirstButton}
+    //           onPress={() => handleOpenForm(null)}
+    //         >
+    //           <Icon name="add" size={20} color="white" />
+    //           <Text style={styles.createFirstButtonText}>
+    //             Create First Transaction
+    //           </Text>
+    //         </TouchableOpacity>
+    //       )}
+    //     </View>
+    //   );
+    // }
 
     return (
       <View style={styles.tableContainer}>
@@ -1540,7 +1506,6 @@ const TransactionsScreen = ({ navigation }) => {
   // Handle refresh (also refresh permissions and companies)
   const onRefresh = useCallback(async () => {
     try {
-      console.log('🔄 TransactionsScreen pull-to-refresh triggered...');
       await Promise.all([
         fetchTransactions(true),
         triggerCompaniesRefresh(), // Add company refresh
@@ -1925,19 +1890,13 @@ const TransactionsScreen = ({ navigation }) => {
               ) : pdfUri ? (
                 <Pdf
                   source={{ uri: pdfUri, cache: true }}
-                  onLoadComplete={(numberOfPages, filePath) => {
-                    console.log(`Number of pages: ${numberOfPages}`);
-                  }}
-                  onPageChanged={(page, numberOfPages) => {
-                    console.log(`Current page: ${page}`);
-                  }}
+                  onLoadComplete={(numberOfPages, filePath) => {}}
+                  onPageChanged={(page, numberOfPages) => {}}
                   onError={error => {
                     console.error('PDF Error:', error);
                     toast('Failed to load PDF', 'error');
                   }}
-                  onPressLink={uri => {
-                    console.log(`Link pressed: ${uri}`);
-                  }}
+                  onPressLink={uri => {}}
                   style={styles.pdf}
                 />
               ) : (
@@ -2407,7 +2366,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: '#6b7280',
-    marginTop: 6,
+    // marginTop: 6,
   },
   headerButtons: {
     flexDirection: 'row',

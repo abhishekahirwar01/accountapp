@@ -76,7 +76,7 @@ const MobileLedgerCard = ({
             </View>
           )}
 
-          {/* View Details Button (for credit entries) */}
+          
           {showViewDetails && (
             <TouchableOpacity
               style={styles.viewDetailsButton}
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
   },
   badge: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    // paddingVertical: 4,
   },
   amount: {
     fontSize: 18,

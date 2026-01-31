@@ -15,16 +15,16 @@ import {
   TouchableOpacity,
   Modal,
   useWindowDimensions,
-  RefreshControl, // Added this import
+  RefreshControl,
+  Animated,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  Settings,
   FileText,
   PlusCircle,
   Package,
   X,
-  RefreshCw,
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -36,7 +36,7 @@ import { usePermissions } from '../../contexts/permission-context';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
 import { useFocusEffect } from '@react-navigation/native';
 
-// Custom components - these must be re-written for React Native
+// Custom components
 import { KpiCards } from '../../components/dashboard/KPICard';
 import RecentTransactions from '../../components/dashboard/RecentTransactions';
 import ProductStock from '../../components/dashboard/ProductStock';
@@ -50,16 +50,9 @@ import { BASE_URL } from '../../config';
 import AppLayout from '../../components/layout/AppLayout';
 
 const CACHE_KEY = 'company_dashboard_data';
-
 const baseURL = BASE_URL;
 
-// --- Utility Functions (Adapted for React Native) ---
-
-const formatCurrency = amount =>
-  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(
-    amount,
-  );
-
+// --- Utility Function ---
 const toArray = data => {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.entries)) return data.entries;
@@ -67,13 +60,7 @@ const toArray = data => {
   return [];
 };
 
-const getAmount = (type, row) => {
-  const val = row?.amount ?? row?.totalAmount ?? 0;
-  return Number(val) || 0;
-};
-
-// --- Skeleton Components (Simplified for RN) ---
-
+// --- Skeleton Components ---
 const KpiSkeleton = () => (
   <View style={styles.kpiContainer}>
     {[...Array(3)].map((_, i) => (
@@ -96,65 +83,61 @@ const RecentTransactionsSkeleton = () => (
   </View>
 );
 
-// Custom Card Component
-const Card = ({ children, style }) => (
-  <View style={[styles.card, style]}>{children}</View>
-);
+// Custom Card Component with Animation
+const Card = ({ children, style }) => {
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
-// Custom Button Component
-const Button = ({
-  children,
-  onPress,
-  mode = 'contained',
-  loading = false,
-  style,
-  icon: Icon,
-  labelStyle,
-  iconColor,
-  disabled = false,
-}) => {
-  const isOutlined = mode === 'outlined';
+  React.useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+  }, [fadeAnim]);
+
+  return (
+    <Animated.View style={[styles.card, style, { opacity: fadeAnim }]}>
+      {children}
+    </Animated.View>
+  );
+};
+
+// Animated TouchableOpacity Component (USED in header)
+const AnimatedTouchable = ({ children, onPress, style, disabled }) => {
+  const scaleAnim = React.useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.96,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 3,
+      tension: 40,
+      useNativeDriver: true,
+    }).start();
+  };
 
   return (
     <TouchableOpacity
-      style={[
-        styles.button,
-        isOutlined ? styles.buttonOutlined : styles.buttonContained,
-        disabled && styles.buttonDisabled,
-        style,
-      ]}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       onPress={onPress}
-      disabled={loading || disabled}
+      disabled={disabled}
+      activeOpacity={0.8}
     >
-      {Icon && (
-        <Icon
-          size={18}
-          color={iconColor ?? (isOutlined ? '#0A66C2' : 'white')}
-          style={styles.buttonIcon}
-        />
-      )}
-      {loading ? (
-        <ActivityIndicator
-          size="small"
-          color={isOutlined ? '#0A66C2' : 'white'}
-        />
-      ) : (
-        <Text
-          style={[
-            styles.buttonText,
-            isOutlined ? styles.buttonOutlinedText : styles.buttonContainedText,
-            labelStyle,
-          ]}
-        >
-          {children}
-        </Text>
-      )}
+      <Animated.View style={[style, { transform: [{ scale: scaleAnim }] }]}>
+        {children}
+      </Animated.View>
     </TouchableOpacity>
   );
 };
 
 // --- Main Component ---
-
 export default function DashboardPage() {
   const navigation = useNavigation();
   const { toggleSupport } = useSupport();
@@ -162,13 +145,17 @@ export default function DashboardPage() {
     useCompany();
   const { width } = useWindowDimensions();
 
+  // Animation values
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const slideAnim = React.useRef(new Animated.Value(-20)).current;
+
   // Trigger company refresh when screen gains focus
   useFocusEffect(
     React.useCallback(() => {
-      console.log('🔄 DashboardScreen focused - triggering company refresh...');
       triggerCompaniesRefresh();
     }, [triggerCompaniesRefresh]),
   );
+
   const { permissions, refetch: refetchPermissions } = usePermissions();
   const { permissions: userCaps, refetch: refetchUserPermissions } =
     useUserPermissions();
@@ -189,6 +176,23 @@ export default function DashboardPage() {
 
   const showToast = useCallback((title, description, isDestructive = false) => {
     Alert.alert(title, description);
+  }, []);
+
+  // Animate header on mount
+  React.useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
   // Optimized data fetching with request batching
@@ -237,12 +241,13 @@ export default function DashboardPage() {
         const salesArr = toArray(rawSales);
         const purchasesArr = toArray(rawPurchases);
 
+        // Calculate totals (simplified since they're only used in initialData)
         const totalSales = salesArr.reduce(
-          (acc, row) => acc + getAmount('sales', row),
+          (acc, row) => acc + (Number(row?.amount ?? row?.totalAmount ?? 0) || 0),
           0,
         );
         const totalPurchases = purchasesArr.reduce(
-          (acc, row) => acc + getAmount('purchases', row),
+          (acc, row) => acc + (Number(row?.amount ?? row?.totalAmount ?? 0) || 0),
           0,
         );
         const companiesCount = companiesData?.length || 0;
@@ -250,7 +255,7 @@ export default function DashboardPage() {
         const initialData = {
           totalSales,
           totalPurchases,
-          users: 0, // Will be updated in secondary load
+          users: 0,
           companies: companiesCount,
           recentTransactions: [],
           serviceNameById: {},
@@ -278,10 +283,7 @@ export default function DashboardPage() {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      // Clear cache to force fresh data
       await AsyncStorage.removeItem(CACHE_KEY);
-
-      // Fetch fresh data and refresh permissions and companies
       await Promise.all([
         fetchDashboardData(true),
         triggerCompaniesRefresh(),
@@ -305,8 +307,6 @@ export default function DashboardPage() {
     refetchUserPermissions,
   ]);
 
-  // Re-fetch dashboard data when global company refresh is triggered
-  // Fetch companies only (silent) when global company refresh is triggered
   const fetchCompaniesOnly = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -386,7 +386,6 @@ export default function DashboardPage() {
         servicesRes.json(),
       ]);
 
-      // Process secondary data
       const salesArr = toArray(rawSales);
       const purchasesArr = toArray(rawPurchases);
       const receiptsArr = toArray(rawReceipts);
@@ -405,7 +404,6 @@ export default function DashboardPage() {
         })),
       ];
 
-      // If a company is selected on the dashboard, filter the transactions
       if (selectedCompanyId && selectedCompanyId !== 'all') {
         allTransactions = allTransactions.filter(t => {
           const transCompanyId =
@@ -430,13 +428,11 @@ export default function DashboardPage() {
       const updatedData = {
         ...initialData,
         users: usersData?.length || 0,
-        recentTransactions: allTransactions.slice(0, 4), // Top 4 filtered transactions
+        recentTransactions: allTransactions.slice(0, 4),
         serviceNameById: sMap,
       };
 
       setDashboardData(updatedData);
-
-      // Update cache
       await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(updatedData));
     } catch (error) {
       console.error('Failed to load secondary data:', error);
@@ -457,105 +453,94 @@ export default function DashboardPage() {
     fetchDashboardData();
   };
 
-  const goToSettings = () => {
-    Alert.alert('Navigation', 'Navigate to Settings screen.');
-  };
-
-  const titleFontSize = width < 360 ? 20 : width < 400 ? 22 : 24;
-  const subtitleFontSize = width < 360 ? 13 : 14;
-  // Make the title larger so it stands out as the main header
-  const largeTitleFontSize = width < 360 ? 24 : width < 400 ? 26 : 30;
-
   return (
     <AppLayout>
-      {/* Fixed header placed above scroll to keep controls accessible */}
-      <View style={[styles.header, styles.headerFixed]}>
-        <View style={styles.headerRow}>
-          <Text
-            style={[styles.title, { fontSize: largeTitleFontSize }]}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            includeFontPadding={false}
-          >
-            Dashboard
-          </Text>
+      {/* Animated Header */}
+      <Animated.View
+        style={[
+          styles.header,
+          styles.headerFixed,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        <View style={styles.headerContent}>
+          <View style={styles.headerLeft}>
+            <Text
+              style={styles.headerTitle}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              Dashboard
+            </Text>
+            <Text
+              style={styles.headerSubtitle}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {selectedCompany
+                ? `An overview of ${selectedCompany.businessName}.`
+                : 'An overview across all companies.'}
+            </Text>
+          </View>
 
-          {/* Replace the button group section with this improved version */}
-          <View style={styles.buttonGroup}>
-            {/* Update Walkthrough */}
+          <View style={styles.headerActions}>
             <Suspense fallback={null}>
               <UpdateWalkthrough />
             </Suspense>
 
-            {/* White Outline Button for Proforma */}
-            <TouchableOpacity
+            <AnimatedTouchable
               onPress={() => setIsProformaFormOpen(true)}
               disabled={companies.length === 0}
               style={[
-                styles.improvedButton,
-                styles.whiteButton,
-                companies.length === 0 && styles.buttonDisabled,
+                styles.headerButton,
+                styles.proformaButton,
+                companies.length === 0 && styles.headerButtonDisabled,
               ]}
             >
-              <FileText size={16} color="#3b82f6" style={styles.buttonIcon} />
-              <Text style={[styles.buttonText, styles.whiteButtonText]}>
+              <FileText size={14} color="#3b82f6" strokeWidth={2.5} />
+              <Text style={[styles.headerButtonText, styles.proformaButtonText]}>
                 Proforma
               </Text>
-            </TouchableOpacity>
+            </AnimatedTouchable>
 
-            {/* Blue Filled Button for Transaction */}
-            <TouchableOpacity
+            <AnimatedTouchable
               onPress={() => setIsTransactionFormOpen(true)}
               disabled={companies.length === 0}
               style={[
-                styles.improvedButton,
-                styles.blueButton,
-                companies.length === 0 && styles.buttonDisabled,
+                styles.headerButton,
+                styles.transactionButton,
+                companies.length === 0 && styles.headerButtonDisabled,
               ]}
             >
-              <PlusCircle size={16} color="#ffffff" style={styles.buttonIcon} />
-              <Text style={[styles.buttonText, styles.blueButtonText]}>
+              <PlusCircle size={14} color="#ffffff" strokeWidth={2.5} />
+              <Text style={[styles.headerButtonText, styles.transactionButtonText]}>
                 Transaction
               </Text>
-            </TouchableOpacity>
+            </AnimatedTouchable>
           </View>
         </View>
-
-        <Text
-          style={[styles.subtitle, { fontSize: subtitleFontSize }]}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-          includeFontPadding={false}
-        >
-          {selectedCompany
-            ? `An overview of ${selectedCompany.businessName}.`
-            : 'An overview across all companies.'}
-        </Text>
-      </View>
+      </Animated.View>
 
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         bounces={true}
-        bouncesZoom={true}
         scrollEventThrottle={16}
         decelerationRate="normal"
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={10}
-        updateCellsBatchingPeriod={50}
-        initialNumToRender={10}
-        windowSize={21}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
             colors={['#3b82f6']}
             tintColor="#3b82f6"
+            progressViewOffset={0}
           />
         }
       >
-        {/* Account Validity Notice - Placeholder */}
         <Suspense
           fallback={
             <Card style={styles.validityNoticeSkeleton}>
@@ -566,7 +551,6 @@ export default function DashboardPage() {
           <AccountValidityNotice onContactSupport={toggleSupport} />
         </Suspense>
 
-        {/* Main Content */}
         {isLoading ? (
           <KpiSkeleton />
         ) : companies.length === 0 ? (
@@ -579,13 +563,11 @@ export default function DashboardPage() {
           </Card>
         ) : (
           <>
-            {/* KPI Cards */}
             <KpiCards
               data={dashboardData}
               selectedCompanyId={selectedCompanyId}
             />
 
-            {/* Product Stock and Recent Transactions */}
             <View style={styles.dataContainer}>
               <Suspense fallback={<ProductStockSkeleton />}>
                 <ProductStock
@@ -607,36 +589,28 @@ export default function DashboardPage() {
         )}
       </ScrollView>
 
-      {/* Proforma Modal - TransactionsScreen style में */}
+      {/* Proforma Modal with Slide Animation */}
       <Modal
         visible={isProformaFormOpen}
         animationType="slide"
+        presentationStyle="pageSheet"
         onRequestClose={() => setIsProformaFormOpen(false)}
       >
         <View style={styles.modalContainer}>
-          {/* Header - TransactionsScreen style */}
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Create Proforma Invoice</Text>
             <TouchableOpacity
               onPress={() => setIsProformaFormOpen(false)}
               style={styles.closeIconButton}
+              activeOpacity={0.7}
             >
               <X size={24} color="#374151" />
             </TouchableOpacity>
           </View>
 
-          {/* Content */}
           <ScrollView
             showsVerticalScrollIndicator={false}
             bounces={true}
-            bouncesZoom={true}
-            scrollEventThrottle={16}
-            decelerationRate="normal"
-            removeClippedSubviews={true}
-            maxToRenderPerBatch={10}
-            updateCellsBatchingPeriod={50}
-            initialNumToRender={10}
-            windowSize={21}
             style={styles.modalScroll}
           >
             <Suspense
@@ -651,25 +625,25 @@ export default function DashboardPage() {
         </View>
       </Modal>
 
-      {/* Transaction Modal - TransactionsScreen style में */}
+      {/* Transaction Modal with Slide Animation */}
       <Modal
         visible={isTransactionFormOpen}
         animationType="slide"
+        presentationStyle="pageSheet"
         onRequestClose={() => setIsTransactionFormOpen(false)}
       >
         <View style={styles.modalContainer}>
-          {/* Header - TransactionsScreen style */}
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Create a New Transaction</Text>
             <TouchableOpacity
               onPress={() => setIsTransactionFormOpen(false)}
               style={styles.closeIconButton}
+              activeOpacity={0.7}
             >
               <X size={24} color="#374151" />
             </TouchableOpacity>
           </View>
 
-          {/* Content */}
           <ScrollView style={styles.modalScroll}>
             <TransactionForm
               onFormSubmit={handleTransactionFormSubmit}
@@ -681,8 +655,6 @@ export default function DashboardPage() {
     </AppLayout>
   );
 }
-
-// --- Stylesheet ---
 
 const styles = StyleSheet.create({
   container: {
@@ -697,122 +669,96 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     marginBottom: 0,
   },
-  headerRow: {
+  headerFixed: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    zIndex: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    width: '100%',
   },
-  titleContainer: {
+  headerLeft: {
     flex: 1,
-    marginRight: 8,
+    marginRight: 12,
   },
-  title: {
-    fontSize: 24,
+  headerTitle: {
+    fontSize: 22,
     fontWeight: '700',
-    color: '#111827',
-    lineHeight: 40,
+    color: '#0f172a',
+    // marginBottom: 2,
+    letterSpacing: -0.5,
   },
-  headerFixed: {
-    backgroundColor: 'white',
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e6e6e6',
-    zIndex: 20,
+  headerSubtitle: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '400',
   },
-  subtitle: {
-    fontSize: 13,
-    color: '#6b7280',
-    opacity: 0.9,
-    // marginTop: 8,
-  },
-  buttonGroup: {
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginTop: 0,
+    gap: 6,
   },
-
-  improvedButton: {
+  headerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
-    paddingVertical: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
-    marginLeft: 8,
-    minHeight: 30,
-    minWidth: 100,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
-  whiteButton: {
+  proformaButton: {
     backgroundColor: '#ffffff',
     borderWidth: 1.5,
     borderColor: '#3b82f6',
   },
-  blueButton: {
-    backgroundColor: '#4272f7',
+  transactionButton: {
+    backgroundColor: '#3b82f6',
     borderWidth: 1.5,
     borderColor: '#3b82f6',
   },
-  buttonText: {
-    fontSize: 14,
+  headerButtonText: {
+    fontSize: 11,
     fontWeight: '600',
-    textAlign: 'center',
+    marginLeft: 4,
+    letterSpacing: 0.3,
   },
-  whiteButtonText: {
+  proformaButtonText: {
     color: '#3b82f6',
   },
-  blueButtonText: {
+  transactionButtonText: {
     color: '#ffffff',
   },
-  buttonIcon: {
-    marginRight: 6,
-  },
-  buttonDisabled: {
+  headerButtonDisabled: {
     opacity: 0.5,
   },
-  actionButton: {
-    marginLeft: 6,
-    minWidth: 68,
-    paddingHorizontal: 8,
-    minHeight: 32,
-    paddingVertical: 4,
-  },
-  primaryActionButton: {
-    minWidth: 110,
-    // backgroundColor: '#3b82f6',
-  },
-  smallButtonLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  // Refresh Button Styles
-  refreshButton: {
-    padding: 6,
-    marginRight: 4,
-    borderRadius: 20,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-  },
-  refreshButtonActive: {
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-  },
-  refreshIcon: {
-    opacity: 0.9,
-  },
-  refreshIconActive: {
-    transform: [{ rotate: '360deg' }],
-  },
-  // Button Styles
   button: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -849,29 +795,22 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.5,
   },
-  /* Role-badge style for buttons (match UserCard role badges) */
-  roleBadgeButton: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    borderColor: 'transparent',
-    borderWidth: 0,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  roleBadgeButtonText: {
-    color: '#3b82f6',
-  },
-  // Card Styles
   card: {
     backgroundColor: 'white',
     borderRadius: 8,
     padding: 16,
     marginVertical: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   validityNoticeSkeleton: {
     height: 80,
@@ -920,7 +859,7 @@ const styles = StyleSheet.create({
   dataContainer: {
     gap: 12,
     marginTop: 8,
-    margin: 12,
+    margin: 8,
   },
   productStockSkeleton: {
     height: 200,
@@ -936,7 +875,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#eee',
     borderRadius: 8,
   },
-  // Modal Styles (TransactionsScreen style में updated)
   modalContainer: {
     flex: 1,
     backgroundColor: 'white',
@@ -948,6 +886,17 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   modalTitle: {
     fontSize: 20,
@@ -956,23 +905,9 @@ const styles = StyleSheet.create({
   },
   closeIconButton: {
     padding: 4,
+    borderRadius: 8,
   },
   modalScroll: {
     flex: 1,
-  },
-  // Optional: Inline header के लिए (पुराने style)
-  modalHeaderInline: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  modalDescription: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 16,
   },
 });

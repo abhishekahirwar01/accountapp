@@ -475,7 +475,7 @@ export default function AnalyticsScreen() {
               handleClientChange,
               clients,
               'Select Client',
-              '-- Select Client --',
+              '-- Select Client --' ,
               isClientsLoading,
               styles.pickerFieldHalf,
             )}

@@ -1,5 +1,5 @@
 // hooks/useProfitLossData.js
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from '../../config';
 
@@ -15,7 +15,6 @@ export const useProfitLossData = ({
 
   const fetchProfitLossData = useCallback(async () => {
     if (!fromDate || !toDate) {
-      console.log('⚠️ Dates not ready:', { fromDate, toDate });
       return;
     }
 
@@ -23,9 +22,9 @@ export const useProfitLossData = ({
       setLoading(true);
       setError(null);
 
-      const token = await AsyncStorage.getItem("token");
+      const token = await AsyncStorage.getItem('token');
       if (!token) {
-        throw new Error("Authentication token not found.");
+        throw new Error('Authentication token not found.');
       }
 
       // ✅ BUILD QUERY PARAMS - Same as Next.js
@@ -40,17 +39,15 @@ export const useProfitLossData = ({
 
       if (clientId && clientId.trim() !== '') {
         params.append('clientId', clientId);
-        console.log('🔑 Fetching P&L for clientId:', clientId);
       }
 
       const url = `${BASE_URL}/api/profitloss/statement?${params.toString()}`;
-      console.log('📡 Fetching P&L:', url);
 
       const response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
+          Pragma: 'no-cache',
         },
         cache: 'no-store',
       });
@@ -61,17 +58,16 @@ export const useProfitLossData = ({
           errorData = await response.json();
         } catch (e) {
           const errorText = await response.text();
-          errorData = { message: errorText || `HTTP error! status: ${response.status}` };
+          errorData = {
+            message: errorText || `HTTP error! status: ${response.status}`,
+          };
         }
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        throw new Error(
+          errorData.message || `HTTP error! status: ${response.status}`,
+        );
       }
 
       const responseData = await response.json();
-      console.log('✅ P&L Data received:', {
-        success: responseData.success,
-        hasData: !!responseData.data,
-        message: responseData.message
-      });
 
       if (responseData.success) {
         // Handle different response structures like Next.js
@@ -81,12 +77,12 @@ export const useProfitLossData = ({
           setData(responseData); // If response is the data directly
         }
       } else {
-        throw new Error(responseData.message || "Failed to load data");
+        throw new Error(responseData.message || 'Failed to load data');
       }
     } catch (err) {
-      console.error("❌ Error fetching P&L data:", err);
-      setError(err instanceof Error ? err.message : "An error occurred");
-      
+      console.error('❌ Error fetching P&L data:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+
       // Set default data on error (optional)
       setData(getDefaultProfitLossData(err.message));
     } finally {
@@ -98,16 +94,16 @@ export const useProfitLossData = ({
     fetchProfitLossData();
   }, [fetchProfitLossData]);
 
-  return { 
-    data, 
-    loading, 
-    error, 
-    refetch: fetchProfitLossData 
+  return {
+    data,
+    loading,
+    error,
+    refetch: fetchProfitLossData,
   };
 };
 
 // Helper function for default data
-const getDefaultProfitLossData = (message = "No data available") => {
+const getDefaultProfitLossData = (message = 'No data available') => {
   return {
     success: false,
     message,
@@ -119,66 +115,66 @@ const getDefaultProfitLossData = (message = "No data available") => {
         breakdown: {
           cash: 0,
           credit: 0,
-          count: 0
-        }
+          count: 0,
+        },
       },
       closingStock: 0,
       grossProfit: 0,
-      grossLoss: 0
+      grossLoss: 0,
     },
     income: {
       breakdown: {
         productSales: {
           amount: 0,
-          label: "Product Sales",
+          label: 'Product Sales',
           count: 0,
-          paymentMethods: {}
+          paymentMethods: {},
         },
         serviceIncome: {
           amount: 0,
-          label: "Service Income",
+          label: 'Service Income',
           count: 0,
-          paymentMethods: {}
+          paymentMethods: {},
         },
         receipts: {
           amount: 0,
-          label: "Receipts",
+          label: 'Receipts',
           count: 0,
-          paymentMethods: {}
+          paymentMethods: {},
         },
-        otherIncome: []
-      }
+        otherIncome: [],
+      },
     },
     expenses: {
       total: 0,
       breakdown: {
         costOfGoodsSold: {
           amount: 0,
-          label: "Cost of Goods Sold",
+          label: 'Cost of Goods Sold',
           count: 0,
           paymentMethods: {},
-          components: {}
+          components: {},
         },
         purchases: {
           amount: 0,
-          label: "Purchases",
+          label: 'Purchases',
           count: 0,
-          paymentMethods: {}
+          paymentMethods: {},
         },
         vendorPayments: {
           amount: 0,
-          label: "Vendor Payments",
+          label: 'Vendor Payments',
           count: 0,
-          paymentMethods: {}
+          paymentMethods: {},
         },
         expensePayments: {
           amount: 0,
-          label: "Expense Payments",
+          label: 'Expense Payments',
           count: 0,
-          paymentMethods: {}
+          paymentMethods: {},
         },
-        expenseBreakdown: []
-      }
+        expenseBreakdown: [],
+      },
     },
     summary: {
       grossProfit: 0,
@@ -188,13 +184,13 @@ const getDefaultProfitLossData = (message = "No data available") => {
       profitMargin: 0,
       netMargin: 0,
       expenseRatio: 0,
-      isProfitable: false
+      isProfitable: false,
     },
     quickStats: {
       totalTransactions: 0,
       averageSale: 0,
-      averageExpense: 0
-    }
+      averageExpense: 0,
+    },
   };
 };
 

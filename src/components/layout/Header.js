@@ -75,7 +75,6 @@ export default function Header() {
   // Refresh companies whenever Header comes to focus
   useFocusEffect(
     React.useCallback(() => {
-      console.log('🔄 Header focused - triggering company refresh...');
       triggerCompaniesRefresh();
     }, [triggerCompaniesRefresh]),
   );
@@ -119,9 +118,11 @@ export default function Header() {
     role,
   );
 
+  // Check if current role is user
+  const isUser = role === 'user';
+
   const handleSearchSubmit = () => {
     if (searchText.trim()) {
-      console.log('Search:', searchText);
       handleSearchHighlight(searchText);
     }
     setShowSearch(false);
@@ -165,7 +166,6 @@ export default function Header() {
       return;
     }
 
-    console.log('Searching for:', term);
     setHighlightCount(5);
     setCurrentHighlightIndex(0);
   };
@@ -309,44 +309,67 @@ export default function Header() {
         translucent={false}
       />
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }}>
-        <View style={styles.container}>
-          {/* Logo */}
+        <View style={[
+          styles.container,
+        ]}>
+          
           <Image
             source={logoPath2}
-            style={styles.logoImage}
+            style={[
+              styles.logoImage,
+              isUser && styles.userLogoImage
+            ]}
             resizeMode="contain"
           />
 
-          {/* Company Switcher - Center Position */}
+          {/* Company Switcher - Center Position with different styles for user */}
           {showCompanySwitcher && (
-            <View style={styles.companySwitcherContainer}>
+            <View style={[
+              styles.companySwitcherContainer,
+              isUser && styles.userCompanySwitcherContainer
+            ]}>
               <CompanySwitcher />
             </View>
           )}
 
-          {/* Right side icons */}
-          <View style={styles.rightContainer}>
-            {/* Notification Component */}
+          {/* Right side icons - Different alignment for user */}
+          <View style={[
+            styles.rightContainer,
+            isUser && styles.userRightContainer
+          ]}>
+            {/* Notification Component - Hidden for user */}
             {showNotification && (
-              <View style={styles.notificationContainer}>
+              <View style={[
+                styles.notificationContainer,
+                
+              ]}>
                 <Notification socket={null} />
               </View>
             )}
 
-            {/* History Icon */}
+            {/* History Icon - Hidden for user */}
             {showHistory && (
               <TouchableOpacity
-                style={styles.iconButton}
+                style={[
+                  styles.iconButton,
+                  
+                ]}
                 onPress={handleHistory}
               >
                 <Ionicons name="time-outline" size={22} color="#334155" />
               </TouchableOpacity>
             )}
 
-            {/* Profile Dropdown */}
-            <View style={styles.profileWrapper}>
+            {/* Profile Dropdown - Different style for user */}
+            <View style={[
+              styles.profileWrapper,
+              
+            ]}>
               <TouchableOpacity
-                style={styles.profileContainer}
+                style={[
+                  styles.profileContainer,
+                  isUser && styles.userProfileContainer
+                ]}
                 onPress={() => setShowDropdown(true)}
               >
                 <Ionicons
@@ -355,7 +378,12 @@ export default function Header() {
                   color="#334155"
                 />
                 {/* Formatted role label display */}
-                <Text style={styles.roleText}>{formattedRole}</Text>
+                <Text style={[
+                  styles.roleText,
+                  isUser && styles.userRoleText
+                ]}>
+                  {formattedRole}
+                </Text>
               </TouchableOpacity>
 
               {/* Dropdown Modal */}
@@ -370,7 +398,10 @@ export default function Header() {
                   onPress={() => setShowDropdown(false)}
                 />
                 <View pointerEvents="box-none" style={styles.dropdownPortal}>
-                  <View style={styles.dropdownMenu}>
+                  <View style={[
+                    styles.dropdownMenu,
+                    isUser && styles.userDropdownMenu
+                  ]}>
                     {/* Profile Option for Master */}
                     {role === 'master' && (
                       <TouchableOpacity
@@ -388,7 +419,10 @@ export default function Header() {
 
                     {/* Settings Option */}
                     <TouchableOpacity
-                      style={styles.dropdownItem}
+                      style={[
+                        styles.dropdownItem,
+                        
+                      ]}
                       onPress={handleSettings}
                     >
                       <Ionicons
@@ -396,26 +430,42 @@ export default function Header() {
                         size={18}
                         color="#64748b"
                       />
-                      <Text style={styles.dropdownText}>Settings</Text>
+                      <Text style={[
+                        styles.dropdownText,
+                        isUser && styles.userDropdownText
+                      ]}>
+                        Settings
+                      </Text>
                     </TouchableOpacity>
 
-                    {/* Support Option */}
+                    {/* Support Option - Show for user */}
                     {role !== 'master' && (
                       <TouchableOpacity
-                        style={styles.dropdownItem}
+                        style={[
+                          styles.dropdownItem,
+                          
+                        ]}
                         onPress={handleSupport}
                       >
                         <Ionicons
                           name="help-circle-outline"
                           size={18}
-                          color="#64748b"
+                         color="#64748b"
                         />
-                        <Text style={styles.dropdownText}>Support</Text>
+                        <Text style={[
+                          styles.dropdownText,
+                          isUser && styles.userDropdownText
+                        ]}>
+                          Support
+                        </Text>
                       </TouchableOpacity>
                     )}
 
                     <TouchableOpacity
-                      style={styles.dropdownItem}
+                      style={[
+                        styles.dropdownItem,
+                        
+                      ]}
                       onPress={handleLogout}
                     >
                       <Ionicons
@@ -439,6 +489,7 @@ export default function Header() {
 }
 
 const styles = StyleSheet.create({
+  
   container: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -490,6 +541,44 @@ const styles = StyleSheet.create({
     marginTop: 2,
     textAlign: 'center',
   },
+  
+  // User-specific styles
+
+  userLogoImage: {
+    width: 60, 
+    height: 35,
+  },
+  userCompanySwitcherContainer: {
+    flex: 1.5, 
+    marginHorizontal: 4,
+    justifyContent: 'center',
+  },
+  userRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 50, 
+  },
+ 
+  userProfileContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 4,
+    borderRadius: 8,
+    // backgroundColor: '#EEF2FF', 
+  },
+  userRoleText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  userDropdownMenu: {
+    // backgroundColor: '#F8FAFF', 
+    borderWidth: 1,
+    borderColor: '#E0E7FF',
+  },
+
+ 
+
+  // Search styles (common for all)
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',

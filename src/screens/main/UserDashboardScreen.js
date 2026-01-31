@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
@@ -70,7 +69,6 @@ const getAmount = (type, row) => {
 };
 
 export default function UserDashboardScreen({ navigation, route }) {
-  
   const { selectedCompanyId, triggerCompaniesRefresh, refreshTrigger } =
     useCompany();
   const {
@@ -80,12 +78,8 @@ export default function UserDashboardScreen({ navigation, route }) {
   } = useUserPermissions();
   const { permissions, refetch: refetchPermissions } = usePermissions();
 
-  
   useFocusEffect(
     React.useCallback(() => {
-      console.log(
-        '🔄 UserDashboardScreen focused - triggering company refresh...',
-      );
       triggerCompaniesRefresh();
     }, [triggerCompaniesRefresh]),
   );
@@ -98,7 +92,6 @@ export default function UserDashboardScreen({ navigation, route }) {
   const [serviceNameById, setServiceNameById] = useState(new Map());
   const [refreshing, setRefreshing] = useState(false);
 
-  
   const [role, setRole] = useState('user');
 
   useEffect(() => {
@@ -118,7 +111,6 @@ export default function UserDashboardScreen({ navigation, route }) {
     [companies, selectedCompanyId],
   );
 
-  
   const safeGet = useCallback(async url => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -134,7 +126,6 @@ export default function UserDashboardScreen({ navigation, route }) {
     }
   }, []);
 
-  
   const fetchCompanyDashboard = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -151,12 +142,10 @@ export default function UserDashboardScreen({ navigation, route }) {
 
       const authHeaders = { Authorization: `Bearer ${token}` };
 
-      
       const queryParam = selectedCompanyId
         ? `?companyId=${selectedCompanyId}&isDashboard=true`
         : `?companyId=all&isDashboard=true`;
 
-      
       const safeFetch = async url => {
         try {
           const r = await fetch(url, { headers: authHeaders });
@@ -167,7 +156,6 @@ export default function UserDashboardScreen({ navigation, route }) {
         }
       };
 
-      
       const [
         rawSales,
         rawPurchases,
@@ -186,13 +174,6 @@ export default function UserDashboardScreen({ navigation, route }) {
         safeFetch(`${BASE_URL}/api/services`),
       ]);
 
-      console.log('📊 Dashboard API Responses:', {
-        sales: rawSales,
-        purchases: rawPurchases,
-        companies: companiesData,
-      });
-
-      
       let usersCount = 0;
       if (isAdmin) {
         const usersJson = await safeFetch(`${BASE_URL}/api/users`);
@@ -201,7 +182,6 @@ export default function UserDashboardScreen({ navigation, route }) {
           : usersJson?.length || 0;
       }
 
-      
       const servicesArr = Array.isArray(servicesJson)
         ? servicesJson
         : servicesJson?.services || [];
@@ -212,28 +192,17 @@ export default function UserDashboardScreen({ navigation, route }) {
       }
       setServiceNameById(sMap);
 
-      
       const comps = Array.isArray(companiesData)
         ? companiesData
         : companiesData?.data || [];
       setCompanies(comps);
 
-      
       const salesArr = toArray(rawSales);
       const purchasesArr = toArray(rawPurchases);
       const receiptsArr = toArray(rawReceipts);
       const paymentsArr = toArray(rawPayments);
       const journalsArr = toArray(rawJournals);
 
-      console.log('📈 Transaction Counts:', {
-        sales: salesArr.length,
-        purchases: purchasesArr.length,
-        receipts: receiptsArr.length,
-        payments: paymentsArr.length,
-        journals: journalsArr.length,
-      });
-
-      
       let allTransactions = [
         ...salesArr.map(s => ({ ...s, type: 'sales' })),
         ...purchasesArr.map(p => ({ ...p, type: 'purchases' })),
@@ -260,7 +229,6 @@ export default function UserDashboardScreen({ navigation, route }) {
 
       setRecentTransactions(allTransactions.slice(0, 5));
 
-      
       const totalSales = salesArr.reduce(
         (acc, row) => acc + getAmount('sales', row),
         0,
@@ -275,26 +243,17 @@ export default function UserDashboardScreen({ navigation, route }) {
         ? comps.length
         : 0;
 
-      console.log('💰 Calculated KPIs:', {
-        totalSales,
-        totalPurchases,
-        companiesCount,
-        usersCount,
-      });
-
       setCompanyData({
         totalSales,
         totalPurchases,
-        users: usersCount, 
+        users: usersCount,
         companies: companiesCount,
       });
     } catch (error) {
-      console.error('❌ Dashboard fetch error:', error);
       Toast.show({
         type: 'error',
         text1: 'Failed to load dashboard data',
-        text2:
-          error instanceof Error ? error.message : 'Something went wrong.',
+        text2: error instanceof Error ? error.message : 'Something went wrong.',
         position: 'bottom',
       });
       setCompanyData(null);
@@ -303,12 +262,10 @@ export default function UserDashboardScreen({ navigation, route }) {
     }
   }, [selectedCompanyId, isAdmin]);
 
-  
   useEffect(() => {
     fetchCompanyDashboard();
   }, [selectedCompanyId, fetchCompanyDashboard]);
 
-  
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     Promise.all([
@@ -326,7 +283,6 @@ export default function UserDashboardScreen({ navigation, route }) {
     refetchPermissions,
   ]);
 
- 
   const fetchCompaniesOnly = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -363,37 +319,45 @@ export default function UserDashboardScreen({ navigation, route }) {
     fetchCompanyDashboard();
   };
 
-  
   const kpis = [
     {
       key: 'sales',
-      title: 'Total Sales',
+      title: 'TOTAL SALES',
       value: formatCurrency(companyData?.totalSales || 0),
       icon: IndianRupee,
+      iconBgColor: '#3B82F6',
       description: selectedCompanyId
         ? 'For selected company'
-        : 'Across all companies',
+        : 'All across companies',
       show: isAdmin || (isAllowed && isAllowed('canCreateSaleEntries')),
     },
     {
       key: 'purchases',
-      title: 'Total Purchases',
+      title: 'TOTAL PURCHASES',
       value: formatCurrency(companyData?.totalPurchases || 0),
       icon: CreditCard,
+      iconBgColor: '#8B5CF6',
+      description: selectedCompanyId
+        ? 'For selected company'
+        : 'All across companies',
       show: isAdmin || (isAllowed && isAllowed('canCreatePurchaseEntries')),
     },
     {
       key: 'users',
-      title: 'Active Users',
+      title: 'ACTIVE USERS',
       value: (companyData?.users || 0).toString(),
       icon: Users,
+      iconBgColor: '#14B8A6',
+      description: 'Total active users',
       show: isAdmin,
     },
     {
       key: 'companies',
-      title: 'Companies',
+      title: 'COMPANIES',
       value: (companyData?.companies || 0).toString(),
       icon: Building,
+      iconBgColor: '#F59E0B',
+      description: 'Total companies',
       show: true,
     },
   ].filter(k => k.show);
@@ -402,23 +366,31 @@ export default function UserDashboardScreen({ navigation, route }) {
   const handleSettingsPress = () => navigation.navigate('ProfileScreen');
   const handleTransactionPress = () => setIsTransactionFormOpen(true);
 
-  
-  const KPICard = ({ title, value, Icon, description }) => (
-    <View style={[styles.kpiCard, { width: SCREEN_WIDTH * 0.6 }]}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>{title}</Text>
-        <Icon size={18} color="#666" />
-      </View>
-      <View style={styles.cardContent}>
-        <Text style={styles.cardValue}>{value}</Text>
-        {description && (
-          <Text style={styles.cardDescription}>{description}</Text>
-        )}
+  const KPICard = ({ title, value, Icon, description, iconBgColor }) => (
+    <View style={styles.cardWrapper}>
+      <View style={styles.kpiCard}>
+        <View style={styles.cardInner}>
+          <View style={styles.headerRow}>
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {title}
+            </Text>
+            <View style={[styles.iconContainer, { backgroundColor: iconBgColor }]}>
+              <Icon size={18} color="#ffffff" strokeWidth={2.5} />
+            </View>
+          </View>
+          
+          <Text style={styles.cardValue} numberOfLines={1}>
+            {value}
+          </Text>
+          
+          <Text style={styles.cardDescription} numberOfLines={1}>
+            {description}
+          </Text>
+        </View>
       </View>
     </View>
   );
 
-  
   const renderHeader = () => (
     <View>
       {/* Header */}
@@ -436,16 +408,6 @@ export default function UserDashboardScreen({ navigation, route }) {
           <View style={styles.headerActions}>
             <UpdateWalkthrough />
 
-            
-            {/* <TouchableOpacity
-              onPress={handleSettingsPress}
-              style={[styles.btn, styles.btnOutline]}
-              activeOpacity={0.85}
-            >
-              <Settings size={16} style={{ marginRight: 8 }} />
-              <Text>Settings</Text>
-            </TouchableOpacity> */}
-
             {isAdmin && (
               <TouchableOpacity
                 onPress={handleTransactionPress}
@@ -460,13 +422,9 @@ export default function UserDashboardScreen({ navigation, route }) {
         )}
       </View>
 
-      {/* KPI Cards */}
-      {kpis.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginBottom: 24 }}
-        >
+      {/* KPI Cards Grid */}
+      {kpis.length > 0 && (
+        <View style={styles.kpiGrid}>
           {kpis.map(k => (
             <KPICard
               key={k.key}
@@ -474,10 +432,11 @@ export default function UserDashboardScreen({ navigation, route }) {
               value={k.value}
               Icon={k.icon}
               description={k.description}
+              iconBgColor={k.iconBgColor}
             />
           ))}
-        </ScrollView>
-      ) : null}
+        </View>
+      )}
     </View>
   );
 
@@ -504,7 +463,6 @@ export default function UserDashboardScreen({ navigation, route }) {
     );
   }
 
-  
   if (companies.length === 0) {
     return (
       <AppLayout>
@@ -529,7 +487,6 @@ export default function UserDashboardScreen({ navigation, route }) {
     );
   }
 
-  
   return (
     <AppLayout>
       <FlatList
@@ -549,7 +506,6 @@ export default function UserDashboardScreen({ navigation, route }) {
         showsVerticalScrollIndicator={false}
       />
 
-      
       <Modal
         visible={isTransactionFormOpen}
         animationType="fade"
@@ -589,7 +545,7 @@ export default function UserDashboardScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   contentContainer: {
-    padding: 16,
+    padding: 14,
     flexGrow: 1,
   },
   loadingContainer: {
@@ -622,7 +578,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   header: {
-    marginBottom: 24,
+    // marginBottom: 24,
   },
   headerText: {
     marginBottom: 16,
@@ -631,7 +587,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 4,
+    // marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
@@ -658,39 +614,70 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     backgroundColor: 'white',
   },
-  kpiCard: {
-    padding: 16,
-    borderRadius: 8,
-    backgroundColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-    marginRight: 12,
+  
+  kpiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    // padding: 8,
+    marginBottom: 14,
   },
-  cardHeader: {
+  cardWrapper: {
+    width: '48%',
+    minWidth: 150,
+  },
+  kpiCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  cardInner: {
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+  },
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   cardTitle: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#666',
-  },
-  cardContent: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
     flex: 1,
+    marginRight: 8,
   },
   cardValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 4,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 6,
+    letterSpacing: -0.5,
   },
   cardDescription: {
-    fontSize: 11,
-    color: '#666',
+    fontSize: 10,
+    color: '#94a3b8',
+    fontWeight: '400',
+  },
+  iconContainer: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   contentGrid: {
     marginBottom: 24,

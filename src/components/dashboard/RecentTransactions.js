@@ -150,15 +150,15 @@ const RecentTransactions = ({
   const isMobile = width < 768;
 
   const typeStyles = {
-    sales: { backgroundColor: '#dcfce7', color: '#166534' },
-    purchases: { backgroundColor: '#ffedd5', color: '#c2410c' },
-    receipt: { backgroundColor: '#dbeafe', color: '#1e40af' },
-    payment: { backgroundColor: '#fee2e2', color: '#dc2626' },
-    journal: { backgroundColor: '#f3e8ff', color: '#7c3aed' },
+    sales: { backgroundColor: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0' },
+    purchases: { backgroundColor: '#fef3f2', color: '#b91c1c', borderColor: '#fecaca' },
+    receipt: { backgroundColor: '#eff6ff', color: '#1e40af', borderColor: '#bfdbfe' },
+    payment: { backgroundColor: '#fef9c3', color: '#a16207', borderColor: '#fde68a' },
+    journal: { backgroundColor: '#f5f3ff', color: '#6b21a8', borderColor: '#e9d5ff' },
   };
 
   const getTypeStyle = type => {
-    return typeStyles[type] || { backgroundColor: '#f3f4f6', color: '#374151' };
+    return typeStyles[type] || { backgroundColor: '#f9fafb', color: '#4b5563', borderColor: '#e5e7eb' };
   };
 
   const openItemsDialog = (tx, items) => {
@@ -166,7 +166,7 @@ const RecentTransactions = ({
     setDialogItems(items);
     const party = getPartyName(tx);
     const date = safeDate(tx?.date);
-    setDialogTitle(party ? `Items · ${party} · ${date}` : `Items · ${date}`);
+    setDialogTitle(party ? `${party} · ${date}` : date);
     setIsItemsOpen(true);
   };
 
@@ -223,9 +223,9 @@ const RecentTransactions = ({
             >
               <View style={styles.itemRow}>
                 {item.icon === 'product' ? (
-                  <Package size={16} color="#6b7280" />
+                  <Package size={16} color="#64748b" strokeWidth={1.5} />
                 ) : (
-                  <Server size={16} color="#6b7280" />
+                  <Server size={16} color="#64748b" strokeWidth={1.5} />
                 )}
                 <Text
                   style={[styles.itemLabel, clickable && styles.clickableText]}
@@ -244,18 +244,21 @@ const RecentTransactions = ({
           <View
             style={[
               styles.typeBadge,
-              { backgroundColor: typeStyle.backgroundColor },
+              { 
+                backgroundColor: typeStyle.backgroundColor,
+                borderColor: typeStyle.borderColor,
+              },
             ]}
           >
             <Text style={[styles.typeBadgeText, { color: typeStyle.color }]}>
-              {tx.type?.toUpperCase()}
+              {tx.type?.charAt(0).toUpperCase() + tx.type?.slice(1)}
             </Text>
           </View>
         </View>
 
         <View style={[styles.tableCell, { flex: 1 }]}>
           <View style={styles.dateCell}>
-            <Calendar size={14} color="#6b7280" />
+            <Calendar size={14} color="#64748b" strokeWidth={1.5} />
             <Text style={styles.dateText}>{safeDate(tx.date)}</Text>
           </View>
         </View>
@@ -311,7 +314,7 @@ const RecentTransactions = ({
                 {inr(Math.abs(amt))}
               </Text>
               <View style={styles.dateContainer}>
-                <Calendar size={12} color="#6b7280" />
+                <Calendar size={12} color="#64748b" strokeWidth={1.5} />
                 <Text style={styles.dateText}>{safeDate(tx.date)}</Text>
               </View>
             </View>
@@ -322,9 +325,9 @@ const RecentTransactions = ({
               {item.icon !== 'none' ? (
                 <>
                   {item.icon === 'product' ? (
-                    <Package size={16} color="#6b7280" />
+                    <Package size={16} color="#64748b" strokeWidth={1.5} />
                   ) : (
-                    <Server size={16} color="#6b7280" />
+                    <Server size={16} color="#64748b" strokeWidth={1.5} />
                   )}
                   <View style={styles.itemText}>
                     <Text
@@ -337,7 +340,7 @@ const RecentTransactions = ({
                       {item.label}
                     </Text>
                     {clickable && (
-                      <Text style={styles.tapHint}>Tap to view details →</Text>
+                      <Text style={styles.tapHint}>Tap for details</Text>
                     )}
                   </View>
                 </>
@@ -351,11 +354,14 @@ const RecentTransactions = ({
             <View
               style={[
                 styles.typeBadge,
-                { backgroundColor: typeStyle.backgroundColor },
+                { 
+                  backgroundColor: typeStyle.backgroundColor,
+                  borderColor: typeStyle.borderColor,
+                },
               ]}
             >
               <Text style={[styles.typeBadgeText, { color: typeStyle.color }]}>
-                {tx.type?.toUpperCase()}
+                {tx.type?.charAt(0).toUpperCase() + tx.type?.slice(1)}
               </Text>
             </View>
           </View>
@@ -379,9 +385,9 @@ const RecentTransactions = ({
           <View style={styles.dialogItemContent}>
             <View style={styles.dialogItemHeader}>
               {isService ? (
-                <Server size={20} color="#6b7280" />
+                <Server size={18} color="#475569" strokeWidth={1.5} />
               ) : (
-                <Package size={20} color="#6b7280" />
+                <Package size={18} color="#475569" strokeWidth={1.5} />
               )}
               <View style={styles.dialogItemInfo}>
                 <Text style={styles.dialogItemName} numberOfLines={2}>
@@ -389,7 +395,7 @@ const RecentTransactions = ({
                 </Text>
                 <View style={styles.itemTypeBadge}>
                   <Text style={styles.itemTypeBadgeText}>
-                    {li.itemType?.toUpperCase()}
+                    {li.itemType?.charAt(0).toUpperCase() + li.itemType?.slice(1)}
                   </Text>
                 </View>
               </View>
@@ -438,14 +444,8 @@ const RecentTransactions = ({
                 style={styles.closeButton}
                 activeOpacity={0.7}
               >
-                <Text style={styles.closeButtonText}>×</Text>
+                <Text style={styles.closeButtonText}>✕</Text>
               </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalSubtitle}>
-              <Text style={styles.modalSubtitleText}>
-                A detailed list of all items in this transaction
-              </Text>
             </View>
 
             <ScrollView
@@ -475,8 +475,8 @@ const RecentTransactions = ({
   const renderEmptyState = () => (
     <View style={styles.emptyCard}>
       <View style={styles.emptyContent}>
-        <Receipt size={48} color="#9ca3af" />
-        <Text style={styles.emptyTitle}>No transactions</Text>
+        <Receipt size={48} color="#94a3b8" strokeWidth={1.5} />
+        <Text style={styles.emptyTitle}>No transactions yet</Text>
         <Text style={styles.emptyText}>
           Your recent transactions will appear here
         </Text>
@@ -490,7 +490,7 @@ const RecentTransactions = ({
         <View style={styles.cardHeader}>
           <Text style={styles.title}>Recent Transactions</Text>
           <Text style={styles.subtitle}>
-            A summary of your most recent financial activities.
+            Overview of your latest financial activity
           </Text>
         </View>
 
@@ -502,8 +502,8 @@ const RecentTransactions = ({
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                colors={['#2196F3']}
-                tintColor="#2196F3"
+                colors={['#3b82f6']}
+                tintColor="#3b82f6"
               />
             ) : undefined
           }
@@ -537,7 +537,7 @@ const RecentTransactions = ({
             activeOpacity={0.7}
           >
             <Text style={styles.viewAllButtonText}>View All Transactions</Text>
-            <ArrowRight size={16} color="#2196F3" style={styles.arrowIcon} />
+            <ArrowRight size={16} color="#3b82f6" strokeWidth={2} style={styles.arrowIcon} />
           </TouchableOpacity>
         </View>
       </View>
@@ -550,34 +550,38 @@ const RecentTransactions = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#f8fafc',
   },
   mainCard: {
     flex: 1,
     margin: 0,
-    backgroundColor: 'white',
-    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 3,
+    elevation: 2,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
   cardHeader: {
-    padding: 20,
-    paddingBottom: 16,
+    padding: 24,
+    paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: '#f1f5f9',
+    backgroundColor: '#ffffff',
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#0f172a',
+    letterSpacing: -0.3,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#64748b',
     marginTop: 4,
   },
   scrollArea: {
@@ -590,17 +594,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#f8fafc',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: '#e2e8f0',
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
   tableHeaderCell: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
   },
   tableHeaderText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
+    color: '#475569',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -610,31 +614,35 @@ const styles = StyleSheet.create({
   tableRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: '#f1f5f9',
     paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     alignItems: 'center',
-    minHeight: 72,
+    minHeight: 68,
+    backgroundColor: '#ffffff',
   },
   tableCell: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
   },
   partyCell: {
     flex: 1,
   },
   partyName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#0f172a',
+    letterSpacing: -0.2,
   },
   description: {
     fontSize: 13,
-    color: '#6b7280',
-    marginTop: 4,
+    color: '#64748b',
+    marginTop: 3,
+    lineHeight: 18,
   },
   amountText: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: -0.2,
   },
   positiveAmount: {
     color: '#059669',
@@ -649,7 +657,7 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 13,
-    color: '#6b7280',
+    color: '#64748b',
   },
   itemCell: {
     flexDirection: 'row',
@@ -659,7 +667,9 @@ const styles = StyleSheet.create({
   },
   clickableCell: {
     paddingHorizontal: 8,
+    paddingVertical: 6,
     borderRadius: 6,
+    backgroundColor: '#f8fafc',
   },
   itemRow: {
     flexDirection: 'row',
@@ -669,44 +679,44 @@ const styles = StyleSheet.create({
   },
   itemLabel: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
+    fontWeight: '400',
+    color: '#334155',
     flex: 1,
   },
   clickableText: {
-    color: '#2563eb',
+    color: '#3b82f6',
+    fontWeight: '500',
   },
   noItemsText: {
     fontSize: 14,
-    color: '#9ca3af',
-    fontStyle: 'italic',
+    color: '#94a3b8',
   },
   typeBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
     alignSelf: 'flex-start',
+    borderWidth: 1,
   },
   typeBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   mobileContainer: {
     padding: 16,
   },
   mobileCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
     borderWidth: 1,
-    borderColor: '#f3f4f6',
+    borderColor: '#f1f5f9',
   },
   mobileCardContent: {
     padding: 16,
@@ -738,9 +748,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tapHint: {
-    fontSize: 12,
-    color: '#2563eb',
-    marginTop: 4,
+    fontSize: 11,
+    color: '#3b82f6',
+    marginTop: 2,
     fontWeight: '500',
   },
   badgeContainer: {
@@ -750,7 +760,7 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: '#f1f5f9',
     backgroundColor: '#fafafa',
   },
   viewAllButton: {
@@ -760,35 +770,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: '#eff6ff',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   viewAllButtonText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#2563eb',
+    fontWeight: '500',
+    color: '#3b82f6',
+    letterSpacing: -0.1,
   },
   arrowIcon: {
-    marginLeft: 8,
+    marginLeft: 6,
   },
   // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
     width: '100%',
     maxWidth: 500,
     maxHeight: '80%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 16,
+    shadowRadius: 12,
     elevation: 8,
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -796,71 +810,64 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: '#f1f5f9',
+    backgroundColor: '#ffffff',
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#0f172a',
     flex: 1,
     marginRight: 16,
+    letterSpacing: -0.3,
   },
   closeButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#f1f5f9',
     justifyContent: 'center',
     alignItems: 'center',
   },
   closeButtonText: {
-    fontSize: 20,
-    color: '#374151',
-    lineHeight: 24,
-  },
-  modalSubtitle: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  modalSubtitleText: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 18,
+    color: '#475569',
+    lineHeight: 20,
   },
   modalBody: {
     maxHeight: 400,
   },
   modalFooter: {
-    padding: 20,
+    padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopColor: '#f1f5f9',
     alignItems: 'flex-end',
+    backgroundColor: '#fafafa',
   },
   closeModalButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: '#0f172a',
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 8,
     minWidth: 100,
   },
   closeModalButtonText: {
-    color: 'white',
+    color: '#ffffff',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     textAlign: 'center',
+    letterSpacing: -0.1,
   },
   // Dialog item styles
   dialogItemsList: {
     padding: 20,
   },
   dialogItemCard: {
-    backgroundColor: '#fafafa',
-    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#e2e8f0',
     overflow: 'hidden',
   },
   dialogItemContent: {
@@ -876,37 +883,38 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dialogItemName: {
-    fontWeight: '600',
+    fontWeight: '500',
     fontSize: 15,
-    color: '#1f2937',
-    marginBottom: 4,
+    color: '#0f172a',
+    marginBottom: 6,
+    letterSpacing: -0.2,
   },
   itemTypeBadge: {
-    backgroundColor: '#e5e7eb',
+    backgroundColor: '#f1f5f9',
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
+    paddingVertical: 3,
+    borderRadius: 4,
     alignSelf: 'flex-start',
   },
   itemTypeBadgeText: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#374151',
-    letterSpacing: 0.5,
+    color: '#64748b',
+    letterSpacing: 0.3,
   },
   serviceDescription: {
     fontSize: 13,
-    color: '#6b7280',
+    color: '#64748b',
     fontStyle: 'italic',
     marginBottom: 12,
     lineHeight: 18,
     backgroundColor: '#f8fafc',
-    padding: 8,
+    padding: 10,
     borderRadius: 6,
   },
   dialogItemDetails: {
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopColor: '#f1f5f9',
     paddingTop: 12,
   },
   detailRow: {
@@ -916,55 +924,55 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 13,
-    color: '#6b7280',
+    color: '#64748b',
   },
   detailValue: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#374151',
+    color: '#334155',
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 12,
+    marginTop: 8,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopColor: '#f1f5f9',
   },
   totalLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1f2937',
+    color: '#0f172a',
   },
   totalValue: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#059669',
   },
   // Empty state
   emptyCard: {
-    margin: 20,
-    backgroundColor: '#f9fafb',
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
+    margin: 24,
+    backgroundColor: '#fafafa',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     borderStyle: 'dashed',
-    borderRadius: 16,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   emptyContent: {
     alignItems: 'center',
-    padding: 40,
+    padding: 48,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     marginTop: 16,
-    marginBottom: 8,
-    color: '#374151',
+    marginBottom: 6,
+    color: '#334155',
   },
   emptyText: {
     textAlign: 'center',
-    color: '#6b7280',
+    color: '#64748b',
     fontSize: 14,
     lineHeight: 20,
   },

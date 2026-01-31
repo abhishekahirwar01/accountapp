@@ -22,13 +22,8 @@ const AppSocketWrapper = ({ children }) => {
         if (userData) {
           const parsedUser = JSON.parse(userData);
           setUser(parsedUser);
-          console.log('📱 AppSocketWrapper: User loaded:', {
-            userId: parsedUser._id,
-            role: parsedUser.role,
-          });
         }
       } catch (error) {
-        console.error('❌ AppSocketWrapper: Error loading user:', error);
       }
     };
 
@@ -42,8 +37,8 @@ const AppSocketWrapper = ({ children }) => {
 
       {/* Debug logging */}
       {!socket &&
-        console.log('⚠️ AppSocketWrapper: Socket not initialized yet')}
-      {!user && console.log('⚠️ AppSocketWrapper: User not loaded yet')}
+        false}
+      {!user && false}
 
       {children}
     </>

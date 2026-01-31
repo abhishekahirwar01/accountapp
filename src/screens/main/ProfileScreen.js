@@ -71,6 +71,7 @@ const PermissionsTab = React.memo(() => {
         const u = await getCurrentUser();
         if (mounted) setCurrentUser(u);
       } catch (err) {
+        // Error handled silently
       } finally {
         if (mounted) setCurrentUserLoading(false);
       }
@@ -429,49 +430,20 @@ UserPermissionsTab.displayName = 'UserPermissionsTab';
 export default function ProfilePage({ navigation, route }) {
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
-  const { socket, isConnected } = useSocket(); // Singleton Socket call
+  const { socket, isConnected } = useSocket();
   const { permissions, refetch: refetchPermissions } = usePermissions();
 
   const { permissions: userCaps, refetch: refetchUserPermissions } =
     useUserPermissions();
 
-  // 1. Unified Socket Monitor (For Debugging)
-  useEffect(() => {
-    if (socket) {
-      const debug = (event, ...args) => {
-        console.log(`⭐ SERVER SENT SOMETHING: [${event}]`, args);
-      };
-      socket.onAny(debug);
-      return () => socket.offAny(debug);
-    }
-  }, [socket]);
-
-  // 2. Real-time Permission Listeners
-  usePermissionSocket(data => {
-    console.log('--- 🟢 LIVE: Account Permission Update Received ---', data);
+  // Real-time Permission Listeners
+  usePermissionSocket(() => {
     refetchPermissions?.();
   });
 
-  useUserPermissionSocket(data => {
-    // AGAR YE LOG DIKHA, TO HI SOCKET LIVE HAI
-    console.log('--- 🚀 EMERGENCY: LIVE DATA ARRIVED! ---', data);
+  useUserPermissionSocket(() => {
     refetchUserPermissions();
   });
-
-  // 3. UI State Logger (Check if refetch actually worked)
-  useEffect(() => {
-    console.log('--- 🛡️ PERMISSION STATE SYNCED ---');
-    console.log(
-      'Current Account Data:',
-      permissions?.maxUsers ? 'Loaded' : 'Null',
-    );
-    console.log(
-      'Current User Data:',
-      userCaps?.canCreateSaleEntries
-        ? 'Permissions Active'
-        : 'Permissions Restricted',
-    );
-  }, [permissions, userCaps]);
 
   const [currentUser, setCurrentUser] = useState(null);
   const [selectedTab, setSelectedTab] = useState('profile');
@@ -493,7 +465,7 @@ export default function ProfilePage({ navigation, route }) {
         }
       }
     } catch (e) {
-      console.error('Error in back press:', e);
+      // Error handled silently
     }
     return false;
   }, [navigation]);
@@ -503,7 +475,7 @@ export default function ProfilePage({ navigation, route }) {
       try {
         await loadCurrentUser();
       } catch (error) {
-        console.error('Error during initial load:', error);
+        // Error handled silently
       } finally {
         setInitialLoadComplete(true);
       }
@@ -541,7 +513,6 @@ export default function ProfilePage({ navigation, route }) {
       }
       return user;
     } catch (error) {
-      console.error('Error loading current user:', error);
       throw error;
     }
   };
@@ -554,10 +525,8 @@ export default function ProfilePage({ navigation, route }) {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      // Refresh all data sequentially
       await loadCurrentUser();
 
-      // Refresh permissions based on current user role
       if (isClient && refetchPermissions) {
         await refetchPermissions();
       }
@@ -566,7 +535,7 @@ export default function ProfilePage({ navigation, route }) {
         await refetchUserPermissions();
       }
     } catch (error) {
-      console.error('Error during refresh:', error);
+      // Error handled silently
     } finally {
       setRefreshing(false);
     }
@@ -576,8 +545,6 @@ export default function ProfilePage({ navigation, route }) {
     refetchPermissions,
     refetchUserPermissions,
     loadCurrentUser,
-    permissions,
-    userCaps,
   ]);
 
   const allow = useCallback(
@@ -699,7 +666,6 @@ export default function ProfilePage({ navigation, route }) {
     return isMember ? memberTabs : adminTabs;
   }, [isMember, isUser, isClient, role, permissions, userCaps, allow]);
 
-  // Only show loading screen during initial load
   if (!initialLoadComplete) {
     return (
       <SafeAreaView style={styles.container}>
@@ -854,7 +820,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   tabsScrollContent: {
-    // paddingHorizontal: 8,
     paddingVertical: 4,
   },
   tabItem: {

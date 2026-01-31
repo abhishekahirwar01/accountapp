@@ -141,12 +141,6 @@ export default function InvoicePreview({
 
             try {
               const exists = await RNFS.exists(filePathCandidate);
-              console.log(
-                'InvoicePreview: generator.filePath exists=',
-                exists,
-                'path=',
-                filePathCandidate,
-              );
               if (exists) {
                 const finalUri = rawPath.startsWith('file://')
                   ? rawPath
@@ -155,15 +149,7 @@ export default function InvoicePreview({
                 return;
               }
               // If file doesn't exist but base64 is present, fallthrough to base64 handling below
-              console.warn(
-                'InvoicePreview: generator.filePath reported but file does not exist on device',
-              );
-            } catch (e) {
-              console.warn(
-                'InvoicePreview: error checking generator.filePath existence',
-                e,
-              );
-            }
+            } catch (e) {}
           }
 
           // If base64 property is present (react-native-html-to-pdf when base64: true)
@@ -220,7 +206,6 @@ export default function InvoicePreview({
         writtenPath = path;
         if (active) setPdfPath(`file://${path}`);
       } catch (err) {
-        console.error('Failed to write PDF file:', err);
         throw err;
       }
     };
@@ -483,40 +468,13 @@ export default function InvoicePreview({
             );
         }
 
-        // Debug: log generator output shape for easier diagnostics
-        try {
-          if (typeof pdfBlob === 'string') {
-            console.log(
-              'InvoicePreview: generator returned string, length=',
-              pdfBlob.length,
-            );
-          } else if (pdfBlob && typeof pdfBlob === 'object') {
-            console.log(
-              'InvoicePreview: generator returned object with keys=',
-              Object.keys(pdfBlob),
-            );
-          } else {
-            console.log(
-              'InvoicePreview: generator returned type=',
-              typeof pdfBlob,
-            );
-          }
-        } catch (dbgErr) {
-          console.warn('InvoicePreview debug log failed', dbgErr);
-        }
-
         await writePdfFile(pdfBlob);
 
         // If a newer generation started while we were running, ignore result
         if (generationTokenRef.current !== genToken) {
-          console.log(
-            'InvoicePreview: generation result ignored (stale)',
-            genToken,
-          );
           return;
         }
       } catch (err) {
-        console.error('PDF generation failed:', err);
         setError(err.message || 'Failed to generate PDF');
       } finally {
         if (active) setIsLoading(false);
@@ -553,14 +511,11 @@ export default function InvoicePreview({
         if (isLegacyAndroid) {
           // ... (permission request logic) ...
         } else {
-          console.log(
-            'Download: Android 10+ detected. Skipping WRITE_EXTERNAL_STORAGE permission check.',
-          );
         }
       } // --- 2. Define File Paths ---
 
       const sourcePath = pdfPath.replace(/^file:\/\//, '');
-      console.log(`Download: Source Path (Internal): ${sourcePath}`); // **START: UNIQUE FILE NAME GENERATION LOGIC**
+      // **START: UNIQUE FILE NAME GENERATION LOGIC**
 
       const baseFileName = `invoice_${
         transaction?.invoiceNumber || transaction?._id || Date.now()
@@ -577,7 +532,7 @@ export default function InvoicePreview({
           throw new Error('Too many duplicate file attempts.');
         }
       } // **END: UNIQUE FILE NAME GENERATION LOGIC**
-      console.log(`Download: Target Path (Downloads): ${downloadsFilePath}`); // LOG 2 // --- 3. Copy to Downloads Folder ---
+      // LOG 2 // --- 3. Copy to Downloads Folder ---
 
       const sourceExists = await RNFS.exists(sourcePath);
       if (!sourceExists) {
@@ -585,14 +540,10 @@ export default function InvoicePreview({
       }
 
       await RNFS.copyFile(sourcePath, downloadsFilePath);
-      console.log('Download: Successfully copied file to Downloads folder.'); // LOG 3
-
       const downloadsFileExists = await RNFS.exists(downloadsFilePath);
 
       if (downloadsFileExists) {
         // Confirming existence in both locations (Internal/Source and Downloads/Target)
-        console.log(`Download SUCCESS: File is available at both locations.`); // LOG 4
-
         Alert.alert('Download Success', 'Your invoice has been downloaded.', [
           { text: 'OK' },
         ]);
@@ -603,7 +554,6 @@ export default function InvoicePreview({
         );
       }
     } catch (e) {
-      console.error('Download failed', e);
       Alert.alert(
         'Download Failed',
         `Could not save file to Downloads. Error: ${
@@ -642,12 +592,11 @@ export default function InvoicePreview({
       // **FIX:** Check for user cancellation first.
       if (e.message && e.message.includes('User did not share')) {
         // User cancelled the share dialog. Log a neutral message and return silently.
-        console.log('Share operation cancelled by user.');
+
         return;
       }
 
-      // If it's not a cancellation, THEN log it as an actual error.
-      console.error('Share failed Error (Non-cancellation):', e);
+    
 
       let userMessage = e.message || 'Failed to share file.';
 
@@ -660,9 +609,7 @@ export default function InvoicePreview({
     } finally {
       // 6. Clean up the temporary cache file if it exists
       if (cachePath) {
-        RNFS.unlink(cachePath).catch(err =>
-          console.warn('Failed to delete temporary share file:', err),
-        );
+        RNFS.unlink(cachePath).catch(err => {});
       }
     }
   };
@@ -759,7 +706,6 @@ export default function InvoicePreview({
             source={{ uri: pdfPath }}
             style={styles.pdf}
             onError={e => {
-              console.error('PDF render error', e);
               Alert.alert('PDF Error', 'Failed to render PDF');
             }}
           />
