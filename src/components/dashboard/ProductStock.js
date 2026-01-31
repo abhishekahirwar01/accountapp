@@ -455,11 +455,9 @@ const ProductStock = ({
     
 
     if (!hasProductPermission && !hasUserInventoryPermission && maxInventories === 0) {
-      console.log('🚫 Hiding ProductStock component - No permissions');
       return false;
     }
     
-    console.log('✅ Showing ProductStock component');
     return true;
   };
 
@@ -695,7 +693,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 0,
-    backgroundColor: '#f8fafc',
+    // backgroundColor: '#ffffff',
   },
   card: {
     backgroundColor: '#fff',
@@ -712,7 +710,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   cardContent: {
-    padding: 20,
+    padding: 14,
   },
   header: {
     flexDirection: 'row',
@@ -727,7 +725,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#1f2937',
-    marginBottom: 4,
+    // marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
@@ -853,8 +851,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f5f9',
     borderRadius: 12,
     paddingHorizontal: 16,
-    marginBottom: 20,
-    height: 52,
+    marginBottom: 12,
+    height: 40,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
@@ -868,9 +866,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontWeight: '400',
   },
-  searchBar: {
-    marginBottom: 20,
-  },
+ 
   scrollView: {
     maxHeight: 600,
   },

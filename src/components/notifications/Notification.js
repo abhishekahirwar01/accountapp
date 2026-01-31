@@ -22,6 +22,19 @@ const Notification = ({ socket }) => {
   const [error, setError] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(5); 
+
+  
+  useEffect(() => {
+    if (!isModalVisible) {
+      setVisibleCount(5);
+    }
+  }, [isModalVisible]);
+
+  
+  const handleViewMore = useCallback(() => {
+    setVisibleCount(prev => prev + 10);
+  }, []);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -143,12 +156,12 @@ const Notification = ({ socket }) => {
     setRefreshing(false);
   }, [fetchNotifications]);
 
-  // Fetch notifications on component mount (immediate) - यह तुरंत डेटा लोड करेगा
+  
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  // Also refetch when modal opens (to get fresh data)
+  
   useEffect(() => {
     if (isModalVisible) {
       fetchNotifications();
@@ -198,12 +211,12 @@ const Notification = ({ socket }) => {
       const token = await AsyncStorage.getItem('token');
       const unreadNotifications = notifications.filter(n => !n.read);
 
-      // Optimistically update UI
+      
       setNotifications(prev =>
         prev.map(notification => ({ ...notification, read: true })),
       );
 
-      // Make API calls in parallel
+      
       await Promise.allSettled(
         unreadNotifications.map(notification =>
           axios.patch(
@@ -217,7 +230,7 @@ const Notification = ({ socket }) => {
       );
     } catch (err) {
       Alert.alert('Error', 'Failed to mark all notifications as read');
-      fetchNotifications(); // Refresh to get correct state
+      fetchNotifications();
     }
   }, [notifications, fetchNotifications]);
 
@@ -287,6 +300,18 @@ const Notification = ({ socket }) => {
     [notifications],
   );
 
+  
+  const visibleNotifications = useMemo(
+    () => notifications.slice(0, visibleCount),
+    [notifications, visibleCount],
+  );
+
+  
+  const hasMoreNotifications = useMemo(
+    () => notifications.length > visibleCount,
+    [notifications, visibleCount],
+  );
+
   const renderNotificationItem = useCallback(
     ({ item: notification }) => (
       <Card
@@ -342,6 +367,23 @@ const Notification = ({ socket }) => {
     ),
     [getNotificationIcon, getIconColor, formatDate, markAsRead],
   );
+
+  // ADDED: Render "View More" button
+  const renderFooter = useCallback(() => {
+    if (hasMoreNotifications) {
+      return (
+        <TouchableOpacity
+          style={styles.viewMoreButton}
+          onPress={handleViewMore}
+        >
+          <Text style={styles.viewMoreText}>
+            View More ({notifications.length - visibleCount} more)
+          </Text>
+        </TouchableOpacity>
+      );
+    }
+    return null;
+  }, [hasMoreNotifications, notifications.length, visibleCount, handleViewMore]);
 
   const keyExtractor = useCallback(item => item._id, []);
 
@@ -429,10 +471,11 @@ const Notification = ({ socket }) => {
           <Divider />
 
           <FlatList
-            data={notifications}
+            data={visibleNotifications} 
             renderItem={renderNotificationItem}
             keyExtractor={keyExtractor}
             ListEmptyComponent={ListEmptyComponent}
+            ListFooterComponent={renderFooter} 
             contentContainerStyle={[
               styles.notificationsList,
               notifications.length === 0 && styles.emptyListContent,
@@ -597,6 +640,21 @@ const styles = StyleSheet.create({
   notificationTime: {
     fontSize: 12,
     color: '#9ca3af',
+  },
+  
+  viewMoreButton: {
+    backgroundColor: '#f3f4f6',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  viewMoreText: {
+    color: '#6366f1',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });
 

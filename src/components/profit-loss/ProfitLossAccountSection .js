@@ -1,13 +1,12 @@
 // components/profit-loss/ProfitLossAccountSection.js - Alternative
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
-import { formatCurrency } from "../utils/profitLossCalculations";
-import { ProfitLossResponse } from "../types/profitLoss.types";
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { formatCurrency } from '../utils/profitLossCalculations';
+import { ProfitLossResponse } from '../types/profitLoss.types';
 
-
-
-export const ProfitLossAccountSection = ({ profitLossData= ProfitLossResponse }) => {
-      console.log("ProfitLossAccountSection data:", profitLossData);
+export const ProfitLossAccountSection = ({
+  profitLossData = ProfitLossResponse,
+}) => {
   const expenses = profitLossData?.expenses?.breakdown?.expenseBreakdown || [];
   const income = profitLossData?.income?.breakdown?.otherIncome || [];
 
@@ -40,8 +39,7 @@ export const ProfitLossAccountSection = ({ profitLossData= ProfitLossResponse })
           <View style={[styles.columnHeader, styles.expenseHeader]}>
             <Text style={styles.columnTitle}>Dr. (Indirect Expenses)</Text>
           </View>
-          
-          
+
           {expenses.length === 0 ? (
             <View style={styles.emptyItem}>
               <Text style={styles.emptyItemText}>No expenses</Text>
@@ -64,7 +62,7 @@ export const ProfitLossAccountSection = ({ profitLossData= ProfitLossResponse })
           <View style={[styles.columnHeader, styles.incomeHeader]}>
             <Text style={styles.columnTitle}>Cr. (Indirect Income)</Text>
           </View>
-          
+
           {income.length === 0 ? (
             <View style={styles.emptyItem}>
               <Text style={styles.emptyItemText}>No income</Text>
@@ -91,20 +89,22 @@ export const ProfitLossAccountSection = ({ profitLossData= ProfitLossResponse })
             {formatCurrency(totalExpenses)}
           </Text>
         </View>
-        
+
         <View style={styles.totalCard}>
           <Text style={styles.totalLabel}>Total Income</Text>
           <Text style={[styles.totalValue, styles.incomeTotal]}>
             {formatCurrency(totalIncome)}
           </Text>
         </View>
-        
+
         <View style={[styles.totalCard, styles.netTotalCard]}>
           <Text style={styles.totalLabel}>Net Balance</Text>
-          <Text style={[
-            styles.totalValue,
-            netBalance >= 0 ? styles.netPositive : styles.netNegative
-          ]}>
+          <Text
+            style={[
+              styles.totalValue,
+              netBalance >= 0 ? styles.netPositive : styles.netNegative,
+            ]}
+          >
             {formatCurrency(netBalance)}
           </Text>
         </View>
@@ -115,13 +115,13 @@ export const ProfitLossAccountSection = ({ profitLossData= ProfitLossResponse })
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#ffffff",
+    backgroundColor: '#ffffff',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: '#e5e7eb',
     padding: 16,
     marginBottom: 16,
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -129,24 +129,24 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: "bold",
-    color: "#111827",
+    fontWeight: 'bold',
+    color: '#111827',
     marginBottom: 16,
   },
   emptyContainer: {
     padding: 24,
-    backgroundColor: "#f9fafb",
+    backgroundColor: '#f9fafb',
     borderRadius: 8,
-    alignItems: "center",
+    alignItems: 'center',
   },
   emptyText: {
     fontSize: 14,
-    color: "#6b7280",
-    textAlign: "center",
+    color: '#6b7280',
+    textAlign: 'center',
   },
   content: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 20,
     marginBottom: 24,
   },
@@ -162,112 +162,112 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   expenseHeader: {
-    backgroundColor: "#fee2e2", // red-50
+    backgroundColor: '#fee2e2', // red-50
   },
   incomeHeader: {
-    backgroundColor: "#d1fae5", // green-50
+    backgroundColor: '#d1fae5', // green-50
   },
   columnTitle: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: '600',
   },
-//   expenseHeader ,columnTitle: {
-//     color: "#dc2626", // red-700
-//   },
-//   incomeHeader ,columnTitle: {
-//     color: "#059669", // green-700
-//   },
+  //   expenseHeader ,columnTitle: {
+  //     color: "#dc2626", // red-700
+  //   },
+  //   incomeHeader ,columnTitle: {
+  //     color: "#059669", // green-700
+  //   },
   emptyItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: "#f9fafb",
+    backgroundColor: '#f9fafb',
     borderRadius: 8,
   },
   emptyItemText: {
     fontSize: 14,
-    color: "#6b7280",
+    color: '#6b7280',
   },
   emptyItemAmount: {
     fontSize: 14,
-    color: "#9ca3af",
+    color: '#9ca3af',
   },
   expenseItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: "#fee2e2",
+    backgroundColor: '#fee2e2',
     borderRadius: 8,
     marginBottom: 8,
   },
   incomeItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: "#d1fae5",
+    backgroundColor: '#d1fae5',
     borderRadius: 8,
     marginBottom: 8,
   },
   itemName: {
     fontSize: 14,
-    color: "#374151",
+    color: '#374151',
     flex: 1,
   },
   expenseAmount: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#dc2626",
+    fontWeight: '600',
+    color: '#dc2626',
   },
   incomeAmount: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#059669",
+    fontWeight: '600',
+    color: '#059669',
   },
   totalsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
+    borderTopColor: '#e5e7eb',
   },
   totalCard: {
     flex: 1,
     minWidth: 120,
-    backgroundColor: "#f9fafb",
+    backgroundColor: '#f9fafb',
     padding: 16,
     borderRadius: 8,
-    alignItems: "center",
+    alignItems: 'center',
   },
   netTotalCard: {
-    backgroundColor: "#eff6ff", // blue-50
+    backgroundColor: '#eff6ff', // blue-50
   },
   totalLabel: {
     fontSize: 12,
-    fontWeight: "500",
-    color: "#6b7280",
+    fontWeight: '500',
+    color: '#6b7280',
     marginBottom: 8,
   },
   totalValue: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: 'bold',
   },
   expenseTotal: {
-    color: "#dc2626", // red-700
+    color: '#dc2626', // red-700
   },
   incomeTotal: {
-    color: "#059669", // green-700
+    color: '#059669', // green-700
   },
   netPositive: {
-    color: "#059669", // green-700
+    color: '#059669', // green-700
   },
   netNegative: {
-    color: "#dc2626", // red-700
+    color: '#dc2626', // red-700
   },
 });

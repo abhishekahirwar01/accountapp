@@ -28,9 +28,6 @@ const AppSocketManager = ({ socket, user }) => {
    * Triggers refresh in CompanySwitcher and any company-dependent screens
    */
   const handleCompanyUpdate = () => {
-    console.log(
-      '🔔 AppSocketManager: Company update received, triggering refresh',
-    );
     triggerCompaniesRefresh();
   };
 
@@ -40,7 +37,6 @@ const AppSocketManager = ({ socket, user }) => {
    * For now, we emit custom event that screens can listen to
    */
   const handleProductUpdate = () => {
-    console.log('🔔 AppSocketManager: Product update received');
     // Emit event that InventoryScreen listens to
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('product-updated'));
@@ -52,7 +48,6 @@ const AppSocketManager = ({ socket, user }) => {
    * Can trigger refresh in InventoryScreen
    */
   const handleServiceUpdate = () => {
-    console.log('🔔 AppSocketManager: Service update received');
     // Emit event that InventoryScreen listens to
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('service-updated'));
@@ -64,7 +59,6 @@ const AppSocketManager = ({ socket, user }) => {
    * Can trigger refresh in TransactionsScreen
    */
   const handleTransactionUpdate = () => {
-    console.log('🔔 AppSocketManager: Transaction update received');
     // Emit event that TransactionsScreen listens to
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('transaction-updated'));
@@ -73,11 +67,6 @@ const AppSocketManager = ({ socket, user }) => {
 
   // If no socket or user, don't render listeners
   if (!socket || !user) {
-    console.log(
-      '⚠️ AppSocketManager: Waiting for socket and user',
-      !!socket,
-      !!user,
-    );
     return null;
   }
 

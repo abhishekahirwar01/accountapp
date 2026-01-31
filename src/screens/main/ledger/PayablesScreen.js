@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -54,15 +54,14 @@ import { ExpenseLedger as ImportedExpenseLedger } from '../../../components/Ledg
 import { VendorExpenseList as ImportedVendorExpenseList } from '../../../components/Ledger/vendor-expense-list';
 import { Skeleton } from '../../../components/ui/Skeleton';
 import { useCompany } from '../../../contexts/company-context';
-import { red100 } from 'react-native-paper/lib/typescript/styles/themes/v2/colors';
 
 export default function PayablesScreen() {
   const navigation = useNavigation();
   const baseURL = BASE_URL;
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const { selectedCompanyId } = useCompany();
-  const [vendorsLoading, setVendorsLoading] = useState(true);
-  const [expensesLoading, setExpensesLoading] = useState(true);
+  const [vendorsLoading, setVendorsLoading] = useState(false);
+  const [expensesLoading, setExpensesLoading] = useState(false);
   const [ledgerData, setLedgerData] = useState(null);
   const [vendors, setVendors] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -78,7 +77,7 @@ export default function PayablesScreen() {
   const [selectedVendorFilter, setSelectedVendorFilter] = useState('');
   const [selectedExpenseFilter, setSelectedExpenseFilter] = useState('');
   const [companies, setCompanies] = useState([]);
-  const [companiesLoading, setCompaniesLoading] = useState(true);
+  const [companiesLoading, setCompaniesLoading] = useState(false);
   const [productsList, setProductsList] = useState([]);
   const [showVendorModal, setShowVendorModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -93,36 +92,40 @@ export default function PayablesScreen() {
   const [showFromDatePicker, setShowFromDatePicker] = useState(false);
   const [showToDatePicker, setShowToDatePicker] = useState(false);
 
+  // Cache flags to prevent unnecessary reloads
+  const dataLoadedRef = useRef({
+    vendors: false,
+    expenses: false,
+    companies: false,
+    products: false,
+  });
+
+  // Batch request controller
+  const abortControllersRef = useRef({});
+
   // Handle hardware back button and swipe gestures
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
-        // Check if viewing a specific vendor or expense detail
         if (selectedVendor || selectedExpense) {
-          // Go back to list view
           setSelectedVendor('');
           setSelectedExpense('');
           setSelectedVendorFilter('');
           setSelectedExpenseFilter('');
           AsyncStorage.removeItem('selectedVendor_payables');
-          return true; // Prevent default back behavior
+          return true;
         }
-        // If on list view, allow default back behavior (go to dashboard)
         return false;
       };
 
-      // Add event listener for Android hardware back button
       const backHandler = BackHandler.addEventListener(
         'hardwareBackPress',
         onBackPress,
       );
 
-      // Add listener for navigation back gesture (iOS swipe)
       const unsubscribe = navigation.addListener('beforeRemove', e => {
         if (selectedVendor || selectedExpense) {
-          // Prevent leaving the screen
           e.preventDefault();
-          // Go back to list instead
           setSelectedVendor('');
           setSelectedExpense('');
           setSelectedVendorFilter('');
@@ -170,12 +173,10 @@ export default function PayablesScreen() {
     }
   };
 
-  // Fetch products
-  useEffect(() => {
-    fetchProducts();
-  }, [baseURL]);
+  // Optimized fetch products - only load once
+  const fetchProducts = useCallback(async () => {
+    if (dataLoadedRef.current.products) return;
 
-  const fetchProducts = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
       const res = await fetch(`${baseURL}/api/products`, {
@@ -187,33 +188,23 @@ export default function PayablesScreen() {
       if (res.ok) {
         const data = await res.json();
         setProductsList(data.products || data || []);
+        dataLoadedRef.current.products = true;
       }
     } catch (error) {
       console.error('Error fetching products:', error);
     }
-  };
+  }, [baseURL]);
 
-  const expenseOptions = expenses.map(expense => ({
-    value: expense._id,
-    label: expense.name,
-  }));
+  // Optimized fetch vendors - only load once or when company changes
+  const fetchVendors = useCallback(async (forceRefresh = false) => {
+    if (dataLoadedRef.current.vendors && !forceRefresh) return;
 
-  const isDetailOpen =
-    currentView === 'vendor'
-      ? Boolean(selectedVendor)
-      : Boolean(selectedExpense);
-
-  // Fetch vendors
-  useEffect(() => {
-    fetchVendors();
-  }, [baseURL, selectedCompanyId]);
-
-  const fetchVendors = async () => {
     try {
       setVendorsLoading(true);
       const token = await AsyncStorage.getItem('token');
       const params = new URLSearchParams();
       if (selectedCompanyId) params.append('companyId', selectedCompanyId);
+      
       const res = await fetch(`${baseURL}/api/vendors?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -236,25 +227,25 @@ export default function PayablesScreen() {
       }
 
       setVendors(vendorsArray);
+      dataLoadedRef.current.vendors = true;
     } catch (error) {
       console.error('Error fetching vendors:', error);
       setVendors([]);
     } finally {
       setVendorsLoading(false);
     }
-  };
-
-  // Fetch expenses
-  useEffect(() => {
-    fetchExpenses();
   }, [baseURL, selectedCompanyId]);
 
-  const fetchExpenses = async () => {
+  // Optimized fetch expenses - only load once or when company changes
+  const fetchExpenses = useCallback(async (forceRefresh = false) => {
+    if (dataLoadedRef.current.expenses && !forceRefresh) return;
+
     try {
       setExpensesLoading(true);
       const token = await AsyncStorage.getItem('token');
       const params = new URLSearchParams();
       if (selectedCompanyId) params.append('companyId', selectedCompanyId);
+      
       const res = await fetch(
         `${baseURL}/api/payment-expenses?${params.toString()}`,
         {
@@ -282,60 +273,76 @@ export default function PayablesScreen() {
       }
 
       setExpenses(expensesArray);
+      dataLoadedRef.current.expenses = true;
 
-      // Fetch totals for expenses
-      const totals = {};
-      for (const expense of expensesArray) {
-        try {
-          const params = new URLSearchParams();
-          params.append('expenseId', expense._id);
-          if (dateRange.from) params.append('fromDate', dateRange.from);
-          if (dateRange.to) params.append('toDate', dateRange.to);
-          if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-
-          const totalRes = await fetch(
-            `${baseURL}/api/ledger/expense-payables?${params.toString()}`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            },
-          );
-          if (totalRes.ok) {
-            const totalData = await totalRes.json();
-            const cashExpenses = (totalData.debit || [])
-              .filter(e => e.paymentMethod !== 'Credit')
-              .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-
-            const payments = (totalData.credit || []).reduce(
-              (sum, e) => sum + Number(e.amount || 0),
-              0,
-            );
-
-            totals[expense._id] = cashExpenses + payments;
-          }
-        } catch (error) {
-          console.error(
-            `Error fetching total for expense ${expense._id}:`,
-            error,
-          );
-        }
-      }
-      setExpenseTotals(totals);
+      // Fetch totals for expenses in background (non-blocking)
+      fetchExpenseTotals(expensesArray, token);
     } catch (error) {
       console.error('Error fetching expenses:', error);
       setExpenses([]);
     } finally {
       setExpensesLoading(false);
     }
+  }, [baseURL, selectedCompanyId]);
+
+  // Separate function for fetching expense totals (non-blocking)
+  const fetchExpenseTotals = async (expensesArray, token) => {
+    const totals = {};
+    
+    // Fetch in batches of 5 to avoid overwhelming the server
+    const batchSize = 5;
+    for (let i = 0; i < expensesArray.length; i += batchSize) {
+      const batch = expensesArray.slice(i, i + batchSize);
+      
+      await Promise.all(
+        batch.map(async expense => {
+          try {
+            const params = new URLSearchParams();
+            params.append('expenseId', expense._id);
+            if (dateRange.from) params.append('fromDate', dateRange.from);
+            if (dateRange.to) params.append('toDate', dateRange.to);
+            if (selectedCompanyId) params.append('companyId', selectedCompanyId);
+
+            const totalRes = await fetch(
+              `${baseURL}/api/ledger/expense-payables?${params.toString()}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              },
+            );
+            
+            if (totalRes.ok) {
+              const totalData = await totalRes.json();
+              const cashExpenses = (totalData.debit || [])
+                .filter(e => e.paymentMethod !== 'Credit')
+                .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
+              const payments = (totalData.credit || []).reduce(
+                (sum, e) => sum + Number(e.amount || 0),
+                0,
+              );
+
+              totals[expense._id] = cashExpenses + payments;
+            }
+          } catch (error) {
+            console.error(
+              `Error fetching total for expense ${expense._id}:`,
+              error,
+            );
+          }
+        })
+      );
+      
+      // Update state after each batch
+      setExpenseTotals(prev => ({ ...prev, ...totals }));
+    }
   };
 
-  // Fetch companies
-  useEffect(() => {
-    fetchCompanies();
-  }, [baseURL]);
+  // Optimized fetch companies - only load once
+  const fetchCompanies = useCallback(async () => {
+    if (dataLoadedRef.current.companies) return;
 
-  const fetchCompanies = async () => {
     try {
       setCompaniesLoading(true);
       const token = await AsyncStorage.getItem('token');
@@ -351,28 +358,42 @@ export default function PayablesScreen() {
 
       const data = await res.json();
       setCompanies(data);
+      dataLoadedRef.current.companies = true;
     } catch (error) {
       console.error('Error fetching companies:', error);
       setCompanies([]);
     } finally {
       setCompaniesLoading(false);
     }
-  };
+  }, [baseURL]);
+
+  // Initial data load - parallel requests for better performance
+  useEffect(() => {
+    const loadInitialData = async () => {
+      // Load all initial data in parallel
+      await Promise.all([
+        fetchProducts(),
+        fetchVendors(),
+        fetchExpenses(),
+        fetchCompanies(),
+      ]);
+    };
+
+    loadInitialData();
+  }, []);
+
+  // Reload vendors and expenses only when company changes
+  useEffect(() => {
+    if (selectedCompanyId) {
+      dataLoadedRef.current.vendors = false;
+      dataLoadedRef.current.expenses = false;
+      fetchVendors(true);
+      fetchExpenses(true);
+    }
+  }, [selectedCompanyId]);
 
   // Fetch ledger data based on current view
-  useEffect(() => {
-    fetchLedgerData();
-  }, [
-    selectedVendor,
-    selectedExpense,
-    dateRange.from,
-    dateRange.to,
-    currentView,
-    baseURL,
-    selectedCompanyId,
-  ]);
-
-  const fetchLedgerData = async () => {
+  const fetchLedgerData = useCallback(async () => {
     if (currentView === 'vendor' && !selectedVendor) {
       setLedgerData(null);
       setLoading(false);
@@ -426,7 +447,19 @@ export default function PayablesScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    selectedVendor,
+    selectedExpense,
+    dateRange.from,
+    dateRange.to,
+    currentView,
+    baseURL,
+    selectedCompanyId,
+  ]);
+
+  useEffect(() => {
+    fetchLedgerData();
+  }, [fetchLedgerData]);
 
   // Handle vendor selection from filter
   useEffect(() => {
@@ -443,24 +476,24 @@ export default function PayablesScreen() {
     }
   }, [selectedExpenseFilter, currentView]);
 
-  const formatDate = dateString => {
+  const formatDate = useCallback(dateString => {
     if (!dateString) return '';
     return new Date(dateString).toLocaleDateString('en-IN', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
     });
-  };
+  }, []);
 
-  const formatCurrency = amount => {
+  const formatCurrency = useCallback(amount => {
     if (!amount && amount !== 0) return '₹0.00';
     return `₹${amount.toLocaleString('en-IN', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
-  };
+  }, []);
 
-  const getPaymentMethodDisplay = method => {
+  const getPaymentMethodDisplay = useCallback(method => {
     if (!method) return 'Payment';
     const methodMap = {
       Cash: 'Cash Payment',
@@ -470,9 +503,9 @@ export default function PayablesScreen() {
       Credit: 'Credit Purchase',
     };
     return methodMap[method] || `${method} Payment`;
-  };
+  }, []);
 
-  const getPaymentMethodBadge = method => {
+  const getPaymentMethodBadge = useCallback(method => {
     const variantMap = {
       Cash: 'default',
       'Bank Transfer': 'secondary',
@@ -481,29 +514,32 @@ export default function PayablesScreen() {
       Credit: 'outline',
     };
     return variantMap[method || ''] || 'outline';
-  };
+  }, []);
 
-  const getActiveFilterCount = () => {
+  const getActiveFilterCount = useCallback(() => {
     let count = 0;
     if (selectedVendorFilter) count++;
     if (selectedExpenseFilter) count++;
     if (dateRange.from) count++;
     if (dateRange.to) count++;
     return count;
-  };
+  }, [selectedVendorFilter, selectedExpenseFilter, dateRange]);
 
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     setSelectedVendorFilter('');
     setSelectedExpenseFilter('');
     setDateRange({ from: '', to: '' });
-  };
+  }, []);
 
-  const getCompanyName = companyId => {
-    const company = companies.find(c => c._id === companyId);
-    return company?.businessName || 'Unknown Company';
-  };
+  const getCompanyName = useCallback(
+    companyId => {
+      const company = companies.find(c => c._id === companyId);
+      return company?.businessName || 'Unknown Company';
+    },
+    [companies],
+  );
 
-  const calculateTotals = () => {
+  const calculateTotals = useCallback(() => {
     if (!ledgerData) return { debit: 0, credit: 0, balance: 0 };
 
     const debitTotal = (ledgerData.debit || []).reduce(
@@ -528,7 +564,7 @@ export default function PayablesScreen() {
       credit: creditTotal,
       balance: balance,
     };
-  };
+  }, [ledgerData]);
 
   const handleIndividualExport = async () => {
     try {
@@ -572,13 +608,13 @@ export default function PayablesScreen() {
     }
   };
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       if (currentView === 'vendor') {
-        await fetchVendors();
+        await fetchVendors(true);
       } else {
-        await fetchExpenses();
+        await fetchExpenses(true);
       }
       await fetchLedgerData();
     } catch (error) {
@@ -586,10 +622,12 @@ export default function PayablesScreen() {
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [currentView, fetchVendors, fetchExpenses, fetchLedgerData]);
 
-  // Fetch overall transaction totals
-  const fetchOverallTotals = async () => {
+  // Optimized fetch overall totals - only when needed
+  const fetchOverallTotals = useCallback(async () => {
+    if (currentView !== 'vendor' || vendors.length === 0) return;
+
     try {
       setLoadingTotals(true);
       const token = await AsyncStorage.getItem('token');
@@ -600,71 +638,72 @@ export default function PayablesScreen() {
       let totalCredit = 0;
       let totalDebit = 0;
 
-      // Fetch ledger data for each vendor
-      const vendorPromises = vendors.map(async vendor => {
-        try {
-          const params = new URLSearchParams();
-          params.append('vendorId', vendor._id);
-          if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-          const response = await fetch(
-            `${baseURL}/api/ledger/vendor-payables?${params.toString()}`,
-            {
-              method: 'GET',
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            },
-          );
+      // Fetch in batches of 3 to avoid overwhelming the server
+      const batchSize = 3;
+      for (let i = 0; i < vendors.length; i += batchSize) {
+        const batch = vendors.slice(i, i + batchSize);
+        
+        const vendorResults = await Promise.all(
+          batch.map(async vendor => {
+            try {
+              const params = new URLSearchParams();
+              params.append('vendorId', vendor._id);
+              if (selectedCompanyId) params.append('companyId', selectedCompanyId);
+              
+              const response = await fetch(
+                `${baseURL}/api/ledger/vendor-payables?${params.toString()}`,
+                {
+                  method: 'GET',
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                  },
+                },
+              );
 
-          if (response.ok) {
-            const data = await response.json();
-            const debitTotal = (data.debit || []).reduce(
-              (sum, entry) => sum + (entry.amount || 0),
-              0,
-            );
+              if (response.ok) {
+                const data = await response.json();
+                const debitTotal = (data.debit || []).reduce(
+                  (sum, entry) => sum + (entry.amount || 0),
+                  0,
+                );
 
-            const creditPurchaseEntries = (data.debit || []).filter(
-              entry => entry.paymentMethod !== 'Credit',
-            );
-            const creditPaymentEntries = data.credit || [];
+                const creditPurchaseEntries = (data.debit || []).filter(
+                  entry => entry.paymentMethod !== 'Credit',
+                );
+                const creditPaymentEntries = data.credit || [];
 
-            const creditTotal = [
-              ...creditPurchaseEntries,
-              ...creditPaymentEntries,
-            ].reduce((sum, entry) => sum + (entry.amount || 0), 0);
+                const creditTotal = [
+                  ...creditPurchaseEntries,
+                  ...creditPaymentEntries,
+                ].reduce((sum, entry) => sum + (entry.amount || 0), 0);
 
-            return {
-              debit: debitTotal,
-              credit: creditTotal,
-              vendorName: vendor.vendorName,
-            };
-          } else {
-            console.error(
-              `Failed to fetch ledger data for vendor ${vendor._id}`,
-            );
-            return { debit: 0, credit: 0, vendorName: vendor.vendorName };
-          }
-        } catch (error) {
-          console.error(
-            `Error fetching ledger data for vendor ${vendor._id}:`,
-            error,
-          );
-          return { debit: 0, credit: 0, vendorName: vendor.vendorName };
-        }
-      });
+                return {
+                  debit: debitTotal,
+                  credit: creditTotal,
+                };
+              }
+              return { debit: 0, credit: 0 };
+            } catch (error) {
+              console.error(
+                `Error fetching ledger data for vendor ${vendor._id}:`,
+                error,
+              );
+              return { debit: 0, credit: 0 };
+            }
+          })
+        );
 
-      const vendorResults = await Promise.all(vendorPromises);
+        // Update totals after each batch
+        vendorResults.forEach(result => {
+          totalDebit += result.debit;
+          totalCredit += result.credit;
+        });
 
-      // Sum up all vendor totals
-      vendorResults.forEach(result => {
-        totalDebit += result.debit;
-        totalCredit += result.credit;
-      });
-
-      setTransactionTotals({
-        totalCredit,
-        totalDebit,
-      });
+        setTransactionTotals({
+          totalCredit,
+          totalDebit,
+        });
+      }
     } catch (error) {
       console.error('Error fetching overall totals:', error);
       setTransactionTotals({
@@ -674,77 +713,85 @@ export default function PayablesScreen() {
     } finally {
       setLoadingTotals(false);
     }
-  };
+  }, [currentView, vendors, selectedCompanyId, baseURL]);
 
-  // Fetch balance for a vendor
-  const fetchVendorBalance = async vendorId => {
-    if (!vendorId || vendorBalances[vendorId] !== undefined) return;
+  // Optimized fetch vendor balance
+  const fetchVendorBalance = useCallback(
+    async vendorId => {
+      if (!vendorId || vendorBalances[vendorId] !== undefined) return;
 
-    try {
-      setLoadingBalances(prev => ({ ...prev, [vendorId]: true }));
+      try {
+        setLoadingBalances(prev => ({ ...prev, [vendorId]: true }));
 
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication token not found.');
-      }
+        const token = await AsyncStorage.getItem('token');
+        if (!token) {
+          throw new Error('Authentication token not found.');
+        }
 
-      const params = new URLSearchParams();
-      if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-      const response = await fetch(
-        `${baseURL}/api/vendors/${vendorId}/balance?${params.toString()}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
+        const params = new URLSearchParams();
+        if (selectedCompanyId) params.append('companyId', selectedCompanyId);
+        
+        const response = await fetch(
+          `${baseURL}/api/vendors/${vendorId}/balance?${params.toString()}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           },
-        },
-      );
+        );
 
-      if (response.ok) {
-        const data = await response.json();
-        setVendorBalances(prev => ({
-          ...prev,
-          [vendorId]: data.balance || 0,
-        }));
-      } else {
-        console.error(`Failed to fetch balance for vendor ${vendorId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setVendorBalances(prev => ({
+            ...prev,
+            [vendorId]: data.balance || 0,
+          }));
+        } else {
+          setVendorBalances(prev => ({
+            ...prev,
+            [vendorId]: 0,
+          }));
+        }
+      } catch (error) {
+        console.error(`Error fetching balance for vendor ${vendorId}:`, error);
         setVendorBalances(prev => ({
           ...prev,
           [vendorId]: 0,
         }));
+      } finally {
+        setLoadingBalances(prev => ({ ...prev, [vendorId]: false }));
       }
-    } catch (error) {
-      console.error(`Error fetching balance for vendor ${vendorId}:`, error);
-      setVendorBalances(prev => ({
-        ...prev,
-        [vendorId]: 0,
-      }));
-    } finally {
-      setLoadingBalances(prev => ({ ...prev, [vendorId]: false }));
-    }
-  };
+    },
+    [vendorBalances, selectedCompanyId, baseURL],
+  );
 
-  // Fetch balances for all vendors when component mounts
+  // Fetch balances and totals only when on vendor view
   useEffect(() => {
-    if (currentView === 'vendor') {
-      vendors.forEach(vendor => {
-        fetchVendorBalance(vendor._id);
-      });
+    if (currentView === 'vendor' && vendors.length > 0) {
+      // Fetch balances in batches
+      const fetchBalancesInBatches = async () => {
+        const batchSize = 5;
+        for (let i = 0; i < vendors.length; i += batchSize) {
+          const batch = vendors.slice(i, i + batchSize);
+          await Promise.all(batch.map(vendor => fetchVendorBalance(vendor._id)));
+        }
+      };
+
+      fetchBalancesInBatches();
       fetchOverallTotals();
     }
   }, [vendors, currentView, selectedCompanyId]);
 
-  // Calculate statistics
+  // Calculate statistics - memoized
   const stats = useMemo(() => {
-    // Calculate settled vendors
     const settledVendors = vendors.filter(v => {
       const balance = vendorBalances[v._id];
       return balance !== undefined && balance === 0;
     }).length;
 
-    // Calculate net balance
     const netBalance =
-      transactionTotals.totalDebit - transactionTotals.totalCredit; // Debit is purchase (you owe), Credit is payment (you paid)
+      transactionTotals.totalDebit - transactionTotals.totalCredit;
 
     return {
       totalVendors: vendors.length,
@@ -760,203 +807,301 @@ export default function PayablesScreen() {
     };
   }, [vendors, expenses, expenseTotals, vendorBalances, transactionTotals]);
 
-  const FiltersSection = () => (
+  const expenseOptions = useMemo(
+    () =>
+      expenses.map(expense => ({
+        value: expense._id,
+        label: expense.name,
+      })),
+    [expenses],
+  );
+
+  const isDetailOpen = useMemo(
+    () =>
+      currentView === 'vendor'
+        ? Boolean(selectedVendor)
+        : Boolean(selectedExpense),
+    [currentView, selectedVendor, selectedExpense],
+  );
+
+  const FiltersSection = React.memo(() => (
     <View style={styles.filterSection}>
       <View style={styles.filterHeader}>
-        <View style={styles.filterTitleContainer}>
-          <Filter size={16} color="#64748b" />
-          <Text style={styles.filterTitle}>
-            {isDetailOpen
-              ? 'Filter Transactions'
-              : `Filter ${currentView === 'vendor' ? 'Vendors' : 'Expenses'}`}
-          </Text>
+        <View style={styles.filterHeaderLeft}>
+          <View style={styles.filterIconWrapper}>
+            <Filter size={14} color="#475569" strokeWidth={2.5} />
+          </View>
+          <Text style={styles.filterTitle}>Filters</Text>
+          {getActiveFilterCount() > 0 && (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>
+                {getActiveFilterCount()}
+              </Text>
+            </View>
+          )}
         </View>
-        <Badge style={styles.activeIcon}>
-          <Text>{getActiveFilterCount()} active</Text>
-        </Badge>
+        {getActiveFilterCount() > 0 && (
+          <TouchableOpacity
+            style={styles.clearFiltersButton}
+            onPress={resetFilters}
+          >
+            <Text style={styles.clearFiltersText}>Clear all</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.filterCard}>
-        <View style={styles.filterRow}>
-          {currentView === 'vendor' && (
-            <View style={styles.filterInputContainer}>
-              <Text style={styles.filterLabel}>
-                {isDetailOpen ? 'Switch Vendor' : 'Filter by Vendor'}
-              </Text>
+        <View style={styles.filterGrid}>
+          {currentView === 'vendor' ? (
+            <View style={styles.filterItem}>
+              <Text style={styles.filterLabel}>Vendor</Text>
               <TouchableOpacity
-                style={styles.comboboxTrigger}
+                style={[
+                  styles.filterInput,
+                  selectedVendorFilter && styles.filterInputActive,
+                ]}
                 onPress={() => setShowVendorModal(true)}
+                activeOpacity={0.7}
               >
                 <Text
                   style={[
-                    styles.comboboxPlaceholder,
-                    selectedVendorFilter && styles.comboboxValue,
+                    styles.filterInputText,
+                    !selectedVendorFilter && styles.filterInputPlaceholder,
                   ]}
+                  numberOfLines={1}
                 >
                   {selectedVendorFilter
                     ? vendors.find(v => v._id === selectedVendorFilter)
-                        ?.vendorName || 'Select vendor...'
-                    : 'Select vendor...'}
+                        ?.vendorName || 'Select vendor'
+                    : 'All vendors'}
                 </Text>
+                <Icon name="chevron-down" size={18} color="#94A3B8" />
               </TouchableOpacity>
-
-              <Modal
-                visible={showVendorModal}
-                transparent
-                animationType="slide"
-                onRequestClose={() => setShowVendorModal(false)}
-              >
-                <View style={styles.modalOverlay}>
-                  <View style={styles.modalContent}>
-                    <View style={styles.modalHeader}>
-                      <Text style={styles.modalTitle}>Select Vendor</Text>
-                      <TouchableOpacity
-                        onPress={() => setShowVendorModal(false)}
-                      >
-                        <Text style={styles.modalClose}>×</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <FlatList
-                      data={vendors}
-                      keyExtractor={item => item._id}
-                      renderItem={({ item }) => (
-                        <TouchableOpacity
-                          style={styles.dropdownItem}
-                          onPress={() => {
-                            setSelectedVendorFilter(item._id);
-                            setShowVendorModal(false);
-                          }}
-                        >
-                          <Text style={styles.dropdownItemText}>
-                            {item.vendorName}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    />
-                  </View>
-                </View>
-              </Modal>
             </View>
-          )}
-
-          {currentView === 'expense' && (
-            <View style={styles.filterInputContainer}>
-              <Text style={styles.filterLabel}>
-                {isDetailOpen
-                  ? 'Switch Category'
-                  : 'Filter by Expense Category'}
-              </Text>
+          ) : (
+            <View style={styles.filterItem}>
+              <Text style={styles.filterLabel}>Expense Category</Text>
               <TouchableOpacity
-                style={styles.comboboxTrigger}
+                style={[
+                  styles.filterInput,
+                  selectedExpenseFilter && styles.filterInputActive,
+                ]}
                 onPress={() => setShowExpenseModal(true)}
+                activeOpacity={0.7}
               >
                 <Text
                   style={[
-                    styles.comboboxPlaceholder,
-                    selectedExpenseFilter && styles.comboboxValue,
+                    styles.filterInputText,
+                    !selectedExpenseFilter && styles.filterInputPlaceholder,
                   ]}
+                  numberOfLines={1}
                 >
                   {selectedExpenseFilter
                     ? expenses.find(e => e._id === selectedExpenseFilter)
-                        ?.name || 'Select category...'
-                    : 'Select category...'}
+                        ?.name || 'Select category'
+                    : 'All categories'}
                 </Text>
+                <Icon name="chevron-down" size={18} color="#94A3B8" />
               </TouchableOpacity>
-
-              <Modal
-                visible={showExpenseModal}
-                transparent
-                animationType="slide"
-                onRequestClose={() => setShowExpenseModal(false)}
-              >
-                <View style={styles.modalOverlay}>
-                  <View style={styles.modalContent}>
-                    <View style={styles.modalHeader}>
-                      <Text style={styles.modalTitle}>
-                        Select Expense Category
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() => setShowExpenseModal(false)}
-                      >
-                        <Text style={styles.modalClose}>×</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <FlatList
-                      data={expenses}
-                      keyExtractor={item => item._id}
-                      renderItem={({ item }) => (
-                        <TouchableOpacity
-                          style={styles.dropdownItem}
-                          onPress={() => {
-                            setSelectedExpenseFilter(item._id);
-                            setShowExpenseModal(false);
-                          }}
-                        >
-                          <Text style={styles.dropdownItemText}>
-                            {item.name}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    />
-                  </View>
-                </View>
-              </Modal>
             </View>
           )}
 
-          <View style={styles.filterInputContainer}>
-            <Text style={styles.filterLabel}>Date Range</Text>
-            <View style={styles.dateRangeContainer}>
-              {/* From Date Picker */}
-              <TouchableOpacity
-                style={[styles.dateButton, styles.dateButtonLeft]}
-                onPress={() => setShowFromDatePicker(true)}
-              >
-                <Text style={styles.dateButtonText}>
-                  {dateRange.from ? formatDate(dateRange.from) : 'From date'}
-                </Text>
-                <Icon name="calendar" size={20} color="#3B82F6" />
-              </TouchableOpacity>
-              {showFromDatePicker && (
-                <DateTimePicker
-                  value={dateRange.from ? new Date(dateRange.from) : new Date()}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={handleFromDatePickerChange}
-                />
+          <View style={styles.filterItem}>
+            <View style={styles.dateFilterHeader}>
+              <Text style={styles.filterLabel}>Date Range</Text>
+              {(dateRange.from || dateRange.to) && (
+                <TouchableOpacity
+                  style={styles.dateResetButton}
+                  onPress={() => setDateRange({ from: '', to: '' })}
+                  activeOpacity={0.6}
+                >
+                  <Icon name="close-circle" size={14} color="#64748B" />
+                </TouchableOpacity>
               )}
+            </View>
 
-              {/* Separator */}
+            <View style={styles.dateRangeRow}>
+              <TouchableOpacity
+                style={[
+                  styles.dateInput,
+                  dateRange.from && styles.dateInputActive,
+                ]}
+                onPress={() => setShowFromDatePicker(true)}
+                activeOpacity={0.7}
+              >
+                <Icon
+                  name="calendar-blank"
+                  size={16}
+                  color={dateRange.from ? '#3B82F6' : '#94A3B8'}
+                />
+                <Text
+                  style={[
+                    styles.dateInputText,
+                    !dateRange.from && styles.dateInputPlaceholder,
+                  ]}
+                >
+                  {dateRange.from ? formatDate(dateRange.from) : 'Start date'}
+                </Text>
+              </TouchableOpacity>
+
               <View style={styles.dateSeparator}>
-                <Text style={styles.dateSeparatorText}>to</Text>
+                <View style={styles.dateSeparatorLine} />
               </View>
 
-              {/* To Date Picker */}
               <TouchableOpacity
-                style={[styles.dateButton, styles.dateButtonRight]}
+                style={[
+                  styles.dateInput,
+                  dateRange.to && styles.dateInputActive,
+                ]}
                 onPress={() => setShowToDatePicker(true)}
+                activeOpacity={0.7}
               >
-                <Text style={styles.dateButtonText}>
-                  {dateRange.to ? formatDate(dateRange.to) : 'To date'}
-                </Text>
-                <Icon name="calendar" size={20} color="#3B82F6" />
-              </TouchableOpacity>
-              {showToDatePicker && (
-                <DateTimePicker
-                  value={dateRange.to ? new Date(dateRange.to) : new Date()}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={handleToDatePickerChange}
+                <Icon
+                  name="calendar-blank"
+                  size={16}
+                  color={dateRange.to ? '#3B82F6' : '#94A3B8'}
                 />
-              )}
+                <Text
+                  style={[
+                    styles.dateInputText,
+                    !dateRange.to && styles.dateInputPlaceholder,
+                  ]}
+                >
+                  {dateRange.to ? formatDate(dateRange.to) : 'End date'}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
       </View>
-    </View>
-  );
 
-  if (vendorsLoading || expensesLoading) {
+      {showFromDatePicker && (
+        <DateTimePicker
+          value={dateRange.from ? new Date(dateRange.from) : new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={handleFromDatePickerChange}
+          maximumDate={new Date()}
+        />
+      )}
+      {showToDatePicker && (
+        <DateTimePicker
+          value={dateRange.to ? new Date(dateRange.to) : new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={handleToDatePickerChange}
+          maximumDate={new Date()}
+        />
+      )}
+
+      <Modal
+        visible={showVendorModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowVendorModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Vendor</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowVendorModal(false)}
+              >
+                <Icon name="close" size={24} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={vendors}
+              keyExtractor={item => item._id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.modalItem,
+                    selectedVendorFilter === item._id &&
+                      styles.modalItemSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedVendorFilter(item._id);
+                    setShowVendorModal(false);
+                  }}
+                  activeOpacity={0.6}
+                >
+                  <Text
+                    style={[
+                      styles.modalItemText,
+                      selectedVendorFilter === item._id &&
+                        styles.modalItemTextSelected,
+                    ]}
+                  >
+                    {item.vendorName}
+                  </Text>
+                  {selectedVendorFilter === item._id && (
+                    <Icon name="check" size={20} color="#3B82F6" />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showExpenseModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowExpenseModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Expense Category</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowExpenseModal(false)}
+              >
+                <Icon name="close" size={24} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={expenses}
+              keyExtractor={item => item._id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.modalItem,
+                    selectedExpenseFilter === item._id &&
+                      styles.modalItemSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedExpenseFilter(item._id);
+                    setShowExpenseModal(false);
+                  }}
+                  activeOpacity={0.6}
+                >
+                  <Text
+                    style={[
+                      styles.modalItemText,
+                      selectedExpenseFilter === item._id &&
+                        styles.modalItemTextSelected,
+                    ]}
+                  >
+                    {item.name}
+                  </Text>
+                  {selectedExpenseFilter === item._id && (
+                    <Icon name="check" size={20} color="#3B82F6" />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+    </View>
+  ));
+
+  // Show loading only on first mount, not on tab switches
+  if ((vendorsLoading || expensesLoading) && !dataLoadedRef.current.vendors && !dataLoadedRef.current.expenses) {
     return (
       <SafeAreaView style={styles.loadingScreen}>
         <View style={styles.loadingContent}>
@@ -1017,28 +1162,6 @@ export default function PayablesScreen() {
                     />
                   </View>
                 </View>
-              </View>
-            </View>
-
-            <View style={styles.headerActions}>
-              <Button
-                onPress={handleIndividualExport}
-                disabled={individualExportLoading || !isDetailOpen}
-                variant="outline"
-                style={styles.exportButton}
-                loading={individualExportLoading}
-              >
-                <Icon name="download" size={20} />
-                <Text>
-                  Export {currentView === 'vendor' ? 'Vendor' : 'Category'}
-                </Text>
-              </Button>
-
-              <View style={styles.desktopToggle}>
-                <VendorExpenseToggle
-                  currentView={currentView}
-                  onViewChange={setCurrentView}
-                />
               </View>
             </View>
           </View>
@@ -1110,6 +1233,7 @@ export default function PayablesScreen() {
 }
 
 const { width } = Dimensions.get('window');
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1122,12 +1246,10 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 6,
-    // marginTop: -10,
   },
   loadingScreen: {
     flex: 1,
     backgroundColor: '#f8fafc',
-    // padding: 16,
   },
   loadingContent: {
     flex: 1,
@@ -1180,9 +1302,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#64748b',
   },
-  headerMain: {
-    marginBottom: 6,
-  },
+  headerMain: {},
   titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1199,24 +1319,215 @@ const styles = StyleSheet.create({
   desktopToggle: {
     display: 'none',
   },
-  activeIcon: {
-    backgroundColor: '#b1c6f7ff',
+  filterSection: {
+    marginBottom: 20,
   },
-  headerActions: {
+  filterHeader: {
     flexDirection: 'row',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    marginBottom: 12,
+    paddingHorizontal: 4,
   },
-  exportButton: {
+  filterHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  filterIconWrapper: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#334155',
+    letterSpacing: -0.2,
+  },
+  filterBadge: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 22,
+    alignItems: 'center',
+  },
+  filterBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  clearFiltersButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  clearFiltersText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  filterCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  filterGrid: {
+    gap: 16,
+  },
+  filterItem: {
+    gap: 8,
+  },
+  filterLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+    letterSpacing: -0.1,
+    marginBottom: 4,
+  },
+  filterInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    minHeight: 48,
+  },
+  filterInputActive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#3B82F6',
+  },
+  filterInputText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#0F172A',
+    flex: 1,
+    letterSpacing: -0.2,
+  },
+  filterInputPlaceholder: {
+    color: '#94A3B8',
+    fontWeight: '400',
+  },
+  dateFilterHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dateResetButton: {
+    padding: 4,
+  },
+  dateRangeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
   },
-  filterSection: {
-    marginBottom: 16,
+  dateInput: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    minHeight: 48,
+  },
+  dateInputActive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#3B82F6',
+  },
+  dateInputText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#0F172A',
+    flex: 1,
+    letterSpacing: -0.2,
+  },
+  dateInputPlaceholder: {
+    color: '#94A3B8',
+    fontWeight: '400',
+  },
+  dateSeparator: {
+    width: 20,
+    alignItems: 'center',
+  },
+  dateSeparatorLine: {
+    width: 8,
+    height: 1.5,
+    backgroundColor: '#CBD5E1',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '70%',
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    letterSpacing: -0.3,
+  },
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+  },
+  modalItemSelected: {
+    backgroundColor: '#EFF6FF',
+  },
+  modalItemText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#334155',
+    flex: 1,
+    letterSpacing: -0.2,
+  },
+  modalItemTextSelected: {
+    color: '#3B82F6',
+    fontWeight: '600',
   },
   statsSection: {
     marginBottom: 24,
@@ -1292,157 +1603,6 @@ const styles = StyleSheet.create({
   debitCard: {
     borderColor: '#fed7aa',
     backgroundColor: '#fff7ed',
-  },
-  filterHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  filterTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  filterTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#334155',
-  },
-  filterCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    padding: 2,
-  },
-  filterRow: {
-    gap: 16,
-  },
-  filterInputContainer: {
-    flex: 1,
-  },
-  filterLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#475569',
-    marginBottom: 8,
-  },
-  comboboxTrigger: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
-    padding: 12,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  comboboxPlaceholder: {
-    color: '#94a3b8',
-    fontSize: 14,
-  },
-  comboboxValue: {
-    color: '#0f172a',
-  },
-  dateRangeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  dateButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minHeight: 44,
-  },
-  dateButtonLeft: {
-    borderTopLeftRadius: 8,
-    borderBottomLeftRadius: 8,
-    borderRightWidth: 0,
-  },
-  dateButtonRight: {
-    borderTopRightRadius: 8,
-    borderBottomRightRadius: 8,
-  },
-  dateButtonText: {
-    fontSize: 14,
-    color: '#0f172a',
-    fontWeight: '500',
-  },
-
-  dateSeparator: {
-    paddingHorizontal: 8,
-    backgroundColor: '#f8fafc',
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dateSeparatorText: {
-    fontSize: 14,
-    color: '#64748b',
-    fontWeight: '500',
-  },
-  dateInputContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-  },
-  dateIcon: {
-    marginRight: 8,
-  },
-  dateInput: {
-    flex: 1,
-    height: 44,
-    fontSize: 14,
-    color: '#0f172a',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    width: '80%',
-    maxHeight: '60%',
-    overflow: 'hidden',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#0f172a',
-  },
-  modalClose: {
-    fontSize: 24,
-    color: '#64748b',
-  },
-  dropdownItem: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  dropdownItemText: {
-    fontSize: 14,
-    color: '#334155',
   },
   mainContent: {
     gap: 24,

@@ -101,14 +101,16 @@ const UpdateNotification = () => {
           });
 
           // Listen for new update notifications
-          newSocket.on('newUpdateNotification', (data) => {
+          newSocket.on('newUpdateNotification', data => {
             fetchNotifications();
             Alert.alert('New Update Available', data.message);
           });
 
           // Listen for dismissed notifications
-          newSocket.on('updateNotificationDismissed', (data) => {
-            setNotifications(prev => prev.filter(n => n._id !== data.notificationId));
+          newSocket.on('updateNotificationDismissed', data => {
+            setNotifications(prev =>
+              prev.filter(n => n._id !== data.notificationId),
+            );
           });
         } else {
           // For clients/users, join user room
@@ -118,7 +120,7 @@ const UpdateNotification = () => {
           });
 
           // Listen for new notifications
-          newSocket.on('newNotification', (data) => {
+          newSocket.on('newNotification', data => {
             fetchNotifications();
             Alert.alert('New Update Available', data.message);
           });
@@ -163,13 +165,13 @@ const UpdateNotification = () => {
           `${BASE_URL}/api/update-notifications/master/${userId}`,
           {
             headers: { Authorization: `Bearer ${token}` },
-          }
+          },
         );
         let masterNotifications = response.data.notifications || [];
 
         // Filter out notifications that are in grace period
         const dismissedNotifications = JSON.parse(
-          (await AsyncStorage.getItem('dismissedNotifications')) || '{}'
+          (await AsyncStorage.getItem('dismissedNotifications')) || '{}',
         );
         const now = new Date();
 
@@ -189,8 +191,6 @@ const UpdateNotification = () => {
             ...n,
             visibility: n.visibility || 'all',
           }));
-
-        console.log('Fetched master notifications:', notificationsData);
       } else {
         // For clients/users, fetch regular notifications with update type
         try {
@@ -198,18 +198,18 @@ const UpdateNotification = () => {
             `${BASE_URL}/api/notifications/user/${userId}`,
             {
               headers: { Authorization: `Bearer ${token}` },
-            }
+            },
           );
 
-          const allNotifications = response.data.notifications || response.data || [];
-          console.log('Fetched client notifications:', allNotifications);
+          const allNotifications =
+            response.data.notifications || response.data || [];
 
           // Filter for update notifications that have been propagated
           const updateNotifications = allNotifications.filter(
             n =>
               n.type === 'system' &&
               n.action === 'update' &&
-              n.entityType === 'UpdateNotification'
+              n.entityType === 'UpdateNotification',
           );
 
           // Convert regular notifications to UpdateNotification format
@@ -224,8 +224,6 @@ const UpdateNotification = () => {
             propagatedToClients: true,
             createdAt: n.createdAt,
           }));
-
-          console.log('Converted update notifications:', notificationsData);
         } catch (clientError) {
           console.error('Error fetching client notifications:', clientError);
         }
@@ -259,7 +257,7 @@ const UpdateNotification = () => {
         },
         {
           headers: { Authorization: `Bearer ${token}` },
-        }
+        },
       );
 
       // Update local state
@@ -270,8 +268,8 @@ const UpdateNotification = () => {
                 ...n,
                 exploredSections: [...n.exploredSections, feature.sectionUrl],
               }
-            : n
-        )
+            : n,
+        ),
       );
 
       // Navigate to the section (you'll need to implement navigation)
@@ -292,7 +290,7 @@ const UpdateNotification = () => {
     await handleFeatureClick(notification, feature, false);
   };
 
-  const handleDismiss = async (notificationId) => {
+  const handleDismiss = async notificationId => {
     const notification = notifications.find(n => n._id === notificationId);
     const userData = await AsyncStorage.getItem('user');
 
@@ -311,7 +309,7 @@ const UpdateNotification = () => {
     performDismiss(notificationId);
   };
 
-  const performDismiss = async (notificationId) => {
+  const performDismiss = async notificationId => {
     try {
       const token = await AsyncStorage.getItem('token');
       const userData = await AsyncStorage.getItem('user');
@@ -330,9 +328,8 @@ const UpdateNotification = () => {
           },
           {
             headers: { Authorization: `Bearer ${token}` },
-          }
+          },
         );
-        console.log(`Master admin dismissed notification ${notificationId}`);
       } else {
         // For clients, dismiss via API and mark regular notification as read
         await axios.patch(
@@ -342,7 +339,7 @@ const UpdateNotification = () => {
           },
           {
             headers: { Authorization: `Bearer ${token}` },
-          }
+          },
         );
 
         // Also mark the regular notification as read
@@ -350,15 +347,16 @@ const UpdateNotification = () => {
           `${BASE_URL}/api/notifications/user/${userId}`,
           {
             headers: { Authorization: `Bearer ${token}` },
-          }
+          },
         );
 
-        const allNotifications = response.data.notifications || response.data || [];
+        const allNotifications =
+          response.data.notifications || response.data || [];
         const targetNotification = allNotifications.find(
           n =>
             n.entityId === notificationId &&
             n.type === 'system' &&
-            n.action === 'update'
+            n.action === 'update',
         );
 
         if (targetNotification) {
@@ -367,15 +365,14 @@ const UpdateNotification = () => {
             {},
             {
               headers: { Authorization: `Bearer ${token}` },
-            }
+            },
           );
-          console.log(`Client dismissed notification ${notificationId}`);
         }
       }
 
       // Remove from local state immediately for better UX
       setNotifications(prev => prev.filter(n => n._id !== notificationId));
-      
+
       Alert.alert('Success', 'Notification dismissed');
     } catch (error) {
       console.error('Error dismissing notification:', error);
@@ -391,7 +388,7 @@ const UpdateNotification = () => {
     }
   };
 
-  const handlePropagateToAllUsers = async (notificationId) => {
+  const handlePropagateToAllUsers = async notificationId => {
     try {
       setIsPropagatingAll(true);
       const token = await AsyncStorage.getItem('token');
@@ -400,7 +397,7 @@ const UpdateNotification = () => {
         { force: true },
         {
           headers: { Authorization: `Bearer ${token}` },
-        }
+        },
       );
 
       // Update local state
@@ -408,8 +405,8 @@ const UpdateNotification = () => {
         prev.map(n =>
           n._id === notificationId
             ? { ...n, propagatedToClients: true, visibility: 'all' }
-            : n
-        )
+            : n,
+        ),
       );
 
       Alert.alert('Success', 'Update notification sent to all users');
@@ -421,7 +418,7 @@ const UpdateNotification = () => {
     }
   };
 
-  const handlePropagateToAdminsOnly = async (notificationId) => {
+  const handlePropagateToAdminsOnly = async notificationId => {
     try {
       setIsPropagatingAdmins(true);
       const token = await AsyncStorage.getItem('token');
@@ -430,7 +427,7 @@ const UpdateNotification = () => {
         { force: true },
         {
           headers: { Authorization: `Bearer ${token}` },
-        }
+        },
       );
 
       // Update local state
@@ -438,8 +435,8 @@ const UpdateNotification = () => {
         prev.map(n =>
           n._id === notificationId
             ? { ...n, propagatedToClients: true, visibility: 'admins' }
-            : n
-        )
+            : n,
+        ),
       );
 
       Alert.alert('Success', 'Update notification sent to admins only');
@@ -451,11 +448,11 @@ const UpdateNotification = () => {
     }
   };
 
-  const getExploredCount = (notification) => {
+  const getExploredCount = notification => {
     return notification.exploredSections.length;
   };
 
-  const getTotalFeatures = (notification) => {
+  const getTotalFeatures = notification => {
     return notification.features.length;
   };
 
@@ -467,7 +464,8 @@ const UpdateNotification = () => {
   // Helper component for notification item
   const NotificationItem = ({ notification }) => {
     const isMaster = user?.role === 'master';
-    const hasFeatures = notification.features && notification.features.length > 0;
+    const hasFeatures =
+      notification.features && notification.features.length > 0;
     const exploredCount = getExploredCount(notification);
     const totalFeatures = getTotalFeatures(notification);
 
@@ -479,7 +477,9 @@ const UpdateNotification = () => {
         <View style={styles.notificationHeader}>
           <View style={styles.headerLeft}>
             <Text style={styles.notificationTitle}>{notification.title}</Text>
-            <Text style={styles.versionText}>Version {notification.version}</Text>
+            <Text style={styles.versionText}>
+              Version {notification.version}
+            </Text>
           </View>
           <View style={styles.headerRight}>
             {isMaster && hasFeatures && (
@@ -506,14 +506,18 @@ const UpdateNotification = () => {
           <View style={styles.featuresSection}>
             <Text style={styles.sectionTitle}>New Features:</Text>
             {notification.features.map((feature, index) => {
-              const isExplored = notification.exploredSections.includes(feature.sectionUrl);
-              
+              const isExplored = notification.exploredSections.includes(
+                feature.sectionUrl,
+              );
+
               return (
                 <TouchableOpacity
                   key={index}
                   style={[
                     styles.featureItem,
-                    isExplored ? styles.exploredFeature : styles.unexploredFeature,
+                    isExplored
+                      ? styles.exploredFeature
+                      : styles.unexploredFeature,
                   ]}
                   onPress={() => handleFeatureClick(notification, feature)}
                 >
@@ -528,7 +532,7 @@ const UpdateNotification = () => {
                     </View>
                     <TouchableOpacity
                       style={styles.viewDemoButton}
-                      onPress={(e) => {
+                      onPress={e => {
                         e.stopPropagation();
                         handleViewDemoClick(notification, feature);
                       }}
@@ -568,7 +572,7 @@ const UpdateNotification = () => {
                 )}
                 <Text style={styles.buttonText}>Notify All Users</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.propagationButton, styles.secondaryButton]}
                 onPress={() => handlePropagateToAdminsOnly(notification._id)}
@@ -579,37 +583,45 @@ const UpdateNotification = () => {
                 ) : (
                   <Icon name="account-supervisor" size={16} color="#666" />
                 )}
-                <Text style={styles.secondaryButtonText}>Notify Only Admins</Text>
+                <Text style={styles.secondaryButtonText}>
+                  Notify Only Admins
+                </Text>
               </TouchableOpacity>
             </View>
           )}
 
           {/* After notification is sent */}
-          {isMaster && notification.propagatedToClients && !changeMode[notification._id] && (
-            <View style={styles.notificationSent}>
-              <Text style={styles.sentText}>
-                {notification.visibility === 'admins'
-                  ? 'Notified clients and admins only'
-                  : 'Notifications sent to all users'}
-              </Text>
-              <TouchableOpacity
-                style={styles.changeButton}
-                onPress={() =>
-                  setChangeMode(prev => ({
-                    ...prev,
-                    [notification._id]: true,
-                  }))
-                }
-              >
-                <Text style={styles.changeButtonText}>Change Notification</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          {isMaster &&
+            notification.propagatedToClients &&
+            !changeMode[notification._id] && (
+              <View style={styles.notificationSent}>
+                <Text style={styles.sentText}>
+                  {notification.visibility === 'admins'
+                    ? 'Notified clients and admins only'
+                    : 'Notifications sent to all users'}
+                </Text>
+                <TouchableOpacity
+                  style={styles.changeButton}
+                  onPress={() =>
+                    setChangeMode(prev => ({
+                      ...prev,
+                      [notification._id]: true,
+                    }))
+                  }
+                >
+                  <Text style={styles.changeButtonText}>
+                    Change Notification
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
           {/* Change mode */}
           {isMaster && changeMode[notification._id] && (
             <View style={styles.changeMode}>
-              <Text style={styles.changeModeText}>Change notification audience:</Text>
+              <Text style={styles.changeModeText}>
+                Change notification audience:
+              </Text>
               <View style={styles.changeModeButtons}>
                 <TouchableOpacity
                   style={[styles.propagationButton, styles.primaryButton]}
@@ -623,7 +635,7 @@ const UpdateNotification = () => {
                   )}
                   <Text style={styles.buttonText}>Notify All Users</Text>
                 </TouchableOpacity>
-                
+
                 <TouchableOpacity
                   style={[styles.propagationButton, styles.secondaryButton]}
                   onPress={() => handlePropagateToAdminsOnly(notification._id)}
@@ -634,9 +646,11 @@ const UpdateNotification = () => {
                   ) : (
                     <Icon name="account-supervisor" size={16} color="#666" />
                   )}
-                  <Text style={styles.secondaryButtonText}>Notify Only Admins</Text>
+                  <Text style={styles.secondaryButtonText}>
+                    Notify Only Admins
+                  </Text>
                 </TouchableOpacity>
-                
+
                 <TouchableOpacity
                   style={styles.cancelButton}
                   onPress={() =>
@@ -697,9 +711,9 @@ const UpdateNotification = () => {
         }
       >
         {notifications.map(notification => (
-          <NotificationItem 
-            key={notification._id} 
-            notification={notification} 
+          <NotificationItem
+            key={notification._id}
+            notification={notification}
           />
         ))}
       </ScrollView>
@@ -713,11 +727,17 @@ const UpdateNotification = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.alertDialog}>
-            <Text style={styles.alertTitle}>⚠️ Dismiss Without Notifying Clients?</Text>
+            <Text style={styles.alertTitle}>
+              ⚠️ Dismiss Without Notifying Clients?
+            </Text>
             <Text style={styles.alertDescription}>
-              This update notification has not been propagated to clients yet. If you dismiss it now, clients will not receive this important update information.
+              This update notification has not been propagated to clients yet.
+              If you dismiss it now, clients will not receive this important
+              update information.
               {'\n\n'}
-              <Text style={styles.alertBold}>Recommended:</Text> Click "Notify Clients" first to ensure all users are informed about this update before dismissing it.
+              <Text style={styles.alertBold}>Recommended:</Text> Click "Notify
+              Clients" first to ensure all users are informed about this update
+              before dismissing it.
             </Text>
             <View style={styles.alertButtons}>
               <TouchableOpacity
@@ -750,19 +770,19 @@ const UpdateNotification = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.featureModal}>
             <Text style={styles.modalTitle}>{selectedFeature?.name}</Text>
-            
+
             {selectedFeature && (
               <ScrollView style={styles.modalContent}>
                 <Text style={styles.featureDescription}>
                   {selectedFeature.description}
                 </Text>
-                
+
                 <Image
                   source={{ uri: selectedFeature.gifUrl }}
                   style={styles.featureImage}
                   resizeMode="contain"
                 />
-                
+
                 <TouchableOpacity
                   style={styles.closeModalButton}
                   onPress={() => setSelectedFeature(null)}

@@ -378,12 +378,12 @@ const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
         const byCompany = !!selectedCompanyId;
 
         const salesUrl = byCompany
-          ? `${BASE_URL}/api/sales?companyId=${selectedCompanyId}`
+          ? `${BASE_URL}/api/sales/by-client/${selectedClient._id}?companyId=${selectedCompanyId}`
           : `${BASE_URL}/api/sales/by-client/${selectedClient._id}`;
 
         const purchasesUrl = byCompany
-          ? `${BASE_URL}/api/purchase?companyId=${selectedCompanyId}`
-          : `${BASE_URL}/api/purchase/by-client/${selectedClient._id}`;
+          ? `${BASE_URL}/api/purchase/by-client/${selectedClient._id}?companyId=${selectedCompanyId}&limit=all`
+          : `${BASE_URL}/api/purchase/by-client/${selectedClient._id}?limit=all`;
 
         const companiesUrl = `${BASE_URL}/api/companies/by-client/${selectedClient._id}`;
 

@@ -26,8 +26,6 @@ export const CreditReminderPopup = ({
   transaction,
   party,
 }) => {
-  console.log('party object from reminder component ', party);
-
   const [showEmailComposer, setShowEmailComposer] = useState(false);
   const [partyDetails, setPartyDetails] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -66,14 +64,11 @@ export const CreditReminderPopup = ({
         if (response.ok) {
           const data = await response.json();
           setPartyDetails(data);
-          console.log('Fetched party details:', data);
         } else {
-          console.error('Failed to fetch party details');
           // Fallback to basic party info
           setPartyDetails(party);
         }
       } catch (error) {
-        console.error('Error fetching party details:', error);
         // Fallback to basic party info
         setPartyDetails(party);
       } finally {
@@ -108,18 +103,11 @@ export const CreditReminderPopup = ({
           const storedBalances = data.balances || {};
           const balance = storedBalances[party._id] || 0;
           setCompanySpecificBalance(balance);
-          console.log('Fetched company-specific balance:', {
-            companyId: selectedCompanyId || 'all',
-            partyId: party._id,
-            balance,
-          });
         } else {
-          console.error('Failed to fetch company-specific balance');
           // Fallback to basic party balance
           setCompanySpecificBalance(party.balance || 0);
         }
       } catch (error) {
-        console.error('Error fetching company-specific balance:', error);
         // Fallback to basic party balance
         setCompanySpecificBalance(party.balance || 0);
       } finally {
@@ -157,11 +145,9 @@ export const CreditReminderPopup = ({
           if (response.ok) {
             const data = await response.json();
             setCompanyDetails(data);
-            console.log('Fetched company details:', data);
           }
         }
       } catch (error) {
-        console.error('Error fetching company details:', error);
       }
     };
 

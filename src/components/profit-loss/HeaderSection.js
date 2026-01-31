@@ -202,6 +202,7 @@ export const HeaderSection = ({
                   mode="date"
                   display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                   onChange={handleFromDatePickerChange}
+                  maximumDate={new Date()}
                 />
               )}
             </View>
@@ -227,6 +228,7 @@ export const HeaderSection = ({
                   mode="date"
                   display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                   onChange={handleToDatePickerChange}
+                  maximumDate={new Date()}
                 />
               )}
             </View>

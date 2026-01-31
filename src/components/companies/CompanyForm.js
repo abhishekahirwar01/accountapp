@@ -1475,7 +1475,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 120, // Increased for bottom buttons
+    // paddingBottom: 120, 
   },
   stepperContainer: {
     flexDirection: 'row',

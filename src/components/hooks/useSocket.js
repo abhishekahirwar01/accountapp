@@ -23,8 +23,6 @@ export const useSocket = () => {
 
       if (!userId) return;
 
-      console.log('📤 [Socket] Sending IDENTIFY & joinRoom for:', userId);
-
       // Backend expects these two specifically
       socket.emit('IDENTIFY', { userId, clientId });
       socket.emit('joinRoom', { userId, role: user.role, clientId });
@@ -37,7 +35,6 @@ export const useSocket = () => {
 
   useEffect(() => {
     if (!socketInstance) {
-      console.log('🔔 [Socket] Initializing Singleton Connection...');
       socketInstance = io(BASE_URL, {
         path: '/socket.io/',
         transports: ['websocket'],
@@ -48,7 +45,7 @@ export const useSocket = () => {
     }
 
     const onConnect = () => {
-      console.log('✅ [Socket] Connected. ID:', socketInstance.id);
+      console.log('✅ [Socket] Connected');
       setIsConnected(true);
       joinRooms(socketInstance);
     };
@@ -85,7 +82,6 @@ export const usePermissionSocket = onPermissionUpdate => {
     const handler = payload => {
       // Backend sends data inside { type, data }
       if (payload?.type === 'PERMISSION_UPDATE') {
-        console.log('--- 🛡️ SOCKET: Account Update Received ---');
         onPermissionUpdate(payload.data);
       }
     };
@@ -107,7 +103,6 @@ export const useUserPermissionSocket = onUserUpdate => {
     const handler = payload => {
       // Backend controller line 86: { type: 'USER_PERMISSION_UPDATE', data: doc }
       if (payload?.type === 'USER_PERMISSION_UPDATE') {
-        console.log('--- 👤 SOCKET: User Permission Update Received ---');
         onUserUpdate(payload.data);
       }
     };

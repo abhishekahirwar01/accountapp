@@ -38,7 +38,7 @@ const Template8 = ({
   clientName,
 }) => {
   const actualShippingAddress = shippingAddress || transaction?.shippingAddress;
-  
+
   // Prepare data
   const {
     totals,
@@ -79,7 +79,19 @@ const Template8 = ({
     } else if (showIGST) {
       return ['4%', '20%', '8%', '10%', '8%', '12%', '8%', '12%', '18%'];
     } else {
-      return ['4%', '16%', '7%', '8%', '7%', '10%', '7%', '10%', '7%', '10%', '14%'];
+      return [
+        '4%',
+        '16%',
+        '7%',
+        '8%',
+        '7%',
+        '10%',
+        '7%',
+        '10%',
+        '7%',
+        '10%',
+        '14%',
+      ];
     }
   };
 
@@ -121,22 +133,22 @@ const Template8 = ({
 
   // Render HTML notes
   const renderNotesHTML = notes => {
-  if (!notes) return '';
-  try {
-    return notes
-      .replace(/\n/g, '<br>')
-      .replace(/<br\s*\/?>/gi, '<br>')
-      .replace(/<p>/gi, '<div style="margin-bottom: 8px;">')
-      .replace(/<\/p>/gi, '</div>')
-      .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
-      .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>')
-      .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
-      .replace(/<ul>/gi, '<ul style="padding-left: 15px;">')
-      .replace(/<li>/gi, '<li style="margin-bottom: 4px;">');
-  } catch (error) {
-    return notes.replace(/\n/g, '<br>');
-  }
-};
+    if (!notes) return '';
+    try {
+      return notes
+        .replace(/\n/g, '<br>')
+        .replace(/<br\s*\/?>/gi, '<br>')
+        .replace(/<p>/gi, '<div style="margin-bottom: 8px;">')
+        .replace(/<\/p>/gi, '</div>')
+        .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
+        .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>')
+        .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
+        .replace(/<ul>/gi, '<ul style="padding-left: 15px;">')
+        .replace(/<li>/gi, '<li style="margin-bottom: 4px;">');
+    } catch (error) {
+      return notes.replace(/\n/g, '<br>');
+    }
+  };
 
   // Generate Header HTML (repeatable)
   const generateHeaderHTML = () => {
@@ -224,7 +236,10 @@ const Template8 = ({
               actualShippingAddress?.label || party?.name || 'N/A',
             )}</div>
             <div class="address-text">${capitalizeWords(
-              getShippingAddress(actualShippingAddress, getBillingAddress(party)),
+              getShippingAddress(
+                actualShippingAddress,
+                getBillingAddress(party),
+              ),
             )}</div>
             ${
               company?.Country
@@ -945,8 +960,6 @@ export const generatePdfForTemplate8 = async (
   clientName,
 ) => {
   try {
-    console.log('🟡 PDF Generation Started - Template8');
-
     const htmlContent = Template8({
       transaction,
       company,
@@ -956,9 +969,6 @@ export const generatePdfForTemplate8 = async (
       client,
       clientName,
     });
-
-    console.log('🟢 HTML Content Generated Successfully');
-    console.log('HTML Length:', htmlContent.length);
 
     const options = {
       html: htmlContent,
@@ -970,7 +980,6 @@ export const generatePdfForTemplate8 = async (
     };
 
     const file = await generatePDF(options);
-    console.log('🟢 PDF Generated Successfully!');
 
     return {
       ...file,
@@ -981,7 +990,6 @@ export const generatePdfForTemplate8 = async (
       },
     };
   } catch (error) {
-    console.error('Error generating PDF:', error);
     throw error;
   }
 };

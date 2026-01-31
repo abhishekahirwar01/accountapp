@@ -27,7 +27,7 @@ const splitItemsIntoPages = (items, itemsPerPage = ITEMS_PER_PAGE) => {
   return pages;
 };
 
- const renderNotesHTML = notes => {
+const renderNotesHTML = notes => {
   if (!notes) return '';
   try {
     return notes
@@ -45,7 +45,6 @@ const splitItemsIntoPages = (items, itemsPerPage = ITEMS_PER_PAGE) => {
   }
 };
 
-
 // --- Main Template Component ---
 const Template12 = ({
   transaction,
@@ -57,7 +56,7 @@ const Template12 = ({
   clientName,
 }) => {
   const actualShippingAddress = shippingAddress || transaction?.shippingAddress;
-  
+
   // Prepare data
   const {
     totals,
@@ -93,17 +92,17 @@ const Template12 = ({
 
   // Split items into pages
   const itemPages = splitItemsIntoPages(itemsWithGST, ITEMS_PER_PAGE);
-  
+
   // Check if GST summary needs pagination
   const GST_ROWS_PER_PAGE = 15; // Rows that fit with header on a page
   const gstNeedsPagination = itemsWithGST.length > GST_ROWS_PER_PAGE;
-  
+
   // Calculate total pages including GST overflow
   let totalPages = itemPages.length;
   if (gstNeedsPagination && isGSTApplicable) {
     const gstPages = Math.ceil(itemsWithGST.length / GST_ROWS_PER_PAGE);
     if (gstPages > 1) {
-      totalPages += (gstPages - 1); // Add extra pages for GST summary
+      totalPages += gstPages - 1; // Add extra pages for GST summary
     }
   }
 
@@ -141,34 +140,54 @@ const Template12 = ({
     return `
       <!-- Header - Logo on left, details on right -->
       <div class="header-section">
-        ${logoSrc ? `
+        ${
+          logoSrc
+            ? `
           <div class="logo-container">
             <img src="${logoSrc}" class="company-logo" />
           </div>
-        ` : ''}
+        `
+            : ''
+        }
         
         <div class="company-details-right">
           <div class="company-name">
-            ${capitalizeWords(company?.businessName || company?.companyName || 'Company Name')}
+            ${capitalizeWords(
+              company?.businessName || company?.companyName || 'Company Name',
+            )}
           </div>
           
-          ${company?.gstin ? `
+          ${
+            company?.gstin
+              ? `
             <div class="gstin">
               <span class="bold">GSTIN:</span> ${company.gstin}
             </div>
-          ` : ''}
+          `
+              : ''
+          }
           
           <div class="company-address">
             <div>${capitalizeWords(company?.address || 'Address Line 1')}</div>
-            <div>${capitalizeWords(company?.City || 'City')}, ${capitalizeWords(company?.addressState || 'State')} - ${company?.Pincode || 'Pincode'}</div>
-            <div><span class="bold">Phone:</span> ${safeFormatPhoneNumber(company?.mobileNumber || company?.Telephone || 'Phone')}</div>
+            <div>${capitalizeWords(company?.City || 'City')}, ${capitalizeWords(
+      company?.addressState || 'State',
+    )} - ${company?.Pincode || 'Pincode'}</div>
+            <div><span class="bold">Phone:</span> ${safeFormatPhoneNumber(
+              company?.mobileNumber || company?.Telephone || 'Phone',
+            )}</div>
           </div>
         </div>
       </div>
       
       <!-- Invoice Title -->
       <div class="invoice-title">
-        ${transaction.type === 'proforma' ? 'PROFORMA INVOICE' : isGSTApplicable ? 'TAX INVOICE' : 'INVOICE'}
+        ${
+          transaction.type === 'proforma'
+            ? 'PROFORMA INVOICE'
+            : isGSTApplicable
+            ? 'TAX INVOICE'
+            : 'INVOICE'
+        }
       </div>
       
       <!-- Blue Divider -->
@@ -182,17 +201,23 @@ const Template12 = ({
           
           <div class="detail-row-left">
             <div class="detail-label">Name:</div>
-            <div class="detail-value">${capitalizeWords(party?.name || 'N/A')}</div>
+            <div class="detail-value">${capitalizeWords(
+              party?.name || 'N/A',
+            )}</div>
           </div>
           
           <div class="detail-row-left">
             <div class="detail-label">Phone:</div>
-            <div class="detail-value">${safeFormatPhoneNumber(party?.contactNumber || '-')}</div>
+            <div class="detail-value">${safeFormatPhoneNumber(
+              party?.contactNumber || '-',
+            )}</div>
           </div>
           
           <div class="detail-row-left">
             <div class="detail-label">Address:</div>
-            <div class="detail-value">${capitalizeWords(getBillingAddress(party))}</div>
+            <div class="detail-value">${capitalizeWords(
+              getBillingAddress(party),
+            )}</div>
           </div>
           
           <div class="detail-row-left">
@@ -208,11 +233,15 @@ const Template12 = ({
           <div class="detail-row-left">
             <div class="detail-label">Place of Supply:</div>
             <div class="detail-value">
-              ${actualShippingAddress?.state
-                ? `${actualShippingAddress.state} (${getStateCode(actualShippingAddress.state) || '-'})`
-                : party?.state
-                ? `${party.state} (${getStateCode(party.state) || '-'})`
-                : '-'}
+              ${
+                actualShippingAddress?.state
+                  ? `${actualShippingAddress.state} (${
+                      getStateCode(actualShippingAddress.state) || '-'
+                    })`
+                  : party?.state
+                  ? `${party.state} (${getStateCode(party.state) || '-'})`
+                  : '-'
+              }
             </div>
           </div>
         </div>
@@ -224,19 +253,26 @@ const Template12 = ({
           
           <div class="detail-row">
             <div class="detail-label">Name:</div>
-            <div class="detail-value">${capitalizeWords(actualShippingAddress?.label || party?.name || 'N/A')}</div>
+            <div class="detail-value">${capitalizeWords(
+              actualShippingAddress?.label || party?.name || 'N/A',
+            )}</div>
           </div>
           
           <div class="detail-row">
             <div class="detail-label">Address:</div>
             <div class="detail-value">
-              ${capitalizeWords(getShippingAddress(actualShippingAddress, getBillingAddress(party)))}
+              ${capitalizeWords(
+                getShippingAddress(
+                  actualShippingAddress,
+                  getBillingAddress(party),
+                ),
+              )}
             </div>
           </div>
           
           <div class="detail-row">
             <div class="detail-label">Country:</div>
-            <div class="detail-value">${company?.Country }</div>
+            <div class="detail-value">${company?.Country}</div>
           </div>
           
           <div class="detail-row">
@@ -246,7 +282,7 @@ const Template12 = ({
                 actualShippingAddress?.phone ||
                   actualShippingAddress?.mobileNumber ||
                   party?.contactNumber ||
-                  '-'
+                  '-',
               )}
             </div>
           </div>
@@ -259,11 +295,15 @@ const Template12 = ({
           <div class="detail-row">
             <div class="detail-label">State:</div>
             <div class="detail-value">
-              ${actualShippingAddress?.state
-                ? `${actualShippingAddress.state} (${getStateCode(actualShippingAddress.state) || '-'})`
-                : party?.state
-                ? `${party.state} (${getStateCode(party.state) || '-'})`
-                : '-'}
+              ${
+                actualShippingAddress?.state
+                  ? `${actualShippingAddress.state} (${
+                      getStateCode(actualShippingAddress.state) || '-'
+                    })`
+                  : party?.state
+                  ? `${party.state} (${getStateCode(party.state) || '-'})`
+                  : '-'
+              }
             </div>
           </div>
           </div>
@@ -275,7 +315,9 @@ const Template12 = ({
           
           <div class="detail-row-right">
             <div class="detail-label">Invoice #:</div>
-            <div class="detail-value">${transaction?.invoiceNumber || 'N/A'}</div>
+            <div class="detail-value">${
+              transaction?.invoiceNumber || 'N/A'
+            }</div>
           </div>
           
           <div class="detail-row-right">
@@ -295,12 +337,16 @@ const Template12 = ({
             </div>
           </div>
           
-          ${isGSTApplicable ? `
+          ${
+            isGSTApplicable
+              ? `
             <div class="detail-row-right">
               <div class="detail-label">E-Way No.:</div>
               <div class="detail-value">${transaction?.eway || '-'}</div>
             </div>
-          ` : ''}
+          `
+              : ''
+          }
         </div>
       </div>
     `;
@@ -339,7 +385,10 @@ const Template12 = ({
   };
 
   // Generate GST summary table rows with pagination support
-  const generateGSTSummaryRows = (startIdx = 0, endIdx = itemsWithGST.length) => {
+  const generateGSTSummaryRows = (
+    startIdx = 0,
+    endIdx = itemsWithGST.length,
+  ) => {
     return itemsWithGST
       .slice(startIdx, endIdx)
       .map((item, index) => {
@@ -438,7 +487,12 @@ const Template12 = ({
   };
 
   // Generate GST continuation page
-  const generateGSTContinuationPage = (startIdx, endIdx, pageIndex, isLastGSTPage) => {
+  const generateGSTContinuationPage = (
+    startIdx,
+    endIdx,
+    pageIndex,
+    isLastGSTPage,
+  ) => {
     return `
       <div class="page">
         ${generateHeaderHTML()}
@@ -458,79 +512,129 @@ const Template12 = ({
           </tbody>
         </table>
         
-        ${isLastGSTPage ? `
+        ${
+          isLastGSTPage
+            ? `
         <!-- Bank Details, QR Code, and Signature -->
         <div class="bottom-section">
           <div class="bank-details-column">
-            ${!shouldHideBankDetails && isBankDetailAvailable ? `
+            ${
+              !shouldHideBankDetails && isBankDetailAvailable
+                ? `
               <div class="bank-section">
                 <div class="bold">Bank Details:</div>
-                ${bankData.bankName ? `
+                ${
+                  bankData.bankName
+                    ? `
                   <div class="bank-row">
                     <div class="bank-label">Name:</div>
-                    <div class="bank-value">${capitalizeWords(bankData.bankName)}</div>
+                    <div class="bank-value">${capitalizeWords(
+                      bankData.bankName,
+                    )}</div>
                   </div>
-                ` : ''}
-                ${bankData.branchAddress ? `
+                `
+                    : ''
+                }
+                ${
+                  bankData.branchAddress
+                    ? `
                   <div class="bank-row">
                     <div class="bank-label">Branch:</div>
-                    <div class="bank-value">${capitalizeWords(bankData.branchAddress)}</div>
+                    <div class="bank-value">${capitalizeWords(
+                      bankData.branchAddress,
+                    )}</div>
                   </div>
-                ` : ''}
-                ${bankData.ifscCode ? `
+                `
+                    : ''
+                }
+                ${
+                  bankData.ifscCode
+                    ? `
                   <div class="bank-row">
                     <div class="bank-label">IFSC:</div>
                     <div class="bank-value">${bankData.ifscCode}</div>
                   </div>
-                ` : ''}
-                ${bankData.accountNo ? `
+                `
+                    : ''
+                }
+                ${
+                  bankData.accountNo
+                    ? `
                   <div class="bank-row">
                     <div class="bank-label">Acc. No:</div>
                     <div class="bank-value">${bankData.accountNo}</div>
                   </div>
-                ` : ''}
-                ${bankData.upiDetails?.upiId ? `
+                `
+                    : ''
+                }
+                ${
+                  bankData.upiDetails?.upiId
+                    ? `
                   <div class="bank-row">
                     <div class="bank-label">UPI ID:</div>
                     <div class="bank-value">${bankData.upiDetails.upiId}</div>
                   </div>
-                ` : ''}
-                ${bankData.upiDetails?.upiName ? `
+                `
+                    : ''
+                }
+                ${
+                  bankData.upiDetails?.upiName
+                    ? `
                   <div class="bank-row">
                     <div class="bank-label">UPI Name:</div>
                     <div class="bank-value">${bankData.upiDetails.upiName}</div>
                   </div>
-                ` : ''}
-                ${bankData.upiDetails?.upiMobile ? `
+                `
+                    : ''
+                }
+                ${
+                  bankData.upiDetails?.upiMobile
+                    ? `
                   <div class="bank-row">
                     <div class="bank-label">UPI Mobile:</div>
                     <div class="bank-value">${bankData.upiDetails.upiMobile}</div>
                   </div>
-                ` : ''}
+                `
+                    : ''
+                }
               </div>
-            ` : ''}
+            `
+                : ''
+            }
           </div>
           
-          ${bankData?.qrCode ? `
+          ${
+            bankData?.qrCode
+              ? `
             <div class="qr-column">
               <div class="bold">QR Code</div>
               <img src="${BASE_URL}${bankData.qrCode}" class="qr-image" />
             </div>
-          ` : '<div class="qr-column"></div>'}
+          `
+              : '<div class="qr-column"></div>'
+          }
           
           <div class="signature-column">
-            <div class="bold">For ${capitalizeWords(company?.businessName || 'Company')}</div>
+            <div class="bold">For ${capitalizeWords(
+              company?.businessName || 'Company',
+            )}</div>
             <div class="signature-line"></div>
             <div class="Authorised">Authorised Signatory</div>
           </div>
         </div>
         
-        ${transaction?.notes ? `
+        ${
+          transaction?.notes
+            ? `
           <div class="notes-section">
             ${transaction.notes.replace(/\n/g, '<br>')}
           </div>
-        ` : ''}
-        ` : ''}
+        `
+            : ''
+        }
+        `
+            : ''
+        }
         
         <div class="page-number-container">
           Page ${pageIndex + 1} of ${totalPages}
@@ -629,14 +733,20 @@ const Template12 = ({
               <div class="total-value">Rs. ${formatCurrency(totalTaxable)}</div>
             </div>
             
-            ${showIGST ? `
+            ${
+              showIGST
+                ? `
               <div class="total-row">
                 <div class="total-label">IGST:</div>
                 <div class="total-value">Rs. ${formatCurrency(totalIGST)}</div>
               </div>
-            ` : ''}
+            `
+                : ''
+            }
             
-            ${showCGSTSGST ? `
+            ${
+              showCGSTSGST
+                ? `
               <div class="total-row">
                 <div class="total-label">CGST:</div>
                 <div class="total-value">Rs. ${formatCurrency(totalCGST)}</div>
@@ -645,7 +755,9 @@ const Template12 = ({
                 <div class="total-label">SGST:</div>
                 <div class="total-value">Rs. ${formatCurrency(totalSGST)}</div>
               </div>
-            ` : ''}
+            `
+                : ''
+            }
             
             <div class="total-row total-final">
               <div class="total-label">
@@ -658,11 +770,15 @@ const Template12 = ({
         
         <!-- Total in Words -->
         <div class="total-words">
-          <span class="total-words-label">Total (in words):</span> ${safeNumberToWords(totalAmount)}
+          <span class="total-words-label">Total (in words):</span> ${safeNumberToWords(
+            totalAmount,
+          )}
         </div>
         
         <!-- GST Summary Table - ONLY ON LAST PAGE -->
-        ${isGSTApplicable ? `
+        ${
+          isGSTApplicable
+            ? `
         <table class="gst-summary-table">
           <thead>
             <tr>
@@ -670,94 +786,146 @@ const Template12 = ({
             </tr>
           </thead>
           <tbody>
-            ${gstNeedsPagination ? generateGSTSummaryRows(0, 15) : generateGSTSummaryRows()}
+            ${
+              gstNeedsPagination
+                ? generateGSTSummaryRows(0, 15)
+                : generateGSTSummaryRows()
+            }
             ${!gstNeedsPagination ? generateGSTTotalRow() : ''}
           </tbody>
         </table>
-        ` : ''}
+        `
+            : ''
+        }
         
         <!-- Bank Details, QR Code, and Signature -->
         <div class="bottom-section">
           <!-- Bank Details -->
           <div class="bank-details-column">
-            ${!shouldHideBankDetails && isBankDetailAvailable ? `
+            ${
+              !shouldHideBankDetails && isBankDetailAvailable
+                ? `
               <div class="bank-section">
                 <div class="bold">Bank Details:</div>
                 
-                ${bankData.bankName ? `
+                ${
+                  bankData.bankName
+                    ? `
                   <div class="bank-row">
                     <div class="bank-label">Name:</div>
-                    <div class="bank-value">${capitalizeWords(bankData.bankName)}</div>
+                    <div class="bank-value">${capitalizeWords(
+                      bankData.bankName,
+                    )}</div>
                   </div>
-                ` : ''}
+                `
+                    : ''
+                }
                 
-                ${bankData.branchAddress ? `
+                ${
+                  bankData.branchAddress
+                    ? `
                   <div class="bank-row">
                     <div class="bank-label">Branch:</div>
-                    <div class="bank-value">${capitalizeWords(bankData.branchAddress)}</div>
+                    <div class="bank-value">${capitalizeWords(
+                      bankData.branchAddress,
+                    )}</div>
                   </div>
-                ` : ''}
+                `
+                    : ''
+                }
                 
-                ${bankData.ifscCode ? `
+                ${
+                  bankData.ifscCode
+                    ? `
                   <div class="bank-row">
                     <div class="bank-label">IFSC:</div>
                     <div class="bank-value">${bankData.ifscCode}</div>
                   </div>
-                ` : ''}
+                `
+                    : ''
+                }
                 
-                ${bankData.accountNo ? `
+                ${
+                  bankData.accountNo
+                    ? `
                   <div class="bank-row">
                     <div class="bank-label">Acc. No:</div>
                     <div class="bank-value">${bankData.accountNo}</div>
                   </div>
-                ` : ''}
+                `
+                    : ''
+                }
                 
-                ${bankData.upiDetails?.upiId ? `
+                ${
+                  bankData.upiDetails?.upiId
+                    ? `
                   <div class="bank-row">
                     <div class="bank-label">UPI ID:</div>
                     <div class="bank-value">${bankData.upiDetails.upiId}</div>
                   </div>
-                ` : ''}
+                `
+                    : ''
+                }
                 
-                ${bankData.upiDetails?.upiName ? `
+                ${
+                  bankData.upiDetails?.upiName
+                    ? `
                   <div class="bank-row">
                     <div class="bank-label">UPI Name:</div>
                     <div class="bank-value">${bankData.upiDetails.upiName}</div>
                   </div>
-                ` : ''}
+                `
+                    : ''
+                }
                 
-                ${bankData.upiDetails?.upiMobile ? `
+                ${
+                  bankData.upiDetails?.upiMobile
+                    ? `
                   <div class="bank-row">
                     <div class="bank-label">UPI Mobile:</div>
                     <div class="bank-value">${bankData.upiDetails.upiMobile}</div>
                   </div>
-                ` : ''}
+                `
+                    : ''
+                }
               </div>
-            ` : ''}
+            `
+                : ''
+            }
           </div>
           
           <!-- QR Code -->
-          ${bankData?.qrCode ? `
+          ${
+            bankData?.qrCode
+              ? `
             <div class="qr-column">
               <div class="bold">QR Code</div>
               <img src="${BASE_URL}${bankData.qrCode}" class="qr-image" />
             </div>
-          ` : '<div class="qr-column"></div>'}
+          `
+              : '<div class="qr-column"></div>'
+          }
           
           <!-- Signature -->
           <div class="signature-column">
-            <div class="bold">For ${capitalizeWords(company?.businessName || 'Company')}</div>
+            <div class="bold">For ${capitalizeWords(
+              company?.businessName || 'Company',
+            )}</div>
             <div class="signature-line"></div>
             <div class="Authorised">Authorised Signatory</div>
           </div>
         </div>
         
         <!-- Notes Section -->
-        ${transaction?.notes ? `
+        ${
+          transaction?.notes
+            ? `
           <div class="notes-section">
             ${renderNotesHTML(transaction.notes)}
           </div>
-        ` : ''}
+        `
+            : ''
+        }
         `
             : ''
         }
@@ -775,41 +943,49 @@ const Template12 = ({
     const GST_ROWS_PER_PAGE = 15;
     const allPages = [];
     let currentPageIndex = 0;
-    
+
     // Generate item pages
     let startIndex = 0;
     itemPages.forEach((pageItems, idx) => {
       const isLastItemPage = idx === itemPages.length - 1;
-      
-      allPages.push(generatePageHTML(
-        pageItems,
-        currentPageIndex,
-        startIndex,
-        isLastItemPage && !gstNeedsPagination
-      ));
-      
+
+      allPages.push(
+        generatePageHTML(
+          pageItems,
+          currentPageIndex,
+          startIndex,
+          isLastItemPage && !gstNeedsPagination,
+        ),
+      );
+
       startIndex += pageItems.length;
       currentPageIndex++;
     });
-    
+
     // Generate GST continuation pages if needed
-    if (gstNeedsPagination && isGSTApplicable && itemsWithGST.length > GST_ROWS_PER_PAGE) {
+    if (
+      gstNeedsPagination &&
+      isGSTApplicable &&
+      itemsWithGST.length > GST_ROWS_PER_PAGE
+    ) {
       const gstStartIdx = GST_ROWS_PER_PAGE;
       const gstRemaining = itemsWithGST.length - GST_ROWS_PER_PAGE;
       const gstExtraPages = Math.ceil(gstRemaining / 32); // 20 rows per continuation page
-      
+
       for (let i = 0; i < gstExtraPages; i++) {
-        const start = gstStartIdx + (i * 32);
+        const start = gstStartIdx + i * 32;
         const end = Math.min(start + 32, itemsWithGST.length);
-        const isLastGSTPage = (i === gstExtraPages - 1);
-        
-        allPages.push(generateGSTContinuationPage(
-          start,
-          end,
-          currentPageIndex,
-          isLastGSTPage
-        ));
-        
+        const isLastGSTPage = i === gstExtraPages - 1;
+
+        allPages.push(
+          generateGSTContinuationPage(
+            start,
+            end,
+            currentPageIndex,
+            isLastGSTPage,
+          ),
+        );
+
         currentPageIndex++;
       }
     }
@@ -1240,8 +1416,6 @@ export const generatePdfForTemplate12 = async (
   clientName,
 ) => {
   try {
-    console.log('🟡 PDF Generation Started - Template12');
-
     const htmlContent = Template12({
       transaction,
       company,
@@ -1251,9 +1425,6 @@ export const generatePdfForTemplate12 = async (
       client,
       clientName,
     });
-
-    console.log('🟢 HTML Content Generated Successfully');
-    console.log('HTML Length:', htmlContent.length);
 
     const options = {
       html: htmlContent,
@@ -1265,7 +1436,6 @@ export const generatePdfForTemplate12 = async (
     };
 
     const file = await generatePDF(options);
-    console.log('🟢 PDF Generated Successfully!');
 
     return {
       ...file,

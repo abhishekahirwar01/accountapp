@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import {
   View,
   Text,
@@ -8,14 +8,16 @@ import {
   StyleSheet,
   Dimensions,
   ActivityIndicator,
-  Modal,
-  FlatList,
   Platform,
   Alert,
   BackHandler,
+  Modal,
+  FlatList,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as XLSX from 'xlsx';
+import Share from 'react-native-share';
+import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { format } from 'date-fns';
@@ -24,13 +26,129 @@ import { BASE_URL } from '../../../config';
 import { capitalizeWords } from '../../../lib/utils';
 import { useCompany } from '../../../contexts/company-context';
 
-// Custom Components
 import CustomerListCard from '../../../components/Ledger/receivables/CustomerListCard';
 import MobileLedgerCard from '../../../components/Ledger/receivables/MobileLedgerCard';
 import ItemDetailsDialog from '../../../components/Ledger/receivables/ItemDetailsDialog';
 
+
+const { width } = Dimensions.get('window');
+
+const SummaryCard = memo(({ icon, label, value, type, note }) => {
+  const cardStyles = useMemo(() => {
+    const baseStyle = [styles.summaryCard];
+    switch (type) {
+      case 'customer':
+        return [...baseStyle, styles.customerCard];
+      case 'credit':
+        return [...baseStyle, styles.creditCard];
+      case 'debit':
+        return [...baseStyle, styles.debitCard];
+      case 'balance':
+        return [...baseStyle, styles.balanceCard];
+      default:
+        return baseStyle;
+    }
+  }, [type]);
+
+  const valueStyles = useMemo(() => {
+    const baseStyle = [styles.summaryValue];
+    if (type === 'credit') return [...baseStyle, styles.creditValue];
+    if (type === 'debit') return [...baseStyle, styles.debitValue];
+    if (type === 'balance') {
+      const isPositive = note?.includes('Customer Owes');
+      return [...baseStyle, isPositive ? styles.positiveBalance : styles.negativeBalance];
+    }
+    return baseStyle;
+  }, [type, note]);
+
+  const iconColor = useMemo(() => {
+    switch (type) {
+      case 'customer': return '#DC2626';
+      case 'credit': return '#16A34A';
+      case 'debit': return '#2563EB';
+      case 'balance': return '#EA580C';
+      default: return '#6B7280';
+    }
+  }, [type]);
+
+  return (
+    <View style={cardStyles}>
+      <View style={styles.summaryContent}>
+        <View style={styles.summaryTextContainer}>
+          <Text style={styles.summaryLabel}>{label}</Text>
+          <Text style={valueStyles} numberOfLines={1}>
+            {value}
+          </Text>
+          {note && <Text style={styles.balanceNote}>{note}</Text>}
+        </View>
+        <View style={[styles.summaryIconContainer, { backgroundColor: `${iconColor}15` }]}>
+          <Icon name={icon} size={20} color={iconColor} />
+        </View>
+      </View>
+    </View>
+  );
+});
+
+SummaryCard.displayName = 'SummaryCard';
+
+// Memoized Section Header Component
+const SectionHeader = memo(({ type, subtitle }) => {
+  const badgeStyle = type === 'debit' ? styles.debitBadge : styles.creditBadge;
+  const iconName = type === 'debit' ? 'arrow-down' : 'arrow-up';
+  const iconColor = type === 'debit' ? '#DC2626' : '#16A34A';
+  const title = type === 'debit' ? 'Debit Side' : 'Credit Side';
+
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionHeaderLeft}>
+        <View style={badgeStyle}>
+          <Icon name={iconName} size={16} color={iconColor} />
+        </View>
+        <Text style={styles.sectionTitle}>{title}</Text>
+      </View>
+      <Text style={styles.sectionSubtitle}>{subtitle}</Text>
+    </View>
+  );
+});
+
+SectionHeader.displayName = 'SectionHeader';
+
+// Memoized Empty State Component
+const EmptyState = memo(({ message, submessage }) => (
+  <View style={styles.emptyContainer}>
+    <View style={styles.emptyIconContainer}>
+      <Icon name="file-document-outline" size={64} color="#E5E7EB" />
+    </View>
+    <Text style={styles.emptyText}>{message}</Text>
+    {submessage && <Text style={styles.emptySubtext}>{submessage}</Text>}
+  </View>
+));
+
+EmptyState.displayName = 'EmptyState';
+
+// Memoized No Data Component
+const NoDataState = memo(({ message }) => (
+  <View style={styles.noDataContainer}>
+    <Icon name="inbox" size={32} color="#E5E7EB" />
+    <Text style={styles.noDataText}>{message}</Text>
+  </View>
+));
+
+NoDataState.displayName = 'NoDataState';
+
+// Memoized Loading Component
+const LoadingState = memo(({ message }) => (
+  <View style={styles.loadingContainer}>
+    <ActivityIndicator size="large" color="#3B82F6" />
+    <Text style={styles.loadingText}>{message}</Text>
+  </View>
+));
+
+LoadingState.displayName = 'LoadingState';
+
 const ReceivablesLedger = () => {
   const navigation = useNavigation();
+  const { selectedCompanyId } = useCompany();
 
   // State variables
   const [parties, setParties] = useState([]);
@@ -41,7 +159,6 @@ const ReceivablesLedger = () => {
     startDate: null,
     endDate: new Date(),
   });
-  const [searchTerm, setSearchTerm] = useState('');
   const [customerBalances, setCustomerBalances] = useState({});
   const [loadingBalances, setLoadingBalances] = useState(false);
   const [overallTotals, setOverallTotals] = useState({
@@ -53,7 +170,6 @@ const ReceivablesLedger = () => {
   const [isItemsDialogOpen, setIsItemsDialogOpen] = useState(false);
   const [itemsToView, setItemsToView] = useState([]);
   const [lastTransactionDates, setLastTransactionDates] = useState({});
-  const { selectedCompanyId } = useCompany();
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -63,50 +179,15 @@ const ReceivablesLedger = () => {
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
-  // Company context (simplified)
-  // const [selectedCompanyId, setSelectedCompanyId] = useState(null);
+  // Modal state for customer selection
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
 
-  const companyIdForBalances = selectedCompanyId ;
+  const companyIdForBalances = selectedCompanyId;
   const baseURL = BASE_URL;
 
-  // Handle hardware back button and swipe gestures
-  useFocusEffect(
-    useCallback(() => {
-      const onBackPress = () => {
-        if (selectedParty) {
-          // If viewing a specific customer, go back to customer list
-          setSelectedParty('');
-          return true; // Prevent default back behavior
-        }
-        // If on customer list, allow default back behavior (go to dashboard)
-        return false;
-      };
-
-      // Add event listener for Android hardware back button
-      const backHandler = BackHandler.addEventListener(
-        'hardwareBackPress',
-        onBackPress
-      );
-
-      // Add listener for navigation back gesture (iOS swipe)
-      const unsubscribe = navigation.addListener('beforeRemove', (e) => {
-        if (selectedParty) {
-          // Prevent leaving the screen
-          e.preventDefault();
-          // Go back to customer list instead
-          setSelectedParty('');
-        }
-      });
-
-      return () => {
-        backHandler.remove();
-        unsubscribe();
-      };
-    }, [selectedParty, navigation])
-  );
-
-  // Format Indian Number
-  const formatIndianNumber = number => {
+  // Memoized format function
+  const formatIndianNumber = useCallback((number) => {
     const num = typeof number === 'string' ? parseFloat(number) : number;
     if (isNaN(num)) return '0';
     const [integerPart, decimalPart] = num.toFixed(2).split('.');
@@ -122,449 +203,166 @@ const ReceivablesLedger = () => {
     }
 
     return decimalPart ? `${lastThree}.${decimalPart}` : lastThree;
-  };
+  }, []);
 
-  // Auto-refresh when company changes
-  useEffect(() => {
-    if (parties.length > 0) {
-      calculateAllCustomerBalances(parties, companyIdForBalances);
-      calculateOverallTotals();
-    }
-  }, [companyIdForBalances]);
-
-  // Refresh data when date range changes
-  useEffect(() => {
-    if (selectedParty) {
-      const timer = setTimeout(() => {
-        fetchLedgerData();
-      }, 300);
-
-      return () => clearTimeout(timer);
-    } else {
-      const timer = setTimeout(() => {
-        if (parties.length > 0) {
-          calculateAllCustomerBalances(parties, companyIdForBalances);
-          calculateOverallTotals();
+  // Handle hardware back button and swipe gestures
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (selectedParty) {
+          setSelectedParty('');
+          return true;
         }
-      }, 300);
+        return false;
+      };
 
-      return () => clearTimeout(timer);
-    }
-  }, [dateRange.startDate, dateRange.endDate, companyIdForBalances, selectedParty]);
+      const backHandler = BackHandler.addEventListener(
+        'hardwareBackPress',
+        onBackPress
+      );
+
+      const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+        if (selectedParty) {
+          e.preventDefault();
+          setSelectedParty('');
+        }
+      });
+
+      return () => {
+        backHandler.remove();
+        unsubscribe();
+      };
+    }, [selectedParty, navigation])
+  );
 
   // Calculate balances for all customers
- const calculateAllCustomerBalances = async (partiesList, companyId) => {
-  setLoadingBalances(true);
-  try {
-    const token = await AsyncStorage.getItem('token');
-    if (!token) return;
-
-    // ✅ Add isDashboard parameter
-    const params = new URLSearchParams();
-    if (companyId && companyId !== "all") {
-      params.append("companyId", companyId); // ✅ Changed from 'company' to 'companyId'
-    }
-    params.append("isDashboard", "true"); // ✅ CRITICAL: Added this parameter
-
-    const [salesRes, receiptRes] = await Promise.all([
-      fetch(`${baseURL}/api/sales?${params.toString()}`, { 
-        headers: { Authorization: `Bearer ${token}` } 
-      }),
-      fetch(`${baseURL}/api/receipts?${params.toString()}`, { 
-        headers: { Authorization: `Bearer ${token}` } 
-      }),
-    ]);
-
-    const salesData = await salesRes.json();
-    const receiptData = await receiptRes.json();
-    const allSales = salesData.data || [];
-    const allReceipts = receiptData.data || [];
-
-    const balances = {};
-    const lastDates = {};
-
-    // ✅ Fixed date handling
-    const startDate = dateRange.startDate 
-      ? new Date(new Date(dateRange.startDate).setHours(0, 0, 0, 0))
-      : null;
-    const endDate = dateRange.endDate 
-      ? new Date(new Date(dateRange.endDate).setHours(23, 59, 59, 999))
-      : null;
-
-    partiesList.forEach((party) => {
-      let totalCredit = 0;
-      let totalDebit = 0;
-      let latestDate = null;
-
-      allSales.forEach((sale) => {
-        if (String(sale.party?._id || sale.party) !== String(party._id)) return;
-        
-        const sDate = new Date(sale.date);
-        if ((!startDate || sDate >= startDate) && (!endDate || sDate <= endDate)) {
-          const amt = Number(sale.totalAmount || sale.invoiceTotal || 0);
-          totalCredit += amt;
-          if (sale.paymentMethod !== "Credit") totalDebit += amt;
-          if (!latestDate || sDate > latestDate) latestDate = sDate;
-        }
-      });
-
-      allReceipts.forEach((receipt) => {
-        if (String(receipt.party?._id || receipt.party) !== String(party._id)) return;
-        
-        const rDate = new Date(receipt.date);
-        if ((!startDate || rDate >= startDate) && (!endDate || rDate <= endDate)) {
-          totalDebit += Number(receipt.amount || 0);
-          if (!latestDate || rDate > latestDate) latestDate = rDate;
-        }
-      });
-
-      balances[party._id] = totalCredit - totalDebit;
-      lastDates[party._id] = latestDate;
-    });
-
-    setCustomerBalances(balances);
-    setLastTransactionDates(lastDates);
-  } catch (error) {
-    console.error("Sync Error:", error);
-  } finally {
-    setLoadingBalances(false);
-  }
-};
-
-  // Calculate balances manually (fallback)
-  const calculateBalancesManually = async (partiesList, companyId) => {
+  const calculateAllCustomerBalances = useCallback(async (partiesList, companyId) => {
+    setLoadingBalances(true);
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
 
-      const [salesResponse, receiptResponse] = await Promise.all([
-        fetch(`${baseURL}/api/sales`, {
-          headers: { Authorization: `Bearer ${token}` },
+      const params = new URLSearchParams();
+      if (companyId && companyId !== "all") {
+        params.append("companyId", companyId);
+      }
+      params.append("isDashboard", "true");
+
+      const [salesRes, receiptRes] = await Promise.all([
+        fetch(`${baseURL}/api/sales?${params.toString()}`, { 
+          headers: { Authorization: `Bearer ${token}` } 
         }),
-        fetch(`${baseURL}/api/receipts`, {
-          headers: { Authorization: `Bearer ${token}` },
+        fetch(`${baseURL}/api/receipts?${params.toString()}`, { 
+          headers: { Authorization: `Bearer ${token}` } 
         }),
       ]);
 
-      const salesData = await salesResponse.json();
-      const receiptData = await receiptResponse.json();
-
-      const allSales =
-        salesData.data || salesData.sales || salesData.entries || [];
-      const allReceipts =
-        receiptData.data || receiptData.receipts || receiptData.entries || [];
+      const salesData = await salesRes.json();
+      const receiptData = await receiptRes.json();
+      const allSales = salesData.data || [];
+      const allReceipts = receiptData.data || [];
 
       const balances = {};
+      const lastDates = {};
 
-      for (const party of partiesList) {
+      const startDate = dateRange.startDate 
+        ? new Date(new Date(dateRange.startDate).setHours(0, 0, 0, 0))
+        : null;
+      const endDate = dateRange.endDate 
+        ? new Date(new Date(dateRange.endDate).setHours(23, 59, 59, 999))
+        : null;
+
+      partiesList.forEach((party) => {
         let totalCredit = 0;
         let totalDebit = 0;
+        let latestDate = null;
 
-        const partySales = allSales.filter(sale => {
-          const salePartyId = sale.party?._id || sale.party;
-          const matchesParty = String(salePartyId) === String(party._id);
-          const saleCompanyId =
-            typeof sale.company === 'object'
-              ? sale.company?._id || sale.company?.id
-              : sale.company;
-          const matchesCompany = !companyId || saleCompanyId === companyId;
-          return matchesParty && matchesCompany;
-        });
-
-        const partyReceipts = allReceipts.filter(receipt => {
-          const receiptPartyId = receipt.party?._id || receipt.party;
-          const matchesParty = String(receiptPartyId) === String(party._id);
-          const receiptCompanyId =
-            typeof receipt.company === 'object'
-              ? receipt.company?._id || receipt.company?.id
-              : receipt.company;
-          const matchesCompany = !companyId || receiptCompanyId === companyId;
-          return matchesParty && matchesCompany;
-        });
-
-        // Process sales
-        partySales.forEach(sale => {
-          const saleDate = new Date(sale.date);
-          const startDate = dateRange.startDate
-            ? new Date(dateRange.startDate.getTime())
-            : null;
-          const endDate = dateRange.endDate
-            ? new Date(dateRange.endDate.getTime())
-            : null;
-
-          if (startDate) startDate.setHours(0, 0, 0, 0);
-          if (endDate) endDate.setHours(23, 59, 59, 999);
-
-          const isInDateRange =
-            (!startDate || saleDate >= startDate) &&
-            (!endDate || saleDate <= endDate);
-
-          if (isInDateRange) {
-            const amount =
-              sale.totalAmount || sale.amount || sale.invoiceTotal || 0;
-            const isCreditTransaction = sale.paymentMethod === 'Credit';
-
-            totalCredit += amount;
-
-            if (!isCreditTransaction) {
-              totalDebit += amount;
-            }
+        allSales.forEach((sale) => {
+          if (String(sale.party?._id || sale.party) !== String(party._id)) return;
+          
+          const sDate = new Date(sale.date);
+          if ((!startDate || sDate >= startDate) && (!endDate || sDate <= endDate)) {
+            const amt = Number(sale.totalAmount || sale.invoiceTotal || 0);
+            totalCredit += amt;
+            if (sale.paymentMethod !== "Credit") totalDebit += amt;
+            if (!latestDate || sDate > latestDate) latestDate = sDate;
           }
         });
 
-        // Process receipts
-        partyReceipts.forEach(receipt => {
-          const receiptDate = new Date(receipt.date);
-          const startDate = dateRange.startDate
-            ? new Date(dateRange.startDate.getTime())
-            : null;
-          const endDate = dateRange.endDate
-            ? new Date(dateRange.endDate.getTime())
-            : null;
-
-          if (startDate) startDate.setHours(0, 0, 0, 0);
-          if (endDate) endDate.setHours(23, 59, 59, 999);
-
-          const isInDateRange =
-            (!startDate || receiptDate >= startDate) &&
-            (!endDate || receiptDate <= endDate);
-
-          if (isInDateRange) {
-            totalDebit += receipt.amount || 0;
+        allReceipts.forEach((receipt) => {
+          if (String(receipt.party?._id || receipt.party) !== String(party._id)) return;
+          
+          const rDate = new Date(receipt.date);
+          if ((!startDate || rDate >= startDate) && (!endDate || rDate <= endDate)) {
+            totalDebit += Number(receipt.amount || 0);
+            if (!latestDate || rDate > latestDate) latestDate = rDate;
           }
         });
 
         balances[party._id] = totalCredit - totalDebit;
-      }
+        lastDates[party._id] = latestDate;
+      });
 
       setCustomerBalances(balances);
-    } catch (error) {
-      console.error('Error calculating balances manually:', error);
-    }
-  };
-
-  // Calculate last transaction dates
-  const calculateLastTransactionDates = async (partiesList, companyId) => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) return;
-
-      const [salesResponse, receiptResponse] = await Promise.all([
-        fetch(`${baseURL}/api/sales`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${baseURL}/api/receipts`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
-
-      const salesData = await salesResponse.json();
-      const receiptData = await receiptResponse.json();
-
-      const allSales =
-        salesData.data || salesData.sales || salesData.entries || [];
-      const allReceipts =
-        receiptData.data || receiptData.receipts || receiptData.entries || [];
-
-      const lastDates = {};
-
-      for (const party of partiesList) {
-        let latestDate = null;
-
-        // Check sales
-        const partySales = allSales.filter(sale => {
-          const salePartyId = sale.party?._id || sale.party;
-          const matchesParty = String(salePartyId) === String(party._id);
-          const saleCompanyId =
-            typeof sale.company === 'object'
-              ? sale.company?._id || sale.company?.id
-              : sale.company;
-          const matchesCompany = !companyId || saleCompanyId === companyId;
-          return matchesParty && matchesCompany;
-        });
-
-        partySales.forEach(sale => {
-          const saleDate = new Date(sale.date);
-          if (!latestDate || saleDate > latestDate) {
-            latestDate = saleDate;
-          }
-        });
-
-        // Check receipts
-        const partyReceipts = allReceipts.filter(receipt => {
-          const receiptPartyId = receipt.party?._id || receipt.party;
-          const matchesParty = String(receiptPartyId) === String(party._id);
-          const receiptCompanyId =
-            typeof receipt.company === 'object'
-              ? receipt.company?._id || receipt.company?.id
-              : receipt.company;
-          const matchesCompany = !companyId || receiptCompanyId === companyId;
-          return matchesParty && matchesCompany;
-        });
-
-        partyReceipts.forEach(receipt => {
-          const receiptDate = new Date(receipt.date);
-          if (!latestDate || receiptDate > latestDate) {
-            latestDate = receiptDate;
-          }
-        });
-
-        lastDates[party._id] = latestDate;
-      }
-
       setLastTransactionDates(lastDates);
     } catch (error) {
-      console.error('Error calculating last transaction dates:', error);
+      console.error("Sync Error:", error);
+    } finally {
+      setLoadingBalances(false);
     }
-  };
+  }, [baseURL, dateRange.startDate, dateRange.endDate]);
 
   // Calculate overall totals
- const calculateOverallTotals = async () => {
-  setLoadingOverall(true);
-  try {
-    const token = await AsyncStorage.getItem('token');
-    if (!token) return;
-
-    // ✅ Build query parameters correctly
-    const params = new URLSearchParams();
-    if (companyIdForBalances && companyIdForBalances !== "all") {
-      params.append('companyId', companyIdForBalances); // ✅ Changed from 'company'
-    }
-    params.append('isDashboard', 'true'); // ✅ Added this parameter
-
-    const [salesResponse, receiptResponse] = await Promise.all([
-      fetch(`${baseURL}/api/sales?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-      fetch(`${baseURL}/api/receipts?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-    ]);
-
-    if (!salesResponse.ok || !receiptResponse.ok) {
-      throw new Error('Failed to fetch data');
-    }
-
-    const salesData = await salesResponse.json();
-    const receiptData = await receiptResponse.json();
-
-    const allSales = salesData.data || salesData.sales || salesData.entries || [];
-    const allReceipts = receiptData.data || receiptData.receipts || receiptData.entries || [];
-
-    let totalCredit = 0;
-    let totalDebit = 0;
-
-    // ✅ Fixed date handling
-    const startDate = dateRange.startDate
-      ? new Date(new Date(dateRange.startDate).setHours(0, 0, 0, 0))
-      : null;
-    const endDate = dateRange.endDate
-      ? new Date(new Date(dateRange.endDate).setHours(23, 59, 59, 999))
-      : null;
-
-    // Process sales
-    allSales.forEach(sale => {
-      const saleDate = new Date(sale.date);
-
-      const isInDateRange =
-        (!startDate || saleDate >= startDate) &&
-        (!endDate || saleDate <= endDate);
-
-      if (isInDateRange) {
-        const amount = sale.totalAmount || sale.amount || sale.invoiceTotal || 0;
-        totalCredit += amount;
-
-        const isCreditTransaction = sale.paymentMethod === 'Credit';
-        if (!isCreditTransaction) {
-          totalDebit += amount;
-        }
-      }
-    });
-
-    // Process receipts
-    allReceipts.forEach(receipt => {
-      const receiptDate = new Date(receipt.date);
-
-      const isInDateRange =
-        (!startDate || receiptDate >= startDate) &&
-        (!endDate || receiptDate <= endDate);
-
-      if (isInDateRange) {
-        const amount = receipt.amount || 0;
-        totalDebit += amount;
-      }
-    });
-
-    const overallBalance = totalCredit - totalDebit;
-
-    setOverallTotals({
-      totalDebit,
-      totalCredit,
-      overallBalance,
-    });
-  } catch (error) {
-    console.error('Error calculating overall totals:', error);
-    calculateOverallTotalsFallback();
-  } finally {
-    setLoadingOverall(false);
-  }
-};
-
-  // Fallback for overall totals
-  const calculateOverallTotalsFallback = async () => {
+  const calculateOverallTotals = useCallback(async () => {
+    setLoadingOverall(true);
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
 
+      const params = new URLSearchParams();
+      if (companyIdForBalances && companyIdForBalances !== "all") {
+        params.append('companyId', companyIdForBalances);
+      }
+      params.append('isDashboard', 'true');
+
       const [salesResponse, receiptResponse] = await Promise.all([
-        fetch(`${baseURL}/api/sales`, {
+        fetch(`${baseURL}/api/sales?${params.toString()}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`${baseURL}/api/receipts`, {
+        fetch(`${baseURL}/api/receipts?${params.toString()}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
 
+      if (!salesResponse.ok || !receiptResponse.ok) {
+        throw new Error('Failed to fetch data');
+      }
+
       const salesData = await salesResponse.json();
       const receiptData = await receiptResponse.json();
 
-      const allSales =
-        salesData.data || salesData.sales || salesData.entries || [];
-      const allReceipts =
-        receiptData.data || receiptData.receipts || receiptData.entries || [];
+      const allSales = salesData.data || salesData.sales || salesData.entries || [];
+      const allReceipts = receiptData.data || receiptData.receipts || receiptData.entries || [];
 
       let totalCredit = 0;
       let totalDebit = 0;
 
-      // Process sales
+      const startDate = dateRange.startDate
+        ? new Date(new Date(dateRange.startDate).setHours(0, 0, 0, 0))
+        : null;
+      const endDate = dateRange.endDate
+        ? new Date(new Date(dateRange.endDate).setHours(23, 59, 59, 999))
+        : null;
+
       allSales.forEach(sale => {
         const saleDate = new Date(sale.date);
-        const startDate = dateRange.startDate
-          ? new Date(dateRange.startDate.getTime())
-          : null;
-        const endDate = dateRange.endDate
-          ? new Date(dateRange.endDate.getTime())
-          : null;
-
-        if (startDate) startDate.setHours(0, 0, 0, 0);
-        if (endDate) endDate.setHours(23, 59, 59, 999);
-
         const isInDateRange =
           (!startDate || saleDate >= startDate) &&
           (!endDate || saleDate <= endDate);
 
-        const saleCompanyId =
-          typeof sale.company === 'object'
-            ? sale.company?._id || sale.company?.id
-            : sale.company;
-        const matchesCompany =
-          !companyIdForBalances || saleCompanyId === companyIdForBalances;
-
-        if (isInDateRange && matchesCompany) {
-          const amount =
-            sale.totalAmount || sale.amount || sale.invoiceTotal || 0;
+        if (isInDateRange) {
+          const amount = sale.totalAmount || sale.amount || sale.invoiceTotal || 0;
           totalCredit += amount;
-
           const isCreditTransaction = sale.paymentMethod === 'Credit';
           if (!isCreditTransaction) {
             totalDebit += amount;
@@ -572,32 +370,15 @@ const ReceivablesLedger = () => {
         }
       });
 
-      // Process receipts
       allReceipts.forEach(receipt => {
         const receiptDate = new Date(receipt.date);
-        const startDate = dateRange.startDate
-          ? new Date(dateRange.startDate.getTime())
-          : null;
-        const endDate = dateRange.endDate
-          ? new Date(dateRange.endDate.getTime())
-          : null;
-
-        if (startDate) startDate.setHours(0, 0, 0, 0);
-        if (endDate) endDate.setHours(23, 59, 59, 999);
-
         const isInDateRange =
           (!startDate || receiptDate >= startDate) &&
           (!endDate || receiptDate <= endDate);
 
-        const receiptCompanyId =
-          typeof receipt.company === 'object'
-            ? receipt.company?._id || receipt.company?.id
-            : receipt.company;
-        const matchesCompany =
-          !companyIdForBalances || receiptCompanyId === companyIdForBalances;
-
-        if (isInDateRange && matchesCompany) {
-          totalDebit += receipt.amount || 0;
+        if (isInDateRange) {
+          const amount = receipt.amount || 0;
+          totalDebit += amount;
         }
       });
 
@@ -609,12 +390,14 @@ const ReceivablesLedger = () => {
         overallBalance,
       });
     } catch (error) {
-      console.error('Error in fallback calculation:', error);
+      console.error('Error calculating overall totals:', error);
+    } finally {
+      setLoadingOverall(false);
     }
-  };
+  }, [baseURL, companyIdForBalances, dateRange.startDate, dateRange.endDate]);
 
   // Fetch parties
-  const fetchParties = async () => {
+  const fetchParties = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found');
@@ -637,150 +420,143 @@ const ReceivablesLedger = () => {
       console.error('Error fetching parties:', error);
       Alert.alert('Error', 'Failed to fetch customers');
     }
-  };
+  }, [baseURL, calculateAllCustomerBalances, calculateOverallTotals, companyIdForBalances]);
 
   // Fetch ledger data
-  const fetchLedgerData = async () => {
-  if (!selectedParty) {
-    setLedgerData([]);
-    return;
-  }
-
-  setLoading(true);
-  try {
-    const token = await AsyncStorage.getItem('token');
-    if (!token) throw new Error('Authentication token not found');
-
-    // ✅ Add isDashboard parameter
-    const params = new URLSearchParams();
-    if (companyIdForBalances && companyIdForBalances !== "all") {
-      params.append("companyId", companyIdForBalances); // ✅ Changed from 'company'
+  const fetchLedgerData = useCallback(async () => {
+    if (!selectedParty) {
+      setLedgerData([]);
+      return;
     }
-    params.append("isDashboard", "true"); // ✅ Added this
 
-    const [salesResponse, receiptResponse] = await Promise.all([
-      fetch(`${baseURL}/api/sales?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-      fetch(`${baseURL}/api/receipts?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-    ]);
+    setLoading(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('Authentication token not found');
 
-    const salesData = await salesResponse.json();
-    const receiptData = await receiptResponse.json();
+      const params = new URLSearchParams();
+      if (companyIdForBalances && companyIdForBalances !== "all") {
+        params.append("companyId", companyIdForBalances);
+      }
+      params.append("isDashboard", "true");
 
-    const allSales = salesData.data || salesData.sales || salesData.entries || [];
-    const allReceipts = receiptData.data || receiptData.receipts || receiptData.entries || [];
+      const [salesResponse, receiptResponse] = await Promise.all([
+        fetch(`${baseURL}/api/sales?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${baseURL}/api/receipts?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
 
-    const filteredSales = allSales.filter(sale => {
-      const salePartyId = sale.party?._id || sale.party;
-      const matchesParty = String(salePartyId) === String(selectedParty);
-      const saleCompanyId =
-        typeof sale.company === 'object'
-          ? sale.company?._id || sale.company?.id
-          : sale.company;
-      const matchesCompany =
-        !companyIdForBalances || saleCompanyId === companyIdForBalances;
-      return matchesParty && matchesCompany;
-    });
+      const salesData = await salesResponse.json();
+      const receiptData = await receiptResponse.json();
 
-    const filteredReceipts = allReceipts.filter(receipt => {
-      const receiptPartyId = receipt.party?._id || receipt.party;
-      const matchesParty = String(receiptPartyId) === String(selectedParty);
-      const receiptCompanyId =
-        typeof receipt.company === 'object'
-          ? receipt.company?._id || receipt.company?.id
-          : receipt.company;
-      const matchesCompany =
-        !companyIdForBalances || receiptCompanyId === companyIdForBalances;
-      return matchesParty && matchesCompany;
-    });
+      const allSales = salesData.data || salesData.sales || salesData.entries || [];
+      const allReceipts = receiptData.data || receiptData.receipts || receiptData.entries || [];
 
-    const ledgerEntries = [];
+      const filteredSales = allSales.filter(sale => {
+        const salePartyId = sale.party?._id || sale.party;
+        const matchesParty = String(salePartyId) === String(selectedParty);
+        const saleCompanyId =
+          typeof sale.company === 'object'
+            ? sale.company?._id || sale.company?.id
+            : sale.company;
+        const matchesCompany =
+          !companyIdForBalances || saleCompanyId === companyIdForBalances;
+        return matchesParty && matchesCompany;
+      });
 
-    // ✅ Fixed date handling
-    const startDate = dateRange.startDate
-      ? new Date(new Date(dateRange.startDate).setHours(0, 0, 0, 0))
-      : null;
-    const endDate = dateRange.endDate
-      ? new Date(new Date(dateRange.endDate).setHours(23, 59, 59, 999))
-      : null;
+      const filteredReceipts = allReceipts.filter(receipt => {
+        const receiptPartyId = receipt.party?._id || receipt.party;
+        const matchesParty = String(receiptPartyId) === String(selectedParty);
+        const receiptCompanyId =
+          typeof receipt.company === 'object'
+            ? receipt.company?._id || receipt.company?.id
+            : receipt.company;
+        const matchesCompany =
+          !companyIdForBalances || receiptCompanyId === companyIdForBalances;
+        return matchesParty && matchesCompany;
+      });
 
-    // Process sales
-    filteredSales.forEach(sale => {
-      const saleDate = new Date(sale.date);
+      const ledgerEntries = [];
 
-      const isInDateRange =
-        (!startDate || saleDate >= startDate) &&
-        (!endDate || saleDate <= endDate);
+      const startDate = dateRange.startDate
+        ? new Date(new Date(dateRange.startDate).setHours(0, 0, 0, 0))
+        : null;
+      const endDate = dateRange.endDate
+        ? new Date(new Date(dateRange.endDate).setHours(23, 59, 59, 999))
+        : null;
 
-      if (isInDateRange) {
-        ledgerEntries.push({
-          id: sale._id,
-          date: sale.date,
-          type: 'credit',
-          transactionType: 'Sales',
-          paymentMethod: sale.paymentMethod || 'Not Specified',
-          amount: sale.totalAmount || sale.amount || sale.invoiceTotal || 0,
-          referenceNumber: sale.invoiceNumber || sale.referenceNumber,
-          description: sale.description,
-        });
+      filteredSales.forEach(sale => {
+        const saleDate = new Date(sale.date);
+        const isInDateRange =
+          (!startDate || saleDate >= startDate) &&
+          (!endDate || saleDate <= endDate);
 
-        const isCreditTransaction = sale.paymentMethod === 'Credit';
-        if (!isCreditTransaction) {
+        if (isInDateRange) {
           ledgerEntries.push({
             id: sale._id,
             date: sale.date,
-            type: 'debit',
-            transactionType: 'Sales Payment',
+            type: 'credit',
+            transactionType: 'Sales',
             paymentMethod: sale.paymentMethod || 'Not Specified',
             amount: sale.totalAmount || sale.amount || sale.invoiceTotal || 0,
             referenceNumber: sale.invoiceNumber || sale.referenceNumber,
             description: sale.description,
           });
+
+          const isCreditTransaction = sale.paymentMethod === 'Credit';
+          if (!isCreditTransaction) {
+            ledgerEntries.push({
+              id: sale._id,
+              date: sale.date,
+              type: 'debit',
+              transactionType: 'Sales Payment',
+              paymentMethod: sale.paymentMethod || 'Not Specified',
+              amount: sale.totalAmount || sale.amount || sale.invoiceTotal || 0,
+              referenceNumber: sale.invoiceNumber || sale.referenceNumber,
+              description: sale.description,
+            });
+          }
         }
-      }
-    });
+      });
 
-    // Process receipts
-    filteredReceipts.forEach(receipt => {
-      const receiptDate = new Date(receipt.date);
+      filteredReceipts.forEach(receipt => {
+        const receiptDate = new Date(receipt.date);
+        const isInDateRange =
+          (!startDate || receiptDate >= startDate) &&
+          (!endDate || receiptDate <= endDate);
 
-      const isInDateRange =
-        (!startDate || receiptDate >= startDate) &&
-        (!endDate || receiptDate <= endDate);
+        if (isInDateRange) {
+          ledgerEntries.push({
+            id: receipt._id,
+            date: receipt.date,
+            type: 'debit',
+            transactionType: 'Receipt',
+            paymentMethod: receipt.paymentMethod || 'Not Specified',
+            amount: receipt.amount || 0,
+            referenceNumber: receipt.referenceNumber,
+            description: receipt.description,
+          });
+        }
+      });
 
-      if (isInDateRange) {
-        ledgerEntries.push({
-          id: receipt._id,
-          date: receipt.date,
-          type: 'debit',
-          transactionType: 'Receipt',
-          paymentMethod: receipt.paymentMethod || 'Not Specified',
-          amount: receipt.amount || 0,
-          referenceNumber: receipt.referenceNumber,
-          description: receipt.description,
-        });
-      }
-    });
+      ledgerEntries.sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+      );
 
-    // Sort by date (newest first)
-    ledgerEntries.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-    );
-
-    setLedgerData(ledgerEntries);
-  } catch (error) {
-    console.error('Error fetching ledger data:', error);
-    Alert.alert('Error', 'Failed to fetch ledger data');
-  } finally {
-    setLoading(false);
-  }
-};
+      setLedgerData(ledgerEntries);
+    } catch (error) {
+      console.error('Error fetching ledger data:', error);
+      Alert.alert('Error', 'Failed to fetch ledger data');
+    } finally {
+      setLoading(false);
+    }
+  }, [baseURL, companyIdForBalances, dateRange.startDate, dateRange.endDate, selectedParty]);
 
   // Handle viewing items for a transaction
-  const handleViewItems = async entry => {
+  const handleViewItems = useCallback(async (entry) => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
@@ -813,24 +589,22 @@ const ReceivablesLedger = () => {
       setItemsToView([]);
       setIsItemsDialogOpen(true);
     }
-  };
+  }, [baseURL]);
 
-  const processTransactionData = transaction => {
-    const prods = (transaction.products || []).map(p => {
-      return {
-        itemType: 'product',
-        name: p.product?.name || p.product || '(product)',
-        quantity: p.quantity ?? '',
-        unitType: p.unitType ?? '',
-        pricePerUnit: p.pricePerUnit ?? '',
-        description: '',
-        amount: Number(p.amount) || 0,
-        hsnCode: p.hsn || p.product?.hsn || '',
-        gstPercentage: p.gstPercentage,
-        gstRate: p.gstPercentage,
-        lineTax: p.lineTax,
-      };
-    });
+  const processTransactionData = useCallback((transaction) => {
+    const prods = (transaction.products || []).map(p => ({
+      itemType: 'product',
+      name: p.product?.name || p.product || '(product)',
+      quantity: p.quantity ?? '',
+      unitType: p.unitType ?? '',
+      pricePerUnit: p.pricePerUnit ?? '',
+      description: '',
+      amount: Number(p.amount) || 0,
+      hsnCode: p.hsn || p.product?.hsn || '',
+      gstPercentage: p.gstPercentage,
+      gstRate: p.gstPercentage,
+      lineTax: p.lineTax,
+    }));
 
     const svcArr = Array.isArray(transaction.services)
       ? transaction.services
@@ -840,29 +614,27 @@ const ReceivablesLedger = () => {
       ? [transaction.services]
       : [];
 
-    const svcs = svcArr.map(s => {
-      return {
-        itemType: 'service',
-        name: s.service?.serviceName || s.service || '(service)',
-        quantity: '',
-        unitType: '',
-        pricePerUnit: '',
-        description: s.description || '',
-        amount: Number(s.amount) || 0,
-        sacCode: s.sac || s.service?.sac || '',
-        gstPercentage: s.gstPercentage,
-        gstRate: s.gstPercentage,
-        lineTax: s.lineTax,
-      };
-    });
+    const svcs = svcArr.map(s => ({
+      itemType: 'service',
+      name: s.service?.serviceName || s.service || '(service)',
+      quantity: '',
+      unitType: '',
+      pricePerUnit: '',
+      description: s.description || '',
+      amount: Number(s.amount) || 0,
+      sacCode: s.sac || s.service?.sac || '',
+      gstPercentage: s.gstPercentage,
+      gstRate: s.gstPercentage,
+      lineTax: s.lineTax,
+    }));
 
     const allItems = [...prods, ...svcs];
     setItemsToView(allItems);
     setIsItemsDialogOpen(true);
-  };
+  }, []);
 
-  // Calculate totals
-  const calculateTotals = () => {
+  // Calculate totals - memoized
+  const totals = useMemo(() => {
     return ledgerData.reduce(
       (acc, entry) => {
         if (entry.type === 'debit') {
@@ -874,29 +646,33 @@ const ReceivablesLedger = () => {
       },
       { totalDebit: 0, totalCredit: 0 },
     );
-  };
+  }, [ledgerData]);
 
-  // Filter ledger data
-  const filteredLedgerData = ledgerData.filter(
-    entry =>
-      entry.transactionType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.paymentMethod?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.referenceNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.description?.toLowerCase().includes(searchTerm.toLowerCase()),
+  // Filter customers in modal based on search
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearchTerm) return parties;
+    
+    const lowerSearch = customerSearchTerm.toLowerCase();
+    return parties.filter(party =>
+      party.name.toLowerCase().includes(lowerSearch) ||
+      party.contactNumber?.toLowerCase().includes(lowerSearch)
+    );
+  }, [parties, customerSearchTerm]);
+
+  // Separate entries - memoized
+  const { debitEntries, creditEntries } = useMemo(() => ({
+    debitEntries: ledgerData.filter(entry => entry.type === 'debit'),
+    creditEntries: ledgerData.filter(entry => entry.type === 'credit'),
+  }), [ledgerData]);
+
+  const balance = useMemo(() => totals.totalCredit - totals.totalDebit, [totals]);
+  
+  const selectedPartyData = useMemo(() => 
+    parties.find(p => p._id === selectedParty),
+    [parties, selectedParty]
   );
 
-  const debitEntries = filteredLedgerData.filter(
-    entry => entry.type === 'debit',
-  );
-  const creditEntries = filteredLedgerData.filter(
-    entry => entry.type === 'credit',
-  );
-
-  const totals = calculateTotals();
-  const balance = totals.totalCredit - totals.totalDebit;
-  const selectedPartyData = parties.find(p => p._id === selectedParty);
-
-  // Pagination logic
+  // Pagination logic - memoized
   const sortedParties = useMemo(() => {
     return parties
       .filter(party => lastTransactionDates[party._id])
@@ -919,86 +695,238 @@ const ReceivablesLedger = () => {
     return sortedParties.slice(startIndex, endIndex);
   }, [sortedParties, startIndex, endIndex]);
 
-  const goToNextPage = () => {
+  const goToNextPage = useCallback(() => {
     setCurrentPage(prev => Math.min(prev + 1, totalPages));
-  };
+  }, [totalPages]);
 
-  const goToPrevPage = () => {
+  const goToPrevPage = useCallback(() => {
     setCurrentPage(prev => Math.max(prev - 1, 1));
-  };
+  }, []);
+
+// Export to CSV with proper Android permissions
+const exportToExcel = useCallback(async () => {
+  if (!selectedPartyData) {
+    Alert.alert('Error', 'No customer selected');
+    return;
+  }
+
+  if (ledgerData.length === 0) {
+    Alert.alert('No Data', 'No transactions to export');
+    return;
+  }
+
+  setLoading(true);
+  try {
+    console.log('Starting Excel export...');
+    
+    // Prepare headers
+    const headers = [
+      'Date',
+      'Type',
+      'Transaction Type',
+      'Payment Method',
+      'Amount (₹)',
+      'Reference',
+      'Description'
+    ];
+
+    // Prepare data rows
+    const dataRows = ledgerData.map(entry => [
+      format(new Date(entry.date), 'dd/MM/yyyy'),
+      entry.type.toUpperCase(),
+      entry.transactionType,
+      entry.paymentMethod || '',
+      `₹${formatIndianNumber(entry.amount)}`,
+      entry.referenceNumber || '',
+      entry.description || ''
+    ]);
+
+    // Add summary rows
+    const summaryRows = [
+      [],
+      ['SUMMARY'],
+      ['Total Transactions', ledgerData.length.toString()],
+      ['Total Credit', `₹${formatIndianNumber(totals.totalCredit)}`],
+      ['Total Debit', `₹${formatIndianNumber(totals.totalDebit)}`],
+      ['Net Balance', `₹${formatIndianNumber(Math.abs(balance))} (${balance >= 0 ? 'Customer Owes' : 'You Owe'})`]
+    ];
+
+    // Combine all data
+    const allData = [headers, ...dataRows, ...summaryRows];
+
+    // Create worksheet from array of arrays
+    const ws = XLSX.utils.aoa_to_sheet(allData);
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 12 },  // Date
+      { wch: 10 },  // Type
+      { wch: 18 },  // Transaction Type
+      { wch: 15 },  // Payment Method
+      { wch: 15 },  // Amount
+      { wch: 15 },  // Reference
+      { wch: 30 }   // Description
+    ];
+
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ledger');
+
+    // Generate filename
+    const cleanName = selectedPartyData.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fileName = `Ledger_${cleanName}_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`;
+    
+    console.log('File name:', fileName);
+
+    // Generate Excel file as base64
+    const excelBuffer = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+
+    // Determine file path based on platform
+    let filePath;
+    if (Platform.OS === 'android') {
+      // Use Download folder for Android
+      filePath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
+    } else {
+      // Use Document directory for iOS
+      filePath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
+    }
+
+    // Write file
+    await RNFS.writeFile(filePath, excelBuffer, 'base64');
+    console.log('File written successfully at:', filePath);
+
+    // For Android, scan the file so it appears in file manager
+    if (Platform.OS === 'android') {
+      await RNFS.scanFile(filePath);
+    }
+
+    // Verify file was created
+    const fileExists = await RNFS.exists(filePath);
+    console.log('File exists after write:', fileExists);
+
+    if (!fileExists) {
+      throw new Error('File was not created');
+    }
+
+    // Show success alert with share option
+    Alert.alert(
+      'Export Successful! ✅',
+      `Excel file has been saved as:\n${fileName}\n\nLocation: ${
+        Platform.OS === 'android' ? 'Downloads folder' : 'Documents folder'
+      }`,
+      [
+        { 
+          text: 'OK', 
+          style: 'default' 
+        },
+        { 
+          text: 'Share File', 
+          onPress: async () => {
+            try {
+              const Share = require('react-native-share').default;
+              await Share.open({
+                title: 'Share Ledger File',
+                message: `Customer Ledger - ${selectedPartyData.name}`,
+                url: Platform.OS === 'android' ? `file://${filePath}` : filePath,
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                subject: `Ledger Export - ${selectedPartyData.name}`,
+              });
+            } catch (shareError) {
+              console.log('Share error:', shareError);
+              if (shareError.message !== 'User did not share') {
+                Alert.alert('Info', 'File saved successfully in your Downloads folder.');
+              }
+            }
+          }
+        }
+      ]
+    );
+
+  } catch (error) {
+    console.error('Error exporting ledger:', error);
+    Alert.alert(
+      'Export Failed', 
+      `Error: ${error.message || 'Unknown error occurred'}`,
+      [{ text: 'OK' }]
+    );
+  } finally {
+    setLoading(false);
+  }
+}, [balance, formatIndianNumber, ledgerData, selectedPartyData, totals.totalCredit, totals.totalDebit]);
+
+  // Clear filters
+  const clearFilters = useCallback(() => {
+    setDateRange({
+      startDate: null,
+      endDate: new Date(),
+    });
+  }, []);
+
+  // Handle date picker
+  const onStartDateChange = useCallback((event, selectedDate) => {
+    setShowStartDatePicker(false);
+    if (selectedDate) {
+      setDateRange(prev => ({ ...prev, startDate: selectedDate }));
+    }
+  }, []);
+
+  const onEndDateChange = useCallback((event, selectedDate) => {
+    setShowEndDatePicker(false);
+    if (selectedDate) {
+      setDateRange(prev => ({ ...prev, endDate: selectedDate }));
+    }
+  }, []);
+
+  const handlePartyChange = useCallback((value) => {
+    setSelectedParty(value);
+    setShowCustomerModal(false);
+    setCustomerSearchTerm('');
+  }, []);
+
+  const handleBackToList = useCallback(() => {
+    setSelectedParty('');
+  }, []);
+
+  const toggleStartDatePicker = useCallback(() => {
+    setShowStartDatePicker(true);
+  }, []);
+
+  const toggleEndDatePicker = useCallback(() => {
+    setShowEndDatePicker(true);
+  }, []);
+
+  // Auto-refresh when company changes
+  useEffect(() => {
+    if (parties.length > 0) {
+      calculateAllCustomerBalances(parties, companyIdForBalances);
+      calculateOverallTotals();
+    }
+  }, [companyIdForBalances]);
+
+  // Refresh data when date range changes
+  useEffect(() => {
+    if (selectedParty) {
+      const timer = setTimeout(() => {
+        fetchLedgerData();
+      }, 300);
+
+      return () => clearTimeout(timer);
+    } else {
+      const timer = setTimeout(() => {
+        if (parties.length > 0) {
+          calculateAllCustomerBalances(parties, companyIdForBalances);
+          calculateOverallTotals();
+        }
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }
+  }, [dateRange.startDate, dateRange.endDate, companyIdForBalances, selectedParty]);
 
   // Reset page on filter change
   useEffect(() => {
     setCurrentPage(1);
   }, [companyIdForBalances, dateRange.startDate, dateRange.endDate]);
-
-  // Export to CSV (simplified for React Native)
-  const exportToCSV = async () => {
-    if (!selectedPartyData) return;
-
-    setLoading(true);
-    try {
-      // Create CSV content
-      let csvContent =
-        'Date,Type,Transaction Type,Payment Method,Amount (₹),Reference,Description\n';
-
-      ledgerData.forEach(entry => {
-        csvContent += `${format(new Date(entry.date), 'dd/MM/yyyy')},`;
-        csvContent += `${entry.type.toUpperCase()},`;
-        csvContent += `${entry.transactionType},`;
-        csvContent += `${entry.paymentMethod || ''},`;
-        csvContent += `₹${formatIndianNumber(entry.amount)},`;
-        csvContent += `${entry.referenceNumber || ''},`;
-        csvContent += `${entry.description || ''}\n`;
-      });
-
-      // Add totals
-      csvContent += '\n';
-      csvContent += 'SUMMARY\n';
-      csvContent += `Total Transactions,${ledgerData.length}\n`;
-      csvContent += `Total Credit,₹${formatIndianNumber(totals.totalCredit)}\n`;
-      csvContent += `Total Debit,₹${formatIndianNumber(totals.totalDebit)}\n`;
-      csvContent += `Net Balance,₹${formatIndianNumber(Math.abs(balance))} (${
-        balance >= 0 ? 'Customer Owes' : 'You Owe'
-      })\n`;
-
-      // Save file (React Native implementation would need additional libraries)
-      Alert.alert(
-        'Export CSV',
-        'CSV content has been generated. In a real app, you would save this to a file.',
-        [{ text: 'OK' }],
-      );
-    } catch (error) {
-      console.error('Error exporting ledger:', error);
-      Alert.alert('Error', 'Failed to export data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Clear filters
-  const clearFilters = () => {
-    setDateRange({
-      startDate: null,
-      endDate: new Date(),
-    });
-    setSearchTerm('');
-  };
-
-  // Handle date picker
-  const onStartDateChange = (event, selectedDate) => {
-    setShowStartDatePicker(false);
-    if (selectedDate) {
-      setDateRange(prev => ({ ...prev, startDate: selectedDate }));
-    }
-  };
-
-  const onEndDateChange = (event, selectedDate) => {
-    setShowEndDatePicker(false);
-    if (selectedDate) {
-      setDateRange(prev => ({ ...prev, endDate: selectedDate }));
-    }
-  };
 
   // Initialize data
   useEffect(() => {
@@ -1013,394 +941,389 @@ const ReceivablesLedger = () => {
 
   // Render
   return (
-    <ScrollView style={styles.container}>
-      {/* Header */}
+    <View style={styles.container}>
+      {/* Enhanced Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Customer Ledger</Text>
-        <View style={styles.headerButtons}>
+        <View style={styles.headerContent}>
+          <View style={styles.headerLeft}>
+            <View style={styles.iconBadge}>
+              <Icon name="book-open-variant" size={24} color="#3B82F6" />
+            </View>
+            <View>
+              <Text style={styles.title}>Customer Ledger</Text>
+              <Text style={styles.subtitle}>Manage receivables</Text>
+            </View>
+          </View>
           <TouchableOpacity
             style={[
               styles.exportButton,
               (!selectedParty || ledgerData.length === 0) &&
                 styles.disabledButton,
             ]}
-            onPress={exportToCSV}
+            onPress={exportToExcel}
             disabled={!selectedParty || ledgerData.length === 0}
+            activeOpacity={0.7}
           >
-            <Icon name="download" size={20} color="white" />
-            <Text style={styles.exportButtonText}> Export</Text>
+            <Icon name="download" size={18} color="white" />
+            <Text style={styles.exportButtonText}>Export</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Back to List Button */}
-      {selectedParty && (
-        <View style={styles.backButtonContainer}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => setSelectedParty('')}
-          >
-            <Icon name="arrow-left" size={20} color="#3b82f6" />
-            <Text style={styles.backButtonText}>Back to Customer List</Text>
-          </TouchableOpacity>
-          <Text style={styles.currentCustomer}>
-            Currently viewing:{' '}
-            <Text style={styles.customerName}>{selectedPartyData?.name}</Text>
-          </Text>
-        </View>
-      )}
+      <ScrollView 
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Back Button */}
+        {selectedParty && (
+          <View style={styles.backButtonContainer}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBackToList}
+              activeOpacity={0.7}
+            >
+              <View style={styles.backButtonContent}>
+                <Icon name="arrow-left" size={20} color="#3B82F6" />
+                <Text style={styles.backButtonText}>Back to Customers</Text>
+              </View>
+            </TouchableOpacity>
+            <View style={styles.currentCustomerBadge}>
+              <Icon name="account-circle" size={16} color="#6B7280" />
+              <Text style={styles.currentCustomer}>
+                {selectedPartyData?.name}
+              </Text>
+            </View>
+          </View>
+        )}
 
-      {/* Filters Card */}
-      <View style={styles.card}>
-        <View style={styles.cardContent}>
-          <Text style={styles.cardTitle}>Filters</Text>
-
-          {/* Customer Selector */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Select Customer</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={selectedParty}
-                onValueChange={setSelectedParty}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select a customer..." value="" />
-                {parties.map(party => (
-                  <Picker.Item
-                    key={party._id}
-                    label={`${party.name}${
-                      party.contactNumber ? ` (${party.contactNumber})` : ''
-                    }`}
-                    value={party._id}
-                  />
-                ))}
-              </Picker>
+        {/* Filters Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderLeft}>
+              <View style={styles.filterIconContainer}>
+                <Icon name="filter-variant" size={20} color="#3B82F6" />
+              </View>
+              <Text style={styles.cardTitle}>Filters</Text>
             </View>
           </View>
 
-          {/* Date Range */}
-          <View style={styles.dateRangeContainer}>
-            <View style={styles.dateInput}>
-              <Text style={styles.label}>From Date</Text>
+          <View style={styles.cardContent}>
+            {/* Customer Selector */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>
+                <Icon name="account-multiple" size={14} color="#6B7280" /> Customer
+              </Text>
               <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() => setShowStartDatePicker(true)}
+                style={[
+                  styles.filterInput,
+                  selectedParty && styles.filterInputActive,
+                ]}
+                onPress={() => setShowCustomerModal(true)}
+                activeOpacity={0.7}
               >
-                <Text style={styles.dateButtonText}>
-                  {dateRange.startDate
-                    ? format(dateRange.startDate, 'dd/MM/yyyy')
-                    : 'Select date'}
+                <Text
+                  style={[
+                    styles.filterInputText,
+                    !selectedParty && styles.filterInputPlaceholder,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {selectedParty
+                    ? parties.find(p => p._id === selectedParty)?.name || 'Select a customer...'
+                    : 'All customers'}
                 </Text>
-                <Icon name="calendar" size={20} color="#666" />
+                <Icon name="chevron-down" size={18} color="#94A3B8" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.dateInput}>
-              <Text style={styles.label}>To Date</Text>
-              <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() => setShowEndDatePicker(true)}
-              >
-                <Text style={styles.dateButtonText}>
-                  {dateRange.endDate
-                    ? format(dateRange.endDate, 'dd/MM/yyyy')
-                    : 'Select end date'}
+            {/* Date Range */}
+            <View style={styles.dateRangeContainer}>
+              <View style={styles.dateInput}>
+                <Text style={styles.label}>
+                  <Icon name="calendar-start" size={14} color="#6B7280" /> From Date
                 </Text>
-                <Icon name="calendar" size={20} color="#666" />
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={toggleStartDatePicker}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.dateButtonText}>
+                    {dateRange.startDate
+                      ? format(dateRange.startDate, 'dd MMM yyyy')
+                      : 'Select date'}
+                  </Text>
+                  <View style={styles.calendarIcon}>
+                    <Icon name="calendar" size={18} color="#3B82F6" />
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.dateInput}>
+                <Text style={styles.label}>
+                  <Icon name="calendar-end" size={14} color="#6B7280" /> To Date
+                </Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={toggleEndDatePicker}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.dateButtonText}>
+                    {dateRange.endDate
+                      ? format(dateRange.endDate, 'dd MMM yyyy')
+                      : 'Select end date'}
+                  </Text>
+                  <View style={styles.calendarIcon}>
+                    <Icon name="calendar" size={18} color="#3B82F6" />
+                  </View>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
 
-          {/* Search */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Search</Text>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search transactions..."
-              value={searchTerm}
-              onChangeText={setSearchTerm}
-            />
+            {/* Clear Button */}
+            <TouchableOpacity 
+              style={styles.clearButton} 
+              onPress={clearFilters}
+              activeOpacity={0.7}
+            >
+              <Icon name="refresh" size={18} color="#6B7280" />
+              <Text style={styles.clearButtonText}>Clear Filters</Text>
+            </TouchableOpacity>
           </View>
-
-          {/* Clear Filters Button */}
-          <TouchableOpacity style={styles.clearButton} onPress={clearFilters}>
-            <Text style={styles.clearButtonText}>Clear Filters</Text>
-          </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Date Pickers */}
-      {showStartDatePicker && (
-        <DateTimePicker
-          value={dateRange.startDate || new Date()}
-          mode="date"
-          display="default"
-          onChange={onStartDateChange}
-        />
-      )}
+        {/* Date Pickers */}
+        {showStartDatePicker && (
+          <DateTimePicker
+            value={dateRange.startDate || new Date()}
+            mode="date"
+            display="default"
+            onChange={onStartDateChange}
+            maximumDate={new Date()}
+          />
+        )}
 
-      {showEndDatePicker && (
-        <DateTimePicker
-          value={dateRange.endDate || new Date()}
-          mode="date"
-          display="default"
-          onChange={onEndDateChange}
-        />
-      )}
+        {showEndDatePicker && (
+          <DateTimePicker
+            value={dateRange.endDate || new Date()}
+            mode="date"
+            display="default"
+            onChange={onEndDateChange}
+            maximumDate={new Date()}
+          />
+        )}
 
-      {!selectedParty ? (
-        <CustomerListCard
-          parties={paginatedParties}
-          customerBalances={customerBalances}
-          loadingBalances={loadingBalances}
-          setSelectedParty={setSelectedParty}
-          formatIndianNumber={formatIndianNumber}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={totalItems}
-          startIndex={startIndex}
-          endIndex={endIndex}
-          goToNextPage={goToNextPage}
-          goToPrevPage={goToPrevPage}
-          capitalizeWords={capitalizeWords}
-        />
-      ) : (
-        <>
-          {/* Customer Summary Cards */}
-          {selectedPartyData && (
-            <View style={styles.summaryGrid}>
-              {/* Customer Card */}
-              <View
-                style={[styles.summaryCard, { borderLeftColor: '#dc2626' }]}
-              >
-                <View style={styles.summaryContent}>
-                  <View style={styles.summaryHeader}>
-                    <View
-                      style={[
-                        styles.iconContainer,
-                        { backgroundColor: '#fee2e2' },
-                      ]}
-                    >
-                      <Icon name="account" size={20} color="#dc2626" />
-                    </View>
-                    <Text style={styles.summaryLabel}>Customer</Text>
-                  </View>
-                  <Text style={styles.summaryValue}>
-                    {selectedPartyData.name}
-                  </Text>
-                </View>
+        {/* Customer Selection Modal */}
+        <Modal
+          visible={showCustomerModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowCustomerModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Customer</Text>
+                <TouchableOpacity
+                  style={styles.modalCloseButton}
+                  onPress={() => {
+                    setShowCustomerModal(false);
+                    setCustomerSearchTerm('');
+                  }}
+                >
+                  <Icon name="close" size={24} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+              
+              {/* Search in Modal */}
+              <View style={styles.modalSearchWrapper}>
+                <Icon name="magnify" size={20} color="#9CA3AF" />
+                <TextInput
+                  style={styles.modalSearchInput}
+                  placeholder="Search customers..." 
+                  placeholderTextColor="#9CA3AF"
+                  value={customerSearchTerm}
+                  onChangeText={setCustomerSearchTerm}
+                />
+                {customerSearchTerm.length > 0 && (
+                  <TouchableOpacity onPress={() => setCustomerSearchTerm('')}>
+                    <Icon name="close-circle" size={20} color="#9CA3AF" />
+                  </TouchableOpacity>
+                )}
               </View>
 
-              {/* Total Credit Card */}
-              <View
-                style={[styles.summaryCard, { borderLeftColor: '#16a34a' }]}
-              >
-                <View style={styles.summaryContent}>
-                  <View style={styles.summaryHeader}>
-                    <View
-                      style={[
-                        styles.iconContainer,
-                        { backgroundColor: '#dcfce7' },
-                      ]}
-                    >
-                      <Icon name="cash-plus" size={20} color="#16a34a" />
-                    </View>
-                    <Text style={styles.summaryLabel}>Total Credit</Text>
-                  </View>
-                  <Text style={[styles.summaryValue, { color: '#16a34a' }]}>
-                    ₹{formatIndianNumber(totals.totalCredit)}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Total Debit Card */}
-              <View
-                style={[styles.summaryCard, { borderLeftColor: '#2563eb' }]}
-              >
-                <View style={styles.summaryContent}>
-                  <View style={styles.summaryHeader}>
-                    <View
-                      style={[
-                        styles.iconContainer,
-                        { backgroundColor: '#dbeafe' },
-                      ]}
-                    >
-                      <Icon name="cash-minus" size={20} color="#2563eb" />
-                    </View>
-                    <Text style={styles.summaryLabel}>Total Debit</Text>
-                  </View>
-                  <Text style={[styles.summaryValue, { color: '#dc2626' }]}>
-                    ₹{formatIndianNumber(totals.totalDebit)}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Balance Card */}
-              <View
-                style={[styles.summaryCard, { borderLeftColor: '#ea580c' }]}
-              >
-                <View style={styles.summaryContent}>
-                  <View style={styles.summaryHeader}>
-                    <View
-                      style={[
-                        styles.iconContainer,
-                        { backgroundColor: '#ffedd5' },
-                      ]}
-                    >
-                      <Icon name="scale-balance" size={20} color="#ea580c" />
-                    </View>
-                    <Text style={styles.summaryLabel}>Balance</Text>
-                  </View>
-                  <Text
+              <FlatList
+                data={filteredCustomers}
+                keyExtractor={item => item._id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
                     style={[
-                      styles.summaryValue,
-                      { color: balance >= 0 ? '#16a34a' : '#dc2626' },
+                      styles.modalItem,
+                      selectedParty === item._id && styles.modalItemSelected,
                     ]}
+                    onPress={() => handlePartyChange(item._id)}
+                    activeOpacity={0.6}
                   >
-                    ₹{formatIndianNumber(Math.abs(balance))}
-                  </Text>
-                  <Text style={styles.balanceNote}>
-                    {balance >= 0 ? '(Customer Owes)' : '(You Owe)'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* Ledger Details */}
-          <View style={styles.card}>
-            <View style={styles.cardContent}>
-              <Text style={styles.cardTitle}>Ledger Details</Text>
-
-              {loading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#3b82f6" />
-                  <Text style={styles.loadingText}>Loading ledger data...</Text>
-                </View>
-              ) : filteredLedgerData.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <Icon
-                    name="file-document-outline"
-                    size={48}
-                    color="#9ca3af"
-                  />
-                  <Text style={styles.emptyText}>No transactions found</Text>
-                </View>
-              ) : (
-                <ScrollView >
-                  <View>
-                    {/* Debit Side Header */}
-                    <View
-                      style={[
-                        styles.tableHeader,
-                        { backgroundColor: '#fef2f2' },
-                      ]}
-                    >
-                      <Text style={[styles.headerText, { color: '#dc2626' }]}>
-                        DEBIT SIDE (Receipts)
-                      </Text>
-                    </View>
-
-                    {/* Debit Transactions */}
-                    <ScrollView style={styles.sectionContainer}>
-                      {debitEntries.length === 0 ? (
-                        <View style={styles.noDataContainer}>
-                          <Text style={styles.noDataText}>
-                            No debit transactions
-                          </Text>
-                        </View>
-                      ) : (
-                        debitEntries.map((entry, index) => (
-                          <MobileLedgerCard
-                            key={`debit-${index}`}
-                            entry={entry}
-                            type="debit"
-                            formatIndianNumber={formatIndianNumber}
-                            format={format}
-                          />
-                        ))
-                      )}
-                    </ScrollView>
-
-                    {/* Credit Side Header */}
-                    <View
-                      style={[
-                        styles.tableHeader,
-                        { backgroundColor: '#f0fdf4' },
-                      ]}
-                    >
-                      <Text style={[styles.headerText, { color: '#16a34a' }]}>
-                        CREDIT SIDE (Sales)
-                      </Text>
-                    </View>
-
-                    {/* Credit Transactions */}
-                    <ScrollView style={styles.sectionContainer}>
-                      {creditEntries.length === 0 ? (
-                        <View style={styles.noDataContainer}>
-                          <Text style={styles.noDataText}>
-                            No credit transactions
-                          </Text>
-                        </View>
-                      ) : (
-                        creditEntries.map((entry, index) => (
-                          <TouchableOpacity
-                            key={`credit-${index}`}
-                            onPress={() => handleViewItems(entry)}
-                          >
-                            <MobileLedgerCard
-                              entry={entry}
-                              type="credit"
-                              formatIndianNumber={formatIndianNumber}
-                              format={format}
-                              showViewDetails={true}
-                            />
-                          </TouchableOpacity>
-                        ))
-                      )}
-                    </ScrollView>
-
-                    {/* Totals Row */}
-                    {/* <View style={styles.totalsRow}>
-                      <View style={styles.totalItem}>
-                        <Text style={styles.totalLabel}>Total Debit:</Text>
-                        <Text style={[styles.totalValue, { color: '#dc2626' }]}>
-                          ₹{formatIndianNumber(totals.totalDebit)}
-                        </Text>
-                      </View>
-                      <View style={styles.totalItem}>
-                        <Text style={styles.totalLabel}>Total Credit:</Text>
-                        <Text style={[styles.totalValue, { color: '#16a34a' }]}>
-                          ₹{formatIndianNumber(totals.totalCredit)}
-                        </Text>
-                      </View>
-                    </View> */}
-
-                    {/* Balance Row */}
-                    {/* <View
-                      style={[
-                        styles.balanceRow,
-                        { backgroundColor: '#e0f2fe' },
-                      ]}
-                    >
-                      <Text style={styles.balanceLabel}>Balance:</Text>
+                    <View style={styles.modalItemContent}>
                       <Text
                         style={[
-                          styles.balanceValue,
-                          { color: balance >= 0 ? '#16a34a' : '#dc2626' },
+                          styles.modalItemText,
+                          selectedParty === item._id && styles.modalItemTextSelected,
                         ]}
                       >
-                        ₹{formatIndianNumber(Math.abs(balance))}{' '}
-                        {balance >= 0 ? '(Customer Owes)' : '(You Owe)'}
+                        {item.name}
                       </Text>
-                    </View> */}
+                      {item.contactNumber && (
+                        <Text style={styles.modalItemSubtext}>
+                          {item.contactNumber}
+                        </Text>
+                      )}
+                    </View>
+                    {selectedParty === item._id && (
+                      <Icon name="check" size={20} color="#3B82F6" />
+                    )}
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                  <View style={styles.emptyModalList}>
+                    <Icon name="account-off" size={48} color="#E5E7EB" />
+                    <Text style={styles.emptyModalText}>No customers found</Text>
                   </View>
-                </ScrollView>
-              )}
+                }
+              />
             </View>
           </View>
-        </>
-      )}
+        </Modal>
+
+        {!selectedParty ? (
+          <CustomerListCard
+            parties={paginatedParties}
+            customerBalances={customerBalances}
+            loadingBalances={loadingBalances}
+            setSelectedParty={handlePartyChange}
+            formatIndianNumber={formatIndianNumber}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            startIndex={startIndex}
+            endIndex={endIndex}
+            goToNextPage={goToNextPage}
+            goToPrevPage={goToPrevPage}
+            capitalizeWords={capitalizeWords}
+          />
+        ) : (
+          <>
+            {/* Summary Cards */}
+            {selectedPartyData && (
+              <View style={styles.summaryGrid}>
+                <SummaryCard
+                  icon="account"
+                  label="Customer"
+                  value={selectedPartyData.name}
+                  type="customer"
+                />
+                <SummaryCard
+                  icon="cash-plus"
+                  label="Total Credit"
+                  value={`₹${formatIndianNumber(totals.totalCredit)}`}
+                  type="credit"
+                />
+                <SummaryCard
+                  icon="cash-minus"
+                  label="Total Debit"
+                  value={`₹${formatIndianNumber(totals.totalDebit)}`}
+                  type="debit"
+                />
+                <SummaryCard
+                  icon="scale-balance"
+                  label="Balance"
+                  value={`₹${formatIndianNumber(Math.abs(balance))}`}
+                  type="balance"
+                  note={balance >= 0 ? 'Customer Owes' : 'You Owe'}
+                />
+              </View>
+            )}
+
+            {/* Ledger Details */}
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardHeaderLeft}>
+                  <View style={styles.ledgerIconContainer}>
+                    <Icon name="file-document" size={20} color="#3B82F6" />
+                  </View>
+                  <Text style={styles.cardTitle}>Ledger Details</Text>
+                </View>
+                <View style={styles.transactionCount}>
+                  <Text style={styles.transactionCountText}>
+                    {ledgerData.length} transactions
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.cardContent}>
+                {loading ? (
+                  <LoadingState message="Loading ledger data..." />
+                ) : ledgerData.length === 0 ? (
+                  <EmptyState 
+                    message="No transactions found" 
+                    submessage="Try adjusting your filters"
+                  />
+                ) : (
+                  <View>
+                    {/* Debit Section */}
+                    <View style={styles.section}>
+                      <SectionHeader type="debit" subtitle="Receipts" />
+                      <View style={styles.sectionContent}>
+                        {debitEntries.length === 0 ? (
+                          <NoDataState message="No debit transactions" />
+                        ) : (
+                          debitEntries.map((entry, index) => (
+                            <MobileLedgerCard
+                              key={`debit-${entry.id}-${index}`}
+                              entry={entry}
+                              type="debit"
+                              formatIndianNumber={formatIndianNumber}
+                              format={format}
+                            />
+                          ))
+                        )}
+                      </View>
+                    </View>
+
+                    {/* Credit Section */}
+                    <View style={[styles.section, styles.creditSection]}>
+                      <SectionHeader type="credit" subtitle="Sales" />
+                      <View style={styles.sectionContent}>
+                        {creditEntries.length === 0 ? (
+                          <NoDataState message="No credit transactions" />
+                        ) : (
+                          creditEntries.map((entry, index) => (
+                            // <TouchableOpacity
+                            //   key={`credit-${entry.id}-${index}`}
+                            //   onPress={() => handleViewItems(entry)}
+                            //   activeOpacity={0.7}
+                            // >
+                              <MobileLedgerCard
+                                key={`credit-${entry.id}-${index}`}
+                                entry={entry}
+                                type="credit"
+                                formatIndianNumber={formatIndianNumber}
+                                format={format}
+                                showViewDetails={true}
+                                onViewDetails={() => handleViewItems(entry)}
+                              />
+                            // </TouchableOpacity>
+                          ))
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </View>
+            </View>
+          </>
+        )}
+      </ScrollView>
 
       {/* Item Details Dialog */}
       <ItemDetailsDialog
@@ -1409,131 +1332,232 @@ const ReceivablesLedger = () => {
         items={itemsToView}
         formatIndianNumber={formatIndianNumber}
       />
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F9FAFB',
   },
   header: {
+    backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'ios' ? 50 : 16,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+  },
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'white',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  iconBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#111827',
+    letterSpacing: -0.5,
   },
-  headerButtons: {
-    flexDirection: 'row',
-    gap: 8,
+  subtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+    fontWeight: '500',
   },
   exportButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#3B82F6',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 6,
+    borderRadius: 10,
     elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.5,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   disabledButton: {
-    backgroundColor: '#9ca3af',
-    opacity: 0.7,
+    backgroundColor: '#D1D5DB',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
   },
   exportButtonText: {
-    color: 'white',
+    color: '#FFFFFF',
     fontWeight: '600',
     fontSize: 14,
-    marginLeft: 4,
-  },
-  backButtonContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    paddingVertical: 6,
-  },
-  backButtonText: {
-    color: '#3b82f6',
-    fontSize: 16,
-    fontWeight: '500',
     marginLeft: 6,
   },
-  currentCustomer: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#6b7280',
+  scrollView: {
+    flex: 1,
   },
-  customerName: {
-    fontWeight: '600',
-    color: '#374151',
+  scrollContent: {
+    paddingBottom: 24,
   },
-  card: {
-    margin: 10,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    elevation: 2,
+  backButtonContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    marginHorizontal: 6,
+    marginTop: 16,
+    borderRadius: 12,
+    elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 2,
   },
-  cardContent: {
-    padding: 30,
+  backButton: {
+    marginBottom: 8,
+  },
+  backButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButtonText: {
+    color: '#3B82F6',
+    fontSize: 15,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  currentCustomerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  currentCustomer: {
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 8,
+    marginTop: 16,
+    borderRadius: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    overflow: 'hidden',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  cardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  filterIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  ledgerIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
   },
   cardTitle: {
     fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  transactionCount: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  transactionCountText: {
+    fontSize: 12,
     fontWeight: '600',
-    marginBottom: 16,
-    color: '#1f2937',
+    color: '#6B7280',
+  },
+  cardContent: {
+    padding: 20,
   },
   inputContainer: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   label: {
     fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 6,
-    color: '#4b5563',
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 6,
-    backgroundColor: 'white',
-    overflow: 'hidden',
-  },
-  picker: {
-    height: 50,
+    fontWeight: '600',
+    marginBottom: 8,
     color: '#374151',
+  },
+  filterInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    minHeight: 48,
+  },
+  filterInputActive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#3B82F6',
+  },
+  filterInputText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#0F172A',
+    flex: 1,
+    letterSpacing: -0.2,
+  },
+  filterInputPlaceholder: {
+    color: '#94A3B8',
+    fontWeight: '400',
   },
   dateRangeContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 20,
     gap: 12,
   },
   dateInput: {
@@ -1543,173 +1567,328 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: 'white',
-    minHeight: 48,
-  },
-  dateButtonText: {
-    fontSize: 16,
-    color: '#374151',
-  },
-  searchInput: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    fontSize: 16,
-    backgroundColor: 'white',
-    color: '#374151',
-  },
-  clearButton: {
-    marginTop: 8,
-    paddingVertical: 12,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
     paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 6,
-    alignItems: 'center',
-    backgroundColor: 'white',
-  },
-  clearButtonText: {
-    color: '#4b5563',
-    fontWeight: '500',
-    fontSize: 16,
-  },
-  summaryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: 8,
-    gap: 8,
-  },
-  summaryCard: {
-    flex: 1,
-    minWidth: Dimensions.get('window').width / 3 - 24,
-    margin: 4,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    borderLeftWidth: 4,
+    paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
+    minHeight: 54,
     elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 1,
+    shadowRadius: 2,
   },
-  summaryContent: {
-    padding: 16,
+  dateButtonText: {
+    fontSize: 15,
+    color: '#111827',
+    fontWeight: '500',
   },
-  summaryHeader: {
+  calendarIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clearButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'center',
+    marginTop: 4,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
-  iconContainer: {
+  clearButtonText: {
+    color: '#6B7280',
+    fontWeight: '600',
+    fontSize: 15,
+    marginLeft: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '70%',
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    letterSpacing: -0.3,
+  },
+  modalCloseButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
   },
-  summaryLabel: {
-    fontSize: 12,
-    color: '#6b7280',
+  modalSearchWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  summaryValue: {
-    fontSize: 18,
+  modalSearchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 15,
+    color: '#0F172A',
+    fontWeight: '500',
+  },
+  modalItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+  },
+  modalItemSelected: {
+    backgroundColor: '#EFF6FF',
+  },
+  modalItemContent: {
+    flex: 1,
+  },
+  modalItemText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#334155',
+    letterSpacing: -0.2,
+  },
+  modalItemTextSelected: {
+    color: '#3B82F6',
     fontWeight: '600',
-    color: '#1f2937',
+  },
+  modalItemSubtext: {
+    fontSize: 13,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  emptyModalList: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyModalText: {
+    fontSize: 15,
+    color: '#9CA3AF',
+    marginTop: 12,
+    fontWeight: '500',
+  },
+  summaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 12,
+    marginTop: 16,
+    gap: 12,
+  },
+  summaryCard: {
+    flex: 1,
+    minWidth: (width - 56) / 3,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+  },
+  customerCard: {
+    borderLeftWidth: 3,
+    borderLeftColor: '#DC2626',
+  },
+  creditCard: {
+    borderLeftWidth: 3,
+    borderLeftColor: '#16A34A',
+  },
+  debitCard: {
+    borderLeftWidth: 3,
+    borderLeftColor: '#2563EB',
+  },
+  balanceCard: {
+    borderLeftWidth: 3,
+    borderLeftColor: '#EA580C',
+  },
+  summaryContent: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'flex-start',
+},
+summaryTextContainer: {
+  flex: 1,
+  marginRight: 8,
+},
+  summaryIconContainer: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+      justifyContent: 'center',
+  alignItems: 'center',
+  },
+ summaryLabel: {
+  fontSize: 12,
+  color: '#6B7280',
+  marginBottom: 4,
+  fontWeight: '600',
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+},
+summaryValue: {
+  fontSize: 18,
+  fontWeight: '700',
+  color: '#111827',
+  marginBottom: 2,
+},
+  creditValue: {
+    color: '#16A34A',
+  },
+  debitValue: {
+    color: '#DC2626',
+  },
+  positiveBalance: {
+    color: '#16A34A',
+  },
+  negativeBalance: {
+    color: '#DC2626',
   },
   balanceNote: {
     fontSize: 12,
-    color: '#6b7280',
+    color: '#9CA3AF',
     marginTop: 4,
+    fontWeight: '500',
   },
   loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 40,
+    paddingVertical: 60,
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#6b7280',
+    marginTop: 16,
+    fontSize: 15,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 40,
+    paddingVertical: 60,
+  },
+  emptyIconContainer: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#F9FAFB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   emptyText: {
-    marginTop: 12,
+    fontSize: 18,
+    color: '#374151',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  section: {
+    marginBottom: 24,
+  },
+  creditSection: {
+    marginBottom: 0,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#F3F4F6',
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  debitBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  creditBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#DCFCE7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  sectionTitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    fontWeight: '700',
+    color: '#111827',
   },
-  tableHeader: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    marginBottom:10
+  sectionSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '600',
   },
-  headerText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  sectionContainer: {
-    // maxHeight: 300,
+  sectionContent: {
+    gap: 12,
   },
   noDataContainer: {
-    padding: 20,
     alignItems: 'center',
+    padding: 32,
   },
   noDataText: {
     fontSize: 14,
-    color: '#9ca3af',
-  },
-  totalsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#f9fafb',
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-  },
-  totalItem: {
-    alignItems: 'center',
-  },
-  totalLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#4b5563',
-  },
-  totalValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: 4,
-  },
-  balanceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-  },
-  balanceLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  balanceValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: '#9CA3AF',
+    marginTop: 12,
+    fontWeight: '500',
   },
 });
 

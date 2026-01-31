@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,6 @@ import {
   Users,
   FileText,
   ChevronRight,
-  Loader2,
   IndianRupee,
   ArrowUpRight,
   ArrowDownLeft,
@@ -25,13 +24,13 @@ import {
   CreditCard
 } from 'lucide-react-native';
 
-// Import components - these should be properly exported from your components
+// Import components
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { BASE_URL } from '../../config';
 
-// Create placeholder components if they don't exist
-const Badge = ({ children, variant = 'default', style }) => {
+// Memoized Badge Component
+const Badge = React.memo(({ children, variant = 'default', style }) => {
   const badgeStyles = [
     styles.badge,
     variant === 'secondary' && styles.badgeSecondary,
@@ -44,7 +43,178 @@ const Badge = ({ children, variant = 'default', style }) => {
       {typeof children === 'string' ? <Text style={styles.badgeText}>{children}</Text> : children}
     </View>
   );
-};
+});
+
+// Memoized Stat Card Component
+const StatCard = React.memo(({ title, value, subtitle, icon: IconComponent, loading, textColor }) => {
+  const iconConfig = useMemo(() => {
+    const configs = {
+      'Total Vendors': { color: '#3B82F6', bg: '#EFF6FF' },
+      'Net Payable': { color: '#EF4444', bg: '#FEF2F2' },
+      'Net Advance': { color: '#10B981', bg: '#F0FDF4' },
+      'Total Credit': { color: '#8B5CF6', bg: '#F5F3FF' },
+      'Total Debit': { color: '#F59E0B', bg: '#FFFBEB' },
+      'Expense Categories': { color: '#3B82F6', bg: '#EFF6FF' },
+      'Total Expenses': { color: '#3B82F6', bg: '#EFF6FF' }
+    };
+    return configs[title] || { color: '#3B82F6', bg: '#EFF6FF' };
+  }, [title]);
+
+  return (
+    <View style={styles.statCard}>
+      <View style={styles.statCardContent}>
+        {/* Top Row: Label and Icon */}
+        <View style={styles.statTopRow}>
+          <Text style={styles.statLabel}>{title}</Text>
+          <View style={[styles.statIconBg, { backgroundColor: iconConfig.bg }]}>
+            <IconComponent size={14} color={iconConfig.color} strokeWidth={2.5} />
+          </View>
+        </View>
+
+        {/* Value */}
+        {loading ? (
+          <ActivityIndicator size="small" color={iconConfig.color} style={styles.statLoader} />
+        ) : (
+          <Text style={[styles.statValue, textColor && { color: textColor }]} numberOfLines={1}>
+            {value}
+          </Text>
+        )}
+
+        {/* Subtitle */}
+        <Text style={styles.statSubtext} numberOfLines={2}>{subtitle}</Text>
+      </View>
+    </View>
+  );
+});
+
+// Memoized List Item Component
+const ListItem = React.memo(({ 
+  item, 
+  currentView, 
+  selectedCompanyId, 
+  vendorBalances, 
+  expenseTotals, 
+  loadingBalances,
+  formatCurrency,
+  onSelect 
+}) => {
+  const isVendor = currentView === 'vendor';
+  const name = isVendor ? item.vendorName : item.name;
+  const id = item._id;
+  
+  const total = useMemo(() => {
+    if (isVendor) {
+      if (selectedCompanyId && vendorBalances[id] !== undefined) {
+        return vendorBalances[id];
+      }
+      return item.balance || 0;
+    }
+    return expenseTotals[id] || 0;
+  }, [isVendor, selectedCompanyId, vendorBalances, id, item.balance, expenseTotals]);
+
+  const isLoading = loadingBalances && loadingBalances[id];
+  
+  const { balanceColor, iconBg, iconColor, badgeBg, badgeBorder, balanceText } = useMemo(() => {
+    if (isVendor) {
+      if (total < 0) return {
+        balanceColor: '#ef4444',
+        iconBg: styles.iconRed,
+        iconColor: '#ef4444',
+        badgeBg: styles.badgeRed,
+        badgeBorder: '#fecaca',
+        balanceText: 'You Owe'
+      };
+      if (total > 0) return {
+        balanceColor: '#10b981',
+        iconBg: styles.iconGreen,
+        iconColor: '#10b981',
+        badgeBg: styles.badgeGreen,
+        badgeBorder: '#bbf7d0',
+        balanceText: 'Advance'
+      };
+      return {
+        balanceColor: '#64748b',
+        iconBg: styles.iconGray,
+        iconColor: '#64748b',
+        badgeBg: styles.badgeGray,
+        badgeBorder: '#e2e8f0',
+        balanceText: 'Settled'
+      };
+    }
+    return {
+      balanceColor: '#3b82f6',
+      iconBg: styles.iconBlue,
+      iconColor: '#3b82f6',
+      badgeBg: styles.expenseBadge,
+      badgeBorder: '#bfdbfe',
+      balanceText: ''
+    };
+  }, [isVendor, total]);
+
+  const BalanceIcon = useMemo(() => {
+    if (total < 0) return <ArrowUpRight size={12} color="#ef4444" strokeWidth={2.5} />;
+    if (total > 0) return <ArrowDownLeft size={12} color="#10b981" strokeWidth={2.5} />;
+    return <Minus size={12} color="#64748b" strokeWidth={2.5} />;
+  }, [total]);
+
+  const handlePress = useCallback(() => {
+    onSelect(id);
+  }, [onSelect, id]);
+
+  return (
+    <TouchableOpacity
+      style={styles.listItem}
+      onPress={handlePress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.itemContent}>
+        <View style={styles.itemHeader}>
+          <View style={[styles.itemIcon, iconBg]}>
+            {isVendor ? (
+              <Users size={16} color={iconColor} strokeWidth={2} />
+            ) : (
+              <FileText size={16} color="#3b82f6" strokeWidth={2} />
+            )}
+          </View>
+          <View style={styles.itemInfo}>
+            <Text style={styles.itemName} numberOfLines={1}>{name}</Text>
+            {isVendor && (
+              <View style={styles.itemBalanceInfo}>
+                <Text style={[styles.balanceText, { color: balanceColor }]}>
+                  {balanceText}
+                </Text>
+                {!isLoading && total !== 0 && (
+                  <View style={[styles.balanceBadge, badgeBg]}>
+                    {BalanceIcon}
+                    <Text style={[styles.balanceBadgeText, { color: balanceColor }]}>
+                      {formatCurrency(Math.abs(total))}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        </View>
+        
+        <View style={styles.itemActions}>
+          {!isVendor && (
+            <View style={[styles.balanceBadge, styles.expenseBadge]}>
+              <IndianRupee size={12} color="#3b82f6" strokeWidth={2.5} />
+              <Text style={styles.expenseBadgeText}>{formatCurrency(total)}</Text>
+            </View>
+          )}
+          <View style={styles.viewButton}>
+            <ChevronRight size={18} color="#3b82f6" strokeWidth={2.5} />
+          </View>
+        </View>
+      </View>
+      
+      {isVendor && isLoading && (
+        <ActivityIndicator size="small" color="#3b82f6" style={styles.loadingIndicator} />
+      )}
+    </TouchableOpacity>
+  );
+});
 
 export function VendorExpenseList({
   currentView,
@@ -57,8 +227,8 @@ export function VendorExpenseList({
   loadingTotals,
   onSelect,
   selectedCompanyId,
-  dateRange, // Add dateRange as prop
-  formatCurrency // Add formatCurrency as prop
+  dateRange,
+  formatCurrency
 }) {
   const [vendorLastTransactionDates, setVendorLastTransactionDates] = useState({});
   const [expenseLastTransactionDates, setExpenseLastTransactionDates] = useState({});
@@ -67,13 +237,21 @@ export function VendorExpenseList({
   const itemsPerPage = 7;
   const baseURL = BASE_URL;
 
-  // Calculate statistics based on props
+  // Memoized statistics calculation
   const stats = useMemo(() => {
     if (currentView === 'vendor') {
-      const settledVendors = vendors.filter(v => {
+      let settledVendors = 0;
+      for (const v of vendors) {
         const balance = vendorBalances[v._id];
-        return balance !== undefined && balance === 0;
-      }).length;
+        if (balance !== undefined && balance === 0) {
+          settledVendors++;
+        }
+      }
+
+      let totalExpenseAmount = 0;
+      for (const amount of Object.values(expenseTotals)) {
+        totalExpenseAmount += amount;
+      }
 
       const netBalance = transactionTotals.totalDebit - transactionTotals.totalCredit;
 
@@ -81,23 +259,22 @@ export function VendorExpenseList({
         totalVendors: vendors.length,
         totalExpenses: expenses.length,
         netBalance,
-        totalExpenseAmount: Object.values(expenseTotals).reduce(
-          (sum, amount) => sum + amount,
-          0
-        ),
+        totalExpenseAmount,
         settledVendors,
         totalCredit: transactionTotals.totalCredit,
         totalDebit: transactionTotals.totalDebit,
       };
     } else {
+      let totalExpenseAmount = 0;
+      for (const amount of Object.values(expenseTotals)) {
+        totalExpenseAmount += amount;
+      }
+
       return {
         totalVendors: vendors.length,
         totalExpenses: expenses.length,
         netBalance: 0,
-        totalExpenseAmount: Object.values(expenseTotals).reduce(
-          (sum, amount) => sum + amount,
-          0
-        ),
+        totalExpenseAmount,
         settledVendors: 0,
         totalCredit: 0,
         totalDebit: 0,
@@ -105,8 +282,8 @@ export function VendorExpenseList({
     }
   }, [vendors, expenses, expenseTotals, vendorBalances, transactionTotals, selectedCompanyId, currentView]);
 
-  // Fetch last transaction dates for sorting (without date filters)
-  const fetchLastTransactionDates = async () => {
+  // Optimized fetch for last transaction dates
+  const fetchLastTransactionDates = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
@@ -117,17 +294,12 @@ export function VendorExpenseList({
       const vendorLastDates = {};
       const expenseLastDates = {};
 
-      // Fetch last transaction dates for vendors
-      const vendorPromises = vendors.map(async (vendor) => {
+      // Process vendors
+      const vendorDatePromises = vendors.map(async (vendor) => {
         try {
           const params = new URLSearchParams();
           params.append('vendorId', vendor._id);
           if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-          
-          // IMPORTANT: Do NOT add date filters here for list view
-          // The list should show overall data, not filtered data
-          // if (dateRange.from) params.append('fromDate', dateRange.from);
-          // if (dateRange.to) params.append('toDate', dateRange.to);
 
           const response = await fetch(
             `${baseURL}/api/ledger/vendor-payables?${params.toString()}`,
@@ -135,6 +307,7 @@ export function VendorExpenseList({
               method: 'GET',
               headers: {
                 Authorization: `Bearer ${token}`,
+                'Cache-Control': 'no-cache'
               },
             }
           );
@@ -143,11 +316,13 @@ export function VendorExpenseList({
             const data = await response.json();
             const allEntries = [...(data.debit || []), ...(data.credit || [])];
             if (allEntries.length > 0) {
-              const mostRecentDate = allEntries.reduce((latest, entry) => {
-                return new Date(entry.date) > new Date(latest)
-                  ? entry.date
-                  : latest;
-              }, allEntries[0].date);
+              let mostRecentDate = allEntries[0].date;
+              for (let i = 1; i < allEntries.length; i++) {
+                const entryDate = allEntries[i].date;
+                if (new Date(entryDate) > new Date(mostRecentDate)) {
+                  mostRecentDate = entryDate;
+                }
+              }
               vendorLastDates[vendor._id] = mostRecentDate;
             }
           }
@@ -156,16 +331,12 @@ export function VendorExpenseList({
         }
       });
 
-      // Fetch last transaction dates for expenses
-      const expensePromises = expenses.map(async (expense) => {
+      // Process expenses
+      const expenseDatePromises = expenses.map(async (expense) => {
         try {
           const params = new URLSearchParams();
           params.append('expenseId', expense._id);
           if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-          
-          // IMPORTANT: Do NOT add date filters here for list view
-          // if (dateRange.from) params.append('fromDate', dateRange.from);
-          // if (dateRange.to) params.append('toDate', dateRange.to);
 
           const response = await fetch(
             `${baseURL}/api/ledger/expense-payables?${params.toString()}`,
@@ -173,6 +344,7 @@ export function VendorExpenseList({
               method: 'GET',
               headers: {
                 Authorization: `Bearer ${token}`,
+                'Cache-Control': 'no-cache'
               },
             }
           );
@@ -181,11 +353,13 @@ export function VendorExpenseList({
             const data = await response.json();
             const allEntries = [...(data.debit || []), ...(data.credit || [])];
             if (allEntries.length > 0) {
-              const mostRecentDate = allEntries.reduce((latest, entry) => {
-                return new Date(entry.date) > new Date(latest)
-                  ? entry.date
-                  : latest;
-              }, allEntries[0].date);
+              let mostRecentDate = allEntries[0].date;
+              for (let i = 1; i < allEntries.length; i++) {
+                const entryDate = allEntries[i].date;
+                if (new Date(entryDate) > new Date(mostRecentDate)) {
+                  mostRecentDate = entryDate;
+                }
+              }
               expenseLastDates[expense._id] = mostRecentDate;
             }
           }
@@ -194,117 +368,50 @@ export function VendorExpenseList({
         }
       });
 
-      await Promise.all([...vendorPromises, ...expensePromises]);
+      // Execute promises in batches to avoid overwhelming the network
+      const BATCH_SIZE = 5;
+      
+      // Process vendors in batches
+      for (let i = 0; i < vendorDatePromises.length; i += BATCH_SIZE) {
+        const batch = vendorDatePromises.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch);
+      }
+      
+      // Process expenses in batches
+      for (let i = 0; i < expenseDatePromises.length; i += BATCH_SIZE) {
+        const batch = expenseDatePromises.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch);
+      }
+
       setVendorLastTransactionDates(vendorLastDates);
       setExpenseLastTransactionDates(expenseLastDates);
     } catch (error) {
       console.error('Error fetching last transaction dates:', error);
     }
-  };
+  }, [vendors, expenses, selectedCompanyId, baseURL]);
 
-  // Fetch last transaction dates on component mount
+  // Debounced useEffect for fetching dates
   useEffect(() => {
-    fetchLastTransactionDates();
-  }, [vendors, expenses, selectedCompanyId, currentView]);
+    const timer = setTimeout(() => {
+      fetchLastTransactionDates();
+    }, 300); // Small delay to prevent rapid re-fetches
+    
+    return () => clearTimeout(timer);
+  }, [fetchLastTransactionDates]);
 
-  const getBalanceVariant = (amount) => {
-    if (amount < 0) return 'destructive';
-    if (amount > 0) return 'default';
-    return 'secondary';
-  };
-
-  const getBalanceIcon = (amount) => {
-    if (amount < 0) return <ArrowUpRight size={12} color="#dc2626" />;
-    if (amount > 0) return <ArrowDownLeft size={12} color="#16a34a" />;
-    return <Minus size={12} color="#64748b" />;
-  };
-
-  const getBalanceText = (amount) => {
-    if (amount < 0) return 'You Owe';
-    if (amount > 0) return 'Advance';
-    return 'Settled';
-  };
-
-  const getBalanceColor = (amount) => {
-    if (amount < 0) return '#dc2626';
-    if (amount > 0) return '#16a34a';
-    return '#64748b';
-  };
-
-  const getNetBalanceConfig = (netBalance) => {
-    if (netBalance < 0) {
-      return {
-        title: 'Net Payable',
-        subtitle: 'Total amount you owe',
-        icon: TrendingUp,
-        trend: 'down',
-        cardBorderColor: '#fecaca',
-        textColor: '#dc2626',
-        iconBgColor: '#fee2e2'
-      };
-    } else if (netBalance > 0) {
-      return {
-        title: 'Net Advance',
-        subtitle: 'Total advance with vendors',
-        icon: TrendingDown,
-        trend: 'up',
-        cardBorderColor: '#bbf7d0',
-        textColor: '#16a34a',
-        iconBgColor: '#dcfce7'
-      };
-    } else {
-      return {
-        title: 'Net Balance',
-        subtitle: 'All accounts settled',
-        icon: Minus,
-        trend: 'neutral',
-        cardBorderColor: '#e2e8f0',
-        textColor: '#64748b',
-        iconBgColor: '#dbeafe'
-      };
-    }
-  };
-
-  const StatCard = ({ title, value, subtitle, icon: Icon, trend, cardBorderColor, loading, textColor, iconBgColor }) => {
-    const borderStyle = cardBorderColor ? { borderColor: cardBorderColor } : {};
-    const textStyle = textColor ? { color: textColor } : {};
-    const iconBgStyle = iconBgColor ? { backgroundColor: iconBgColor } : {};
-
-    return (
-      <Card style={[styles.statCard, borderStyle]}>
-        <CardContent style={styles.statContent}>
-          <View style={styles.statRow}>
-            <View style={styles.statInfo}>
-              <Text style={styles.statLabel}>{title}</Text>
-              {loading ? (
-                <ActivityIndicator size="small" color="#64748b" style={styles.statLoading} />
-              ) : (
-                <Text style={[styles.statValue, textStyle]}>{value}</Text>
-              )}
-              <Text style={styles.statSubtitle}>{subtitle}</Text>
-            </View>
-            <View style={[styles.statIconContainer, iconBgStyle]}>
-              <Icon size={16} color={
-                trend === 'up' ? '#16a34a' : 
-                trend === 'down' ? '#dc2626' : '#2563eb'
-              } />
-            </View>
-          </View>
-        </CardContent>
-      </Card>
-    );
-  };
-
-  // Prepare items list - sort by last transaction date
-  const items = currentView === 'vendor'
-    ? [...vendors].sort((a, b) => {
+  // Memoized items list with sorting
+  const items = useMemo(() => {
+    if (currentView === 'vendor') {
+      const sortedVendors = [...vendors].sort((a, b) => {
         const aDate = vendorLastTransactionDates[a._id];
         const bDate = vendorLastTransactionDates[b._id];
         if (!aDate && !bDate) return 0;
         if (!aDate) return 1;
         if (!bDate) return -1;
         return new Date(bDate).getTime() - new Date(aDate).getTime();
-      }).map(vendor => {
+      });
+
+      return sortedVendors.map(vendor => {
         let overallBalance = 0;
         if (!selectedCompanyId && vendor.balances) {
           for (const [companyId, balance] of Object.entries(vendor.balances)) {
@@ -319,8 +426,9 @@ export function VendorExpenseList({
           ...vendor,
           balance: overallBalance
         };
-      })
-    : [...expenses].sort((a, b) => {
+      });
+    } else {
+      return [...expenses].sort((a, b) => {
         const aDate = expenseLastTransactionDates[a._id];
         const bDate = expenseLastTransactionDates[b._id];
         if (!aDate && !bDate) return 0;
@@ -328,158 +436,102 @@ export function VendorExpenseList({
         if (!bDate) return -1;
         return new Date(bDate).getTime() - new Date(aDate).getTime();
       });
+    }
+  }, [currentView, vendors, expenses, vendorLastTransactionDates, expenseLastTransactionDates, selectedCompanyId, vendorBalances]);
 
-  // Get net balance configuration
-  const netBalanceConfig = getNetBalanceConfig(stats.netBalance);
+  // Memoized pagination
+  const { paginatedItems, totalPages } = useMemo(() => {
+    const totalPages = Math.ceil(items.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedItems = items.slice(startIndex, endIndex);
+    
+    return { paginatedItems, totalPages };
+  }, [items, currentPage]);
 
-  // Calculate pagination
-  const totalPages = Math.ceil(items.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedItems = items.slice(startIndex, endIndex);
-
-  // Reset to page 1 when view changes
+  // Reset page when view changes
   useEffect(() => {
     setCurrentPage(1);
   }, [currentView]);
 
-  const onRefreshList = async () => {
+  const onRefreshList = useCallback(async () => {
     setRefreshing(true);
     await fetchLastTransactionDates();
     setRefreshing(false);
-  };
+  }, [fetchLastTransactionDates]);
 
-  const renderItem = ({ item }) => {
-    const isVendor = currentView === 'vendor';
-    const name = isVendor ? item.vendorName : item.name;
-    const total = isVendor
-      ? selectedCompanyId && vendorBalances[item._id] !== undefined
-        ? vendorBalances[item._id]
-        : item.balance || 0
-      : expenseTotals[item._id] || 0;
-    const id = item._id;
-    const isLoading = loadingBalances && loadingBalances[id];
-    const balanceColor = getBalanceColor(total);
+  // Memoized renderItem function
+  const renderItem = useCallback(({ item }) => (
+    <ListItem
+      item={item}
+      currentView={currentView}
+      selectedCompanyId={selectedCompanyId}
+      vendorBalances={vendorBalances}
+      expenseTotals={expenseTotals}
+      loadingBalances={loadingBalances}
+      formatCurrency={formatCurrency}
+      onSelect={onSelect}
+    />
+  ), [currentView, selectedCompanyId, vendorBalances, expenseTotals, loadingBalances, formatCurrency, onSelect]);
 
-    return (
-      <TouchableOpacity
-        style={styles.listItem}
-        onPress={() => onSelect(id)}
-      >
-        <View style={styles.itemContent}>
-          <View style={styles.itemHeader}>
-            <View style={[
-              styles.itemIcon,
-              isVendor
-                ? total < 0 ? styles.iconRed :
-                  total > 0 ? styles.iconGreen : styles.iconGray
-                : styles.iconBlue
-            ]}>
-              {isVendor ? (
-                <Users size={16} color={balanceColor} />
-              ) : (
-                <FileText size={16} color="#2563eb" />
-              )}
-            </View>
-            <View style={styles.itemInfo}>
-              <Text style={styles.itemName} numberOfLines={1}>{name}</Text>
-              {isVendor && (
-                <View style={styles.itemBalanceInfo}>
-                  <Text style={[styles.balanceText, { color: balanceColor }]}>
-                    {getBalanceText(total)}
-                  </Text>
-                  {!isLoading && total !== 0 && (
-                    <View style={[
-                      styles.balanceBadge, 
-                      total < 0 ? styles.badgeRed :
-                      total > 0 ? styles.badgeGreen : styles.badgeGray
-                    ]}>
-                      {getBalanceIcon(total)}
-                      <Text style={styles.balanceBadgeText}>
-                        {formatCurrency(Math.abs(total))}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </View>
-          </View>
-          
-          <View style={styles.itemActions}>
-            {!isVendor && (
-              <View style={[styles.balanceBadge, styles.expenseBadge]}>
-                <IndianRupee size={12} color="#2563eb" />
-                <Text style={styles.expenseBadgeText}>{formatCurrency(total)}</Text>
-              </View>
-            )}
-            <Button
-              variant="outline"
-              onPress={() => onSelect(id)}
-              style={styles.viewButton}
-            >
-              <Text style={styles.viewButtonText}>View</Text>
-            </Button>
-          </View>
-        </View>
-        
-        {isVendor && isLoading && (
-          <ActivityIndicator size="small" color="#64748b" style={styles.loadingIndicator} />
-        )}
-      </TouchableOpacity>
-    );
-  };
+  // Memoized key extractor
+  const keyExtractor = useCallback((item) => item._id, []);
+
+  // Memoized header icon
+  const HeaderIcon = currentView === 'vendor' ? Users : FileText;
+  const headerIconColor = currentView === 'vendor' ? '#059669' : '#3b82f6';
+  const headerIconBg = currentView === 'vendor' ? styles.headerIconGreen : styles.headerIconBlue;
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefreshList} />
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefreshList}
+            tintColor="#3b82f6"
+            colors={['#3b82f6']}
+          />
         }
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews={true}
       >
         {/* Stats Cards */}
         {currentView === 'vendor' ? (
           <View style={styles.statsGrid}>
-            {/* Row 1 - First 2 boxes */}
             <StatCard
               title="Total Vendors"
               value={stats.totalVendors.toString()}
               subtitle={`${stats.settledVendors} settled`}
               icon={Users}
-              trend="neutral"
-              iconBgColor="#dbeafe"
+              textColor="#111827"
             />
+            
             <StatCard
-              title={netBalanceConfig.title}
+              title={stats.netBalance > 0 ? 'Net Advance' : 'Net Payable'}
               value={formatCurrency(Math.abs(stats.netBalance))}
-              subtitle={netBalanceConfig.subtitle}
-              icon={netBalanceConfig.icon}
-              trend={netBalanceConfig.trend}
-              cardBorderColor={netBalanceConfig.cardBorderColor}
-              textColor={netBalanceConfig.textColor}
-              iconBgColor={netBalanceConfig.iconBgColor}
+              subtitle={stats.netBalance > 0 ? 'Total advance with vendors' : 'You owe to vendors'}
+              icon={stats.netBalance > 0 ? TrendingDown : TrendingUp}
+              textColor={stats.netBalance > 0 ? '#10B981' : '#EF4444'}
               loading={loadingTotals}
             />
             
-            {/* Row 2 - Next 2 boxes */}
             <StatCard
               title="Total Credit"
               value={formatCurrency(stats.totalCredit)}
               subtitle="Payments made to vendors"
               icon={CreditCard}
-              trend="up"
               loading={loadingTotals}
-              cardBorderColor={stats.totalCredit > 0 ? '#bfdbfe' : '#e2e8f0'}
-              iconBgColor="#dcfce7"
+              textColor="#111827"
             />
+            
             <StatCard
               title="Total Debit"
               value={formatCurrency(stats.totalDebit)}
               subtitle="All-time purchases made"
               icon={IndianRupee}
-              trend="down"
               loading={loadingTotals}
-              cardBorderColor={stats.totalDebit > 0 ? '#fed7aa' : '#e2e8f0'}
-              iconBgColor="#fee2e2"
+              textColor="#111827"
             />
           </View>
         ) : (
@@ -489,63 +541,50 @@ export function VendorExpenseList({
               value={stats.totalExpenses.toString()}
               subtitle="Total categories"
               icon={FileText}
-              trend="neutral"
-              iconBgColor="#dbeafe"
+              textColor="#111827"
             />
             <StatCard
               title="Total Expenses"
               value={formatCurrency(stats.totalExpenseAmount)}
               subtitle="Total amount spent"
               icon={TrendingUp}
-              trend="neutral"
-              iconBgColor="#e9d5ff"
+              textColor="#111827"
             />
           </View>
         )}
 
         {/* Main List Card */}
-        <Card style={styles.mainCard}>
-          <CardHeader style={styles.mainHeader}>
+        <View style={styles.mainCard}>
+          <View style={styles.mainHeader}>
             <View style={styles.headerContent}>
               <View style={styles.headerIconContainer}>
-                <View style={[
-                  styles.headerIcon,
-                  currentView === 'vendor' ? styles.headerIconGreen : styles.headerIconBlue
-                ]}>
-                  {currentView === 'vendor' ? (
-                    <Users size={20} color="#16a34a" />
-                  ) : (
-                    <FileText size={20} color="#2563eb" />
-                  )}
+                <View style={[styles.headerIcon, headerIconBg]}>
+                  <HeaderIcon size={20} color={headerIconColor} strokeWidth={2} />
                 </View>
                 <View style={styles.headerText}>
-                  <CardTitle style={styles.mainTitle}>
+                  <Text style={styles.mainTitle}>
                     {currentView === 'vendor' ? 'Vendors' : 'Expense Categories'}
-                  </CardTitle>
+                  </Text>
                   <Text style={styles.headerSubtitle}>
                     {currentView === 'vendor'
-                      ? 'Manage your vendor relationships and balances'
-                      : 'Track expenses across different categories'}
+                      ? 'Manage vendor relationships & balances'
+                      : 'Track expenses across categories'}
                   </Text>
                 </View>
               </View>
               <Badge variant="secondary" style={styles.headerBadge}>
                 <Text style={styles.headerBadgeText}>
-                  {items.length} {currentView === 'vendor' ? 'vendors' : 'categories'}
+                  {items.length}
                 </Text>
               </Badge>
             </View>
-          </CardHeader>
+          </View>
 
-          <CardContent style={styles.mainContent}>
+          <View style={styles.mainContent}>
             {items.length === 0 ? (
               <View style={styles.emptyState}>
                 <View style={styles.emptyIcon}>
-                  {currentView === 'vendor' ? (
-                    <Users size={32} color="#94a3b8" />
-                  ) : (
-                    <FileText size={32} color="#94a3b8" />
-                  )}
+                  <HeaderIcon size={36} color="#cbd5e1" strokeWidth={1.5} />
                 </View>
                 <Text style={styles.emptyText}>
                   No {currentView === 'vendor' ? 'vendors' : 'expense categories'} found
@@ -553,7 +592,7 @@ export function VendorExpenseList({
                 <Text style={styles.emptySubtext}>
                   {currentView === 'vendor'
                     ? 'Add vendors to start tracking balances'
-                    : 'Create expense categories to organize your spending'}
+                    : 'Create expense categories to organize spending'}
                 </Text>
               </View>
             ) : (
@@ -561,44 +600,56 @@ export function VendorExpenseList({
                 <FlatList
                   data={paginatedItems}
                   renderItem={renderItem}
-                  keyExtractor={(item) => item._id}
+                  keyExtractor={keyExtractor}
                   scrollEnabled={false}
+                  removeClippedSubviews={true}
+                  maxToRenderPerBatch={10}
+                  windowSize={5}
+                  initialNumToRender={7}
+                  updateCellsBatchingPeriod={50}
                   ItemSeparatorComponent={() => <View style={styles.separator} />}
                 />
 
-                {/* Pagination Controls */}
+                {/* Pagination */}
                 {items.length > itemsPerPage && (
                   <View style={styles.pagination}>
-                    <View style={styles.paginationInfo}>
-                      <Text style={styles.paginationText}>
-                        Showing {startIndex + 1} to {Math.min(endIndex, items.length)} of {items.length} {currentView === 'vendor' ? 'vendors' : 'categories'}
-                      </Text>
-                    </View>
+                    <Text style={styles.paginationText}>
+                      Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, items.length)} of {items.length}
+                    </Text>
                     <View style={styles.paginationControls}>
                       <TouchableOpacity
                         onPress={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                         disabled={currentPage === 1}
                         style={[styles.paginationButton, currentPage === 1 && styles.buttonDisabled]}
+                        activeOpacity={0.7}
                       >
-                        <Text style={styles.paginationButtonText}>Previous</Text>
+                        <Text style={[styles.paginationButtonText, currentPage === 1 && styles.buttonTextDisabled]}>
+                          Previous
+                        </Text>
                       </TouchableOpacity>
-                      <Text style={styles.pageNumber}>
-                        Page {currentPage} of {totalPages}
-                      </Text>
+                      <View style={styles.pageNumberContainer}>
+                        <Text style={styles.pageNumber}>
+                          {currentPage}
+                        </Text>
+                        <Text style={styles.pageTotal}>of {totalPages}</Text>
+                      </View>
                       <TouchableOpacity
                         onPress={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                         disabled={currentPage === totalPages}
                         style={[styles.paginationButton, currentPage === totalPages && styles.buttonDisabled]}
+                        activeOpacity={0.7}
                       >
-                        <Text style={styles.paginationButtonText}>Next</Text>
+                        <Text style={[styles.paginationButtonText, currentPage === totalPages && styles.buttonTextDisabled]}>
+                          Next
+                        </Text>
                       </TouchableOpacity>
                     </View>
                   </View>
                 )}
               </>
             )}
-          </CardContent>
-        </Card>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -608,82 +659,93 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
-    paddingTop:-50
+    paddingTop: -50
   },
-  // Stats Grid - UPDATED for 2-column layout
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 12,
-    padding: 2,
-    paddingBottom: 8,
+    gap: 10,
+    padding: 0,
+    paddingBottom: 12,
   },
   expenseStatsGrid: {
     justifyContent: 'space-between',
   },
   statCard: {
-    width: '48%', // Fixed width for 2-column layout
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    width: '48.5%',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 12,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  statContent: {
+  statCardContent: {
     padding: 12,
+    gap: 6,
   },
-  statRow: {
+  statTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  statInfo: {
-    flex: 1,
+    alignItems: 'center',
+    marginBottom: 2,
   },
   statLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#64748b',
-    marginBottom: 4,
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    lineHeight: 12,
+  },
+  statIconBg: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   statValue: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '700',
-    marginBottom: 4,
+    color: '#111827',
+    letterSpacing: -0.5,
+    lineHeight: 24,
   },
-  statLoading: {
+  statSubtext: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#9CA3AF',
+    lineHeight: 12,
+  },
+  statLoader: {
     height: 24,
-  },
-  statSubtitle: {
-    fontSize: 11,
-    color: '#94a3b8',
-  },
-  statIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
     justifyContent: 'center',
   },
-  // Main List Card
   mainCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginHorizontal: 2,
-    marginBottom: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    marginHorizontal: 0,
+    marginBottom: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
   },
   mainHeader: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: '#f1f5f9',
+    backgroundColor: '#fafbfc',
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   headerIconContainer: {
     flexDirection: 'row',
@@ -694,48 +756,57 @@ const styles = StyleSheet.create({
   headerIcon: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   headerIconGreen: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: '#ecfdf5',
   },
   headerIconBlue: {
-    backgroundColor: '#dbeafe',
+    backgroundColor: '#eff6ff',
   },
   headerText: {
     flex: 1,
   },
   mainTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1e293b',
+    fontWeight: '700',
+    color: '#0f172a',
+    letterSpacing: -0.3,
+    marginBottom: 2,
   },
   headerSubtitle: {
     fontSize: 12,
     color: '#64748b',
-    marginTop: 2,
+    lineHeight: 18,
   },
   headerBadge: {
     backgroundColor: '#f1f5f9',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   headerBadgeText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '700',
     color: '#475569',
+    letterSpacing: 0.2,
   },
-  // List Items
   mainContent: {
-    padding: 0,
+    backgroundColor: '#ffffff',
   },
   listItem: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: '#ffffff',
   },
   itemContent: {
     flexDirection: 'row',
@@ -745,31 +816,31 @@ const styles = StyleSheet.create({
   itemHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
     flex: 1,
   },
   itemIcon: {
     width: 40,
     height: 40,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    borderWidth: 1.5,
   },
   iconRed: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: '#fef2f2',
     borderColor: '#fecaca',
   },
   iconGreen: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: '#f0fdf4',
     borderColor: '#bbf7d0',
   },
   iconGray: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#f8fafc',
     borderColor: '#e2e8f0',
   },
   iconBlue: {
-    backgroundColor: '#dbeafe',
+    backgroundColor: '#eff6ff',
     borderColor: '#bfdbfe',
   },
   itemInfo: {
@@ -778,52 +849,55 @@ const styles = StyleSheet.create({
   itemName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1e293b',
-    marginBottom: 4,
+    color: '#0f172a',
+    marginBottom: 6,
+    letterSpacing: -0.2,
   },
   itemBalanceInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   balanceText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   balanceBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 999,
-    borderWidth: 1,
+    borderRadius: 10,
+    borderWidth: 1.5,
   },
   badgeRed: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: '#fef2f2',
     borderColor: '#fecaca',
   },
   badgeGreen: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: '#f0fdf4',
     borderColor: '#bbf7d0',
   },
   badgeGray: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#f8fafc',
     borderColor: '#e2e8f0',
   },
   expenseBadge: {
-    backgroundColor: '#dbeafe',
+    backgroundColor: '#eff6ff',
     borderColor: '#bfdbfe',
   },
   balanceBadgeText: {
     fontSize: 11,
-    fontWeight: '500',
-    color: '#1e293b',
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   expenseBadgeText: {
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '700',
     color: '#1e40af',
+    letterSpacing: 0.2,
   },
   itemActions: {
     flexDirection: 'row',
@@ -831,96 +905,112 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   viewButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-  },
-  viewButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#475569',
+    borderColor: '#bfdbfe',
   },
   loadingIndicator: {
-    marginTop: 8,
+    marginTop: 12,
   },
   separator: {
     height: 1,
     backgroundColor: '#f1f5f9',
-    marginHorizontal: 16,
+    marginHorizontal: 20,
   },
-  // Empty State
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 48,
-    paddingHorizontal: 24,
+    paddingVertical: 60,
+    paddingHorizontal: 32,
   },
   emptyIcon: {
-    width: 64,
-    height: 64,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 32,
+    width: 80,
+    height: 80,
+    backgroundColor: '#f8fafc',
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   emptyText: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#475569',
     marginBottom: 8,
     textAlign: 'center',
+    letterSpacing: -0.2,
   },
   emptySubtext: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#94a3b8',
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 20,
+    maxWidth: 280,
   },
-  // Pagination
   pagination: {
-    padding: 16,
+    padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-  },
-  paginationInfo: {
-    marginBottom: 12,
+    borderTopColor: '#f1f5f9',
+    backgroundColor: '#fafbfc',
   },
   paginationText: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#64748b',
     textAlign: 'center',
+    marginBottom: 16,
+    fontWeight: '500',
   },
   paginationControls: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
+    gap: 16,
   },
   paginationButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    minWidth: 90,
+    alignItems: 'center',
   },
   paginationButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#475569',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3b82f6',
+    letterSpacing: 0.2,
+  },
+  buttonTextDisabled: {
+    color: '#cbd5e1',
+  },
+  pageNumberContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
   },
   pageNumber: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-    paddingHorizontal: 8,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+    letterSpacing: -0.3,
   },
-  // Badge
+  pageTotal: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 2,
+  },
   badge: {
     backgroundColor: '#3b82f6',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
   },
   badgeSecondary: {
     backgroundColor: '#f1f5f9',
@@ -930,10 +1020,12 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: 'white',
-    fontSize: 11,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   buttonDisabled: {
-    opacity: 0.5,
+    opacity: 0.4,
+    backgroundColor: '#f8fafc',
   },
 });

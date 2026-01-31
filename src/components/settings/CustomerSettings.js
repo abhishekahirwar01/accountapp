@@ -13,6 +13,7 @@ import {
   Platform,
   Linking,
   TouchableWithoutFeedback,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -41,6 +42,7 @@ import {
   User,
   AlertCircle,
   Info,
+  Search,
 } from 'lucide-react-native';
 import { CustomerForm } from '../customers/CustomerForm';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
@@ -78,6 +80,9 @@ export function CustomerSettings() {
     total: 0,
   });
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // Search State
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -178,6 +183,36 @@ export function CustomerSettings() {
     await fetchCustomers();
     setRefreshing(false);
   }, [fetchCustomers]);
+
+  // Filter customers based on search term
+  const filteredCustomers = React.useMemo(() => {
+    let data = customers;
+    if (searchTerm) {
+      const lowerTerm = searchTerm.toLowerCase();
+      data = data.filter(
+        c =>
+          c.name?.toLowerCase().includes(lowerTerm) ||
+          c.contactNumber?.includes(lowerTerm) ||
+          c.email?.toLowerCase().includes(lowerTerm) ||
+          c.gstin?.toLowerCase().includes(lowerTerm),
+      );
+    }
+    return data;
+  }, [customers, searchTerm]);
+
+  // Reset to page 1 when search term changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  // Calculate pagination based on filtered results
+  const indexOfLastCustomer = currentPage * customersPerPage;
+  const indexOfFirstCustomer = indexOfLastCustomer - customersPerPage;
+  const currentCustomers = filteredCustomers.slice(
+    indexOfFirstCustomer,
+    indexOfLastCustomer,
+  );
+  const totalPages = Math.ceil(filteredCustomers.length / customersPerPage);
 
   const handleOpenForm = (customer = null) => {
     setSelectedCustomer(customer);
@@ -809,15 +844,6 @@ export function CustomerSettings() {
 
   // ==================== END IMPORT FUNCTIONS ====================
 
-  // Pagination Logic
-  const indexOfLastCustomer = currentPage * customersPerPage;
-  const indexOfFirstCustomer = indexOfLastCustomer - customersPerPage;
-  const currentCustomers = customers.slice(
-    indexOfFirstCustomer,
-    indexOfLastCustomer,
-  );
-  const totalPages = Math.ceil(customers.length / customersPerPage);
-
   // Loading state
   if (isLoadingCompanies) {
     return (
@@ -908,6 +934,38 @@ export function CustomerSettings() {
                 )}
               </View>
 
+              {/* Search Bar */}
+              {canShowCustomers && customers.length > 0 && (
+                <View style={styles.searchContainer}>
+                  <View style={styles.searchInputWrapper}>
+                    <Search
+                      size={18}
+                      color="#94a3b8"
+                      style={styles.searchIcon}
+                    />
+                    <TextInput
+                      style={styles.searchInput}
+                      placeholder="Search by name, phone, email, or GSTIN..."
+                      placeholderTextColor="#94a3b8"
+                      value={searchTerm}
+                      onChangeText={setSearchTerm}
+                    />
+                    {searchTerm.length > 0 && (
+                      <TouchableOpacity
+                        style={styles.clearSearchBtn}
+                        onPress={() => setSearchTerm('')}
+                      >
+                        <X size={18} color="#64748b" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <Text style={styles.customerCount}>
+                    Showing {filteredCustomers.length} customer
+                    {filteredCustomers.length !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+              )}
+
               {/* Main Content */}
               {isLoading ? (
                 <View style={styles.loadingContainer}>
@@ -926,192 +984,209 @@ export function CustomerSettings() {
                 <>
                   {/* Customer List */}
                   <View style={styles.customerList}>
-                    {currentCustomers.map(customer => (
-                      <View key={customer._id} style={styles.customerCard}>
-                        {/* Customer Header */}
-                        <View style={styles.customerHeader}>
-                          <View style={styles.customerInfo}>
-                            <Text style={styles.customerName}>
-                              {capitalizeWords(customer.name)}
-                            </Text>
-                            <View style={styles.customerTags}>
-                              <View style={styles.gstTag}>
-                                <Text style={styles.gstTagText}>
-                                  {customer.gstRegistrationType || 'N/A'}
-                                </Text>
-                              </View>
-                              <View
-                                style={[
-                                  styles.tdsTag,
-                                  customer.isTDSApplicable
-                                    ? styles.tdsApplicable
-                                    : styles.tdsNotApplicable,
-                                ]}
-                              >
-                                {customer.isTDSApplicable ? (
-                                  <Check size={12} color="#fff" />
-                                ) : (
-                                  <X size={12} color="#fff" />
-                                )}
-                                <Text style={styles.tdsTagText}>
-                                  TDS{' '}
-                                  {customer.isTDSApplicable
-                                    ? 'Applicable'
-                                    : 'Not Applicable'}
-                                </Text>
-                              </View>
-                            </View>
-                          </View>
-
-                          {/* Actions Menu */}
-                          <View>
-                            <TouchableOpacity
-                              style={styles.menuButton}
-                              onPress={() => {
-                                setOpenDropdownId(
-                                  openDropdownId === customer._id
-                                    ? null
-                                    : customer._id,
-                                );
-                              }}
-                            >
-                              <MoreHorizontal size={20} color="#6b7280" />
-                            </TouchableOpacity>
-
-                            {openDropdownId === customer._id && (
-                              <View style={styles.dropdown}>
-                                <TouchableOpacity
-                                  style={styles.dropdownItem}
-                                  onPress={() => handleEditCustomer(customer)}
-                                >
-                                  <Edit2 size={16} color="#3b82f6" />
-                                  <Text style={styles.dropdownItemText}>
-                                    Edit
-                                  </Text>
-                                </TouchableOpacity>
-                                <View style={styles.dropdownDivider} />
-                                <TouchableOpacity
-                                  style={styles.dropdownItem}
-                                  onPress={() =>
-                                    handleDeleteCustomerFromDropdown(customer)
-                                  }
-                                >
-                                  <Trash2 size={16} color="#ef4444" />
-                                  <Text
-                                    style={[
-                                      styles.dropdownItemText,
-                                      styles.dropdownItemTextDanger,
-                                    ]}
-                                  >
-                                    Delete
-                                  </Text>
-                                </TouchableOpacity>
-                              </View>
-                            )}
-                          </View>
-                        </View>
-
-                        {/* Contact Info */}
-                        {(customer.contactNumber || customer.email) && (
-                          <View style={styles.contactSection}>
-                            {customer.contactNumber && (
-                              <View style={styles.contactItem}>
-                                <Phone size={16} color="#3b82f6" />
-                                <Text style={styles.contactText}>
-                                  {customer.contactNumber}
-                                </Text>
-                              </View>
-                            )}
-                            {customer.email && (
-                              <View style={styles.contactItem}>
-                                <Mail size={16} color="#8b5cf6" />
-                                <Text style={styles.contactText}>
-                                  {customer.email}
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-                        )}
-
-                        {/* Address */}
-                        {(customer.address ||
-                          customer.city ||
-                          customer.state ||
-                          customer.pincode) && (
-                          <View style={styles.addressSection}>
-                            <MapPin size={16} color="#10b981" />
-                            <View style={styles.addressTextContainer}>
-                              {customer.address && (
-                                <Text style={styles.addressText}>
-                                  {customer.address}
-                                </Text>
-                              )}
-                              {(customer.city ||
-                                customer.state ||
-                                customer.pincode) && (
-                                <Text style={styles.locationText}>
-                                  {[
-                                    customer.city,
-                                    customer.state,
-                                    customer.pincode,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(', ')}
-                                </Text>
-                              )}
-                            </View>
-                          </View>
-                        )}
-
-                        {/* Tax Information */}
-                        {(customer.gstin || customer.pan) && (
-                          <View style={styles.taxSection}>
-                            <Text style={styles.sectionTitle}>
-                              Tax Information
-                            </Text>
-                            {customer.gstin && (
-                              <View style={styles.taxItem}>
-                                <FileText size={16} color="#6b7280" />
-                                <Text style={styles.taxLabel}>GSTIN:</Text>
-                                <Text style={styles.taxValue}>
-                                  {customer.gstin}
-                                </Text>
-                              </View>
-                            )}
-                            {customer.pan && (
-                              <View style={styles.taxItem}>
-                                <Hash size={16} color="#6b7280" />
-                                <Text style={styles.taxLabel}>PAN:</Text>
-                                <Text style={styles.taxValue}>
-                                  {customer.pan}
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-                        )}
-
-                        {/* TDS Section */}
-                        {customer.isTDSApplicable && customer.tdsSection && (
-                          <View style={styles.tdsSection}>
-                            <Percent size={16} color="#10b981" />
-                            <View style={styles.tdsInfo}>
-                              <Text style={styles.tdsSectionText}>
-                                Section: {customer.tdsSection}
+                    {currentCustomers.length > 0 ? (
+                      currentCustomers.map(customer => (
+                        <View key={customer._id} style={styles.customerCard}>
+                          {/* Customer Header */}
+                          <View style={styles.customerHeader}>
+                            <View style={styles.customerInfo}>
+                              <Text style={styles.customerName}>
+                                {capitalizeWords(customer.name)}
                               </Text>
-                              {customer.tdsRate && (
-                                <Text style={styles.tdsRateText}>
-                                  Rate: {customer.tdsRate}%
-                                </Text>
+                              <View style={styles.customerTags}>
+                                <View style={styles.gstTag}>
+                                  <Text style={styles.gstTagText}>
+                                    {customer.gstRegistrationType || 'N/A'}
+                                  </Text>
+                                </View>
+                                <View
+                                  style={[
+                                    styles.tdsTag,
+                                    customer.isTDSApplicable
+                                      ? styles.tdsApplicable
+                                      : styles.tdsNotApplicable,
+                                  ]}
+                                >
+                                  {customer.isTDSApplicable ? (
+                                    <Check size={12} color="#fff" />
+                                  ) : (
+                                    <X size={12} color="#fff" />
+                                  )}
+                                  <Text style={styles.tdsTagText}>
+                                    TDS{' '}
+                                    {customer.isTDSApplicable
+                                      ? 'Applicable'
+                                      : 'Not Applicable'}
+                                  </Text>
+                                </View>
+                              </View>
+                            </View>
+
+                            {/* Actions Menu */}
+                            <View>
+                              <TouchableOpacity
+                                style={styles.menuButton}
+                                onPress={() => {
+                                  setOpenDropdownId(
+                                    openDropdownId === customer._id
+                                      ? null
+                                      : customer._id,
+                                  );
+                                }}
+                              >
+                                <MoreHorizontal size={20} color="#6b7280" />
+                              </TouchableOpacity>
+
+                              {openDropdownId === customer._id && (
+                                <View style={styles.dropdown}>
+                                  <TouchableOpacity
+                                    style={styles.dropdownItem}
+                                    onPress={() => handleEditCustomer(customer)}
+                                  >
+                                    <Edit2 size={16} color="#3b82f6" />
+                                    <Text style={styles.dropdownItemText}>
+                                      Edit
+                                    </Text>
+                                  </TouchableOpacity>
+                                  <View style={styles.dropdownDivider} />
+                                  <TouchableOpacity
+                                    style={styles.dropdownItem}
+                                    onPress={() =>
+                                      handleDeleteCustomerFromDropdown(customer)
+                                    }
+                                  >
+                                    <Trash2 size={16} color="#ef4444" />
+                                    <Text
+                                      style={[
+                                        styles.dropdownItemText,
+                                        styles.dropdownItemTextDanger,
+                                      ]}
+                                    >
+                                      Delete
+                                    </Text>
+                                  </TouchableOpacity>
+                                </View>
                               )}
                             </View>
                           </View>
-                        )}
+
+                          {/* Contact Info */}
+                          {(customer.contactNumber || customer.email) && (
+                            <View style={styles.contactSection}>
+                              {customer.contactNumber && (
+                                <View style={styles.contactItem}>
+                                  <Phone size={16} color="#3b82f6" />
+                                  <Text style={styles.contactText}>
+                                    {customer.contactNumber}
+                                  </Text>
+                                </View>
+                              )}
+                              {customer.email && (
+                                <View style={styles.contactItem}>
+                                  <Mail size={16} color="#8b5cf6" />
+                                  <Text style={styles.contactText}>
+                                    {customer.email}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                          )}
+
+                          {/* Address */}
+                          {(customer.address ||
+                            customer.city ||
+                            customer.state ||
+                            customer.pincode) && (
+                            <View style={styles.addressSection}>
+                              <MapPin size={16} color="#10b981" />
+                              <View style={styles.addressTextContainer}>
+                                {customer.address && (
+                                  <Text style={styles.addressText}>
+                                    {customer.address}
+                                  </Text>
+                                )}
+                                {(customer.city ||
+                                  customer.state ||
+                                  customer.pincode) && (
+                                  <Text style={styles.locationText}>
+                                    {[
+                                      customer.city,
+                                      customer.state,
+                                      customer.pincode,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(', ')}
+                                  </Text>
+                                )}
+                              </View>
+                            </View>
+                          )}
+
+                          {/* Tax Information */}
+                          {(customer.gstin || customer.pan) && (
+                            <View style={styles.taxSection}>
+                              <Text style={styles.sectionTitle}>
+                                Tax Information
+                              </Text>
+                              {customer.gstin && (
+                                <View style={styles.taxItem}>
+                                  <FileText size={16} color="#6b7280" />
+                                  <Text style={styles.taxLabel}>GSTIN:</Text>
+                                  <Text style={styles.taxValue}>
+                                    {customer.gstin}
+                                  </Text>
+                                </View>
+                              )}
+                              {customer.pan && (
+                                <View style={styles.taxItem}>
+                                  <Hash size={16} color="#6b7280" />
+                                  <Text style={styles.taxLabel}>PAN:</Text>
+                                  <Text style={styles.taxValue}>
+                                    {customer.pan}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                          )}
+
+                          {/* TDS Section */}
+                          {customer.isTDSApplicable && customer.tdsSection && (
+                            <View style={styles.tdsSection}>
+                              <Percent size={16} color="#10b981" />
+                              <View style={styles.tdsInfo}>
+                                <Text style={styles.tdsSectionText}>
+                                  Section: {customer.tdsSection}
+                                </Text>
+                                {customer.tdsRate && (
+                                  <Text style={styles.tdsRateText}>
+                                    Rate: {customer.tdsRate}%
+                                  </Text>
+                                )}
+                              </View>
+                            </View>
+                          )}
+                        </View>
+                      ))
+                    ) : (
+                      <View style={styles.emptySearchContainer}>
+                        <User size={48} color="#cbd5e1" />
+                        <Text style={styles.emptySearchTitle}>
+                          No customers match your search
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.clearSearchEmptyBtn}
+                          onPress={() => setSearchTerm('')}
+                        >
+                          <Text style={styles.clearSearchEmptyText}>
+                            Clear search
+                          </Text>
+                        </TouchableOpacity>
                       </View>
-                    ))}
+                    )}
                   </View>
 
                   {/* Pagination */}
-                  {totalPages > 1 && (
+                  {totalPages > 1 && filteredCustomers.length > 0 && (
                     <View style={styles.pagination}>
                       <TouchableOpacity
                         style={[
@@ -1516,10 +1591,10 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
     padding: 10,
-    paddingTop:0
+    paddingTop: 0,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   headerText: {
     marginBottom: 16,
@@ -1570,6 +1645,71 @@ const styles = StyleSheet.create({
     color: '#3b82f6',
     fontWeight: '500',
     fontSize: 14,
+  },
+  // Search Styles
+  searchContainer: {
+    marginBottom: 16,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 12,
+    height: 44,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#1e293b',
+    paddingVertical: 0,
+  },
+  clearSearchBtn: {
+    padding: 4,
+  },
+  customerCount: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 8,
+  },
+  clearSearchEmptyBtn: {
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#3b82f6',
+    borderRadius: 8,
+  },
+  clearSearchEmptyText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptySearchContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+  },
+  emptySearchTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+    marginTop: 12,
+    marginBottom: 8,
   },
   restrictedContainer: {
     alignItems: 'center',

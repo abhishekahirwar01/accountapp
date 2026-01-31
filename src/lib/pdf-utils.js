@@ -615,25 +615,8 @@ export const prepareTemplate8Data = (
   party,
   shippingAddress,
 ) => {
-  console.log('🔍 prepareTemplate8Data STARTED:', {
-    transaction: transaction,
-    hasTransaction: !!transaction,
-    transactionType: transaction?.type,
-    transactionId: transaction?._id || transaction?.id,
-    hasProducts: transaction?.products !== undefined,
-    productsIsArray: Array.isArray(transaction?.products),
-    productsLength: transaction?.products?.length,
-    products: transaction?.products,
-    company: company?.businessName,
-    party: party?.name,
-    shippingAddress: shippingAddress,
-  });
-
   // ✅ FIX: Agar transaction undefined hai toh return karein
   if (!transaction) {
-    console.error(
-      '❌ CRITICAL: prepareTemplate8Data - transaction is UNDEFINED',
-    );
     return {
       totals: { subTotal: 0, totalTax: 0, invoiceTotal: 0 },
       totalTaxable: 0,
@@ -656,11 +639,6 @@ export const prepareTemplate8Data = (
 
   // ✅ FIX: Agar products nahi hai toh bhi handle karein
   if (!transaction.products || !Array.isArray(transaction.products)) {
-    console.warn('⚠️ prepareTemplate8Data - No products array found:', {
-      products: transaction.products,
-      productsType: typeof transaction.products,
-    });
-
     return {
       totals: { subTotal: 0, totalTax: 0, invoiceTotal: 0 },
       totalTaxable: 0,
@@ -681,68 +659,22 @@ export const prepareTemplate8Data = (
     };
   }
 
-  console.log('📊 Before deriveTotals:', {
-    transaction: transaction,
-    company: company?.businessName,
-  });
-
   const totals = deriveTotals(transaction, company || undefined);
-
-  console.log('✅ deriveTotals Result:', {
-    totals: totals,
-    subtotal: totals.subtotal,
-    invoiceTotal: totals.invoiceTotal,
-  });
 
   const totalTaxable = totals.subtotal;
   const totalAmount = totals.invoiceTotal;
 
-  console.log('📦 Before getUnifiedLines:', {
-    transaction: transaction,
-    productsCount: transaction.products?.length,
-  });
-
   const items = getUnifiedLines(transaction);
-
-  console.log('✅ getUnifiedLines Result:', {
-    itemsCount: items.length,
-    items: items,
-  });
 
   const totalItems = items.length;
   const totalQty = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
 
-  console.log('📋 Items Summary:', {
-    totalItems: totalItems,
-    totalQty: totalQty,
-  });
-
-  console.log('🔄 Before getItemsBody:', transaction);
   const itemsBody = getItemsBody(transaction);
-  console.log('✅ getItemsBody Result:', {
-    itemsBodyCount: itemsBody.length,
-    itemsBody: itemsBody,
-  });
 
-  console.log('🧮 Calculating GST for items...');
   // Calculate GST for each item with proper party and shipping address context
   const itemsWithGST = items.map((item, index) => {
-    console.log(`   📝 Processing item ${index + 1}:`, {
-      itemName: item.name,
-      taxableValue: item.amount,
-      gstRate: item.gstPercentage,
-    });
-
     const taxableValue = item.amount || 0;
     const gstRate = item.gstPercentage || 0;
-
-    console.log(`   🧾 Before calculateGST for item ${index + 1}:`, {
-      taxableValue: taxableValue,
-      gstRate: gstRate,
-      transactionType: transaction?.type,
-      company: company?.businessName,
-      party: party?.name,
-    });
 
     const gst = calculateGST(
       taxableValue,
@@ -752,14 +684,6 @@ export const prepareTemplate8Data = (
       party,
       shippingAddress,
     );
-
-    console.log(`   ✅ calculateGST Result for item ${index + 1}:`, {
-      cgst: gst.cgst,
-      sgst: gst.sgst,
-      igst: gst.igst,
-      isGSTApplicable: gst.isGSTApplicable,
-      isInterstate: gst.isInterstate,
-    });
 
     const itemResult = {
       ...item,
@@ -773,11 +697,9 @@ export const prepareTemplate8Data = (
       gstRate,
     };
 
-    console.log(`   🎯 Final item ${index + 1} data:`, itemResult);
     return itemResult;
   });
 
-  console.log('📊 Calculating total GST amounts...');
   // Calculate total GST amounts
   const totalCGST = itemsWithGST.reduce(
     (sum, item) => sum + (item.cgst || 0),
@@ -792,26 +714,12 @@ export const prepareTemplate8Data = (
     0,
   );
 
-  console.log('💰 Total GST Amounts:', {
-    totalCGST: totalCGST,
-    totalSGST: totalSGST,
-    totalIGST: totalIGST,
-  });
-
   // Determine GST type based on actual calculations
   const isGSTApplicable = itemsWithGST.some(item => item.isGSTApplicable);
   const isInterstate = itemsWithGST.some(item => item.isInterstate);
   const showIGST = isGSTApplicable && isInterstate;
   const showCGSTSGST = isGSTApplicable && !isInterstate;
   const showNoTax = !isGSTApplicable;
-
-  console.log('🎯 GST Configuration:', {
-    isGSTApplicable: isGSTApplicable,
-    isInterstate: isInterstate,
-    showIGST: showIGST,
-    showCGSTSGST: showCGSTSGST,
-    showNoTax: showNoTax,
-  });
 
   const finalResult = {
     totals,
@@ -831,14 +739,6 @@ export const prepareTemplate8Data = (
     showCGSTSGST,
     showNoTax,
   };
-
-  console.log('🎉 prepareTemplate8Data COMPLETED:', {
-    itemsWithGSTCount: finalResult.itemsWithGST.length,
-    totalAmount: finalResult.totalAmount,
-    totalTaxable: finalResult.totalTaxable,
-    showIGST: finalResult.showIGST,
-    showCGSTSGST: finalResult.showCGSTSGST,
-  });
 
   return finalResult;
 };
@@ -1109,7 +1009,6 @@ export const generateInvoicePDF = async (
       message: 'PDF generated successfully',
     };
   } catch (error) {
-    console.error('Error generating PDF:', error);
     return {
       success: false,
       error: error.message,
@@ -1370,7 +1269,6 @@ export const generateInvoicePDFWithJSPDF = async (
       message: 'PDF generated successfully',
     };
   } catch (error) {
-    console.error('Error generating PDF with jsPDF:', error);
     return {
       success: false,
       error: error.message,
@@ -1396,7 +1294,6 @@ export const readFileFromDevice = async filePath => {
       content,
     };
   } catch (error) {
-    console.error('Error reading file:', error);
     return {
       success: false,
       error: error.message,
@@ -1413,7 +1310,6 @@ export const writeFileToDevice = async (filePath, content) => {
       path: filePath,
     };
   } catch (error) {
-    console.error('Error writing file:', error);
     return {
       success: false,
       error: error.message,
@@ -1440,9 +1336,6 @@ export const shareInvoiceFile = async (filePath, title = 'Invoice') => {
       message: 'File shared successfully',
     };
   } catch (error) {
-    if (error.message !== 'User did not share') {
-      console.error('Error sharing file:', error);
-    }
     return {
       success: false,
       error: error.message,
@@ -1465,7 +1358,6 @@ export const deleteFile = async filePath => {
       message: 'File deleted successfully',
     };
   } catch (error) {
-    console.error('Error deleting file:', error);
     return {
       success: false,
       error: error.message,
@@ -1530,7 +1422,6 @@ export const createAndShareInvoice = async (
       message: 'Invoice created and shared successfully',
     };
   } catch (error) {
-    console.error('Error in invoice workflow:', error);
     return {
       success: false,
       error: error.message,

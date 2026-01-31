@@ -86,31 +86,32 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   vendorActive: {
-    backgroundColor: '#2563eb', // blue-600
+    backgroundColor: '#007AFF', // blue-600
   },
   vendorInactive: {
-    // Default style for inactive vendor button
+    
+  
   },
   expenseActive: {
-    backgroundColor: '#16a34a', // green-600
+    backgroundColor: '#16a34a', 
   },
   expenseInactive: {
-    // Default style for inactive expense button
+   
   },
   buttonText: {
     fontSize: 12,
     fontWeight: '500',
-    display: 'none', // Hidden on mobile
+    display: 'none', 
   },
   buttonTextMobile: {
     fontSize: 12,
     fontWeight: '500',
-    display: 'flex', // Shown on mobile
+    display: 'flex', 
   },
   activeText: {
     color: 'white',
   },
   inactiveText: {
-    color: '#475569', // slate-600
+    color: '#475569', 
   },
 });

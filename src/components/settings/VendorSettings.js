@@ -13,6 +13,7 @@ import {
   Platform,
   Linking,
   TouchableWithoutFeedback,
+  TextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { pick } from '@react-native-documents/picker';
@@ -37,6 +38,7 @@ import {
   Trash2,
   AlertCircle,
   Info,
+  Search,
 } from 'lucide-react-native';
 
 import { VendorForm } from '../vendors/VendorForm';
@@ -71,6 +73,9 @@ export function VendorSettings() {
     current: 0,
     total: 0,
   });
+
+  // Search State
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -137,6 +142,35 @@ export function VendorSettings() {
       setRefreshing(false);
     }
   }, []);
+
+  // Filter vendors based on search term
+  const filteredVendors = React.useMemo(() => {
+    let data = vendors;
+    if (searchTerm) {
+      const lowerTerm = searchTerm.toLowerCase();
+      data = data.filter(
+        v =>
+          v.vendorName?.toLowerCase().includes(lowerTerm) ||
+          v.contactNumber?.includes(lowerTerm) ||
+          v.email?.toLowerCase().includes(lowerTerm),
+      );
+    }
+    return data;
+  }, [vendors, searchTerm]);
+
+  // Reset to page 1 when search term changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  // Calculate pagination based on filtered results
+  const indexOfLastVendor = currentPage * vendorsPerPage;
+  const indexOfFirstVendor = indexOfLastVendor - vendorsPerPage;
+  const currentVendors = filteredVendors.slice(
+    indexOfFirstVendor,
+    indexOfLastVendor,
+  );
+  const totalPages = Math.ceil(filteredVendors.length / vendorsPerPage);
 
   const handleDeleteVendor = async vendor => {
     setOpenDropdownId(null);
@@ -1020,6 +1054,32 @@ export function VendorSettings() {
           )}
         </View>
 
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchInputWrapper}>
+            <Search size={18} color="#94a3b8" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search vendors by name, phone or email..."
+              placeholderTextColor="#94a3b8"
+              value={searchTerm}
+              onChangeText={setSearchTerm}
+            />
+            {searchTerm.length > 0 && (
+              <TouchableOpacity
+                style={styles.clearSearchBtn}
+                onPress={() => setSearchTerm('')}
+              >
+                <X size={18} color="#64748b" />
+              </TouchableOpacity>
+            )}
+          </View>
+          <Text style={styles.vendorCount}>
+            Showing {filteredVendors.length} vendor
+            {filteredVendors.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
+
         {vendors.length > 0 && !canShowVendors && canCreateVendors ? (
           <View style={styles.centerContainer}>
             <View style={styles.restrictedContainer}>
@@ -1033,10 +1093,7 @@ export function VendorSettings() {
           </View>
         ) : (
           <FlatList
-            data={vendors.slice(
-              (currentPage - 1) * vendorsPerPage,
-              currentPage * vendorsPerPage,
-            )}
+            data={currentVendors}
             renderItem={renderVendor}
             keyExtractor={item => item._id}
             refreshControl={
@@ -1057,14 +1114,26 @@ export function VendorSettings() {
               <View style={styles.emptyView}>
                 <Building size={48} color="#cbd5e1" />
                 <Text style={{ color: '#64748b', marginTop: 10 }}>
-                  No vendors found
+                  {searchTerm
+                    ? 'No vendors match your search'
+                    : 'No vendors found'}
                 </Text>
+                {searchTerm && (
+                  <TouchableOpacity
+                    style={styles.clearSearchEmptyBtn}
+                    onPress={() => setSearchTerm('')}
+                  >
+                    <Text style={styles.clearSearchEmptyText}>
+                      Clear search
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             }
           />
         )}
 
-        {vendors.length > 0 && canShowVendors && (
+        {filteredVendors.length > 0 && canShowVendors && (
           <View style={styles.footerPagination}>
             <TouchableOpacity
               disabled={currentPage === 1}
@@ -1075,16 +1144,12 @@ export function VendorSettings() {
               <Text style={styles.pageNavText}>Previous</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              disabled={
-                currentPage >= Math.ceil(vendors.length / vendorsPerPage)
-              }
+              disabled={currentPage >= totalPages}
               onPress={() => setCurrentPage(p => p + 1)}
               style={[
                 styles.pageNavBtn,
                 styles.nextBtn,
-                currentPage >= Math.ceil(vendors.length / vendorsPerPage) && {
-                  opacity: 0.4,
-                },
+                currentPage >= totalPages && { opacity: 0.4 },
               ]}
             >
               <Text style={[styles.pageNavText, { color: 'white' }]}>Next</Text>
@@ -1092,8 +1157,6 @@ export function VendorSettings() {
             </TouchableOpacity>
           </View>
         )}
-
-        {/* Access overlay handled above to match CustomerSettings behavior */}
 
         {/* Vendor Form Modal */}
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
@@ -1114,6 +1177,7 @@ export function VendorSettings() {
             />
           </DialogContent>
         </Dialog>
+
         {/* Import Modal */}
         <Modal
           visible={isImportModalOpen}
@@ -1349,7 +1413,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: '#0f172a',
-    // textAlign: 'center',
   },
   navSub: { fontSize: 13, color: '#64748b', marginTop: 4 },
   actionRow: {
@@ -1382,6 +1445,53 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   secondaryActionText: { color: '#1e293b', fontWeight: '600', fontSize: 15 },
+  // Search Styles
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 12,
+    height: 44,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#1e293b',
+    paddingVertical: 0,
+  },
+  clearSearchBtn: {
+    padding: 4,
+  },
+  vendorCount: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 8,
+  },
+  clearSearchEmptyBtn: {
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#3b82f6',
+    borderRadius: 8,
+  },
+  clearSearchEmptyText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   card: {
     backgroundColor: 'white',
     borderRadius: 16,
@@ -1567,35 +1677,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1e293b',
   },
-  setupCard: {
-    backgroundColor: 'white',
-    padding: 30,
-    borderRadius: 20,
-    alignItems: 'center',
-    width: '100%',
-  },
-  setupTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    marginTop: 20,
-    color: '#1e293b',
-  },
-  setupSub: {
-    textAlign: 'center',
-    color: '#64748b',
-    marginTop: 10,
-    lineHeight: 20,
-  },
-  primaryBtn: {
-    backgroundColor: '#3b82f6',
-    flexDirection: 'row',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  btnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
   importModalContent: {
     paddingHorizontal: 20,
     paddingVertical: 16,

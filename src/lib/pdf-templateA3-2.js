@@ -42,10 +42,6 @@ const renderNotesHTML = notes => {
   }
 };
 
-
-
-
-
 // Split items into pages
 const splitItemsIntoPages = (items, itemsPerPage = ITEMS_PER_PAGE) => {
   const pages = [];
@@ -56,14 +52,23 @@ const splitItemsIntoPages = (items, itemsPerPage = ITEMS_PER_PAGE) => {
 };
 
 // Generate table rows for a specific page
-const generateTableRows = (items, startIndex = 0, isGSTApplicable, showIGST, showCGSTSGST, showNoTax) => {
+const generateTableRows = (
+  items,
+  startIndex = 0,
+  isGSTApplicable,
+  showIGST,
+  showCGSTSGST,
+  showNoTax,
+) => {
   if (!items || items.length === 0) {
     return '<tr><td colspan="11" style="padding: 8px; text-align: center;">No items found</td></tr>';
   }
 
   return items
     .map((item, index) => {
-      const itemName = capitalizeWords(item.name || item.description || 'Unnamed Item');
+      const itemName = capitalizeWords(
+        item.name || item.description || 'Unnamed Item',
+      );
 
       if (!isGSTApplicable || showNoTax) {
         return `
@@ -125,9 +130,20 @@ const generateTableRows = (items, startIndex = 0, isGSTApplicable, showIGST, sho
 };
 
 // Generate total row
-const generateTotalRow = (isGSTApplicable, showIGST, showCGSTSGST, totalTaxable, totalIGST, totalCGST, totalSGST, totalAmount, totalQty, isLastPage) => {
+const generateTotalRow = (
+  isGSTApplicable,
+  showIGST,
+  showCGSTSGST,
+  totalTaxable,
+  totalIGST,
+  totalCGST,
+  totalSGST,
+  totalAmount,
+  totalQty,
+  isLastPage,
+) => {
   if (!isLastPage) return ''; // Only show total row on last page
-  
+
   if (!isGSTApplicable) {
     return `
       <tr class="total-row avoid-page-break">
@@ -192,11 +208,10 @@ const generatePageHTML = (
   isBankDetailAvailable,
   title,
   startIndex = 0,
-  isLastPage = false
+  isLastPage = false,
 ) => {
   const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
- 
-  
+
   // Helper functions
   const getCompanyValue = (key, defaultValue = '') => {
     try {
@@ -320,7 +335,9 @@ const generatePageHTML = (
         <div class="gstin-tax-row">
           <div class="gstin-part">
             <span class="label">GSTIN : </span>
-            <span class="value">${getCompanyValue('gstin') || company.gstin}</span>
+            <span class="value">${
+              getCompanyValue('gstin') || company.gstin
+            }</span>
           </div>
           <div class="tax-invoice-part">
             <span class="tax-invoice-title">${title}</span>
@@ -359,9 +376,7 @@ const generatePageHTML = (
             </div>
             <div class="info-row">
               <span class="info-label">GSTIN :</span>
-              <span class="info-value">${
-                getPartyValue('gstin') || '-'
-              }</span>
+              <span class="info-value">${getPartyValue('gstin') || '-'}</span>
             </div>
             <div class="info-row">
               <span class="info-label">PAN :</span>
@@ -394,10 +409,7 @@ const generatePageHTML = (
             <div class="info-row">
               <span class="info-label">Address :</span>
               <span class="info-value">${capitalizeWords(
-                getShippingAddress(
-                  shippingAddress,
-                  getBillingAddress(party),
-                ),
+                getShippingAddress(shippingAddress, getBillingAddress(party)),
               )}</span>
             </div>
             <div class="info-row">
@@ -416,9 +428,7 @@ const generatePageHTML = (
             </div>
             <div class="info-row">
               <span class="info-label">GSTIN :</span>
-              <span class="info-value">${
-                getPartyValue('gstin') || '-'
-              }</span>
+              <span class="info-value">${getPartyValue('gstin') || '-'}</span>
             </div>
             <div class="info-row">
               <span class="info-label">State :</span>
@@ -451,13 +461,14 @@ const generatePageHTML = (
                 <span class="info-label">Invoice Date</span>
                 <span class="info-value">${
                   getTransactionValue('date')
-                    ? new Date(
-                        getTransactionValue('date'),
-                      ).toLocaleDateString('en-IN', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric'
-                      })
+                    ? new Date(getTransactionValue('date')).toLocaleDateString(
+                        'en-IN',
+                        {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                        },
+                      )
                     : '3/12/2025'
                 }</span>
               </div>
@@ -470,7 +481,7 @@ const generatePageHTML = (
                       ).toLocaleDateString('en-IN', {
                         day: '2-digit',
                         month: '2-digit',
-                        year: 'numeric'
+                        year: 'numeric',
                       })
                     : '3/12/2025'
                 }</span>
@@ -508,13 +519,33 @@ const generatePageHTML = (
             ${generateTableHeaders()}
           </thead>
           <tbody>
-            ${generateTableRows(pageData, startIndex, isGSTApplicable, showIGST, showCGSTSGST, showNoTax)}
-            ${generateTotalRow(isGSTApplicable, showIGST, showCGSTSGST, totalTaxable, totalIGST, totalCGST, totalSGST, totalAmount, totalQty, isLastPage)}
+            ${generateTableRows(
+              pageData,
+              startIndex,
+              isGSTApplicable,
+              showIGST,
+              showCGSTSGST,
+              showNoTax,
+            )}
+            ${generateTotalRow(
+              isGSTApplicable,
+              showIGST,
+              showCGSTSGST,
+              totalTaxable,
+              totalIGST,
+              totalCGST,
+              totalSGST,
+              totalAmount,
+              totalQty,
+              isLastPage,
+            )}
           </tbody>
         </table>
       </div>
 
-      ${isLastPage ? `
+      ${
+        isLastPage
+          ? `
         <!-- Total in Words -->
         <div class="total-words avoid-page-break">
           TOTAL IN WORDS : ${amountInWords.toUpperCase()}
@@ -665,7 +696,7 @@ const generatePageHTML = (
 
         <!-- Notes Section -->
         ${
-           transaction?.notes
+          transaction?.notes
             ? `
           <div class="notes-section avoid-page-break">
             ${renderNotesHTML(transaction.notes)}
@@ -673,7 +704,9 @@ const generatePageHTML = (
         `
             : ''
         }
-      ` : ''}
+      `
+          : ''
+      }
 
       <!-- Page Number -->
       <div class="page-number">Page ${pageIndex + 1} of ${totalPages}</div>
@@ -695,7 +728,6 @@ const TemplateA5_2PDF = ({
   const prepareData = () => {
     try {
       if (!transaction) {
-        console.warn('No transaction data provided');
         return getFallbackData();
       }
 
@@ -707,13 +739,11 @@ const TemplateA5_2PDF = ({
       );
 
       if (!result || typeof result !== 'object') {
-        console.warn('Invalid data from prepareTemplate8Data');
         return getFallbackData();
       }
 
       return result;
     } catch (error) {
-      console.error('Error in prepareTemplate8Data:', error);
       return getFallbackData();
     }
   };
@@ -804,9 +834,9 @@ const TemplateA5_2PDF = ({
         isBankDetailAvailable,
         title,
         0,
-        true // isLastPage
+        true, // isLastPage
       );
-      
+
       return `<!DOCTYPE html>
 <html>
 <head>
@@ -1272,7 +1302,7 @@ const TemplateA5_2PDF = ({
 </body>
 </html>`;
     }
-    
+
     // Multi-page template
     let startIndex = 0;
     const pageHTMLs = itemPages.map((pageItems, pageIndex) => {
@@ -1300,7 +1330,7 @@ const TemplateA5_2PDF = ({
         isBankDetailAvailable,
         title,
         startIndex,
-        pageIndex === totalPages - 1 // isLastPage
+        pageIndex === totalPages - 1, // isLastPage
       );
       startIndex += pageItems.length;
       return pageHTML;
@@ -1813,7 +1843,7 @@ export const generatePdfForTemplateA5_2 = async (
       directory: 'Documents',
       base64: false,
       height: 595, // A5 height in points
-      width: 420,  // A5 width in points
+      width: 420, // A5 width in points
     };
 
     const file = await generatePDF(options);
@@ -1822,10 +1852,8 @@ export const generatePdfForTemplateA5_2 = async (
       throw new Error('PDF generation failed - no file path returned');
     }
 
-    console.log('PDF generated successfully:', file.filePath);
     return file;
   } catch (error) {
-    console.error('Error generating PDF:', error);
     throw new Error(`PDF generation failed: ${error.message}`);
   }
 };

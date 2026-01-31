@@ -63,7 +63,6 @@ const safeFormatPhoneNumber = phoneNumber => {
     if (!phoneNumber) return '-';
     return formatPhoneNumber(phoneNumber);
   } catch (error) {
-    console.error('Error formatting phone number:', error);
     return phoneNumber || '-';
   }
 };
@@ -73,7 +72,6 @@ const safeNumberToWords = amount => {
   try {
     return numberToWords(amount);
   } catch (error) {
-    console.error('Error converting number to words:', error);
     return `Rupees ${formatCurrency(amount)} Only`;
   }
 };
@@ -279,7 +277,6 @@ const generateHsnSummaryHTML = (
       </div>
     `;
   } catch (error) {
-    console.error('Error generating HSN summary:', error);
     return '';
   }
 };
@@ -1783,7 +1780,6 @@ export const generatePdfForTemplate1 = async (
   clientName,
 ) => {
   try {
-    console.log('🟡 PDF Generation Started - Template1');
     const htmlContent = Template1({
       transaction,
       company,
@@ -1793,9 +1789,6 @@ export const generatePdfForTemplate1 = async (
       client,
       clientName,
     });
-
-    console.log('🟢 HTML Content Generated Successfully');
-    console.log('HTML Length:', htmlContent.length);
 
     const options = {
       html: htmlContent,
@@ -1807,40 +1800,23 @@ export const generatePdfForTemplate1 = async (
     };
 
     const file = await generatePDF(options);
-    console.log('🟢 PDF Generated Successfully!');
-    console.log('📊 PDF File Object:', {
-      type: typeof file,
-      constructor: file?.constructor?.name,
-      keys: Object.keys(file || {}),
-      hasBase64: typeof file?.base64,
-      base64Length: file?.base64?.length || 0,
-      hasFilePath: !!file?.filePath,
-    });
 
     // Return a wrapper object with the output method
     const wrapper = {
       ...file,
       output: (format = 'base64') => {
-        console.log(`📋 output() called with format: ${format}`);
         if (format === 'base64') {
-          console.log('📤 Returning base64, length:', file.base64?.length || 0);
           return file.base64;
         }
         if (format === 'filePath') {
-          console.log('📤 Returning filePath:', file.filePath);
           return file.filePath;
         }
-        console.log('📤 Returning base64 (default)');
         return file.base64;
       },
     };
 
-    console.log('📦 Wrapper object keys:', Object.keys(wrapper));
     return wrapper;
   } catch (error) {
-    console.error('❌ Error generating PDF:', error);
-    console.error('❌ Error message:', error.message);
-    console.error('❌ Error stack:', error.stack);
     throw error;
   }
 };
