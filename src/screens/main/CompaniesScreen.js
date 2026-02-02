@@ -1,9 +1,8 @@
-// CompaniesScreen.js
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
@@ -24,7 +23,6 @@ import {
   Hash,
   FileText,
   MoreHorizontal,
-  X,
 } from 'lucide-react-native';
 import { usePermissions } from '../../contexts/permission-context';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
@@ -33,12 +31,148 @@ import { BASE_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppLayout from '../../components/layout/AppLayout';
 
+// Memoized Company Card Component
+const CompanyCard = React.memo(
+  ({ item, permissions, showMenu, onToggleMenu, onEdit, onDelete }) => {
+    return (
+      <View style={styles.card}>
+        {/* Header Section */}
+        <View style={styles.cardHeader}>
+          <View style={styles.companyInfo}>
+            <View style={styles.iconContainer}>
+              <Building size={20} color="#007AFF" />
+            </View>
+            <View style={styles.companyTextContainer}>
+              <Text style={styles.businessName} numberOfLines={1}>
+                {item.businessName}
+              </Text>
+              <Text style={styles.businessType} numberOfLines={1}>
+                {item.businessType || 'N/A'}
+              </Text>
+            </View>
+          </View>
+          {permissions?.canUpdateCompanies && (
+            <View style={styles.menuContainer}>
+              <TouchableOpacity
+                style={styles.menuButton}
+                onPress={() => onToggleMenu(item._id)}
+              >
+                <MoreHorizontal size={16} color="#666" />
+              </TouchableOpacity>
+
+              {/* Dropdown Menu */}
+              {showMenu === item._id && (
+                <View style={styles.dropdownMenu}>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => onEdit(item)}
+                  >
+                    <Edit size={16} color="#007AFF" />
+                    <Text style={styles.menuItemText}>Edit</Text>
+                  </TouchableOpacity>
+                  <View style={styles.menuDivider} />
+                  <TouchableOpacity
+                    style={[styles.menuItem, styles.deleteMenuItem]}
+                    onPress={() => onDelete(item)}
+                  >
+                    <Trash2 size={16} color="#FF3B30" />
+                    <Text style={[styles.menuItemText, styles.deleteMenuText]}>
+                      Delete
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* Contact Information */}
+        <View style={styles.contactSection}>
+          <View style={styles.contactItem}>
+            <View
+              style={[
+                styles.contactIcon,
+                { backgroundColor: 'rgba(0, 122, 255, 0.1)' },
+              ]}
+            >
+              <User size={12} color="#007AFF" />
+            </View>
+            <Text style={styles.contactText} numberOfLines={1}>
+              {item.emailId || 'N/A'}
+            </Text>
+          </View>
+          <View style={styles.contactItem}>
+            <View
+              style={[
+                styles.contactIcon,
+                { backgroundColor: 'rgba(52, 199, 89, 0.1)' },
+              ]}
+            >
+              <Phone size={12} color="#34C759" />
+            </View>
+            <Text style={styles.contactText} numberOfLines={1}>
+              {item.mobileNumber || 'N/A'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Registration & GST Details */}
+        <View style={styles.detailsSection}>
+          <View style={styles.detailItem}>
+            <Text style={styles.detailLabel}>Registration No.</Text>
+            <View style={styles.badge}>
+              <Hash size={12} color="#666" />
+              <Text style={styles.badgeText} numberOfLines={1}>
+                {item.registrationNumber || 'N/A'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.detailItem}>
+            <Text style={styles.detailLabel}>GSTIN</Text>
+            {item.gstin ? (
+              <View style={[styles.badge, styles.gstBadge]}>
+                <FileText size={12} color="#FF9500" />
+                <Text
+                  style={[styles.badgeText, styles.gstText]}
+                  numberOfLines={1}
+                >
+                  {item.gstin}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.naText}>N/A</Text>
+            )}
+          </View>
+        </View>
+
+        {/* Status Indicator */}
+        <View style={styles.cardFooter}>
+          <View style={styles.statusIndicator}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusText}>Active</Text>
+          </View>
+        </View>
+
+        {/* Overlay to close menu when clicking outside */}
+        {showMenu === item._id && (
+          <TouchableOpacity
+            style={styles.menuOverlay}
+            onPress={() => onToggleMenu(null)}
+            activeOpacity={1}
+          />
+        )}
+      </View>
+    );
+  },
+);
+
+CompanyCard.displayName = 'CompanyCard';
+
 const CompaniesScreen = () => {
   const [companies, setCompanies] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState(null);
-  const [companyToDelete, setCompanyToDelete] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showMenu, setShowMenu] = useState(null);
   const [clients, setClients] = useState([]);
@@ -47,14 +181,21 @@ const CompaniesScreen = () => {
   const { refetch: refetchUserPermissions } = useUserPermissions();
   const { triggerCompaniesRefresh, refreshTrigger } = useCompany();
 
-  // Fetch companies from API
-  const fetchCompanies = useCallback(async () => {
-    setIsLoading(true);
+  // Use ref to track mounted state
+  const isMountedRef = useRef(true);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  
+  const fetchCompanies = useCallback(async (signal) => {
     try {
       const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication token not found.');
-      }
+      if (!token) throw new Error('Authentication token not found.');
 
       const response = await fetch(`${BASE_URL}/api/companies/my`, {
         method: 'GET',
@@ -62,6 +203,7 @@ const CompaniesScreen = () => {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        signal, // Add abort signal
       });
 
       if (!response.ok) {
@@ -70,21 +212,26 @@ const CompaniesScreen = () => {
       }
 
       const data = await response.json();
-      setCompanies(data);
+      
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        setCompanies(Array.isArray(data) ? data : data?.data || []);
+      }
     } catch (error) {
+      if (error.name === 'AbortError') return; // Ignore abort errors
+      
       console.error('Error fetching companies:', error);
-      Alert.alert(
-        'Error',
-        error.message || 'Failed to load companies. Please try again.',
-      );
-    } finally {
-      setIsLoading(false);
-      setRefreshing(false);
+      if (isMountedRef.current) {
+        Alert.alert(
+          'Error',
+          error.message || 'Failed to load companies. Please try again.',
+        );
+      }
     }
   }, []);
 
-  // Fetch clients for the form (if needed)
-  const fetchClients = useCallback(async () => {
+  //  fetch clients
+  const fetchClients = useCallback(async (signal) => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
@@ -95,63 +242,75 @@ const CompaniesScreen = () => {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        signal,
       });
 
       if (response.ok) {
         const data = await response.json();
-        setClients(data);
+        if (isMountedRef.current) {
+          setClients(Array.isArray(data) ? data : data?.data || []);
+        }
       }
     } catch (error) {
+      if (error.name === 'AbortError') return;
       console.error('Error fetching clients:', error);
     }
   }, []);
 
+  // Initial data fetch with abort controller
   useEffect(() => {
-    fetchCompanies();
-    fetchClients();
+    const abortController = new AbortController();
+    
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        await Promise.all([
+          fetchCompanies(abortController.signal),
+          fetchClients(abortController.signal),
+        ]);
+      } finally {
+        if (isMountedRef.current) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadData();
+
+    return () => {
+      abortController.abort();
+    };
   }, [fetchCompanies, fetchClients]);
 
-  // Re-fetch companies silently when global company refresh is triggered
-  const fetchCompaniesSilent = useCallback(async () => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) return;
-
-      const res = await fetch(`${BASE_URL}/api/companies/my`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      setCompanies(Array.isArray(data) ? data : data?.data || []);
-    } catch (err) {
-      console.error('CompaniesScreen fetchCompaniesSilent failed:', err);
-    }
-  }, []);
-
-  React.useEffect(() => {
+  // Handle refresh trigger
+  useEffect(() => {
     if (refreshTrigger && refreshTrigger > 0) {
-      fetchCompaniesSilent().catch(err =>
-        console.error(
-          'CompaniesScreen fetchCompaniesSilent after trigger failed:',
-          err,
-        ),
-      );
+      const abortController = new AbortController();
+      fetchCompanies(abortController.signal);
+      return () => abortController.abort();
     }
-  }, [refreshTrigger, fetchCompaniesSilent]);
+  }, [refreshTrigger, fetchCompanies]);
 
-  const onRefresh = useCallback(() => {
+  // Orefresh handler
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    const abortController = new AbortController();
+    
+    try {
+      await Promise.all([
+        fetchCompanies(abortController.signal),
+        fetchClients(abortController.signal),
+        triggerCompaniesRefresh?.(),
+        refetch?.(),
+        refetchUserPermissions?.(),
+      ]);
+    } finally {
+      if (isMountedRef.current) {
+        setRefreshing(false);
+      }
+    }
 
-    // Saare data ko ek saath refresh karein
-    Promise.all([
-      fetchCompanies(),
-      fetchClients(),
-      triggerCompaniesRefresh(),
-      refetch ? refetch() : Promise.resolve(),
-      refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
-    ]).finally(() => {
-      setRefreshing(false);
-    });
+    return () => abortController.abort();
   }, [
     fetchCompanies,
     fetchClients,
@@ -160,12 +319,12 @@ const CompaniesScreen = () => {
     refetchUserPermissions,
   ]);
 
-  const handleAddNew = () => {
+  const handleAddNew = useCallback(() => {
     setSelectedCompany(null);
     setIsDialogOpen(true);
-  };
+  }, []);
 
-  const handleEdit = company => {
+  const handleEdit = useCallback((company) => {
     if (!permissions?.canUpdateCompanies) {
       Alert.alert(
         'Permission Denied',
@@ -176,47 +335,22 @@ const CompaniesScreen = () => {
     setSelectedCompany(company);
     setIsDialogOpen(true);
     setShowMenu(null);
-  };
+  }, [permissions?.canUpdateCompanies]);
 
-  const handleDelete = company => {
-    if (!permissions?.canUpdateCompanies) {
-      Alert.alert(
-        'Permission Denied',
-        "You don't have permission to delete companies.",
-      );
-      return;
-    }
-    setCompanyToDelete(company);
-    setShowMenu(null);
-    Alert.alert(
-      'Delete Company',
-      `Are you sure you want to delete ${company.businessName}? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: confirmDelete },
-      ],
-    );
-  };
-
-  const confirmDelete = async () => {
-    if (!companyToDelete) return;
+  const confirmDelete = useCallback(async (company) => {
+    if (!company) return;
 
     try {
       const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication token not found.');
-      }
+      if (!token) throw new Error('Authentication token not found.');
 
-      const response = await fetch(
-        `${BASE_URL}/api/companies/${companyToDelete._id}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
+      const response = await fetch(`${BASE_URL}/api/companies/${company._id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
-      );
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -225,179 +359,97 @@ const CompaniesScreen = () => {
 
       Alert.alert(
         'Success',
-        `${companyToDelete.businessName} has been deleted successfully.`,
+        `${company.businessName} has been deleted successfully.`,
       );
 
       // Refresh the companies list
-      fetchCompanies();
+      const abortController = new AbortController();
+      await fetchCompanies(abortController.signal);
     } catch (error) {
       console.error('Error deleting company:', error);
       Alert.alert(
         'Error',
         error.message || 'Failed to delete company. Please try again.',
       );
-    } finally {
-      setCompanyToDelete(null);
     }
-  };
+  }, [fetchCompanies]);
 
-  const onFormSubmit = () => {
+  const handleDelete = useCallback((company) => {
+    if (!permissions?.canUpdateCompanies) {
+      Alert.alert(
+        'Permission Denied',
+        "You don't have permission to delete companies.",
+      );
+      return;
+    }
+    setShowMenu(null);
+    Alert.alert(
+      'Delete Company',
+      `Are you sure you want to delete ${company.businessName}? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => confirmDelete(company) },
+      ],
+    );
+  }, [permissions?.canUpdateCompanies, confirmDelete]);
+
+  const onFormSubmit = useCallback(() => {
     setIsDialogOpen(false);
-    fetchCompanies();
-  };
+    const abortController = new AbortController();
+    fetchCompanies(abortController.signal);
+  }, [fetchCompanies]);
 
-  const toggleMenu = companyId => {
-    setShowMenu(showMenu === companyId ? null : companyId);
-  };
+  const toggleMenu = useCallback((companyId) => {
+    setShowMenu(prev => (prev === companyId ? null : companyId));
+  }, []);
 
-  const renderCompanyCard = ({ item }) => (
-    <View style={styles.card}>
-      {/* Header Section */}
-      <View style={styles.cardHeader}>
-        <View style={styles.companyInfo}>
-          <View style={styles.iconContainer}>
-            <Building size={20} color="#007AFF" />
-          </View>
-          <View style={styles.companyTextContainer}>
-            <Text style={styles.businessName} numberOfLines={1}>
-              {item.businessName}
-            </Text>
-            <Text style={styles.businessType} numberOfLines={1}>
-              {item.businessType || 'N/A'}
-            </Text>
-          </View>
-        </View>
-        {permissions?.canUpdateCompanies && (
-          <View style={styles.menuContainer}>
-            <TouchableOpacity
-              style={styles.menuButton}
-              onPress={() => toggleMenu(item._id)}
-            >
-              <MoreHorizontal size={16} color="#666" />
-            </TouchableOpacity>
-
-            {/* Dropdown Menu */}
-            {showMenu === item._id && (
-              <View style={styles.dropdownMenu}>
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => handleEdit(item)}
-                >
-                  <Edit size={16} color="#007AFF" />
-                  <Text style={styles.menuItemText}>Edit</Text>
-                </TouchableOpacity>
-                <View style={styles.menuDivider} />
-                <TouchableOpacity
-                  style={[styles.menuItem, styles.deleteMenuItem]}
-                  onPress={() => handleDelete(item)}
-                >
-                  <Trash2 size={16} color="#FF3B30" />
-                  <Text style={[styles.menuItemText, styles.deleteMenuText]}>
-                    Delete
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        )}
-      </View>
-
-      {/* Contact Information */}
-      <View style={styles.contactSection}>
-        <View style={styles.contactItem}>
-          <View
-            style={[
-              styles.contactIcon,
-              { backgroundColor: 'rgba(0, 122, 255, 0.1)' },
-            ]}
-          >
-            <User size={12} color="#007AFF" />
-          </View>
-          <Text style={styles.contactText} numberOfLines={1}>
-            {item.emailId || 'N/A'}
-          </Text>
-        </View>
-        <View style={styles.contactItem}>
-          <View
-            style={[
-              styles.contactIcon,
-              { backgroundColor: 'rgba(52, 199, 89, 0.1)' },
-            ]}
-          >
-            <Phone size={12} color="#34C759" />
-          </View>
-          <Text style={styles.contactText} numberOfLines={1}>
-            {item.mobileNumber || 'N/A'}
-          </Text>
-        </View>
-      </View>
-
-      {/* Registration & GST Details */}
-      <View style={styles.detailsSection}>
-        <View style={styles.detailItem}>
-          <Text style={styles.detailLabel}>Registration No.</Text>
-          <View style={styles.badge}>
-            <Hash size={12} color="#666" />
-            <Text style={styles.badgeText} numberOfLines={1}>
-              {item.registrationNumber || 'N/A'}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.detailItem}>
-          <Text style={styles.detailLabel}>GSTIN</Text>
-          {item.gstin ? (
-            <View style={[styles.badge, styles.gstBadge]}>
-              <FileText size={12} color="#FF9500" />
-              <Text
-                style={[styles.badgeText, styles.gstText]}
-                numberOfLines={1}
-              >
-                {item.gstin}
-              </Text>
-            </View>
-          ) : (
-            <Text style={styles.naText}>N/A</Text>
-          )}
-        </View>
-      </View>
-
-      {/* Status Indicator */}
-      <View style={styles.cardFooter}>
-        <View style={styles.statusIndicator}>
-          <View style={styles.statusDot} />
-          <Text style={styles.statusText}>Active</Text>
-        </View>
-      </View>
-
-      {/* Overlay to close menu when clicking outside */}
-      {showMenu === item._id && (
-        <TouchableOpacity
-          style={styles.menuOverlay}
-          onPress={() => setShowMenu(null)}
-        />
-      )}
-    </View>
+  // Memoized render functions
+  const renderCompanyCard = useCallback(
+    ({ item }) => (
+      <CompanyCard
+        item={item}
+        permissions={permissions}
+        showMenu={showMenu}
+        onToggleMenu={toggleMenu}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      />
+    ),
+    [permissions, showMenu, toggleMenu, handleEdit, handleDelete],
   );
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyState}>
-      <Building size={48} color="#999" />
-      <Text style={styles.emptyTitle}>No Companies Found</Text>
-      <Text style={styles.emptyDescription}>
-        Get started by adding your first company.
-      </Text>
-      {permissions?.canCreateCompanies && (
-        <TouchableOpacity style={styles.addButton} onPress={handleAddNew}>
-          <PlusCircle size={16} color="white" />
-          <Text style={styles.addButtonText}>Add Company</Text>
-        </TouchableOpacity>
-      )}
-    </View>
+  const keyExtractor = useCallback((item) => item._id, []);
+
+  const getItemLayout = useCallback(
+    (data, index) => ({
+      length: 250, // Approximate height of card
+      offset: 250 * index,
+      index,
+    }),
+    [],
+  );
+
+  const EmptyState = useMemo(
+    () => (
+      <View style={styles.emptyState}>
+        <Building size={48} color="#999" />
+        <Text style={styles.emptyTitle}>No Companies Found</Text>
+        <Text style={styles.emptyDescription}>
+          Get started by adding your first company.
+        </Text>
+        {permissions?.canCreateCompanies && (
+          <TouchableOpacity style={styles.addButton} onPress={handleAddNew}>
+            <PlusCircle size={16} color="white" />
+            <Text style={styles.addButtonText}>Add Company</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    ),
+    [permissions?.canCreateCompanies, handleAddNew],
   );
 
   // Loading State
   if (isLoading || isLoadingPerms) {
-    // isLoadingPerms add kiya
     return (
       <AppLayout>
         <SafeAreaView style={styles.safeArea}>
@@ -412,7 +464,6 @@ const CompaniesScreen = () => {
 
   return (
     <AppLayout>
-      {/* <SafeAreaView style={styles.safeArea}> */}
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -440,8 +491,9 @@ const CompaniesScreen = () => {
           <View style={styles.content}>
             <FlatList
               data={companies}
-              keyExtractor={item => item._id}
+              keyExtractor={keyExtractor}
               renderItem={renderCompanyCard}
+              getItemLayout={getItemLayout}
               numColumns={1}
               refreshControl={
                 <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -451,10 +503,15 @@ const CompaniesScreen = () => {
                 styles.cardListContent,
               ]}
               showsVerticalScrollIndicator={false}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={50}
+              initialNumToRender={10}
+              windowSize={10}
             />
           </View>
         ) : (
-          renderEmptyState()
+          EmptyState
         )}
 
         {/* Company Form Modal */}
@@ -474,7 +531,6 @@ const CompaniesScreen = () => {
           </View>
         </Modal>
       </View>
-      {/* </SafeAreaView> */}
     </AppLayout>
   );
 };
@@ -493,8 +549,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     padding: 16,
-    paddingTop:4,
-    paddingBottom:8
+    paddingTop: 4,
+    paddingBottom: 8,
   },
   headerTitle: {
     flex: 1,
@@ -513,7 +569,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginTop:9
+    marginTop: 9,
   },
   addCompanyButton: {
     flexDirection: 'row',
@@ -550,9 +606,7 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
   },
-  cardListContent: {
-    // gap: 8,
-  },
+  cardListContent: {},
   card: {
     backgroundColor: 'white',
     borderRadius: 12,

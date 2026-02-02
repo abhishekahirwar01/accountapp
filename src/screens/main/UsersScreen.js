@@ -1,5 +1,5 @@
-// UsersScreen.js - Enhanced Header and URL Card Only
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+// UsersScreen.js - Optimized Version
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -59,6 +59,100 @@ const base64Decode = str => {
   return output;
 };
 
+// Memoized URL Card Component
+const URLCard = React.memo(({ userLoginUrl, onCopy, copied }) => (
+  <View style={styles.urlCardWrapper}>
+    <View style={styles.urlCard}>
+      <View style={styles.urlCardContent}>
+        <View style={styles.urlLeftSection}>
+          <View style={styles.urlIconContainer}>
+            <Icon name="link" size={14} color="#3B82F6" />
+          </View>
+          <View style={styles.urlTextSection}>
+            <Text style={styles.urlLabel}>User Login URL</Text>
+            <Text style={styles.urlValue} numberOfLines={1}>
+              {userLoginUrl}
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={[styles.copyButton, copied && styles.copyButtonActive]}
+          onPress={onCopy}
+        >
+          <Icon
+            name={copied ? 'check' : 'copy'}
+            size={14}
+            color={copied ? '#10B981' : '#3B82F6'}
+          />
+          <Text
+            style={[
+              styles.copyButtonText,
+              copied && styles.copyButtonTextActive,
+            ]}
+          >
+            {copied ? 'Copied!' : 'Copy'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+));
+
+URLCard.displayName = 'URLCard';
+
+// Memoized Empty State Component
+const EmptyState = React.memo(({ canCreateUsers, onAddUser }) => (
+  <View style={styles.emptyState}>
+    <Icon name="users" size={48} color="#999" />
+    <Text style={styles.emptyStateTitle}>No Users Found</Text>
+    {canCreateUsers ? (
+      <>
+        <Text style={styles.emptyStateDescription}>
+          Get started by adding your first user.
+        </Text>
+        <Button onPress={onAddUser} icon="plus-circle">
+          Add User
+        </Button>
+      </>
+    ) : (
+      <Text style={styles.emptyStateDescription}>
+        Please contact your Admin to provide permission for adding users.
+      </Text>
+    )}
+  </View>
+));
+
+EmptyState.displayName = 'EmptyState';
+
+// Memoized No Company State
+const NoCompanyState = React.memo(() => (
+  <View style={styles.noCompanyContainer}>
+    <Card style={styles.noCompanyCard}>
+      <CardContent style={styles.noCompanyContent}>
+        <View style={styles.iconContainer}>
+          <Icon name="briefcase" size={32} color="#2563eb" />
+        </View>
+        <Text style={styles.noCompanyTitle}>Company Setup Required</Text>
+        <Text style={styles.noCompanyDescription}>
+          Contact us to enable your company account and access all features.
+        </Text>
+        <View style={styles.contactButtons}>
+          <TouchableOpacity style={styles.phoneButton}>
+            <Icon name="phone" size={20} color="#fff" />
+            <Text style={styles.phoneButtonText}>+91-8989773689</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.emailButton}>
+            <Icon name="mail" size={20} color="#2563eb" />
+            <Text style={styles.emailButtonText}>Email Us</Text>
+          </TouchableOpacity>
+        </View>
+      </CardContent>
+    </Card>
+  </View>
+));
+
+NoCompanyState.displayName = 'NoCompanyState';
+
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [companies, setCompanies] = useState([]);
@@ -66,7 +160,6 @@ export default function UsersPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
-  const [userToDelete, setUserToDelete] = useState(null);
   const [viewMode, setViewMode] = useState('card');
   const [copied, setCopied] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -75,33 +168,59 @@ export default function UsersPage() {
   const { permissions, refetch } = usePermissions();
   const { refetch: refetchUserPermissions } = useUserPermissions();
   const { triggerCompaniesRefresh, refreshTrigger } = useCompany();
+  
   const userLoginUrl = 'https://vinimay.sharda.co.in/user-login';
+  
+  // Refs for cleanup
+  const isMountedRef = useRef(true);
+  const abortControllerRef = useRef(null);
+  const userToDeleteRef = useRef(null);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  // Set view mode based on screen size
   useEffect(() => {
     const { width } = Dimensions.get('window');
     if (width < 640) setViewMode('card');
   }, []);
 
-  const copyToClipboard = async () => {
+  // Optimized copy to clipboard
+  const copyToClipboard = useCallback(async () => {
     try {
       await Clipboard.setString(userLoginUrl);
-      setCopied(true);
-      toast({
-        title: 'URL copied to clipboard!',
-        description: 'Share this link with your users for login.',
-      });
-      setTimeout(() => setCopied(false), 2000);
+      if (isMountedRef.current) {
+        setCopied(true);
+        toast({
+          title: 'URL copied to clipboard!',
+          description: 'Share this link with your users for login.',
+        });
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            setCopied(false);
+          }
+        }, 2000);
+      }
     } catch (err) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to copy URL. Please copy manually.',
-      });
+      if (isMountedRef.current) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to copy URL. Please copy manually.',
+        });
+      }
     }
-  };
+  }, [userLoginUrl, toast]);
 
-  const fetchUsersAndCompanies = useCallback(async (forceRefresh = false) => {
-    setIsLoading(true);
+  // Optimized fetch with abort support
+  const fetchUsersAndCompanies = useCallback(async (signal) => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
@@ -109,9 +228,11 @@ export default function UsersPage() {
       const [usersRes, companiesRes] = await Promise.all([
         fetch(`${BASE_URL}/api/users`, {
           headers: { Authorization: `Bearer ${token}` },
+          signal,
         }),
         fetch(`${BASE_URL}/api/companies/my`, {
           headers: { Authorization: `Bearer ${token}` },
+          signal,
         }),
       ]);
 
@@ -131,83 +252,125 @@ export default function UsersPage() {
         filteredUsers = usersData.filter(u => u._id !== currentUserId);
       }
 
-      setUsers(filteredUsers);
-      setCompanies(companiesData);
+      if (isMountedRef.current) {
+        setUsers(Array.isArray(filteredUsers) ? filteredUsers : []);
+        setCompanies(Array.isArray(companiesData) ? companiesData : companiesData?.data || []);
+      }
     } catch (err) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: err.message || 'Failed to fetch data',
-      });
-    } finally {
-      setIsLoading(false);
+      if (err.name === 'AbortError') return;
+      
+      if (isMountedRef.current) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: err.message || 'Failed to fetch data',
+        });
+      }
     }
-  }, []);
+  }, [toast]);
 
+  // Initial data fetch
   useEffect(() => {
-    fetchUsersAndCompanies();
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        await fetchUsersAndCompanies(abortController.signal);
+      } finally {
+        if (isMountedRef.current) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadData();
+
+    return () => {
+      abortController.abort();
+    };
   }, [fetchUsersAndCompanies]);
 
-  // Re-fetch companies silently when global company refresh is triggered
-  const fetchCompaniesOnly = useCallback(async () => {
+  // Optimized companies-only fetch
+  const fetchCompaniesOnly = useCallback(async (signal) => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
 
       const res = await fetch(`${BASE_URL}/api/companies/my`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal,
       });
+      
       if (!res.ok) return;
+      
       const data = await res.json();
-      setCompanies(Array.isArray(data) ? data : data?.data || []);
+      if (isMountedRef.current) {
+        setCompanies(Array.isArray(data) ? data : data?.data || []);
+      }
     } catch (err) {
+      if (err.name === 'AbortError') return;
       console.error('UsersScreen fetchCompaniesOnly failed:', err);
     }
   }, []);
 
-  React.useEffect(() => {
+  // Handle refresh trigger
+  useEffect(() => {
     if (refreshTrigger && refreshTrigger > 0) {
-      fetchCompaniesOnly().catch(err =>
-        console.error(
-          'UsersScreen fetchCompaniesOnly after trigger failed:',
-          err,
-        ),
-      );
+      const abortController = new AbortController();
+      fetchCompaniesOnly(abortController.signal);
+      return () => abortController.abort();
     }
   }, [refreshTrigger, fetchCompaniesOnly]);
 
+  // Optimized refresh handler
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
+    const abortController = new AbortController();
+    
     try {
       await Promise.all([
-        fetchUsersAndCompanies(true),
-        triggerCompaniesRefresh(),
-        refetch ? refetch() : Promise.resolve(),
-        refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
+        fetchUsersAndCompanies(abortController.signal),
+        triggerCompaniesRefresh?.(),
+        refetch?.(),
+        refetchUserPermissions?.(),
       ]);
-      toast({ title: 'Users data refreshed successfully' });
+      
+      if (isMountedRef.current) {
+        toast({ title: 'Users data refreshed successfully' });
+      }
     } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Refresh Failed',
-        description: error.message || 'Failed to refresh data',
-      });
+      if (error.name === 'AbortError') return;
+      
+      if (isMountedRef.current) {
+        toast({
+          variant: 'destructive',
+          title: 'Refresh Failed',
+          description: error.message || 'Failed to refresh data',
+        });
+      }
     } finally {
-      setRefreshing(false);
+      if (isMountedRef.current) {
+        setRefreshing(false);
+      }
     }
-  }, [fetchUsersAndCompanies, toast]);
 
-  const handleOpenForm = (user = null) => {
+    return () => abortController.abort();
+  }, [fetchUsersAndCompanies, triggerCompaniesRefresh, refetch, refetchUserPermissions, toast]);
+
+  // Optimized form handlers
+  const handleOpenForm = useCallback((user = null) => {
     setSelectedUser(user);
     setIsDialogOpen(true);
-  };
+  }, []);
 
-  const handleCloseForm = () => {
+  const handleCloseForm = useCallback(() => {
     setIsDialogOpen(false);
     setSelectedUser(null);
-  };
+  }, []);
 
-  const handleSave = async formDataFromForm => {
+  const handleSave = useCallback(async (formDataFromForm) => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
@@ -250,32 +413,34 @@ export default function UsersPage() {
         title: `User ${selectedUser ? 'updated' : 'created'} successfully`,
       });
 
-      // 🔄 Refresh companies if they were assigned/modified
+      // Refresh companies if they were assigned/modified
       if (formDataFromForm.companies && formDataFromForm.companies.length > 0) {
-        console.log(
-          '🔄 Companies assigned/modified - triggering header refresh',
-        );
-        triggerCompaniesRefresh();
+        triggerCompaniesRefresh?.();
       }
 
-      await fetchUsersAndCompanies();
+      const abortController = new AbortController();
+      await fetchUsersAndCompanies(abortController.signal);
       handleCloseForm();
     } catch (error) {
+      if (error.name === 'AbortError') return;
+      
       toast({
         variant: 'destructive',
         title: 'Operation Failed',
         description: error.message || 'Something went wrong.',
       });
     }
-  };
+  }, [selectedUser, toast, triggerCompaniesRefresh, fetchUsersAndCompanies, handleCloseForm]);
 
-  const openDeleteDialog = user => {
-    setUserToDelete(user);
+  const openDeleteDialog = useCallback((user) => {
+    userToDeleteRef.current = user;
     setIsAlertOpen(true);
-  };
+  }, []);
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
+    const userToDelete = userToDeleteRef.current;
     if (!userToDelete) return;
+    
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
@@ -298,18 +463,26 @@ export default function UsersPage() {
       }
 
       toast({ title: 'User deleted successfully' });
-      fetchUsersAndCompanies();
-      setIsAlertOpen(false);
-      setUserToDelete(null);
+      
+      const abortController = new AbortController();
+      await fetchUsersAndCompanies(abortController.signal);
+      
+      if (isMountedRef.current) {
+        setIsAlertOpen(false);
+        userToDeleteRef.current = null;
+      }
     } catch (error) {
+      if (error.name === 'AbortError') return;
+      
       toast({
         variant: 'destructive',
         title: 'Deletion Failed',
         description: error.message || 'Something went wrong.',
       });
     }
-  };
+  }, [toast, fetchUsersAndCompanies]);
 
+  // Memoized company map
   const companyMap = useMemo(() => {
     const map = new Map();
     companies.forEach(company => {
@@ -318,7 +491,44 @@ export default function UsersPage() {
     return map;
   }, [companies]);
 
-  if (isLoading) {
+  // Memoized render functions
+  const renderUserContent = useMemo(() => {
+    if (isLoading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#666" />
+        </View>
+      );
+    }
+
+    if (users.length === 0) {
+      return (
+        <EmptyState
+          canCreateUsers={permissions?.canCreateUsers}
+          onAddUser={() => handleOpenForm()}
+        />
+      );
+    }
+
+    return viewMode === 'list' ? (
+      <UserTable
+        users={users}
+        onEdit={handleOpenForm}
+        onDelete={openDeleteDialog}
+        companyMap={companyMap}
+      />
+    ) : (
+      <UserCard
+        users={users}
+        onEdit={handleOpenForm}
+        onDelete={openDeleteDialog}
+        companyMap={companyMap}
+      />
+    );
+  }, [isLoading, users, viewMode, permissions?.canCreateUsers, handleOpenForm, openDeleteDialog, companyMap]);
+
+  // Loading state
+  if (isLoading && companies.length === 0) {
     return (
       <AppLayout>
         <SafeAreaView style={styles.safeArea}>
@@ -331,6 +541,7 @@ export default function UsersPage() {
     );
   }
 
+  // No company state
   if (companies.length === 0) {
     return (
       <AppLayout>
@@ -346,32 +557,7 @@ export default function UsersPage() {
               />
             }
           >
-            <View style={styles.noCompanyContainer}>
-              <Card style={styles.noCompanyCard}>
-                <CardContent style={styles.noCompanyContent}>
-                  <View style={styles.iconContainer}>
-                    <Icon name="briefcase" size={32} color="#2563eb" />
-                  </View>
-                  <Text style={styles.noCompanyTitle}>
-                    Company Setup Required
-                  </Text>
-                  <Text style={styles.noCompanyDescription}>
-                    Contact us to enable your company account and access all
-                    features.
-                  </Text>
-                  <View style={styles.contactButtons}>
-                    <TouchableOpacity style={styles.phoneButton}>
-                      <Icon name="phone" size={20} color="#fff" />
-                      <Text style={styles.phoneButtonText}>+91-8989773689</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.emailButton}>
-                      <Icon name="mail" size={20} color="#2563eb" />
-                      <Text style={styles.emailButtonText}>Email Us</Text>
-                    </TouchableOpacity>
-                  </View>
-                </CardContent>
-              </Card>
-            </View>
+            <NoCompanyState />
           </ScrollView>
         </SafeAreaView>
       </AppLayout>
@@ -392,7 +578,7 @@ export default function UsersPage() {
         }
       >
         <View style={styles.content}>
-          {/* Enhanced Header */}
+          {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <View>
@@ -413,42 +599,12 @@ export default function UsersPage() {
             )}
           </View>
 
-          {/* Enhanced URL Card */}
-          {/* <View style={styles.urlCardWrapper}>
-            <View style={styles.urlCard}>
-              <View style={styles.urlCardContent}>
-                <View style={styles.urlLeftSection}>
-                  <View style={styles.urlIconContainer}>
-                    <Icon name="link" size={14} color="#3B82F6" />
-                  </View>
-                  <View style={styles.urlTextSection}>
-                    <Text style={styles.urlLabel}>User Login URL</Text>
-                    <Text style={styles.urlValue} numberOfLines={1}>
-                      {userLoginUrl}
-                    </Text>
-                  </View>
-                </View>
-                <TouchableOpacity
-                  style={[styles.copyButton, copied && styles.copyButtonActive]}
-                  onPress={copyToClipboard}
-                >
-                  <Icon
-                    name={copied ? 'check' : 'copy'}
-                    size={14}
-                    color={copied ? '#10B981' : '#3B82F6'}
-                  />
-                  <Text
-                    style={[
-                      styles.copyButtonText,
-                      copied && styles.copyButtonTextActive,
-                    ]}
-                  >
-                    {copied ? 'Copied!' : 'Copy'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View> */}
+          {/* URL Card - Uncomment if needed */}
+          {/* <URLCard
+            userLoginUrl={userLoginUrl}
+            onCopy={copyToClipboard}
+            copied={copied}
+          /> */}
 
           <Card>
             <CardContent
@@ -456,50 +612,7 @@ export default function UsersPage() {
                 viewMode === 'card' ? styles.cardContent : styles.listContent
               }
             >
-              {isLoading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#666" />
-                </View>
-              ) : users.length > 0 ? (
-                viewMode === 'list' ? (
-                  <UserTable
-                    users={users}
-                    onEdit={handleOpenForm}
-                    onDelete={openDeleteDialog}
-                    companyMap={companyMap}
-                  />
-                ) : (
-                  <UserCard
-                    users={users}
-                    onEdit={handleOpenForm}
-                    onDelete={openDeleteDialog}
-                    companyMap={companyMap}
-                  />
-                )
-              ) : (
-                <View style={styles.emptyState}>
-                  <Icon name="users" size={48} color="#999" />
-                  <Text style={styles.emptyStateTitle}>No Users Found</Text>
-                  {permissions?.canCreateUsers ? (
-                    <>
-                      <Text style={styles.emptyStateDescription}>
-                        Get started by adding your first user.
-                      </Text>
-                      <Button
-                        onPress={() => handleOpenForm()}
-                        icon="plus-circle"
-                      >
-                        Add User
-                      </Button>
-                    </>
-                  ) : (
-                    <Text style={styles.emptyStateDescription}>
-                      Please contact your Admin to provide permission for adding
-                      users.
-                    </Text>
-                  )}
-                </View>
-              )}
+              {renderUserContent}
             </CardContent>
           </Card>
 
@@ -552,11 +665,9 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#ffffff',
   },
-  content: {
-    // padding: 8,
-  },
+  content: {},
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
@@ -643,13 +754,10 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontWeight: '500',
   },
-  // Enhanced Header Styles
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    // marginBottom: 10,
-    // marginTop: 6,
     margin: 8,
     paddingLeft: 10,
     paddingRight: 10,
@@ -659,19 +767,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  headerIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: '#EFF6FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   title: {
     fontSize: 22,
     fontWeight: '700',
     color: '#1F2937',
-    // marginBottom: 2,
   },
   subtitleRow: {
     flexDirection: 'row',
@@ -696,16 +795,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 3,
-    marginTop:6
+    marginTop: 6,
   },
   addUserButtonText: {
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },
-  // Enhanced URL Card Styles
   urlCardWrapper: {
-    // marginBottom: 12,
     marginLeft: 16,
     marginRight: 16,
   },
@@ -779,7 +876,6 @@ const styles = StyleSheet.create({
   copyButtonTextActive: {
     color: '#10B981',
   },
-  // Rest of the styles remain the same
   cardContent: {
     padding: 0,
   },

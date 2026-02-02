@@ -7,6 +7,7 @@ import {
   FlatList,
   TextInput,
   StyleSheet,
+  ScrollView,
 } from 'react-native';
 
 const CustomDropdown = ({
@@ -18,27 +19,66 @@ const CustomDropdown = ({
   disabled = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState('');
-
-  const filteredItems = items.filter(item =>
-    item.label.toLowerCase().includes(search.toLowerCase()),
-  );
-
   const selectedItem = items.find(item => item.value === value);
+
+  // Custom render for modal content to match ProductForm style
+  const renderModalContent = () => (
+    <View style={styles.modalOverlay}>
+      <View style={styles.modalContent}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Select</Text>
+          <TouchableOpacity onPress={() => setIsOpen(false)}>
+            <Text style={styles.closeButton}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        
+        <ScrollView>
+          {items.map((item, index) => (
+            <TouchableOpacity
+              key={item.value || index}
+              style={[
+                styles.option,
+                value === item.value && styles.selectedOption,
+              ]}
+              onPress={() => {
+                onChange(item.value);
+                setIsOpen(false);
+              }}
+            >
+              <Text
+                style={[
+                  styles.optionText,
+                  value === item.value && styles.selectedOptionText,
+                ]}
+              >
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    </View>
+  );
 
   return (
     <View style={[styles.container, style]}>
       <TouchableOpacity
-        style={[styles.dropdownButton, disabled && styles.disabled]}
+        style={[
+          styles.dropdownButton,
+          disabled && styles.disabled,
+        ]}
         onPress={() => !disabled && setIsOpen(true)}
         disabled={disabled}
       >
         <Text
-          style={[styles.buttonText, !selectedItem && styles.placeholderText]}
+          style={[
+            styles.dropdownButtonText,
+            !selectedItem && styles.placeholderText,
+          ]}
         >
           {selectedItem ? selectedItem.label : placeholder}
         </Text>
-        <Text style={styles.arrow}>▼</Text>
+        <Text style={styles.dropdownArrow}>▼</Text>
       </TouchableOpacity>
 
       <Modal
@@ -47,46 +87,7 @@ const CustomDropdown = ({
         animationType="slide"
         onRequestClose={() => setIsOpen(false)}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setIsOpen(false)}
-        >
-          <View style={styles.modalContent}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search..."
-              value={search}
-              onChangeText={setSearch}
-            />
-            <FlatList
-              data={filteredItems}
-              keyExtractor={item => item.value}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.option,
-                    value === item.value && styles.selectedOption,
-                  ]}
-                  onPress={() => {
-                    onChange(item.value);
-                    setIsOpen(false);
-                    setSearch('');
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      value === item.value && styles.selectedOptionText,
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        </TouchableOpacity>
+        {renderModalContent()}
       </Modal>
     </View>
   );
@@ -97,30 +98,34 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   dropdownButton: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#fff',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 4,
-    padding: 12,
-    minHeight: 44,
+    minHeight: 50,
   },
   disabled: {
     backgroundColor: '#f5f5f5',
   },
-  buttonText: {
-    fontSize: 14,
+  dropdownButtonText: {
+    fontSize: 16,
     color: '#333',
+    flex: 1,
   },
   placeholderText: {
     color: '#999',
   },
-  arrow: {
-    fontSize: 12,
+  dropdownArrow: {
     color: '#666',
+    fontSize: 14,
+    marginLeft: 8,
   },
+  
+  // Modal styles matching ProductForm
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -129,29 +134,43 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: 'white',
-    borderRadius: 8,
-    maxHeight: '70%',
+    borderRadius: 12,
+    maxHeight: '80%',
+    overflow: 'hidden',
   },
-  searchInput: {
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-    padding: 12,
-    fontSize: 14,
+    borderBottomColor: '#eee',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  closeButton: {
+    fontSize: 20,
+    color: '#666',
+    fontWeight: 'bold',
   },
   option: {
-    padding: 15,
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#eee',
   },
   selectedOption: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#f0f8ff',
   },
   optionText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
   },
   selectedOptionText: {
-    color: 'white',
+    color: '#007AFF',
+    fontWeight: '500',
   },
 });
 

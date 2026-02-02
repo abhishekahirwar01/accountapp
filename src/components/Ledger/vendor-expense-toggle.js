@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
   
   },
   expenseActive: {
-    backgroundColor: '#16a34a', 
+    backgroundColor: '#007AFF', 
   },
   expenseInactive: {
    
