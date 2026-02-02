@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Linking,
   ScrollView,
   Alert,
+  TextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePermissions } from '../../contexts/permission-context';
@@ -46,6 +47,7 @@ import BarcodeDisplay from '../../components/ui/BarcodeDisplay';
 const { width } = Dimensions.get('window');
 const ITEMS_PER_PAGE = 10;
 
+
 const formatCurrencyINR = value => {
   if (value === null || value === undefined || value === '') return '₹0.00';
   const num = typeof value === 'string' ? parseFloat(value) : value;
@@ -65,6 +67,272 @@ const extractNumber = value => {
   return numeric ? Number(numeric) : 0;
 };
 
+const capitalizeFirst = str => {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1);
+};
+
+const formatDate = dateString => {
+  if (!dateString) return '—';
+  return new Date(dateString).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
+
+const ProductCard = memo(
+  ({ item, index, isSelected, onSelect, onEdit }) => {
+    const isLowStock = (item.stocks ?? 0) <= 10;
+
+    return (
+      <View style={[styles.card, isSelected && styles.selectedCard]}>
+        <View style={styles.cardHeader}>
+          <View style={styles.productInfo}>
+            <TouchableOpacity
+              onPress={() => onSelect(item._id, !isSelected, index)}
+              style={styles.checkboxContainer}
+            >
+              <Icon
+                name={isSelected ? 'check-box' : 'check-box-outline-blank'}
+                size={24}
+                color={isSelected ? '#3b82f6' : '#64748b'}
+              />
+            </TouchableOpacity>
+            <View style={styles.iconCircle}>
+              <Icon name="inventory-2" size={20} color="#3b82f6" />
+            </View>
+            <View style={styles.productDetails}>
+              <Text style={styles.productName} numberOfLines={1}>
+                {capitalizeFirst(item.name)}
+              </Text>
+              <Text style={styles.companyName} numberOfLines={1}>
+                {typeof item.company === 'object' && item.company
+                  ? item.company.businessName
+                  : 'No Company'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.cardBody}>
+          <View style={styles.mainInfoRow}>
+            <View style={styles.stockSection}>
+              <Text style={styles.label}>Stock</Text>
+              <View style={styles.stockDisplay}>
+                <Text
+                  style={[
+                    styles.stockValue,
+                    (item.stocks ?? 0) > 10
+                      ? styles.stockGood
+                      : (item.stocks ?? 0) > 0
+                      ? styles.stockWarning
+                      : styles.stockDanger,
+                  ]}
+                >
+                  {item.stocks ?? 0}
+                </Text>
+                <Text style={styles.unit}>{item.unit ?? 'Piece'}</Text>
+              </View>
+              {isLowStock && (item.stocks ?? 0) > 0 && (
+                <View style={styles.lowStockBadge}>
+                  <Text style={styles.lowStockText}>Low Stock</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.priceSection}>
+              <View style={styles.priceItem}>
+                <Text style={styles.label}>Cost Price</Text>
+                <Text style={styles.costPrice}>
+                  {item.costPrice ? formatCurrencyINR(item.costPrice) : '—'}
+                </Text>
+              </View>
+              <View style={styles.priceItem}>
+                <Text style={styles.label}>Selling Price</Text>
+                <Text style={styles.sellingPrice}>
+                  {item.sellingPrice
+                    ? formatCurrencyINR(item.sellingPrice)
+                    : '—'}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {item.hsn && (
+            <View style={styles.hsnRow}>
+              <Text style={styles.hsnLabel}>HSN: </Text>
+              <Text style={styles.hsnValue}>{item.hsn}</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.cardFooter}>
+          <View style={styles.footerLeft}>
+            <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
+            <BarcodeDisplay
+              value={item._id}
+              productId={item._id}
+              productName={item.name}
+              stockQuantity={item.stocks}
+            />
+          </View>
+          <TouchableOpacity style={styles.editButton} onPress={() => onEdit(item)}>
+            <Icon name="edit" size={16} color="#3b82f6" />
+            <Text style={styles.editButtonText}>Edit</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  },
+  (prevProps, nextProps) => {
+    return (
+      prevProps.item._id === nextProps.item._id &&
+      prevProps.isSelected === nextProps.isSelected &&
+      prevProps.item.stocks === nextProps.item.stocks &&
+      prevProps.item.costPrice === nextProps.item.costPrice &&
+      prevProps.item.sellingPrice === nextProps.item.sellingPrice
+    );
+  }
+);
+
+ProductCard.displayName = 'ProductCard';
+
+
+const ServiceCard = memo(
+  ({ item, onEdit, onDelete }) => {
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.serviceInfo}>
+            <View style={[styles.iconCircle, { backgroundColor: '#fce7f3' }]}>
+              <Icon name="build" size={20} color="#ec4899" />
+            </View>
+            <View style={styles.serviceDetails}>
+              <Text style={styles.serviceName} numberOfLines={1}>
+                {item.serviceName}
+              </Text>
+              <Text style={styles.serviceSubtext}>Service</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.cardBody}>
+          <View style={styles.serviceInfoRow}>
+            <View style={styles.serviceAmountBox}>
+              <Text style={styles.label}>Amount</Text>
+              <Text style={styles.serviceAmount}>
+                {formatCurrencyINR(item.amount)}
+              </Text>
+            </View>
+
+            {item.sac && (
+              <View style={styles.sacBadgeContainer}>
+                <View style={styles.sacBadge}>
+                  <Text style={styles.sacLabel}>SAC</Text>
+                  <Text style={styles.sacValue}>{item.sac}</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.cardFooter}>
+          <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
+          <View style={styles.serviceActionsContainer}>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => onEdit(item)}
+            >
+              <Icon name="edit" size={16} color="#3b82f6" />
+              <Text style={styles.editButtonText}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.deleteButtonCompact}
+              onPress={() => onDelete(item)}
+            >
+              <Icon name="delete" size={16} color="#ef4444" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  },
+  (prevProps, nextProps) => {
+    return (
+      prevProps.item._id === nextProps.item._id &&
+      prevProps.item.amount === nextProps.item.amount &&
+      prevProps.item.sac === nextProps.item.sac
+    );
+  }
+);
+
+ServiceCard.displayName = 'ServiceCard';
+
+
+const QuantityControl = memo(({ productId, quantity, onQuantityChange }) => {
+  const handleDecrement = useCallback(() => {
+    if (quantity > 1) {
+      onQuantityChange(productId, quantity - 1);
+    }
+  }, [productId, quantity, onQuantityChange]);
+
+  const handleIncrement = useCallback(() => {
+    if (quantity < 100) {
+      onQuantityChange(productId, quantity + 1);
+    }
+  }, [productId, quantity, onQuantityChange]);
+
+  const handleTextChange = useCallback(
+    text => {
+      let val = parseInt(text) || 1;
+      val = Math.max(1, Math.min(100, val));
+      onQuantityChange(productId, val);
+    },
+    [productId, onQuantityChange]
+  );
+
+  return (
+    <View style={styles.quantityControls}>
+      <TouchableOpacity
+        style={[
+          styles.quantityButton,
+          quantity <= 1 && styles.quantityButtonDisabled,
+        ]}
+        onPress={handleDecrement}
+        disabled={quantity <= 1}
+      >
+        <Icon name="remove" size={20} color="#64748b" />
+      </TouchableOpacity>
+
+      <TextInput
+        style={styles.quantityInput}
+        value={String(quantity)}
+        onChangeText={handleTextChange}
+        keyboardType="number-pad"
+        maxLength={3}
+      />
+
+      <TouchableOpacity
+        style={[
+          styles.quantityButton,
+          quantity >= 100 && styles.quantityButtonDisabled,
+        ]}
+        onPress={handleIncrement}
+        disabled={quantity >= 100}
+      >
+        <Icon name="add" size={20} color="#64748b" />
+      </TouchableOpacity>
+    </View>
+  );
+});
+
+QuantityControl.displayName = 'QuantityControl';
+
+// ==========================================
+// MAIN COMPONENT
+// ==========================================
 export default function InventoryScreen() {
   const {
     permissions: userCaps,
@@ -76,31 +344,14 @@ export default function InventoryScreen() {
     useCompany();
 
   const { socket } = useSocket();
+  const { toast } = useToast();
 
-  // Load user data from AsyncStorage
+  // State
   const [user, setUser] = useState(null);
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const userData = await AsyncStorage.getItem('user');
-        if (userData) {
-          setUser(JSON.parse(userData));
-        }
-      } catch (error) {
-        console.error('❌ InventoryScreen: Failed to load user:', error);
-      }
-    };
-    loadUser();
-  }, []);
-
-  // Trigger company refresh when screen gains focus
-  useFocusEffect(
-    React.useCallback(() => {
-      triggerCompaniesRefresh();
-    }, [triggerCompaniesRefresh]),
-  );
   const [isBulkPrintDialogOpen, setIsBulkPrintDialogOpen] = useState(false);
   const [bulkPrintQuantities, setBulkPrintQuantities] = useState({});
+  const [isPrinting, setIsPrinting] = useState(false);
+
   const [activeTab, setActiveTab] = useState('products');
   const [products, setProducts] = useState([]);
   const [services, setServices] = useState([]);
@@ -125,30 +376,52 @@ export default function InventoryScreen() {
   const [serviceToDelete, setServiceToDelete] = useState(null);
 
   const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [userRole, setUserRole] = useState(null);
 
-  const { toast } = useToast();
-
-  // ==========================================
-  // PERMISSION CHECKS - SIRF CREATE KE LIYE
-  // ==========================================
+  // Permissions
   const canCreateProducts =
     userCaps?.canCreateProducts ?? userCaps?.canCreateInventory ?? false;
   const webCanCreate = permissions?.canCreateProducts ?? false;
   const hasCreatePermission = canCreateProducts || webCanCreate;
 
-  // Check role from localStorage (AsyncStorage)
-  const [userRole, setUserRole] = useState(null);
-
   useEffect(() => {
-    const loadUserRole = async () => {
-      const role = await AsyncStorage.getItem('role');
-      setUserRole(role);
+    const loadUserData = async () => {
+      try {
+        const [userData, role] = await Promise.all([
+          AsyncStorage.getItem('user'),
+          AsyncStorage.getItem('role'),
+        ]);
+        if (userData) setUser(JSON.parse(userData));
+        if (role) setUserRole(role);
+      } catch (error) {
+        console.error('❌ Failed to load user data:', error);
+      }
     };
-    loadUserRole();
+    loadUserData();
   }, []);
 
+  useFocusEffect(
+    React.useCallback(() => {
+      triggerCompaniesRefresh();
+    }, [triggerCompaniesRefresh])
+  );
+
+  // Initialize bulk print quantities
+  useEffect(() => {
+    if (isBulkPrintDialogOpen && selectedProducts.length > 0) {
+      const initialQuantities = {};
+      selectedProducts.forEach(productId => {
+        const product = products.find(p => p._id === productId);
+        if (product) {
+          initialQuantities[productId] = Math.min(product.stocks || 1, 100);
+        }
+      });
+      setBulkPrintQuantities(initialQuantities);
+    }
+  }, [isBulkPrintDialogOpen, selectedProducts, products]);
+
   // ==========================================
-  // FETCH FUNCTIONS
+  //  Fetch functions 
   // ==========================================
   const fetchCompanies = useCallback(async () => {
     setIsLoadingCompanies(true);
@@ -192,9 +465,6 @@ export default function InventoryScreen() {
         const data = await res.json();
         setProducts(Array.isArray(data) ? data : data.products || []);
         setProductCurrentPage(1);
-
-        if (isSilent) {
-        }
       } catch (error) {
         if (!isSilent) {
           toast({
@@ -208,7 +478,7 @@ export default function InventoryScreen() {
         if (!isSilent) setIsLoadingProducts(false);
       }
     },
-    [toast, selectedCompanyId],
+    [toast, selectedCompanyId]
   );
 
   const fetchServices = useCallback(
@@ -218,7 +488,6 @@ export default function InventoryScreen() {
         const token = await AsyncStorage.getItem('token');
         if (!token) throw new Error('Authentication token not found.');
 
-        // Services are global (same for all companies) — fetch without company filter
         const res = await fetch(`${BASE_URL}/api/services`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -226,9 +495,6 @@ export default function InventoryScreen() {
         const data = await res.json();
         setServices(Array.isArray(data) ? data : data.services || []);
         setServiceCurrentPage(1);
-
-        if (isSilent) {
-        }
       } catch (error) {
         if (!isSilent) {
           toast({
@@ -242,16 +508,16 @@ export default function InventoryScreen() {
         if (!isSilent) setIsLoadingServices(false);
       }
     },
-    [toast],
+    [toast]
   );
 
-  useEffect(() => {
-    fetchCompanies();
-    fetchProducts();
-    fetchServices();
-  }, [fetchCompanies, fetchProducts, fetchServices]);
 
-  // Re-fetch companies silently when global refresh is triggered (avoid full-screen loader)
+  useEffect(() => {
+    Promise.all([fetchCompanies(), fetchProducts(), fetchServices()]).catch(
+      err => console.error('Initial load error:', err)
+    );
+  }, []);
+
   const fetchCompaniesSilent = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -268,13 +534,10 @@ export default function InventoryScreen() {
     }
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (refreshTrigger && refreshTrigger > 0) {
       fetchCompaniesSilent().catch(err =>
-        console.error(
-          'Inventory fetchCompaniesSilent after trigger failed:',
-          err,
-        ),
+        console.error('Inventory fetchCompaniesSilent after trigger failed:', err)
       );
     }
   }, [refreshTrigger, fetchCompaniesSilent]);
@@ -299,69 +562,75 @@ export default function InventoryScreen() {
   ]);
 
   // ==========================================
-  // CRUD OPERATIONS
+  // CRUD Operations
   // ==========================================
-  const openCreateProduct = () => {
+  const openCreateProduct = useCallback(() => {
     setProductToEdit(null);
     setIsProductFormOpen(true);
-  };
+  }, []);
 
-  const openCreateService = () => {
+  const openCreateService = useCallback(() => {
     setServiceToEdit(null);
     setIsServiceFormOpen(true);
-  };
+  }, []);
 
-  const openEditProduct = p => {
+  const openEditProduct = useCallback(p => {
     setProductToEdit(p);
     setIsProductFormOpen(true);
-  };
+  }, []);
 
-  const openEditService = s => {
+  const openEditService = useCallback(s => {
     setServiceToEdit(s);
     setIsServiceFormOpen(true);
-  };
+  }, []);
 
-  const onProductSaved = saved => {
-    setIsProductFormOpen(false);
-    setProductToEdit(null);
-    setProducts(prev =>
-      prev.some(p => p._id === saved._id)
-        ? prev.map(p => (p._id === saved._id ? saved : p))
-        : [saved, ...prev],
-    );
-    toast({
-      title: 'Product saved',
-      description: 'Product has been saved successfully.',
-    });
-  };
+  const onProductSaved = useCallback(
+    saved => {
+      setIsProductFormOpen(false);
+      setProductToEdit(null);
+      setProducts(prev =>
+        prev.some(p => p._id === saved._id)
+          ? prev.map(p => (p._id === saved._id ? saved : p))
+          : [saved, ...prev]
+      );
+      toast({
+        title: 'Product saved',
+        description: 'Product has been saved successfully.',
+      });
+    },
+    [toast]
+  );
 
-  const onServiceSaved = saved => {
-    setIsServiceFormOpen(false);
-    setServiceToEdit(null);
-    setServices(prev =>
-      prev.some(s => s._id === saved._id)
-        ? prev.map(s => (s._id === saved._id ? saved : s))
-        : [saved, ...prev],
-    );
-    toast({
-      title: 'Service saved',
-      description: 'Service has been saved successfully.',
-    });
-  };
+  const onServiceSaved = useCallback(
+    saved => {
+      setIsServiceFormOpen(false);
+      setServiceToEdit(null);
+      setServices(prev =>
+        prev.some(s => s._id === saved._id)
+          ? prev.map(s => (s._id === saved._id ? saved : s))
+          : [saved, ...prev]
+      );
+      toast({
+        title: 'Service saved',
+        description: 'Service has been saved successfully.',
+      });
+    },
+    [toast]
+  );
 
-  const confirmDeleteProduct = p => {
+  const confirmDeleteProduct = useCallback(p => {
     setProductToDelete(p);
     setServiceToDelete(null);
     setIsAlertOpen(true);
-  };
+  }, []);
 
-  const confirmDeleteService = s => {
+  const confirmDeleteService = useCallback(s => {
     setServiceToDelete(s);
     setProductToDelete(null);
     setIsAlertOpen(true);
-  };
+  }, []);
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
@@ -372,7 +641,7 @@ export default function InventoryScreen() {
           {
             method: 'DELETE',
             headers: { Authorization: `Bearer ${token}` },
-          },
+          }
         );
         if (!res.ok) throw new Error('Failed to delete product.');
         setProducts(prev => prev.filter(p => p._id !== productToDelete._id));
@@ -383,7 +652,7 @@ export default function InventoryScreen() {
           {
             method: 'DELETE',
             headers: { Authorization: `Bearer ${token}` },
-          },
+          }
         );
         if (!res.ok) throw new Error('Failed to delete service.');
         setServices(prev => prev.filter(s => s._id !== serviceToDelete._id));
@@ -401,15 +670,19 @@ export default function InventoryScreen() {
       setProductToDelete(null);
       setServiceToDelete(null);
     }
-  };
+  }, [productToDelete, serviceToDelete, toast]);
 
-  // Add this bulk print handler function
-  const handleBulkPrint = async () => {
+  // ==========================================
+  // Bulk Print Handler
+  // ==========================================
+  const handleBulkPrint = useCallback(async () => {
     if (selectedProducts.length === 0) return;
 
     try {
+      setIsPrinting(true);
+
       const productsToPrint = products.filter(p =>
-        selectedProducts.includes(p._id),
+        selectedProducts.includes(p._id)
       );
 
       let labelsHtml = '';
@@ -458,7 +731,7 @@ export default function InventoryScreen() {
       });
 
       const labelHeight = 80;
-      const pageHeight = Math.max(280, labelHeight * totalLabels + 20);
+      const pageHeight = Math.max(280, labelHeight * totalLabels + 80);
 
       const html = `
       <html>
@@ -473,7 +746,6 @@ export default function InventoryScreen() {
       </html>
     `;
 
-      // Use generatePDF from react-native-html-to-pdf
       const results = await generatePDF({
         html: html,
         fileName: `Bulk_Barcodes_${Date.now()}`,
@@ -487,93 +759,73 @@ export default function InventoryScreen() {
 
       Alert.alert(
         'Bulk Print Started',
-        `Printing ${totalLabels} labels for ${selectedProducts.length} products on single page`,
+        `Printing ${totalLabels} labels for ${selectedProducts.length} products`
       );
 
       setIsBulkPrintDialogOpen(false);
       setSelectedProducts([]);
       setBulkPrintQuantities({});
     } catch (error) {
-      console.error(error);
+      console.error('Bulk print error:', error);
       Alert.alert('Error', 'Failed to generate bulk labels');
+    } finally {
+      setIsPrinting(false);
     }
-  };
+  }, [selectedProducts, products, bulkPrintQuantities]);
 
   // ==========================================
-  // SELECTION HANDLING - EDIT/DELETE PERMISSION CHECK HATAYA
+  // Selection Handlers
   // ==========================================
-  const handleSelectProduct = (productId, checked, index, shiftKey = false) => {
-    // EDIT/DELETE PERMISSION CHECK HATAYA
-    // if (userRole === 'user') return; // Yeh line hatani hai
+  const handleSelectProduct = useCallback(
+    (productId, checked, index, shiftKey = false) => {
+      if (shiftKey && lastSelectedIndex !== null && index !== undefined) {
+        const startIndex = Math.min(lastSelectedIndex, index);
+        const endIndex = Math.max(lastSelectedIndex, index);
+        const rangeIds = products
+          .slice(startIndex, endIndex + 1)
+          .map(p => p._id);
 
-    if (shiftKey && lastSelectedIndex !== null && index !== undefined) {
-      const startIndex = Math.min(lastSelectedIndex, index);
-      const endIndex = Math.max(lastSelectedIndex, index);
-      const rangeIds = products.slice(startIndex, endIndex + 1).map(p => p._id);
-
-      if (checked) {
-        setSelectedProducts(prev => [...new Set([...prev, ...rangeIds])]);
+        if (checked) {
+          setSelectedProducts(prev => [...new Set([...prev, ...rangeIds])]);
+        } else {
+          setSelectedProducts(prev =>
+            prev.filter(id => !rangeIds.includes(id))
+          );
+        }
+        setLastSelectedIndex(index);
       } else {
-        setSelectedProducts(prev => prev.filter(id => !rangeIds.includes(id)));
+        if (checked) {
+          setSelectedProducts(prev => [...prev, productId]);
+        } else {
+          setSelectedProducts(prev => prev.filter(id => id !== productId));
+        }
+        setLastSelectedIndex(index ?? null);
       }
-      setLastSelectedIndex(index);
-    } else {
+    },
+    [lastSelectedIndex, products]
+  );
+
+  const handleSelectAllProducts = useCallback(
+    checked => {
       if (checked) {
-        setSelectedProducts(prev => [...prev, productId]);
+        setSelectedProducts(filteredProducts.map(p => p._id));
       } else {
-        setSelectedProducts(prev => prev.filter(id => id !== productId));
+        setSelectedProducts([]);
       }
-      setLastSelectedIndex(index ?? null);
-    }
-  };
+    },
+    [filteredProducts]
+  );
 
-  const handleSelectAllProducts = checked => {
-    // EDIT/DELETE PERMISSION CHECK HATAYA
-    // if (userRole === 'user') return; // Yeh line hatani hai
+  const handleQuantityChange = useCallback((productId, newQuantity) => {
+    setBulkPrintQuantities(prev => ({
+      ...prev,
+      [productId]: newQuantity,
+    }));
+  }, []);
 
-    if (checked) {
-      setSelectedProducts(filteredProducts.map(p => p._id));
-    } else {
-      setSelectedProducts([]);
-    }
-  };
-
-  const handleBulkDeleteProducts = async () => {
-    // EDIT/DELETE PERMISSION CHECK HATAYA
-    if (selectedProducts.length === 0) return; // if (selectedProducts.length === 0 || userRole === 'user') return;
-
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('Authentication token not found.');
-
-      const res = await fetch(`${BASE_URL}/api/products/bulk-delete`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ productIds: selectedProducts }),
-      });
-
-      if (!res.ok) throw new Error('Failed to delete products.');
-
-      toast({
-        title: 'Products Deleted',
-        description: `${selectedProducts.length} products have been successfully removed.`,
-      });
-
-      setSelectedProducts([]);
-      fetchProducts();
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Bulk Deletion Failed',
-        description:
-          error instanceof Error ? error.message : 'Something went wrong.',
-      });
-    }
-  };
-
+  
+  
+  
   const userAllowedCompanyIds = useMemo(() => {
     return companies.map(c => String(c._id));
   }, [companies]);
@@ -584,7 +836,6 @@ export default function InventoryScreen() {
     if (userAllowedCompanyIds.length > 0) {
       data = data.filter(p => {
         const cId = typeof p.company === 'object' ? p.company?._id : p.company;
-
         return userAllowedCompanyIds.includes(String(cId)) || !cId;
       });
     } else if (!isLoadingCompanies && companies.length === 0) {
@@ -612,14 +863,12 @@ export default function InventoryScreen() {
 
     data = data.filter(s => {
       const cId = typeof s.company === 'object' ? s.company?._id : s.company;
-
       return !cId || userAllowedCompanyIds.includes(String(cId));
     });
 
     if (selectedCompanyId) {
       data = data.filter(s => {
         const cId = typeof s.company === 'object' ? s.company?._id : s.company;
-
         return String(cId) === String(selectedCompanyId) || !cId;
       });
     }
@@ -627,8 +876,15 @@ export default function InventoryScreen() {
     return data;
   }, [services, selectedCompanyId, userAllowedCompanyIds]);
 
-  const productTotalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
-  const serviceTotalPages = Math.ceil(filteredServices.length / ITEMS_PER_PAGE);
+  const productTotalPages = useMemo(
+    () => Math.ceil(filteredProducts.length / ITEMS_PER_PAGE) || 1,
+    [filteredProducts.length]
+  );
+
+  const serviceTotalPages = useMemo(
+    () => Math.ceil(filteredServices.length / ITEMS_PER_PAGE) || 1,
+    [filteredServices.length]
+  );
 
   const paginatedProducts = useMemo(() => {
     const startIndex = (productCurrentPage - 1) * ITEMS_PER_PAGE;
@@ -642,23 +898,29 @@ export default function InventoryScreen() {
     return filteredServices.slice(startIndex, endIndex);
   }, [filteredServices, serviceCurrentPage]);
 
-  const goToNextProductPage = () => {
+  // ==========================================
+  // Pagination
+  // ==========================================
+  const goToNextProductPage = useCallback(() => {
     setProductCurrentPage(prev => Math.min(prev + 1, productTotalPages));
-  };
+  }, [productTotalPages]);
 
-  const goToPrevProductPage = () => {
+  const goToPrevProductPage = useCallback(() => {
     setProductCurrentPage(prev => Math.max(prev - 1, 1));
-  };
+  }, []);
 
-  const goToNextServicePage = () => {
+  const goToNextServicePage = useCallback(() => {
     setServiceCurrentPage(prev => Math.min(prev + 1, serviceTotalPages));
-  };
+  }, [serviceTotalPages]);
 
-  const goToPrevServicePage = () => {
+  const goToPrevServicePage = useCallback(() => {
     setServiceCurrentPage(prev => Math.max(prev - 1, 1));
-  };
+  }, []);
 
-  const renderActionButtons = () => {
+  // ==========================================
+  // Action Buttons Renderer
+  // ==========================================
+  const renderActionButtons = useCallback(() => {
     if (!hasCreatePermission) {
       return null;
     }
@@ -667,79 +929,56 @@ export default function InventoryScreen() {
       return (
         <View style={styles.actionButtons}>
           <ExcelImportExport
-            templateData={
-              activeTab === 'products'
-                ? [
-                    {
-                      Company:
-                        companies.length > 0
-                          ? companies[0].businessName
-                          : 'Your Company',
-                      'Item Name': '',
-                      Stock: '',
-                      Unit: '',
-                      'Cost Price': '',
-                      'Selling Price': '',
-                      HSN: '',
-                    },
-                  ]
-                : [{ 'Service Name': '', Amount: '', SAC: '' }]
-            }
+            templateData={[
+              {
+                Company:
+                  companies.length > 0
+                    ? companies[0].businessName
+                    : 'Your Company',
+                'Item Name': '',
+                Stock: '',
+                Unit: '',
+                'Cost Price': '',
+                'Selling Price': '',
+                HSN: '',
+              },
+            ]}
             templateFileName="product_template.xlsx"
-            onImportSuccess={() => {
-              if (activeTab === 'products') fetchProducts();
-              else fetchServices();
-            }}
-            expectedColumns={
-              activeTab === 'products'
-                ? [
-                    'Company',
-                    'Item Name',
-                    'Stock',
-                    'Unit',
-                    'Cost Price',
-                    'Selling Price',
-                    'HSN',
-                  ]
-                : ['Service Name', 'Amount', 'SAC']
-            }
+            onImportSuccess={fetchProducts}
+            expectedColumns={[
+              'Company',
+              'Item Name',
+              'Stock',
+              'Unit',
+              'Cost Price',
+              'Selling Price',
+              'HSN',
+            ]}
             transformImportData={data => {
-              if (activeTab === 'products') {
-                return data.map(item => {
-                  const companyName = item['Company']?.trim();
+              return data.map(item => {
+                const companyName = item['Company']?.trim();
+                const foundCompany = companies.find(
+                  c =>
+                    c.businessName.toLowerCase() === companyName?.toLowerCase()
+                );
 
-                  // Find matching company
-                  const foundCompany = companies.find(
-                    c =>
-                      c.businessName.toLowerCase() ===
-                      companyName?.toLowerCase(),
-                  );
-
-                  return {
-                    company: foundCompany?._id || companies[0]?._id || '',
-
-                    name: item['Item Name'],
-                    stocks: Number(item['Stock']) || 0,
-                    unit: item['Unit'] || 'Piece',
-                    costPrice: Number(item['Cost Price']) || 0,
-                    sellingPrice: Number(item['Selling Price']) || 0,
-                    hsn: item['HSN'] || '',
-                  };
-                });
-              } else {
-                return data.map(item => ({
-                  serviceName: item['Service Name'],
-                  amount: Number(item['Amount']) || 0,
-                  sac: item['SAC'] || '',
-                }));
-              }
+                return {
+                  company: foundCompany?._id || companies[0]?._id || '',
+                  name: item['Item Name'],
+                  stocks: Number(item['Stock']) || 0,
+                  unit: item['Unit'] || 'Piece',
+                  costPrice: Number(item['Cost Price']) || 0,
+                  sellingPrice: Number(item['Selling Price']) || 0,
+                  hsn: item['HSN'] || '',
+                };
+              });
             }}
             activeTab={activeTab}
-            companies={companies} // Add this prop
+            companies={companies}
           />
-          <TouchableOpacity style={[styles.button]} onPress={openCreateProduct}>
+          <TouchableOpacity style={styles.button} onPress={openCreateProduct}>
             <Icon name="add-circle" size={20} color="white" />
-            <Text style={[styles.buttonText]}>Add Product</Text>
+            <Text style={styles.buttonText}>Add Product</Text>
           </TouchableOpacity>
         </View>
       );
@@ -775,233 +1014,103 @@ export default function InventoryScreen() {
         </View>
       );
     }
-  };
+  }, [
+    hasCreatePermission,
+    activeTab,
+    companies,
+    fetchProducts,
+    fetchServices,
+    openCreateProduct,
+    openCreateService,
+  ]);
+
+
+  const renderItem = useCallback(
+    ({ item, index }) => {
+      if (activeTab === 'products') {
+        const isSelected = selectedProducts.includes(item._id);
+        return (
+          <ProductCard
+            item={item}
+            index={index}
+            isSelected={isSelected}
+            onSelect={handleSelectProduct}
+            onEdit={openEditProduct}
+          />
+        );
+      } else {
+        return (
+          <ServiceCard
+            item={item}
+            onEdit={openEditService}
+            onDelete={confirmDeleteService}
+          />
+        );
+      }
+    },
+    [
+      activeTab,
+      selectedProducts,
+      handleSelectProduct,
+      openEditProduct,
+      openEditService,
+      confirmDeleteService,
+    ]
+  );
+
+  const keyExtractor = useCallback(item => item._id, []);
+
+  const getItemLayout = useCallback(
+    (data, index) => ({
+      length: 200,
+      offset: 200 * index,
+      index,
+    }),
+    []
+  );
+
+  const getData = useMemo(() => {
+    if (activeTab === 'products') {
+      return filteredProducts.length > 0 ? paginatedProducts : [];
+    } else {
+      return filteredServices.length > 0 ? paginatedServices : [];
+    }
+  }, [
+    activeTab,
+    filteredProducts.length,
+    paginatedProducts,
+    filteredServices.length,
+    paginatedServices,
+  ]);
 
   // ==========================================
-  // PRODUCT CARD (EDIT/DELETE KE PERMISSION CHECKS HATAYE)
+  // Header Component
   // ==========================================
-  const renderProductCard = (item, index) => {
-    const isLowStock = (item.stocks ?? 0) <= 10;
-    const isSelected = selectedProducts.includes(item._id);
-
+  const renderHeader = useCallback(() => {
     return (
-      <View
-        style={[styles.card, isSelected && styles.selectedCard]}
-        key={item._id}
-      >
-        {/* Header - Product Info */}
-        <View style={styles.cardHeader}>
-          <View style={styles.productInfo}>
-            {/* Checkbox Icon */}
-            <TouchableOpacity
-              onPress={() => handleSelectProduct(item._id, !isSelected, index)}
-              style={styles.checkboxContainer}
-            >
-              <Icon
-                name={isSelected ? 'check-box' : 'check-box-outline-blank'}
-                size={24}
-                color={isSelected ? '#3b82f6' : '#64748b'}
-              />
-            </TouchableOpacity>
-            <View style={styles.iconCircle}>
-              <Icon name="inventory-2" size={20} color="#3b82f6" />
-            </View>
-            <View style={styles.productDetails}>
-              <Text style={styles.productName} numberOfLines={1}>
-                {item.name?.charAt(0).toUpperCase() + item.name?.slice(1)}
+      <View>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Inventory Management</Text>
+            {selectedProducts.length > 0 ? (
+              <Text style={styles.selectionCount}>
+                {selectedProducts.length} selected
               </Text>
-              <Text style={styles.companyName} numberOfLines={1}>
-                {typeof item.company === 'object' && item.company
-                  ? item.company.businessName
-                  : 'No Company'}
+            ) : (
+              <Text style={styles.subtitle}>
+                Track and manage your products and services.
               </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Body - Stock Left, Prices Right */}
-        <View style={styles.cardBody}>
-          <View style={styles.mainInfoRow}>
-            {/* Left Side - Stock */}
-            <View style={styles.stockSection}>
-              <Text style={styles.label}>Stock</Text>
-              <View style={styles.stockDisplay}>
-                <Text
-                  style={[
-                    styles.stockValue,
-                    (item.stocks ?? 0) > 10
-                      ? styles.stockGood
-                      : (item.stocks ?? 0) > 0
-                      ? styles.stockWarning
-                      : styles.stockDanger,
-                  ]}
-                >
-                  {item.stocks ?? 0}
-                </Text>
-                <Text style={styles.unit}>{item.unit ?? 'Piece'}</Text>
-              </View>
-              {isLowStock && (item.stocks ?? 0) > 0 && (
-                <View style={styles.lowStockBadge}>
-                  <Text style={styles.lowStockText}>Low Stock</Text>
-                </View>
-              )}
-            </View>
-
-            {/* Right Side - Prices */}
-            <View style={styles.priceSection}>
-              <View style={styles.priceItem}>
-                <Text style={styles.label}>Cost Price</Text>
-                <Text style={styles.costPrice}>
-                  {item.costPrice ? formatCurrencyINR(item.costPrice) : '—'}
-                </Text>
-              </View>
-              <View style={styles.priceItem}>
-                <Text style={styles.label}>Selling Price</Text>
-                <Text style={styles.sellingPrice}>
-                  {item.sellingPrice
-                    ? formatCurrencyINR(item.sellingPrice)
-                    : '—'}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* HSN if available */}
-          {item.hsn && (
-            <View style={styles.hsnRow}>
-              <Text style={styles.hsnLabel}>HSN: </Text>
-              <Text style={styles.hsnValue}>{item.hsn}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Footer - Date & Edit */}
-        <View style={styles.cardFooter}>
-          <View style={styles.footerLeft}>
-            <Text style={styles.dateText}>
-              {item.createdAt
-                ? new Date(item.createdAt).toLocaleDateString('en-IN', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                  })
-                : '—'}
-            </Text>
-            <BarcodeDisplay
-              value={item._id}
-              productId={item._id}
-              productName={item.name}
-              stockQuantity={item.stocks}
-            />
-          </View>
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => openEditProduct(item)}
-          >
-            <Icon name="edit" size={16} color="#3b82f6" />
-            <Text style={styles.editButtonText}>Edit</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
-
-  const renderServiceCard = item => {
-    return (
-      <View style={styles.card} key={item._id}>
-        {/* Header - Service Info */}
-        <View style={styles.cardHeader}>
-          <View style={styles.serviceInfo}>
-            <View style={[styles.iconCircle, { backgroundColor: '#fce7f3' }]}>
-              <Icon name="build" size={20} color="#ec4899" />
-            </View>
-            <View style={styles.serviceDetails}>
-              <Text style={styles.serviceName} numberOfLines={1}>
-                {item.serviceName}
-              </Text>
-              <Text style={styles.serviceSubtext}>Service</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Body - Amount & SAC */}
-        <View style={styles.cardBody}>
-          <View style={styles.serviceInfoRow}>
-            {/* Left Side - Amount */}
-            <View style={styles.serviceAmountBox}>
-              <Text style={styles.label}>Amount</Text>
-              <Text style={styles.serviceAmount}>
-                {formatCurrencyINR(item.amount)}
-              </Text>
-            </View>
-
-            {/* Right Side - SAC Badge (if available) */}
-            {item.sac && (
-              <View style={styles.sacBadgeContainer}>
-                <View style={styles.sacBadge}>
-                  <Text style={styles.sacLabel}>SAC</Text>
-                  <Text style={styles.sacValue}>{item.sac}</Text>
-                </View>
-              </View>
             )}
           </View>
         </View>
 
-        {/* Footer - Date & Actions */}
-        <View style={styles.cardFooter}>
-          <Text style={styles.dateText}>
-            {item.createdAt
-              ? new Date(item.createdAt).toLocaleDateString('en-IN', {
-                  day: '2-digit',
-                  month: 'short',
-                  year: 'numeric',
-                })
-              : '—'}
-          </Text>
-          <View style={styles.serviceActionsContainer}>
-            <TouchableOpacity
-              style={styles.editButton}
-              onPress={() => openEditService(item)}
-            >
-              <Icon name="edit" size={16} color="#3b82f6" />
-              <Text style={styles.editButtonText}>Edit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.deleteButtonCompact}
-              onPress={() => confirmDeleteService(item)}
-            >
-              <Icon name="delete" size={16} color="#ef4444" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
-  };
+        <View style={styles.headerActionsRow}>
+          {hasCreatePermission && renderActionButtons()}
 
-  // ==========================================
-  // HEADER COMPONENT
-  // ==========================================
-  const renderHeader = () => (
-    <View>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Inventory Management</Text>
-          {selectedProducts.length > 0 ? (
-            <Text style={styles.selectionCount}>
-              {selectedProducts.length} selected
-            </Text>
-          ) : (
-            <Text style={styles.subtitle}>
-              Track and manage your products and services.
-            </Text>
-          )}
-        </View>
-
-        <View style={styles.headerActions}>
           {selectedProducts.length > 0 && (
             <TouchableOpacity
-              style={styles.bulkPrintBtn}
-              onPress={handleBulkPrint}
+              style={[styles.button, styles.bulkPrintBtn]}
+              onPress={() => setIsBulkPrintDialogOpen(true)}
             >
               <Icon name="print" size={20} color="white" />
               <Text style={styles.buttonText}>
@@ -1009,120 +1118,109 @@ export default function InventoryScreen() {
               </Text>
             </TouchableOpacity>
           )}
-          {renderActionButtons()}
         </View>
-      </View>
 
-      <View style={styles.tabsContainer}>
-        <View style={styles.tabs}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'products' && styles.activeTab]}
-            onPress={() => setActiveTab('products')}
-          >
-            <Text
+        <View style={styles.tabsContainer}>
+          <View style={styles.tabs}>
+            <TouchableOpacity
               style={[
-                styles.tabText,
-                activeTab === 'products' && styles.activeTabText,
+                styles.tab,
+                activeTab === 'products' && styles.activeTab,
               ]}
+              onPress={() => setActiveTab('products')}
             >
-              Products ({filteredProducts.length})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'services' && styles.activeTab]}
-            onPress={() => setActiveTab('services')}
-          >
-            <Text
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === 'products' && styles.activeTabText,
+                ]}
+              >
+                Products ({filteredProducts.length})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[
-                styles.tabText,
-                activeTab === 'services' && styles.activeTabText,
+                styles.tab,
+                activeTab === 'services' && styles.activeTab,
               ]}
+              onPress={() => setActiveTab('services')}
             >
-              Services ({filteredServices.length})
-            </Text>
-          </TouchableOpacity>
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === 'services' && styles.activeTabText,
+                ]}
+              >
+                Services ({filteredServices.length})
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {activeTab === 'products' &&
+          !isLoadingProducts &&
+          filteredProducts.length === 0 && (
+            <View style={styles.emptyState}>
+              <Icon name="inventory" size={48} color="#666" />
+              <Text style={styles.emptyStateTitle}>No Products Found</Text>
+              <Text style={styles.emptyStateDescription}>
+                {hasCreatePermission
+                  ? 'Create your first product to get started.'
+                  : 'No products available in your inventory.'}
+              </Text>
+              {hasCreatePermission && (
+                <TouchableOpacity
+                  style={styles.button}
+                  onPress={openCreateProduct}
+                >
+                  <Icon name="add-circle" size={20} color="white" />
+                  <Text style={styles.buttonText}>Add Product</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+        {activeTab === 'services' &&
+          !isLoadingServices &&
+          filteredServices.length === 0 && (
+            <View style={styles.emptyState}>
+              <Icon name="build" size={48} color="#666" />
+              <Text style={styles.emptyStateTitle}>No Services Found</Text>
+              <Text style={styles.emptyStateDescription}>
+                {hasCreatePermission
+                  ? 'Create your first service to get started.'
+                  : 'No services available in your inventory.'}
+              </Text>
+              {hasCreatePermission && (
+                <TouchableOpacity
+                  style={styles.button}
+                  onPress={openCreateService}
+                >
+                  <Icon name="add-circle" size={20} color="white" />
+                  <Text style={styles.buttonText}>Add Service</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
       </View>
-
-      {/* Bulk Actions - EDIT/DELETE PERMISSION CHECK HATAYA */}
-      {activeTab === 'products' && selectedProducts.length > 0 && (
-        <View style={styles.bulkActions}>
-          <TouchableOpacity
-            style={[styles.button, styles.destructiveButton]}
-            onPress={handleBulkDeleteProducts}
-          >
-            <Icon name="delete" size={20} color="white" />
-            <Text style={styles.buttonText}>
-              Delete ({selectedProducts.length})
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Empty States with permission checks */}
-      {activeTab === 'products' &&
-        !isLoadingProducts &&
-        filteredProducts.length === 0 && (
-          <View style={styles.emptyState}>
-            <Icon name="inventory" size={48} color="#666" />
-            <Text style={styles.emptyStateTitle}>No Products Found</Text>
-            <Text style={styles.emptyStateDescription}>
-              {hasCreatePermission
-                ? 'Create your first product to get started.'
-                : 'No products available in your inventory.'}
-            </Text>
-            {hasCreatePermission && (
-              <TouchableOpacity
-                style={styles.button}
-                onPress={openCreateProduct}
-              >
-                <Icon name="add-circle" size={20} color="white" />
-                <Text style={styles.buttonText}>Add Product</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-      {activeTab === 'services' &&
-        !isLoadingServices &&
-        filteredServices.length === 0 && (
-          <View style={styles.emptyState}>
-            <Icon name="build" size={48} color="#666" />
-            <Text style={styles.emptyStateTitle}>No Services Found</Text>
-            <Text style={styles.emptyStateDescription}>
-              {hasCreatePermission
-                ? 'Create your first service to get started.'
-                : 'No services available in your inventory.'}
-            </Text>
-            {hasCreatePermission && (
-              <TouchableOpacity
-                style={styles.button}
-                onPress={openCreateService}
-              >
-                <Icon name="add-circle" size={20} color="white" />
-                <Text style={styles.buttonText}>Add Service</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-    </View>
-  );
+    );
+  }, [
+    selectedProducts.length,
+    hasCreatePermission,
+    renderActionButtons,
+    activeTab,
+    filteredProducts.length,
+    filteredServices.length,
+    isLoadingProducts,
+    isLoadingServices,
+    openCreateProduct,
+    openCreateService,
+  ]);
 
   // ==========================================
-  // RENDER ITEM FUNCTION
+  // Footer Component
   // ==========================================
-  const renderItem = ({ item, index }) => {
-    if (activeTab === 'products') {
-      return renderProductCard(item, index);
-    } else {
-      return renderServiceCard(item);
-    }
-  };
-
-  // ==========================================
-  // FOOTER COMPONENT
-  // ==========================================
-  const renderFooter = () => {
+  const renderFooter = useCallback(() => {
     if (
       activeTab === 'products' &&
       productTotalPages > 1 &&
@@ -1134,7 +1232,7 @@ export default function InventoryScreen() {
             Showing {(productCurrentPage - 1) * ITEMS_PER_PAGE + 1} to{' '}
             {Math.min(
               productCurrentPage * ITEMS_PER_PAGE,
-              filteredProducts.length,
+              filteredProducts.length
             )}{' '}
             of {filteredProducts.length} products
           </Text>
@@ -1199,7 +1297,7 @@ export default function InventoryScreen() {
             Showing {(serviceCurrentPage - 1) * ITEMS_PER_PAGE + 1} to{' '}
             {Math.min(
               serviceCurrentPage * ITEMS_PER_PAGE,
-              filteredServices.length,
+              filteredServices.length
             )}{' '}
             of {filteredServices.length} services
           </Text>
@@ -1254,18 +1352,22 @@ export default function InventoryScreen() {
     }
 
     return null;
-  };
-
-  const getData = () => {
-    if (activeTab === 'products') {
-      return filteredProducts.length > 0 ? paginatedProducts : [];
-    } else {
-      return filteredServices.length > 0 ? paginatedServices : [];
-    }
-  };
+  }, [
+    activeTab,
+    productTotalPages,
+    filteredProducts.length,
+    productCurrentPage,
+    serviceTotalPages,
+    filteredServices.length,
+    serviceCurrentPage,
+    goToPrevProductPage,
+    goToNextProductPage,
+    goToPrevServicePage,
+    goToNextServicePage,
+  ]);
 
   // ==========================================
-  // LOADING STATE
+  // Loading State
   // ==========================================
   if (isLoadingCompanies || isLoadingPermissions || isLoadingPerms) {
     return (
@@ -1281,7 +1383,7 @@ export default function InventoryScreen() {
   }
 
   // ==========================================
-  // NO COMPANY STATE
+  // No Company State
   // ==========================================
   if (companies.length === 0) {
     return (
@@ -1330,33 +1432,34 @@ export default function InventoryScreen() {
   }
 
   // ==========================================
-  // MAIN CONTENT
+  // Main Render
   // ==========================================
   return (
     <AppLayout>
       <View style={styles.container}>
-        {/* 🔌 Live Socket Listener - Listen for product/service updates */}
         {socket && user && (
           <InventorySocketListener
             socket={socket}
             user={user}
             onProductUpdate={() => {
-              fetchProducts(true); // Silent update
-              refetch?.(); // Refresh permissions silently
-              refetchUserPermissions?.(); // Refresh user permissions silently
+              fetchProducts(true);
+              refetch?.();
+              refetchUserPermissions?.();
             }}
             onServiceUpdate={() => {
-              fetchServices(true); // Silent update
-              refetch?.(); // Refresh permissions silently
-              refetchUserPermissions?.(); // Refresh user permissions silently
+              fetchServices(true);
+              refetch?.();
+              refetchUserPermissions?.();
             }}
           />
         )}
 
+        
         <FlatList
-          data={getData()}
-          keyExtractor={item => item._id}
+          data={getData}
+          keyExtractor={keyExtractor}
           renderItem={renderItem}
+          getItemLayout={getItemLayout}
           ListHeaderComponent={renderHeader}
           ListFooterComponent={renderFooter}
           refreshControl={
@@ -1367,7 +1470,118 @@ export default function InventoryScreen() {
           initialNumToRender={10}
           maxToRenderPerBatch={10}
           windowSize={5}
+          removeClippedSubviews={true}
+          updateCellsBatchingPeriod={50}
         />
+
+     
+        <Modal
+          visible={isBulkPrintDialogOpen}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setIsBulkPrintDialogOpen(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.bulkPrintDialog}>
+              <View style={styles.dialogHeader}>
+                <View>
+                  <Text style={styles.dialogTitle}>Print Barcode Labels</Text>
+                  <Text style={styles.dialogSubtitle}>
+                    Set print quantities for {selectedProducts.length} selected
+                    products
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setIsBulkPrintDialogOpen(false)}
+                  style={styles.closeButton}
+                >
+                  <Icon name="close" size={24} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.summaryCard}>
+                <View style={styles.summaryRow}>
+                  <View>
+                    <Text style={styles.summaryTitle}>
+                      {selectedProducts.length} Products Selected
+                    </Text>
+                    <Text style={styles.summarySubtext}>
+                      Total Labels:{' '}
+                      {Object.values(bulkPrintQuantities).reduce(
+                        (sum, qty) => sum + qty,
+                        0
+                      )}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.resetButton}
+                    onPress={() => {
+                      const newQuantities = {};
+                      selectedProducts.forEach(id => {
+                        const product = products.find(p => p._id === id);
+                        newQuantities[id] = Math.min(product?.stocks || 1, 100);
+                      });
+                      setBulkPrintQuantities(newQuantities);
+                    }}
+                  >
+                    <Text style={styles.resetButtonText}>Reset to Stock</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <ScrollView style={styles.productList}>
+                {selectedProducts.map(productId => {
+                  const product = products.find(p => p._id === productId);
+                  if (!product) return null;
+
+                  return (
+                    <View key={productId} style={styles.productListItem}>
+                      <View style={styles.productListInfo}>
+                        <Text style={styles.productListName} numberOfLines={1}>
+                          {product.name}
+                        </Text>
+                        <Text style={styles.productListMeta}>
+                          Stock: {product.stocks} | ID: {product._id}
+                        </Text>
+                      </View>
+
+                      <QuantityControl
+                        productId={productId}
+                        quantity={bulkPrintQuantities[productId] || 1}
+                        onQuantityChange={handleQuantityChange}
+                      />
+                    </View>
+                  );
+                })}
+              </ScrollView>
+
+              <View style={styles.dialogFooter}>
+                <TouchableOpacity
+                  style={styles.cancelDialogButton}
+                  onPress={() => {
+                    setIsBulkPrintDialogOpen(false);
+                    setBulkPrintQuantities({});
+                  }}
+                >
+                  <Text style={styles.cancelDialogButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.printDialogButton,
+                    isPrinting && styles.printDialogButtonDisabled,
+                  ]}
+                  onPress={handleBulkPrint}
+                  disabled={isPrinting}
+                >
+                  <Icon name="print" size={20} color="white" />
+                  <Text style={styles.printDialogButtonText}>
+                    {isPrinting ? 'Printing...' : 'Print All Labels'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* Product Form Dialog */}
         <Dialog
@@ -1414,7 +1628,6 @@ export default function InventoryScreen() {
           }}
         >
           <DialogContent>
-            {/* Header without close button (Dialog has built-in close) */}
             <View style={styles.dialogHeaderRow}>
               <View style={styles.dialogHeaderLeft}>
                 <Text style={styles.dialogHeaderTitle}>
@@ -1447,7 +1660,7 @@ export default function InventoryScreen() {
           </DialogContent>
         </Dialog>
 
-        {/* Delete Confirmation Modal - EDIT/DELETE PERMISSION CHECK HATAYA */}
+        {/* Delete Confirmation Modal */}
         <Modal
           visible={isAlertOpen}
           transparent
@@ -1482,9 +1695,9 @@ export default function InventoryScreen() {
     </AppLayout>
   );
 }
-// ==========================================
+
+
 const styles = StyleSheet.create({
-  // Main Container
   safeArea: {
     flex: 1,
     backgroundColor: '#f8fafc',
@@ -1498,8 +1711,6 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     flexGrow: 1,
   },
-
-  // Loading
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1512,8 +1723,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#64748b',
   },
-
-  // Header Section
   header: {
     marginBottom: 14,
   },
@@ -1521,13 +1730,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#0f172a',
-    // marginBottom: 4,
   },
   subtitle: {
     fontSize: 13,
     color: '#64748b',
   },
-
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1535,32 +1742,33 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 12,
   },
-
-  // Action Buttons
+  headerActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
   actionButtons: {
     flexDirection: 'row',
     gap: 10,
-    // marginTop: 12, // Moved to headerActions
   },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#3b82f6',
     paddingHorizontal: 16,
-    // paddingVertical: 12,
     borderRadius: 8,
     gap: 8,
   },
   bulkPrintBtn: {
     backgroundColor: '#10b981',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 7,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-
   destructiveButton: {
     backgroundColor: '#ef4444',
   },
@@ -1569,8 +1777,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-
-  // Tabs
   tabsContainer: {
     marginBottom: 10,
   },
@@ -1579,7 +1785,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 4,
-    // margin: 16,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -1610,13 +1815,6 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: 'white',
   },
-
-  // Bulk Actions
-  bulkActions: {
-    marginBottom: 16,
-    alignItems: 'flex-end',
-  },
-
   card: {
     backgroundColor: 'white',
     borderRadius: 12,
@@ -1641,15 +1839,11 @@ const styles = StyleSheet.create({
     color: '#3b82f6',
     fontWeight: '600',
   },
-
-  // Card Header (Shared)
   cardHeader: {
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
-
-  // Icon Circle (Shared)
   iconCircle: {
     width: 40,
     height: 40,
@@ -1659,13 +1853,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
-
-  // Card Body (Shared)
   cardBody: {
     padding: 16,
   },
-
-  // Card Footer (Shared)
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1700,18 +1890,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#3b82f6',
   },
-
-  // Label (Shared)
   label: {
     fontSize: 12,
     color: '#64748b',
     fontWeight: '500',
     marginBottom: 4,
   },
-
-  // ==========================================
-  // PRODUCT CARD SPECIFIC STYLES
-  // ==========================================
   productInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1730,16 +1914,12 @@ const styles = StyleSheet.create({
     color: '#64748b',
     fontWeight: '500',
   },
-
-  // Main Info Row (Product)
   mainInfoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 16,
     marginBottom: 12,
   },
-
-  // Stock Section (Left)
   stockSection: {
     flex: 1,
   },
@@ -1782,8 +1962,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#d97706',
   },
-
-  // Price Section (Right)
   priceSection: {
     alignItems: 'flex-end',
     gap: 8,
@@ -1801,8 +1979,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#10b981',
   },
-
-  // HSN Section (Product)
   hsnRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1820,10 +1996,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#0f172a',
   },
-
-  // ==========================================
-  // SERVICE CARD SPECIFIC STYLES
-  // ==========================================
   serviceInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1842,16 +2014,12 @@ const styles = StyleSheet.create({
     color: '#64748b',
     fontWeight: '500',
   },
-
-  // Service Info Row
   serviceInfoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 16,
   },
-
-  // Service Amount Box
   serviceAmountBox: {
     flex: 1,
   },
@@ -1860,8 +2028,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#10b981',
   },
-
-  // SAC Badge Container
   sacBadgeContainer: {
     justifyContent: 'center',
   },
@@ -1885,8 +2051,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#0f172a',
   },
-
-  // Service Actions Container
   serviceActionsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1900,10 +2064,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-
-  // ==========================================
-  // EMPTY STATE
-  // ==========================================
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1926,10 +2086,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
   },
-
-  // ==========================================
-  // PAGINATION
-  // ==========================================
   pagination: {
     marginTop: 24,
     padding: 16,
@@ -1980,10 +2136,6 @@ const styles = StyleSheet.create({
   paginationButtonTextDisabled: {
     color: '#cbd5e1',
   },
-
-  // ==========================================
-  // NO COMPANY STATE
-  // ==========================================
   noCompanyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -2055,10 +2207,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 16,
   },
-
-  // ==========================================
-  // ALERT DIALOG
-  // ==========================================
   alertOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -2110,10 +2258,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '500',
   },
-
-  // ==========================================
-  // DIALOG HEADER
-  // ==========================================
   dialogHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2136,46 +2280,172 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#64748b',
   },
-
-  // ==========================================
-  // OLD SERVICE CARD STYLES (FOR COMPATIBILITY)
-  // ==========================================
-  cardActions: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  bulkPrintDialog: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '85%',
+    paddingBottom: 24,
+  },
+  dialogHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  dialogTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  dialogSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  summaryCard: {
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 12,
+    padding: 16,
+    margin: 20,
+    marginTop: 16,
+  },
+  summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    paddingTop: 12,
-    marginTop: 8,
   },
-  dateContainer: {
-    flex: 1,
+  summaryTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e40af',
+    marginBottom: 4,
   },
-  actionButtonsContainer: {
+  summarySubtext: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  resetButton: {
+    backgroundColor: 'white',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  resetButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  productList: {
+    maxHeight: 400,
+    paddingHorizontal: 20,
+  },
+  productListItem: {
     flexDirection: 'row',
-    gap: 8,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 12,
   },
-  actionButton: {
+  productListInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  productListName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  productListMeta: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  quantityControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    gap: 8,
+  },
+  quantityButton: {
+    width: 32,
+    height: 32,
     borderRadius: 6,
-    gap: 4,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  deleteButton: {
-    backgroundColor: '#fee2e2',
+  quantityButtonDisabled: {
+    opacity: 0.4,
   },
-  actionButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
+  quantityInput: {
+    width: 48,
+    height: 38,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 6,
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0f172a',
+    backgroundColor: 'white',
   },
-  deleteButtonText: {
-    color: '#ef4444',
+  dialogFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
   },
-  createdDate: {
-    fontSize: 12,
-    color: '#94a3b8',
+  cancelDialogButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    backgroundColor: 'white',
+    alignItems: 'center',
+  },
+  cancelDialogButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  printDialogButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#2563eb',
+    gap: 8,
+  },
+  printDialogButtonDisabled: {
+    opacity: 0.6,
+  },
+  printDialogButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
   },
 });

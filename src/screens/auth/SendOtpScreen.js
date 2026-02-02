@@ -16,7 +16,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast, { ErrorToast } from 'react-native-toast-message';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { BASE_URL } from '../../config';
+// import { BASE_URL } from '../../config';
+const BASE_URL = 'https://accountapp-backend-ooxj.vercel.app';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 

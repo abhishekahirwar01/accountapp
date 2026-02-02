@@ -39,6 +39,7 @@ import {
   CompanyFormValidations,
 } from '../../lib/validationUtils.js';
 import { Picker } from '@react-native-picker/picker';
+import CustomDropdown from '../../components/ui/CustomDropdown.js';
 import Toast from 'react-native-toast-message';
 
 // Define Zod schema
@@ -47,29 +48,27 @@ const formSchema = z.object({
     .string()
     .min(1, 'Registration number is required')
     .trim(),
-  
+
   businessName: z
     .string()
     .min(2, 'Business name must be at least 2 characters')
     .max(100, 'Business name must not exceed 100 characters')
     .trim(),
-  
-  businessType: z
-    .string()
-    .min(1, 'Business type is required'),
-  
+
+  businessType: z.string().min(1, 'Business type is required'),
+
   address: z
     .string()
     .min(5, 'Address must be at least 5 characters')
     .max(200, 'Address must not exceed 200 characters')
     .trim(),
-  
+
   City: z.string().optional(),
-  
+
   addressState: z.string().optional(),
-  
+
   Country: z.string().optional(),
-  
+
   Pincode: z
     .string()
     .optional()
@@ -78,7 +77,7 @@ const formSchema = z.object({
       // Indian pincode validation (6 digits)
       return /^\d{6}$/.test(val);
     }, 'Pincode must be 6 digits'),
-  
+
   Telephone: z
     .string()
     .optional()
@@ -87,7 +86,7 @@ const formSchema = z.object({
       // Telephone number validation (10-15 digits, optional country code)
       return /^[+]?[\d\s-]{10,15}$/.test(val);
     }, 'Please enter a valid telephone number'),
-  
+
   mobileNumber: z
     .string({ required_error: 'Mobile number is required' })
     .trim()
@@ -113,7 +112,8 @@ const formSchema = z.object({
     .refine(val => {
       if (!val || val.trim() === '') return true;
       // URL validation
-      const urlRegex = /^(https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$/;
+      const urlRegex =
+        /^(https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$/;
       return urlRegex.test(val);
     }, 'Please enter a valid website URL'),
 
@@ -134,23 +134,25 @@ const formSchema = z.object({
     .refine(val => {
       if (!val || val.trim() === '') return true;
       // GSTIN format: 15 characters (2 state code + 10 PAN + 3 alphanumeric)
-      return /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(val.toUpperCase());
+      return /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(
+        val.toUpperCase(),
+      );
     }, 'GSTIN must be 15 characters (e.g., 22AAAAA0000A1Z5)'),
 
   gstState: z.string().optional(),
-  
+
   RegistrationType: z.string().optional(),
-  
+
   PeriodicityofGSTReturns: z.string().optional(),
-  
+
   GSTUsername: z.string().optional(),
-  
+
   GSTPassword: z.string().optional(),
-  
+
   ewayBillApplicable: z.enum(['true', 'false']),
-  
+
   EWBBillUsername: z.string().optional(),
-  
+
   EWBBillPassword: z.string().optional(),
 
   TANNumber: z
@@ -163,30 +165,35 @@ const formSchema = z.object({
     }, 'TAN must be in format: AAAA99999A (e.g., ABCD12345E)'),
 
   TAXDeductionCollectionAcc: z.string().optional(),
-  
+
   DeductorType: z.string().optional(),
-  
+
   TDSLoginUsername: z.string().optional(),
-  
+
   TDSLoginPassword: z.string().optional(),
-  
+
   client: z.string().optional(),
 });
 
-
 const additionalValidations = {
-  validateMobileNumber: (value) => {
+  validateMobileNumber: value => {
     if (!value) return { isValid: false, message: 'Mobile number is required' };
     if (!/^\d{10}$/.test(value)) {
-      return { isValid: false, message: 'Mobile number must be exactly 10 digits' };
+      return {
+        isValid: false,
+        message: 'Mobile number must be exactly 10 digits',
+      };
     }
     if (!/^[6-9]/.test(value)) {
-      return { isValid: false, message: 'Mobile number must start with 6, 7, 8, or 9' };
+      return {
+        isValid: false,
+        message: 'Mobile number must start with 6, 7, 8, or 9',
+      };
     }
     return { isValid: true, message: '' };
   },
 
-  validateEmail: (value) => {
+  validateEmail: value => {
     if (!value || value.trim() === '') return { isValid: true, message: '' };
     const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!emailRegex.test(value)) {
@@ -195,34 +202,44 @@ const additionalValidations = {
     return { isValid: true, message: '' };
   },
 
-  validatePAN: (value) => {
+  validatePAN: value => {
     if (!value || value.trim() === '') return { isValid: true, message: '' };
     const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
     if (!panRegex.test(value.toUpperCase())) {
-      return { isValid: false, message: 'PAN format: AAAAA9999A (5 letters, 4 digits, 1 letter)' };
+      return {
+        isValid: false,
+        message: 'PAN format: AAAAA9999A (5 letters, 4 digits, 1 letter)',
+      };
     }
     return { isValid: true, message: '' };
   },
 
-  validateGSTIN: (value) => {
+  validateGSTIN: value => {
     if (!value || value.trim() === '') return { isValid: true, message: '' };
-    const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    const gstinRegex =
+      /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
     if (!gstinRegex.test(value.toUpperCase())) {
-      return { isValid: false, message: 'GSTIN must be 15 characters (e.g., 22AAAAA0000A1Z5)' };
+      return {
+        isValid: false,
+        message: 'GSTIN must be 15 characters (e.g., 22AAAAA0000A1Z5)',
+      };
     }
     return { isValid: true, message: '' };
   },
 
-  validateTAN: (value) => {
+  validateTAN: value => {
     if (!value || value.trim() === '') return { isValid: true, message: '' };
     const tanRegex = /^[A-Z]{4}[0-9]{5}[A-Z]{1}$/;
     if (!tanRegex.test(value.toUpperCase())) {
-      return { isValid: false, message: 'TAN format: AAAA99999A (4 letters, 5 digits, 1 letter)' };
+      return {
+        isValid: false,
+        message: 'TAN format: AAAA99999A (4 letters, 5 digits, 1 letter)',
+      };
     }
     return { isValid: true, message: '' };
   },
 
-  validatePincode: (value) => {
+  validatePincode: value => {
     if (!value || value.trim() === '') return { isValid: true, message: '' };
     if (!/^\d{6}$/.test(value)) {
       return { isValid: false, message: 'Pincode must be 6 digits' };
@@ -230,22 +247,26 @@ const additionalValidations = {
     return { isValid: true, message: '' };
   },
 
-  validateWebsite: (value) => {
+  validateWebsite: value => {
     if (!value || value.trim() === '') return { isValid: true, message: '' };
-    const urlRegex = /^(https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b/;
+    const urlRegex =
+      /^(https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b/;
     if (!urlRegex.test(value)) {
       return { isValid: false, message: 'Please enter a valid website URL' };
     }
     return { isValid: true, message: '' };
   },
 
-  validateTelephone: (value) => {
+  validateTelephone: value => {
     if (!value || value.trim() === '') return { isValid: true, message: '' };
     if (!/^[+]?[\d\s-]{10,15}$/.test(value)) {
-      return { isValid: false, message: 'Please enter a valid telephone number' };
+      return {
+        isValid: false,
+        message: 'Please enter a valid telephone number',
+      };
     }
     return { isValid: true, message: '' };
-  }
+  },
 };
 
 const defaultBusinessTypes = [
@@ -498,46 +519,46 @@ export function CompanyForm({ company, clients, onFormSubmit, onCancel }) {
   };
 
   const handleFieldValidation = (fieldName, value) => {
-  let validation = { isValid: true, message: '' };
-  
-  switch (fieldName) {
-    case 'mobileNumber':
-      validation = additionalValidations.validateMobileNumber(value);
-      break;
-    case 'emailId':
-      validation = additionalValidations.validateEmail(value);
-      break;
-    case 'PANNumber':
-      validation = additionalValidations.validatePAN(value);
-      break;
-    case 'gstin':
-      validation = additionalValidations.validateGSTIN(value);
-      break;
-    case 'TANNumber':
-      validation = additionalValidations.validateTAN(value);
-      break;
-    case 'Pincode':
-      validation = additionalValidations.validatePincode(value);
-      break;
-    case 'Website':
-      validation = additionalValidations.validateWebsite(value);
-      break;
-    case 'Telephone':
-      validation = additionalValidations.validateTelephone(value);
-      break;
-    default:
-      break;
-  }
+    let validation = { isValid: true, message: '' };
 
-  setFieldErrors(prev => {
-    if (validation.isValid) {
-      const { [fieldName]: removed, ...rest } = prev;
-      return rest;
-    } else {
-      return { ...prev, [fieldName]: validation.message };
+    switch (fieldName) {
+      case 'mobileNumber':
+        validation = additionalValidations.validateMobileNumber(value);
+        break;
+      case 'emailId':
+        validation = additionalValidations.validateEmail(value);
+        break;
+      case 'PANNumber':
+        validation = additionalValidations.validatePAN(value);
+        break;
+      case 'gstin':
+        validation = additionalValidations.validateGSTIN(value);
+        break;
+      case 'TANNumber':
+        validation = additionalValidations.validateTAN(value);
+        break;
+      case 'Pincode':
+        validation = additionalValidations.validatePincode(value);
+        break;
+      case 'Website':
+        validation = additionalValidations.validateWebsite(value);
+        break;
+      case 'Telephone':
+        validation = additionalValidations.validateTelephone(value);
+        break;
+      default:
+        break;
     }
-  });
-};
+
+    setFieldErrors(prev => {
+      if (validation.isValid) {
+        const { [fieldName]: removed, ...rest } = prev;
+        return rest;
+      } else {
+        return { ...prev, [fieldName]: validation.message };
+      }
+    });
+  };
 
   // Load states for address
   useEffect(() => {
@@ -935,137 +956,175 @@ export function CompanyForm({ company, clients, onFormSubmit, onCancel }) {
   );
 
   const renderField = (name, options = {}) => (
-  <Controller
-    control={control}
-    name={name}
-    render={({ field: { onChange, onBlur, value } }) => (
-      <View style={styles.formField}>
-        <Text style={styles.label}>
-          {FIELD_LABELS[name] || name}
-          {/* Show required indicator for mandatory fields */}
-          {['registrationNumber', 'businessName', 'businessType', 'address', 'mobileNumber'].includes(name) && (
-            <Text style={styles.required}> *</Text>
-          )}
-        </Text>
-        <TextInput
-          style={[
-            styles.input,
-            (errors[name] || fieldErrors[name]) && styles.inputError,
-            options.multiline && styles.textArea,
-          ]}
-          onBlur={() => {
-            onBlur();
-            // Validate on blur
-            if (['mobileNumber', 'emailId', 'PANNumber', 'gstin', 'TANNumber', 'Pincode', 'Website', 'Telephone'].includes(name)) {
-              handleFieldValidation(name, value);
-            }
-          }}
-          onChangeText={text => {
-            // Auto-uppercase for PAN, GSTIN, TAN (fix: don't call onChange twice)
-            let processedText = text;
-            if (['PANNumber', 'gstin', 'TANNumber'].includes(name)) {
-              processedText = text.toUpperCase();
-            }
-            
-            // Only allow digits for mobile and pincode (not telephone)
-            if (['mobileNumber', 'Pincode'].includes(name)) {
-              processedText = text.replace(/[^0-9]/g, '');
+    <Controller
+      control={control}
+      name={name}
+      render={({ field: { onChange, onBlur, value } }) => (
+        <View style={styles.formField}>
+          <Text style={styles.label}>
+            {FIELD_LABELS[name] || name}
+            {/* Show required indicator for mandatory fields */}
+            {[
+              'registrationNumber',
+              'businessName',
+              'businessType',
+              'address',
+              'mobileNumber',
+            ].includes(name) && <Text style={styles.required}> *</Text>}
+          </Text>
+          <TextInput
+            style={[
+              styles.input,
+              (errors[name] || fieldErrors[name]) && styles.inputError,
+              options.multiline && styles.textArea,
+            ]}
+            onBlur={() => {
+              onBlur();
+              // Validate on blur
+              if (
+                [
+                  'mobileNumber',
+                  'emailId',
+                  'PANNumber',
+                  'gstin',
+                  'TANNumber',
+                  'Pincode',
+                  'Website',
+                  'Telephone',
+                ].includes(name)
+              ) {
+                handleFieldValidation(name, value);
+              }
+            }}
+            onChangeText={text => {
+              // Auto-uppercase for PAN, GSTIN, TAN (fix: don't call onChange twice)
+              let processedText = text;
+              if (['PANNumber', 'gstin', 'TANNumber'].includes(name)) {
+                processedText = text.toUpperCase();
+              }
+
+              // Only allow digits for mobile and pincode (not telephone)
+              if (['mobileNumber', 'Pincode'].includes(name)) {
+                processedText = text.replace(/[^0-9]/g, '');
+                onChange(processedText);
+                if (name === 'mobileNumber' && processedText.length === 10) {
+                  handleFieldValidation(name, processedText);
+                }
+                return; // Exit early to avoid calling onChange again
+              }
+
+              // Update the value
               onChange(processedText);
-              if (name === 'mobileNumber' && processedText.length === 10) {
+
+              // Additional handlers
+              if (name === 'registrationNumber') {
+                handleRegistrationChange(processedText);
+              }
+
+              // Real-time validation for certain fields
+              if (['emailId', 'Website'].includes(name)) {
                 handleFieldValidation(name, processedText);
               }
-              return; // Exit early to avoid calling onChange again
+            }}
+            value={value}
+            placeholder={`Enter ${FIELD_LABELS[name] || name}`}
+            multiline={options.multiline}
+            numberOfLines={options.multiline ? 4 : 1}
+            secureTextEntry={name.toLowerCase().includes('password')}
+            keyboardType={
+              ['mobileNumber', 'Pincode'].includes(name)
+                ? 'numeric'
+                : name === 'Telephone'
+                ? 'phone-pad'
+                : name === 'emailId'
+                ? 'email-address'
+                : name === 'Website'
+                ? 'url'
+                : 'default'
             }
-            
-            // Update the value
-            onChange(processedText);
-            
-            // Additional handlers
-            if (name === 'registrationNumber') {
-              handleRegistrationChange(processedText);
+            autoCapitalize={
+              ['emailId', 'Website'].includes(name)
+                ? 'none'
+                : ['PANNumber', 'gstin', 'TANNumber'].includes(name)
+                ? 'characters'
+                : 'sentences'
             }
-            
-            // Real-time validation for certain fields
-            if (['emailId', 'Website'].includes(name)) {
-              handleFieldValidation(name, processedText);
+            maxLength={
+              name === 'mobileNumber'
+                ? 10
+                : name === 'Pincode'
+                ? 6
+                : name === 'PANNumber'
+                ? 10
+                : name === 'gstin'
+                ? 15
+                : name === 'TANNumber'
+                ? 10
+                : undefined
             }
-          }}
-          value={value}
-          placeholder={`Enter ${FIELD_LABELS[name] || name}`}
-          multiline={options.multiline}
-          numberOfLines={options.multiline ? 4 : 1}
-          secureTextEntry={name.toLowerCase().includes('password')}
-          keyboardType={
-            ['mobileNumber', 'Pincode'].includes(name) 
-              ? 'numeric' 
-              : name === 'Telephone'
-              ? 'phone-pad'
-              : name === 'emailId' 
-              ? 'email-address' 
-              : name === 'Website'
-              ? 'url'
-              : 'default'
-          }
-          autoCapitalize={
-            ['emailId', 'Website'].includes(name) 
-              ? 'none' 
-              : ['PANNumber', 'gstin', 'TANNumber'].includes(name)
-              ? 'characters'
-              : 'sentences'
-          }
-          maxLength={
-            name === 'mobileNumber' ? 10 
-            : name === 'Pincode' ? 6 
-            : name === 'PANNumber' ? 10
-            : name === 'gstin' ? 15
-            : name === 'TANNumber' ? 10
-            : undefined
-          }
-        />
-        
-        {/* Show Zod validation errors */}
-        {errors[name] && (
-          <View style={styles.errorContainer}>
-            <AlertCircle size={14} color="#dc2626" />
-            <Text style={[styles.errorText, { marginLeft: 4 }]}>{errors[name]?.message}</Text>
-          </View>
-        )}
-        
-        {/* Show custom field validation errors */}
-        {!errors[name] && fieldErrors[name] && (
-          <View style={styles.errorContainer}>
-            <AlertCircle size={14} color="#dc2626" />
-            <Text style={[styles.errorText, { marginLeft: 4 }]}>{fieldErrors[name]}</Text>
-          </View>
-        )}
-        
-        {/* Registration number specific validations */}
-        {name === 'registrationNumber' && isCheckingDuplicate && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color="#3b82f6" />
-            <Text style={styles.loadingText}>Checking availability...</Text>
-          </View>
-        )}
-        
-        {name === 'registrationNumber' && !isCheckingDuplicate && duplicateError && (
-          <View style={styles.errorContainer}>
-            <AlertCircle size={14} color="#dc2626" />
-            <Text style={[styles.errorText, { marginLeft: 4 }]}>{duplicateError}</Text>
-          </View>
-        )}
-        
-        {/* Success indicator for valid fields */}
-        {!errors[name] && !fieldErrors[name] && value && 
-         ['mobileNumber', 'emailId', 'PANNumber', 'gstin', 'TANNumber'].includes(name) && (
-          <View style={styles.successContainer}>
-            <Check size={14} color="#10b981" />
-            <Text style={[styles.successText, { marginLeft: 4 }]}>Valid</Text>
-          </View>
-        )}
-      </View>
-    )}
-  />
-);
+          />
+
+          {/* Show Zod validation errors */}
+          {errors[name] && (
+            <View style={styles.errorContainer}>
+              <AlertCircle size={14} color="#dc2626" />
+              <Text style={[styles.errorText, { marginLeft: 4 }]}>
+                {errors[name]?.message}
+              </Text>
+            </View>
+          )}
+
+          {/* Show custom field validation errors */}
+          {!errors[name] && fieldErrors[name] && (
+            <View style={styles.errorContainer}>
+              <AlertCircle size={14} color="#dc2626" />
+              <Text style={[styles.errorText, { marginLeft: 4 }]}>
+                {fieldErrors[name]}
+              </Text>
+            </View>
+          )}
+
+          {/* Registration number specific validations */}
+          {name === 'registrationNumber' && isCheckingDuplicate && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#3b82f6" />
+              <Text style={styles.loadingText}>Checking availability...</Text>
+            </View>
+          )}
+
+          {name === 'registrationNumber' &&
+            !isCheckingDuplicate &&
+            duplicateError && (
+              <View style={styles.errorContainer}>
+                <AlertCircle size={14} color="#dc2626" />
+                <Text style={[styles.errorText, { marginLeft: 4 }]}>
+                  {duplicateError}
+                </Text>
+              </View>
+            )}
+
+          {/* Success indicator for valid fields */}
+          {!errors[name] &&
+            !fieldErrors[name] &&
+            value &&
+            [
+              'mobileNumber',
+              'emailId',
+              'PANNumber',
+              'gstin',
+              'TANNumber',
+            ].includes(name) && (
+              <View style={styles.successContainer}>
+                <Check size={14} color="#10b981" />
+                <Text style={[styles.successText, { marginLeft: 4 }]}>
+                  Valid
+                </Text>
+              </View>
+            )}
+        </View>
+      )}
+    />
+  );
 
   const renderSelectField = (name, items, placeholder) => (
     <Controller
@@ -1095,6 +1154,29 @@ export function CompanyForm({ company, clients, onFormSubmit, onCancel }) {
               ))}
             </Picker>
           </View>
+          {errors[name] && (
+            <Text style={styles.errorText}>{errors[name]?.message}</Text>
+          )}
+        </View>
+      )}
+    />
+  );
+
+  const renderDropdownField = (name, items, placeholder) => (
+    <Controller
+      control={control}
+      name={name}
+      render={({ field: { onChange, value } }) => (
+        <View style={styles.formField}>
+          <Text style={styles.label}>{FIELD_LABELS[name] || name}</Text>
+          <CustomDropdown
+            items={items}
+            value={value}
+            onChange={onChange}
+            placeholder={placeholder}
+            style={[errors[name] && styles.inputError]}
+            disabled={!items || items.length === 0}
+          />
           {errors[name] && (
             <Text style={styles.errorText}>{errors[name]?.message}</Text>
           )}
@@ -1143,25 +1225,25 @@ export function CompanyForm({ company, clients, onFormSubmit, onCancel }) {
           {step === 1 && (
             <View style={styles.stepContent}>
               {!isClient && (
-                <View style={styles.formField}>
-                  <Text style={styles.label}>Assign to Client</Text>
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={getValues('client')}
-                      onValueChange={value => setValue('client', value)}
-                      style={styles.picker}
-                    >
-                      <Picker.Item label="Select a client" value="" />
-                      {clients.map(client => (
-                        <Picker.Item
-                          key={client._id}
-                          label={`${client.contactName} - (${client.email})`}
-                          value={client._id}
-                        />
-                      ))}
-                    </Picker>
-                  </View>
-                </View>
+                <Controller
+                  control={control}
+                  name="client"
+                  render={({ field: { onChange, value } }) => (
+                    <View style={styles.formField}>
+                      <Text style={styles.label}>Assign to Client</Text>
+                      <CustomDropdown
+                        items={clients.map(client => ({
+                          label: `${client.contactName} - ${client.email}`,
+                          value: client._id,
+                        }))}
+                        value={value}
+                        onChange={onChange}
+                        placeholder="Select a client"
+                        disabled={clients.length === 0}
+                      />
+                    </View>
+                  )}
+                />
               )}
 
               {/* Logo Upload */}
@@ -1192,9 +1274,12 @@ export function CompanyForm({ company, clients, onFormSubmit, onCancel }) {
               </View>
 
               <View style={styles.grid}>
-                {renderSelectField(
+                {renderDropdownField(
                   'businessType',
-                  defaultBusinessTypes,
+                  defaultBusinessTypes.map(type => ({
+                    label: type,
+                    value: type,
+                  })),
                   'Select business type',
                 )}
                 {renderField('businessName')}
@@ -1303,16 +1388,19 @@ export function CompanyForm({ company, clients, onFormSubmit, onCancel }) {
                   />
                 </View>
 
-                {renderSelectField(
+                {renderDropdownField(
                   'RegistrationType',
-                  gstRegistrationTypes,
+                  gstRegistrationTypes.map(type => ({
+                    label: type,
+                    value: type,
+                  })),
                   'Select registration type',
                 )}
                 {renderField('PeriodicityofGSTReturns')}
                 {renderField('GSTUsername')}
                 {renderField('GSTPassword')}
 
-                {renderSelectField(
+                {renderDropdownField(
                   'ewayBillApplicable',
                   [
                     { label: 'Yes', value: 'true' },
@@ -1475,7 +1563,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    // paddingBottom: 120, 
+    // paddingBottom: 120,
   },
   stepperContainer: {
     flexDirection: 'row',
@@ -1713,7 +1801,7 @@ const styles = StyleSheet.create({
   bottomSpacer: {
     height: 80,
   },
-   required: {
+  required: {
     color: '#dc2626',
     fontSize: 14,
   },

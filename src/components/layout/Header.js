@@ -26,11 +26,11 @@ import { useCompany } from '../../contexts/company-context';
 import { CompanySwitcher } from './CompanySwitcher';
 import Notification from '../notifications/Notification';
 
-// Config (removed unused BASE_URL import)
+
 
 const logoPath2 = require('../../../assets/images/vinimay.png');
 
-// Role label mapping function (Next.js जैसा)
+
 function roleToLabel(role) {
   switch (role) {
     case 'master':
@@ -48,7 +48,7 @@ function roleToLabel(role) {
   }
 }
 
-// Role normalization (Next.js जैसा behavior)
+
 function normalizeRole(rawRole) {
   const role = (rawRole ?? '').toLowerCase();
   if (role === 'client') return 'customer';
@@ -193,11 +193,10 @@ export default function Header() {
           text: 'Logout',
           style: 'destructive',
           onPress: async () => {
-            // 1. Storage clear karein (Sab roles ke liye common)
+            
             await AsyncStorage.clear();
 
-            // 2. Navigation Reset karein
-            // Isse 'GettingStarted' stack ki pehli aur akeli screen ban jayegi
+            
             navigation.reset({
               index: 0,
               routes: [{ name: 'GettingStarted' }],
