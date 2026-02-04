@@ -10,7 +10,6 @@ import React, { useState, useCallback } from 'react';
 import PayablesScreen from './PayablesScreen';
 import ReceivablesScreen from './ReceivablesScreen';
 import { useCompany } from '../../../contexts/company-context';
-import AppLayout from '../../../components/layout/AppLayout';
 export default function Ledger() {
   const [activeTab, setActiveTab] = useState('payables');
   const [refreshing, setRefreshing] = useState(false);
@@ -18,27 +17,27 @@ export default function Ledger() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-   // Call the function - it doesn't return a Promise
+   
   triggerCompaniesRefresh();
   
-  // Set refreshing to false after a short delay
+  
   setTimeout(() => {
     setRefreshing(false);
   }, 1000);
   }, [triggerCompaniesRefresh]);
 
   return (
-    <AppLayout>
-      <ScrollView
-        style={styles.container}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#007AFF']}
-          />
-        }
-      >
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={['#007AFF']}
+        />
+      }
+    >
+      
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[
@@ -83,7 +82,6 @@ export default function Ledger() {
           )}
         </View>
       </ScrollView>
-    </AppLayout>
   );
 }
 

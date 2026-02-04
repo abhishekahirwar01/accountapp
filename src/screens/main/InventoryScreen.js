@@ -39,7 +39,6 @@ import { generatePDF } from 'react-native-html-to-pdf';
 import ProductForm from '../../components/products/ProductForm';
 import ServiceForm from '../../components/services/ServiceForm';
 import ExcelImportExport from '../../components/ui/ExcelImportExport';
-import AppLayout from '../../components/layout/AppLayout';
 import InventorySocketListener from '../../socketlisteners/InventorySocketListener';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import BarcodeDisplay from '../../components/ui/BarcodeDisplay';
@@ -1371,14 +1370,12 @@ export default function InventoryScreen() {
   // ==========================================
   if (isLoadingCompanies || isLoadingPermissions || isLoadingPerms) {
     return (
-      <AppLayout>
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#007AFF" />
-            <Text style={styles.loadingText}>Loading inventory...</Text>
-          </View>
-        </SafeAreaView>
-      </AppLayout>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading inventory...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -1387,8 +1384,7 @@ export default function InventoryScreen() {
   // ==========================================
   if (companies.length === 0) {
     return (
-      <AppLayout>
-        <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea}>
           <ScrollView
             contentContainerStyle={styles.noCompanyContainer}
             refreshControl={
@@ -1427,7 +1423,6 @@ export default function InventoryScreen() {
             </View>
           </ScrollView>
         </SafeAreaView>
-      </AppLayout>
     );
   }
 
@@ -1435,10 +1430,9 @@ export default function InventoryScreen() {
   // Main Render
   // ==========================================
   return (
-    <AppLayout>
-      <View style={styles.container}>
-        {socket && user && (
-          <InventorySocketListener
+    <View style={styles.container}>
+      {socket && user && (
+        <InventorySocketListener
             socket={socket}
             user={user}
             onProductUpdate={() => {
@@ -1692,7 +1686,6 @@ export default function InventoryScreen() {
           </View>
         </Modal>
       </View>
-    </AppLayout>
   );
 }
 

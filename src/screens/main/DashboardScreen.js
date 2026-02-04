@@ -18,14 +18,11 @@ import {
   RefreshControl,
   Animated,
   Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  FileText,
-  PlusCircle,
-  Package,
-  X,
-} from 'lucide-react-native';
+import { FileText, PlusCircle, Package, X } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
@@ -43,11 +40,12 @@ import ProductStock from '../../components/dashboard/ProductStock';
 import ProformaForm from '../../components/transactions/ProformaForm';
 import { TransactionForm } from '../../components/transactions/TransactionForm';
 import { AccountValidityNotice } from '../../components/dashboard/AccountValidityNotice';
+import DashboardSkeleton from '../../components/ui/DashboardSkeleton';
 const UpdateWalkthrough = React.lazy(() =>
   import('../../components/notifications/UpdateWalkthrough'),
 );
 import { BASE_URL } from '../../config';
-import AppLayout from '../../components/layout/AppLayout';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 const CACHE_KEY = 'company_dashboard_data';
 const baseURL = BASE_URL;
@@ -59,17 +57,6 @@ const toArray = data => {
   if (Array.isArray(data?.data)) return data.data;
   return [];
 };
-
-// --- Skeleton Components ---
-const KpiSkeleton = () => (
-  <View style={styles.kpiContainer}>
-    {[...Array(3)].map((_, i) => (
-      <View key={i} style={styles.kpiCardSkeleton}>
-        <ActivityIndicator size="small" />
-      </View>
-    ))}
-  </View>
-);
 
 const ProductStockSkeleton = () => (
   <View style={styles.productStockSkeleton}>
@@ -243,11 +230,13 @@ export default function DashboardPage() {
 
         // Calculate totals (simplified since they're only used in initialData)
         const totalSales = salesArr.reduce(
-          (acc, row) => acc + (Number(row?.amount ?? row?.totalAmount ?? 0) || 0),
+          (acc, row) =>
+            acc + (Number(row?.amount ?? row?.totalAmount ?? 0) || 0),
           0,
         );
         const totalPurchases = purchasesArr.reduce(
-          (acc, row) => acc + (Number(row?.amount ?? row?.totalAmount ?? 0) || 0),
+          (acc, row) =>
+            acc + (Number(row?.amount ?? row?.totalAmount ?? 0) || 0),
           0,
         );
         const companiesCount = companiesData?.length || 0;
@@ -343,7 +332,6 @@ export default function DashboardPage() {
         paymentsRes,
         journalsRes,
         usersRes,
-        servicesRes,
       ] = await Promise.all([
         fetch(`${baseURL}/api/sales${queryParam}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -363,10 +351,17 @@ export default function DashboardPage() {
         fetch(`${baseURL}/api/users`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`${baseURL}/api/services`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
       ]);
+
+      // Load services from cache (ProductStock handles fresh services fetch independently)
+      let servicesArr = [];
+      try {
+        const servicesRaw = await AsyncStorage.getItem('services:all');
+        if (servicesRaw) servicesArr = JSON.parse(servicesRaw);
+      } catch (err) {
+        console.warn('Dashboard: failed to read cached services', err);
+        servicesArr = [];
+      }
 
       const [
         rawSales,
@@ -375,7 +370,6 @@ export default function DashboardPage() {
         rawPayments,
         rawJournals,
         usersData,
-        servicesJson,
       ] = await Promise.all([
         salesRes.json(),
         purchasesRes.json(),
@@ -383,8 +377,9 @@ export default function DashboardPage() {
         paymentsRes.json(),
         journalsRes.json(),
         usersRes.json(),
-        servicesRes.json(),
       ]);
+
+      // Use servicesArr loaded from cache earlier (may be empty, ProductStock will refresh it)
 
       const salesArr = toArray(rawSales);
       const purchasesArr = toArray(rawPurchases);
@@ -416,11 +411,11 @@ export default function DashboardPage() {
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
       );
 
-      const servicesArr = Array.isArray(servicesJson)
-        ? servicesJson
-        : servicesJson.services || [];
+      const servicesList = Array.isArray(servicesArr)
+        ? servicesArr
+        : servicesArr?.services || [];
       const sMap = new Map();
-      for (const s of servicesArr) {
+      for (const s of servicesList) {
         if (s?._id)
           sMap.set(String(s._id), s.serviceName || s.name || 'Service');
       }
@@ -454,8 +449,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <AppLayout>
-      {/* Animated Header */}
+    <>
       <Animated.View
         style={[
           styles.header,
@@ -466,6 +460,7 @@ export default function DashboardPage() {
           },
         ]}
       >
+        {/* Animated Header */}
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
             <Text
@@ -501,7 +496,9 @@ export default function DashboardPage() {
               ]}
             >
               <FileText size={14} color="#3b82f6" strokeWidth={2.5} />
-              <Text style={[styles.headerButtonText, styles.proformaButtonText]}>
+              <Text
+                style={[styles.headerButtonText, styles.proformaButtonText]}
+              >
                 Proforma
               </Text>
             </AnimatedTouchable>
@@ -516,7 +513,9 @@ export default function DashboardPage() {
               ]}
             >
               <PlusCircle size={14} color="#ffffff" strokeWidth={2.5} />
-              <Text style={[styles.headerButtonText, styles.transactionButtonText]}>
+              <Text
+                style={[styles.headerButtonText, styles.transactionButtonText]}
+              >
                 Transaction
               </Text>
             </AnimatedTouchable>
@@ -524,20 +523,26 @@ export default function DashboardPage() {
         </View>
       </Animated.View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         bounces={true}
         scrollEventThrottle={16}
         decelerationRate="normal"
+        keyboardShouldPersistTaps="always"
+        keyboardDismissMode="none"
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={100}
+        keyboardOpeningTime={0}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
             colors={['#3b82f6']}
             tintColor="#3b82f6"
-            progressViewOffset={0}
+            progressViewOffset={60}
           />
         }
       >
@@ -552,7 +557,7 @@ export default function DashboardPage() {
         </Suspense>
 
         {isLoading ? (
-          <KpiSkeleton />
+          <DashboardSkeleton />
         ) : companies.length === 0 ? (
           <Card style={styles.noCompanyCard}>
             <Package size={48} color="#666" />
@@ -562,32 +567,36 @@ export default function DashboardPage() {
             </Text>
           </Card>
         ) : (
-          <>
-            <KpiCards
-              data={dashboardData}
-              selectedCompanyId={selectedCompanyId}
-            />
+          <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+            <View>
+              <KpiCards
+                data={dashboardData}
+                selectedCompanyId={selectedCompanyId}
+              />
 
-            <View style={styles.dataContainer}>
-              <Suspense fallback={<ProductStockSkeleton />}>
-                <ProductStock
-                  navigation={navigation}
-                  refetchPermissions={refetchPermissions}
-                  refetchUserPermissions={refetchUserPermissions}
-                />
-              </Suspense>
+              <View style={styles.dataContainer}>
+                <Suspense fallback={<ProductStockSkeleton />}>
+                  <ProductStock
+                    navigation={navigation}
+                    refetchPermissions={refetchPermissions}
+                    refetchUserPermissions={refetchUserPermissions}
+                  />
+                </Suspense>
 
-              <Suspense fallback={<RecentTransactionsSkeleton />}>
-                <RecentTransactions
-                  navigation={navigation}
-                  transactions={dashboardData?.recentTransactions || []}
-                  serviceNameById={dashboardData?.serviceNameById || new Map()}
-                />
-              </Suspense>
+                <Suspense fallback={<RecentTransactionsSkeleton />}>
+                  <RecentTransactions
+                    navigation={navigation}
+                    transactions={dashboardData?.recentTransactions || []}
+                    serviceNameById={
+                      dashboardData?.serviceNameById || new Map()
+                    }
+                  />
+                </Suspense>
+              </View>
             </View>
-          </>
+          </TouchableWithoutFeedback>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Proforma Modal with Slide Animation */}
       <Modal
@@ -652,7 +661,7 @@ export default function DashboardPage() {
           </ScrollView>
         </View>
       </Modal>
-    </AppLayout>
+    </>
   );
 }
 
@@ -833,6 +842,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 8,
     backgroundColor: '#eee',
+  },
+
+  kpiSkeletonContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 400,
+    paddingHorizontal: 16,
+  },
+  kpiSkeletonCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  kpiSkeletonText: {
+    marginTop: 16,
+    fontSize: 15,
+    color: '#64748b',
+    fontWeight: '500',
   },
   noCompanyCard: {
     padding: 48,

@@ -150,15 +150,41 @@ const RecentTransactions = ({
   const isMobile = width < 768;
 
   const typeStyles = {
-    sales: { backgroundColor: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0' },
-    purchases: { backgroundColor: '#fef3f2', color: '#b91c1c', borderColor: '#fecaca' },
-    receipt: { backgroundColor: '#eff6ff', color: '#1e40af', borderColor: '#bfdbfe' },
-    payment: { backgroundColor: '#fef9c3', color: '#a16207', borderColor: '#fde68a' },
-    journal: { backgroundColor: '#f5f3ff', color: '#6b21a8', borderColor: '#e9d5ff' },
+    sales: {
+      backgroundColor: '#f0fdf4',
+      color: '#15803d',
+      borderColor: '#bbf7d0',
+    },
+    purchases: {
+      backgroundColor: '#fef3f2',
+      color: '#b91c1c',
+      borderColor: '#fecaca',
+    },
+    receipt: {
+      backgroundColor: '#eff6ff',
+      color: '#1e40af',
+      borderColor: '#bfdbfe',
+    },
+    payment: {
+      backgroundColor: '#fef9c3',
+      color: '#a16207',
+      borderColor: '#fde68a',
+    },
+    journal: {
+      backgroundColor: '#f5f3ff',
+      color: '#6b21a8',
+      borderColor: '#e9d5ff',
+    },
   };
 
   const getTypeStyle = type => {
-    return typeStyles[type] || { backgroundColor: '#f9fafb', color: '#4b5563', borderColor: '#e5e7eb' };
+    return (
+      typeStyles[type] || {
+        backgroundColor: '#f9fafb',
+        color: '#4b5563',
+        borderColor: '#e5e7eb',
+      }
+    );
   };
 
   const openItemsDialog = (tx, items) => {
@@ -244,7 +270,7 @@ const RecentTransactions = ({
           <View
             style={[
               styles.typeBadge,
-              { 
+              {
                 backgroundColor: typeStyle.backgroundColor,
                 borderColor: typeStyle.borderColor,
               },
@@ -354,7 +380,7 @@ const RecentTransactions = ({
             <View
               style={[
                 styles.typeBadge,
-                { 
+                {
                   backgroundColor: typeStyle.backgroundColor,
                   borderColor: typeStyle.borderColor,
                 },
@@ -395,7 +421,8 @@ const RecentTransactions = ({
                 </Text>
                 <View style={styles.itemTypeBadge}>
                   <Text style={styles.itemTypeBadgeText}>
-                    {li.itemType?.charAt(0).toUpperCase() + li.itemType?.slice(1)}
+                    {li.itemType?.charAt(0).toUpperCase() +
+                      li.itemType?.slice(1)}
                   </Text>
                 </View>
               </View>
@@ -497,6 +524,8 @@ const RecentTransactions = ({
         <ScrollView
           style={styles.scrollArea}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="none"
           refreshControl={
             onRefresh ? (
               <RefreshControl
@@ -537,7 +566,12 @@ const RecentTransactions = ({
             activeOpacity={0.7}
           >
             <Text style={styles.viewAllButtonText}>View All Transactions</Text>
-            <ArrowRight size={16} color="#3b82f6" strokeWidth={2} style={styles.arrowIcon} />
+            <ArrowRight
+              size={16}
+              color="#3b82f6"
+              strokeWidth={2}
+              style={styles.arrowIcon}
+            />
           </TouchableOpacity>
         </View>
       </View>

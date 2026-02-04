@@ -14,11 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
-import {
-  loginClientBySlug,
-  loginClientBySlugWithOtp,
-  requestClientOtp,
-} from '../../lib/auth';
+import { loginClientBySlug } from '../../lib/auth';
 import {
   saveSession,
   scheduleAutoLogout,
@@ -34,12 +30,8 @@ import { usePermissions } from '../../contexts/permission-context';
 export default function ClientLoginScreen({ navigation }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [otp, setOtp] = useState('');
-  const [tab, setTab] = useState('password');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [sendingOtp, setSendingOtp] = useState(false);
-  const [resendIn, setResendIn] = useState(0);
   const [checkingSession, setCheckingSession] = useState(true);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
@@ -64,13 +56,6 @@ export default function ClientLoginScreen({ navigation }) {
   useEffect(() => {
     setCheckingSession(false);
   }, [navigation]);
-
-  // 🔹 OTP resend timer
-  useEffect(() => {
-    if (resendIn <= 0) return;
-    const timer = setInterval(() => setResendIn(n => n - 1), 1000);
-    return () => clearInterval(timer);
-  }, [resendIn]);
 
   // 🔹 Shared logic for saving session + refetch + navigation
   const completeLoginFlow = async (user, roleLabel) => {
@@ -148,71 +133,6 @@ export default function ClientLoginScreen({ navigation }) {
     }
   };
 
-  // 🔹 Send OTP
-  const handleSendOtp = async () => {
-    if (!username.trim()) {
-      Toast.show({
-        type: 'error',
-        text1: 'Username required',
-        text2: 'Enter your username first',
-        position: 'top',
-      });
-      return;
-    }
-    if (resendIn > 0) return;
-    setSendingOtp(true);
-    try {
-      await requestClientOtp(username);
-      setResendIn(45);
-      Toast.show({
-        type: 'success',
-        text1: 'OTP sent',
-        text2: 'Check your registered email',
-        position: 'top',
-      });
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Failed to send OTP',
-        text2: error.message || 'Something went wrong',
-        position: 'top',
-      });
-    } finally {
-      setSendingOtp(false);
-    }
-  };
-
-  // 🔹 OTP Login
-  const handleOtpLogin = async () => {
-    if (!username.trim() || otp.length !== 6) {
-      Toast.show({
-        type: 'error',
-        text1: 'Validation Error',
-        text2: 'Enter username and valid OTP',
-        position: 'top',
-      });
-      return;
-    }
-    setLoading(true);
-    try {
-      const user = await loginClientBySlugWithOtp(username, otp);
-      const userRole = String(user?.role || '').toLowerCase();
-      const isValidCustomer = userRole === 'customer' || userRole === 'client';
-      if (!user?.token || !isValidCustomer) throw new Error('Invalid OTP.');
-
-      await completeLoginFlow(user, 'customer');
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'OTP Login Failed',
-        text2: error.message || 'Something went wrong',
-        position: 'top',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (checkingSession) {
     return (
       <View style={styles.loaderContainer}>
@@ -259,129 +179,53 @@ export default function ClientLoginScreen({ navigation }) {
             </Text>
           </View>
 
-          {/* TABS */}
-          <View style={styles.tabContainer}>
+          <Text style={styles.label}>Username</Text>
+          <TextInput
+            style={styles.input}
+            value={username}
+            onChangeText={setUsername}
+            editable={!loading}
+            placeholder="Enter username"
+            placeholderTextColor="#94a3b8"
+            autoCapitalize="none"
+          />
+
+          <Text style={styles.label}>Password</Text>
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              editable={!loading}
+              placeholder="Enter password"
+              placeholderTextColor="#94a3b8"
+              autoCapitalize="none"
+            />
             <TouchableOpacity
-              style={[
-                styles.tabButton,
-                tab === 'password' && styles.tabButtonActive,
-              ]}
-              onPress={() => setTab('password')}
+              onPress={() => setShowPassword(!showPassword)}
+              style={styles.eyeButton}
+              disabled={loading}
             >
-              <Text style={styles.tabText}>Password</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.tabButton,
-                tab === 'otp' && styles.tabButtonActive,
-              ]}
-              onPress={() => setTab('otp')}
-            >
-              <Text style={styles.tabText}>OTP</Text>
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={22}
+                color="#64748b"
+              />
             </TouchableOpacity>
           </View>
 
-          {/* Password Login */}
-          {tab === 'password' ? (
-            <>
-              <Text style={styles.label}>Username</Text>
-              <TextInput
-                style={styles.input}
-                value={username}
-                onChangeText={setUsername}
-                editable={!loading}
-                placeholder="Enter username"
-                placeholderTextColor="#94a3b8"
-                autoCapitalize="none"
-              />
-
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.passwordContainer}>
-                <TextInput
-                  style={styles.passwordInput}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  editable={!loading}
-                  placeholder="Enter password"
-                  placeholderTextColor="#94a3b8"
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeButton}
-                  disabled={loading}
-                >
-                  <Ionicons
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={22}
-                    color="#64748b"
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity
-                style={[styles.button, loading && styles.buttonDisabled]}
-                onPress={handlePasswordLogin}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Sign In</Text>
-                )}
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              {/* OTP Login */}
-              <Text style={styles.label}>Username</Text>
-              <TextInput
-                style={styles.input}
-                value={username}
-                onChangeText={setUsername}
-                editable={!loading && !sendingOtp}
-                placeholder="Enter username"
-                placeholderTextColor="#94a3b8"
-                autoCapitalize="none"
-              />
-              <TouchableOpacity
-                style={[styles.button, sendingOtp && { opacity: 0.6 }]}
-                onPress={handleSendOtp}
-                disabled={sendingOtp || resendIn > 0}
-              >
-                <Text style={styles.buttonText}>
-                  {resendIn > 0 ? `Resend in ${resendIn}s` : 'Send OTP'}
-                </Text>
-              </TouchableOpacity>
-
-              <Text style={styles.label}>Enter OTP</Text>
-              <TextInput
-                style={styles.input}
-                value={otp}
-                onChangeText={t => setOtp(t.replace(/\D/g, ''))}
-                maxLength={6}
-                keyboardType="numeric"
-                editable={!loading}
-                placeholder="6-digit OTP"
-                placeholderTextColor="#94a3b8"
-              />
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  (loading || otp.length !== 6) && styles.buttonDisabled,
-                ]}
-                onPress={handleOtpLogin}
-                disabled={loading || otp.length !== 6}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Verify & Sign In</Text>
-                )}
-              </TouchableOpacity>
-            </>
-          )}
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handlePasswordLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Sign In</Text>
+            )}
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
 

@@ -91,8 +91,8 @@ const AnimatedMenuButton = ({ icon, title, isActive, onPress }) => {
 };
 
 // ----- Main Sidebar Component -----
-export function AppSidebar() {
-  const navigation = useNavigation();
+export function AppSidebar(props) {
+  const navigation = props.navigation; // Use props.navigation instead of useNavigation
   const route = useRoute();
   const [currentUser, setCurrentUser] = useState(null);
   const {

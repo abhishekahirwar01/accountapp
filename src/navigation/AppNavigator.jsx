@@ -1,7 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { View, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Header from '../components/layout/Header';
+import { AppSidebar } from '../components/layout/AppBottomNav';
+import UserSidebar from '../components/layout/UserBottomNav';
+import { getCurrentUser } from '../lib/auth';
 
 // for devloment purposes
 import OTPVerificationScreen from '../screens/auth/otpverification/OTPVerificationScreen';
@@ -41,19 +46,76 @@ import SupportFormScreen from '../screens/support/SupportFormScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+const HeaderComponent = () => <Header />;
+
+const tabScreenOptions = {
+  headerShown: false, // Header is now in parent Stack
+  animationEnabled: false, // Disable tab switch animation to prevent flicker
+  freezeOnBlur: true, // Freeze inactive screens to prevent re-renders
+};
+
 function MainTabNavigator({ route }) {
-  // 1. Role extract karein jo navigation.reset se pass kiya gaya hai
-  const role = route.params?.role?.toLowerCase() || '';
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(false); // Start with false, only show loading if needed
+
+  // 1. Role extract karein jo navigation.reset se pass kiya gaya hai (fallback)
+  const fallbackRole = (route.params?.role || '').toLowerCase() || '';
+  const explicitScreen = route.params?.screen || null;
+
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        // First try to get from AsyncStorage synchronously if possible
+        const userStr = await AsyncStorage.getItem('user');
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          setCurrentUser(user);
+          console.log('🧩 MainTabNavigator role (from storage):', user?.role);
+          return;
+        }
+
+        // If not in storage, fetch from API (fallback)
+        setLoading(true);
+        const user = await getCurrentUser();
+        setCurrentUser(user);
+        console.log('🧩 MainTabNavigator role (from API):', user?.role);
+      } catch (err) {
+        console.log('⚠️ Error loading current user in navigator:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserData();
+  }, []);
+
+  // Use fetched user role, fallback to route params
+  const role = (currentUser?.role ?? fallbackRole).toLowerCase() || 'user';
 
   // 2. Role ke basis par decide karein ki "Home" screen kaunsi hogi
-  let initialRoute = 'UserDashboard'; // Default fallback
+  // If an explicit `screen` param is passed (navigateByRole), prefer it.
+  let initialRoute = explicitScreen || 'UserDashboard'; // Default fallback
 
-  if (role === 'master') {
-    initialRoute = 'AdminDashboard';
-  } else if (['admin', 'customer', 'client'].includes(role)) {
-    initialRoute = 'CustomerDashboard';
-  } else if (role === 'user') {
-    initialRoute = 'UserDashboard';
+  if (!explicitScreen) {
+    if (role === 'master') {
+      initialRoute = 'AdminDashboard';
+    } else if (['admin', 'customer', 'client'].includes(role)) {
+      initialRoute = 'CustomerDashboard';
+    } else if (role === 'user') {
+      initialRoute = 'UserDashboard';
+    }
+  }
+
+  // Determine which sidebar to use based on role
+  const showAppSidebar = ['master', 'client', 'customer', 'admin'].includes(role);
+  const SidebarComponent = showAppSidebar ? AppSidebar : UserSidebar;
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#007bff" />
+      </View>
+    );
   }
 
   return (
@@ -61,47 +123,39 @@ function MainTabNavigator({ route }) {
       // Sabse important points:
       initialRouteName={initialRoute} // Yeh user ko uske dashboard par land karwayega
       backBehavior="initialRoute" // Yeh back karne par AdminDashboard par jane se rokega
-      screenOptions={{
-        tabBarStyle: { display: 'none' }, // Tab bar hide rahegi
-      }}
+      tabBar={(props) => <SidebarComponent {...props} />} // Conditional sidebar
+      screenOptions={tabScreenOptions}
     >
       {/* --- Screens WITH Header --- */}
       <Tab.Screen
         name="AdminDashboard"
         component={AdminDashboardScreen}
-        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="UserDashboard"
         component={UserDashboardScreen}
-        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="CustomerDashboard"
         component={CustomerDashboardScreen}
-        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="Transactions"
         component={TransactionsScreen}
-        options={{ headerShown: true, header: () => <Header /> }}
       />
 
       {/* --- Screens WITHOUT Header --- */}
       <Tab.Screen
         name="Inventory"
         component={InventoryScreen}
-        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="Companies"
         component={CompaniesScreen}
-        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="Users"
         component={UsersScreen}
-        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="Settings"
@@ -111,42 +165,42 @@ function MainTabNavigator({ route }) {
       <Tab.Screen
         name="Reports"
         component={Reports}
-        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="Ledger"
         component={Ledger}
-        options={{ headerShown: true, header: () => <Header /> }}
       />
 
       {/* Admin specific screens */}
       <Tab.Screen
         name="AdminAnalytics"
         component={AdminAnalyticsScreen}
-        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="AnalyticsScreen"
         component={AnalyticsScreen}
-        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="AdminCompanies"
         component={AdminCompaniesScreen}
-        options={{ headerShown: true, header: () => <Header /> }}
       />
       <Tab.Screen
         name="AdminClientManagement"
         component={AdminClientManagementPage}
-        options={{ headerShown: true, header: () => <Header /> }}
       />
     </Tab.Navigator>
   );
 }
 
-export default function AppNavigator() {
+export default function AppNavigator({
+  role = null,
+  initialRouteName = 'GettingStarted',
+}) {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator
+      screenOptions={{ headerShown: false }}
+      initialRouteName={initialRouteName}
+    >
       <Stack.Screen name="GettingStarted" component={GettingStartedScreen} />
       <Stack.Screen name="SendOtpScreen" component={SendOtpScreen} />
       <Stack.Screen
@@ -158,7 +212,16 @@ export default function AppNavigator() {
       <Stack.Screen name="ClientLoginScreen" component={ClientLoginScreen} />
 
       {/* 2. Main Tab Area (Jahan Header dikhega) */}
-      <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+      <Stack.Screen
+        name="MainTabs"
+        component={MainTabNavigator}
+        // Pass persisted role (if any) as initial params so nested Tab navigator can pick correct tab
+        initialParams={{ role }}
+        options={{
+          headerShown: true,
+          header: HeaderComponent,
+        }}
+      />
 
       <Stack.Screen name="AdminSettings" component={AdminSettingsScreen} />
       <Stack.Screen name="ProfileScreen" component={ProfileScreen} />

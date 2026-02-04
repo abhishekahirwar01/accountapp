@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import {
   View,
   Text,
@@ -11,15 +11,14 @@ import {
   TouchableWithoutFeedback,
   AppState,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useCompany } from '../../contexts/company-context';
 import { BASE_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export function CompanySwitcher() {
+export const CompanySwitcher = memo(function CompanySwitcher() {
   const [companies, setCompanies] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const { selectedCompanyId, setSelectedCompanyId, refreshTrigger } =
@@ -101,30 +100,29 @@ export function CompanySwitcher() {
     } catch (error) {
       console.error('Company fetch error:', error);
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false); // Only hide loading for initial load
     }
   };
 
   useEffect(() => {
-    fetchCompanies(true); // Only initial load should reset selection
+    fetchCompanies(false); // Don't show loading on initial load
   }, []);
 
   useEffect(() => {
-    if (refreshTrigger > 0) fetchCompanies(false); // Don't reset on refresh
+    if (refreshTrigger > 0) fetchCompanies(false); // Refresh doesn't show loading
   }, [refreshTrigger]);
 
-  useFocusEffect(
-    React.useCallback(() => {
-      fetchCompanies(false); // Don't reset on screen focus
-    }, []),
-  );
+  // Remove useFocusEffect to prevent loading on every screen focus
+  // Companies should be cached and not refetch on every navigation
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
-      if (state === 'active') fetchCompanies(false); // Don't reset on app resume
+      if (state === 'active' && companies.length === 0) {
+        fetchCompanies(false); // Only fetch if no companies loaded yet
+      }
     });
     return () => subscription.remove();
-  }, []);
+  }, [companies.length]);
 
   const handleCompanyChange = async companyId => {
     const valueToStore = companyId; // 'all' or actual company ID
@@ -145,19 +143,19 @@ export function CompanySwitcher() {
 
   // --- ORDERED RENDER LOGIC (Flicker Fix) ---
 
-  // 1. Loading check
-  if (isLoading && companies.length === 0) {
-    return (
-      <View style={[styles.triggerButton, { opacity: 0.7 }]}>
-        <ActivityIndicator
-          size="small"
-          color="#94a3b8"
-          style={{ marginRight: 8 }}
-        />
-        <Text style={styles.triggerText}>Loading...</Text>
-      </View>
-    );
-  }
+  // 1. Loading check - Don't show loading to prevent flicker
+  // if (isLoading && companies.length === 0) {
+  //   return (
+  //     <View style={[styles.triggerButton, { opacity: 0.7 }]}>
+  //       <ActivityIndicator
+  //         size="small"
+  //         color="#94a3b8"
+  //         style={{ marginRight: 8 }}
+  //       />
+  //       <Text style={styles.triggerText}>Loading...</Text>
+  //     </View>
+  //   );
+  // }
 
   // 2. No Companies
   if (!isLoading && companies.length === 0) {
@@ -290,7 +288,7 @@ export function CompanySwitcher() {
       </Modal>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: { width: '100%', flex: 1, maxWidth: 280 },

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   FlatList,
   Alert,
-  
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -26,26 +25,196 @@ import {
 import { BASE_URL } from '../../config';
 import { Badge } from '../ui/Badge';
 
-// Placeholder components (replace with your actual components)
-const Card = ({ children, style }) => (
+// Memoized Card Components
+const Card = memo(({ children, style }) => (
   <View style={[styles.card, style]}>{children}</View>
-);
+));
 
-const CardHeader = ({ children, style }) => (
+const CardHeader = memo(({ children, style }) => (
   <View style={[styles.cardHeader, style]}>{children}</View>
-);
+));
 
-const CardTitle = ({ children }) => (
+const CardTitle = memo(({ children }) => (
   <Text style={styles.cardTitle}>{children}</Text>
-);
+));
 
-const CardContent = ({ children, style }) => (
+const CardContent = memo(({ children, style }) => (
   <View style={[styles.cardContent, style]}>{children}</View>
-);
+));
 
-const Skeleton = ({ style }) => (
+const Skeleton = memo(({ style }) => (
   <View style={[styles.skeleton, style]} />
-);
+));
+
+// Memoized Stat Card Component
+const StatCard = memo(({ 
+  icon: Icon, 
+  iconBg, 
+  iconColor, 
+  label, 
+  value, 
+  valueStyle,
+  badge 
+}) => (
+  <Card style={styles.statCard}>
+    <CardContent style={styles.statContent}>
+      <View style={styles.statHeader}>
+        <View style={[styles.statIcon, iconBg]}>
+          <Icon size={16} color={iconColor} />
+        </View>
+        <Text style={styles.statLabel}>{label}</Text>
+      </View>
+      {badge || <Text style={[styles.statValue, valueStyle]}>{value}</Text>}
+    </CardContent>
+  </Card>
+));
+
+// Memoized Transaction Item Component
+const TransactionItem = memo(({ 
+  item, 
+  index, 
+  isDebit,
+  formatDate,
+  formatCurrency,
+  getPaymentMethodDisplay,
+  getPaymentMethodBadge,
+  onPress 
+}) => {
+  const isPurchase = !item.type || item.type === 'debit';
+  const bgColor = isDebit ? '#fef2f2' : '#f0fdf4';
+  const borderColor = isDebit ? '#fecaca' : '#bbf7d0';
+  const textColor = isDebit ? '#dc2626' : '#10b981';
+  
+  const handlePress = useCallback(() => {
+    onPress(item);
+  }, [onPress, item]);
+  
+  return (
+    <TouchableOpacity 
+      style={[styles.transactionItem, { backgroundColor: bgColor, borderColor }]}
+      onPress={handlePress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.transactionHeader}>
+        <View style={[styles.transactionIndex, { backgroundColor: textColor }]}>
+          <Text style={styles.transactionIndexText}>{index + 1}</Text>
+        </View>
+        <View style={styles.transactionInfo}>
+          <Text style={styles.transactionType}>
+            {isPurchase ? 'Purchase' : getPaymentMethodDisplay(item.paymentMethod)}
+          </Text>
+          <View style={styles.transactionDate}>
+            <Calendar size={12} color="#64748b" />
+            <Text style={styles.transactionDateText}>{formatDate(item.date)}</Text>
+          </View>
+        </View>
+        <View style={styles.transactionAmountContainer}>
+          <Text style={[styles.transactionAmount, { color: textColor }]}>
+            {formatCurrency(item.amount)}
+          </Text>
+          <ExternalLink size={14} color="#3b82f6" />
+        </View>
+      </View>
+
+      {(item.invoiceNo || item.referenceNumber) && (
+        <View style={styles.transactionDetails}>
+          {item.invoiceNo && (
+            <View style={styles.transactionDetail}>
+              <Text style={styles.transactionDetailLabel}>Invoice:</Text>
+              <Text style={styles.transactionDetailValue}>{item.invoiceNo}</Text>
+            </View>
+          )}
+          {item.referenceNumber && (
+            <View style={styles.transactionDetail}>
+              <Text style={styles.transactionDetailLabel}>Ref:</Text>
+              <Text style={styles.transactionDetailValue}>{item.referenceNumber}</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {item.description && (
+        <Text style={styles.transactionDescription}>{item.description}</Text>
+      )}
+
+      <View style={styles.transactionFooter}>
+        <Text style={styles.transactionMethodLabel}>Payment Method</Text>
+        <Badge variant={getPaymentMethodBadge(item.paymentMethod)}>
+          <Text style={styles.transactionMethodText}>{item.paymentMethod || 'Not Specified'}</Text>
+        </Badge>
+      </View>
+    </TouchableOpacity>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison to prevent unnecessary re-renders
+  return (
+    prevProps.item.id === nextProps.item.id &&
+    prevProps.item.amount === nextProps.item.amount &&
+    prevProps.isDebit === nextProps.isDebit &&
+    prevProps.index === nextProps.index
+  );
+});
+
+// Memoized Item Card Component for Modal
+const ItemCard = memo(({ item, index, formatCurrency }) => {
+  const isService = item.itemType === 'service';
+  const qty = !isService && item.quantity && !isNaN(Number(item.quantity))
+    ? `${item.quantity} ${item.unitType || 'Piece'}`
+    : '—';
+  const rate = !isService ? formatCurrency(Number(item?.pricePerUnit ?? 0)) : '—';
+  const total = formatCurrency(Number(item?.amount ?? 0));
+  const hsnSacCode = isService ? item.sacCode : item.hsnCode;
+
+  return (
+    <View style={styles.itemCard}>
+      <View style={styles.itemHeader}>
+        <View style={styles.itemIconContainer}>
+          {isService ? (
+            <Server size={16} color="#6b7280" />
+          ) : (
+            <Package size={16} color="#6b7280" />
+          )}
+        </View>
+        <View style={styles.itemTitleContainer}>
+          <Text style={styles.itemName}>{item?.name ?? '—'}</Text>
+          <View style={styles.itemTags}>
+            <View style={styles.itemTag}>
+              <Text style={styles.itemTagText}>
+                {item.itemType?.toUpperCase() ?? '—'}
+              </Text>
+            </View>
+            {hsnSacCode && (
+              <View style={styles.itemTag}>
+                <Text style={styles.itemTagText}>
+                  HSN/SAC: {hsnSacCode}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+
+      {isService && item?.description && (
+        <Text style={styles.itemDescription}>{item.description}</Text>
+      )}
+
+      <View style={styles.itemDetails}>
+        <View style={styles.itemDetail}>
+          <Text style={styles.itemDetailLabel}>Quantity</Text>
+          <Text style={styles.itemDetailValue}>{qty}</Text>
+        </View>
+        <View style={styles.itemDetail}>
+          <Text style={styles.itemDetailLabel}>Price/Unit</Text>
+          <Text style={styles.itemDetailValue}>{rate}</Text>
+        </View>
+        <View style={[styles.itemDetail, styles.itemTotal]}>
+          <Text style={styles.itemDetailLabel}>Total</Text>
+          <Text style={styles.itemDetailTotal}>{total}</Text>
+        </View>
+      </View>
+    </View>
+  );
+});
 
 export function VendorLedgerView({
   loading,
@@ -63,83 +232,69 @@ export function VendorLedgerView({
   const [itemsToView, setItemsToView] = useState([]);
   const [loadingItems, setLoadingItems] = useState(false);
 
-  const totals = calculateTotals();
+  // Memoize totals calculation
+  const totals = useMemo(() => calculateTotals(), [calculateTotals]);
 
-  // Function to handle viewing items for a transaction
-  const handleViewItems = async (entry) => {
-    try {
-      setLoadingItems(true);
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        Alert.alert('Error', 'Authentication token not found.');
-        return;
-      }
+  // Memoize credit entries
+  const { creditPurchaseEntries, creditPaymentEntries, allCreditEntries } = useMemo(() => {
+    if (!ledgerData) return { creditPurchaseEntries: [], creditPaymentEntries: [], allCreditEntries: [] };
+    
+    const creditPurchaseEntries = (ledgerData.debit || []).filter(
+      (entry) => entry.paymentMethod !== 'Credit'
+    );
+    const creditPaymentEntries = ledgerData.credit || [];
+    const allCreditEntries = [...creditPurchaseEntries, ...creditPaymentEntries];
+    
+    return { creditPurchaseEntries, creditPaymentEntries, allCreditEntries };
+  }, [ledgerData]);
 
-      const baseURL = BASE_URL;
-      
-      // Check if entry has a valid id
-      if (!entry.id) {
-        Alert.alert('Info', 'No detailed items available for this transaction');
-        return;
-      }
+  // Memoize sorted debit entries
+  const sortedDebitEntries = useMemo(() => {
+    if (!ledgerData?.debit) return [];
+    return [...ledgerData.debit].sort((a, b) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+  }, [ledgerData?.debit]);
 
-      // Try purchase endpoint first, then payments if needed
-      let endpoint = `${baseURL}/api/purchase/${entry.id}`;
+  // Memoize sorted credit entries
+  const sortedCreditEntries = useMemo(() => {
+    return [...allCreditEntries].sort((a, b) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+  }, [allCreditEntries]);
 
-      const response = await fetch(endpoint, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        // If purchase endpoint fails, try payments endpoint
-        const paymentsEndpoint = `${baseURL}/api/payments/${entry.id}`;
-        const paymentsResponse = await fetch(paymentsEndpoint, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!paymentsResponse.ok) {
-          // If both endpoints fail, show empty modal
-          console.log('Failed to fetch transaction details from both endpoints');
-          setItemsToView([]);
-          setIsItemsModalOpen(true);
-          return;
-        }
-
-        const transaction = await paymentsResponse.json();
-        
-        // Check if transaction data exists
-        if (!transaction || !transaction.payment) {
-          Alert.alert('Info', 'Transaction data not found');
-          return;
-        }
-        
-        processTransactionData(transaction.payment);
-        return;
-      }
-
-      const transaction = await response.json();
-      
-      // Check if transaction data exists
-      if (!transaction || !transaction.entry) {
-        Alert.alert('Info', 'Transaction data not found');
-        return;
-      }
-      
-      processTransactionData(transaction.entry);
-    } catch (error) {
-      console.error('Error fetching transaction items:', error);
-      Alert.alert('Error', 'Failed to load transaction items');
-      setItemsToView([]);
-      setIsItemsModalOpen(true);
-    } finally {
-      setLoadingItems(false);
+  // Memoize item summaries
+  const itemSummary = useMemo(() => {
+    if (itemsToView.length === 0) {
+      return { subtotal: 0, taxTotal: 0, grandTotal: 0 };
     }
-  };
 
-  const processTransactionData = (transaction) => {
+    const subtotal = itemsToView.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const taxTotal = itemsToView.reduce((sum, item) => {
+      const lineTax = item.lineTax;
+      if (lineTax !== undefined && lineTax !== null) {
+        return sum + Number(lineTax);
+      }
+      const gstRate = item.gstPercentage || item.gstRate || item.gst || 0;
+      const taxableValue = item.amount || 0;
+      const taxAmount = (taxableValue * gstRate) / 100;
+      return sum + taxAmount;
+    }, 0);
+    const grandTotal = subtotal + taxTotal;
+
+    return { subtotal, taxTotal, grandTotal };
+  }, [itemsToView]);
+
+  // Memoize balance style
+  const balanceStyle = useMemo(() => {
+    if (totals.balance > 0) return styles.balancePositive;
+    if (totals.balance < 0) return styles.balanceNegative;
+    return styles.balanceNeutral;
+  }, [totals.balance]);
+
+  const processTransactionData = useCallback((transaction) => {
     // Process products
     const prods = (transaction?.products || []).map((p) => {
-      // Get HSN code from product - safely handle null/undefined
       let productId = '';
       let productName = '';
       let productObj = null;
@@ -153,7 +308,6 @@ export function VendorLedgerView({
           productName = p.product || '(product)';
         }
         
-        // Find product in productsList if we have productId
         if (productId) {
           productObj = productsList.find((prod) => prod._id === productId);
         }
@@ -216,9 +370,108 @@ export function VendorLedgerView({
     const allItems = [...prods, ...svcs];
     setItemsToView(allItems);
     setIsItemsModalOpen(true);
-  };
+  }, [productsList]);
 
-  const ItemsModal = () => (
+  const handleViewItems = useCallback(async (entry) => {
+    try {
+      setLoadingItems(true);
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Authentication token not found.');
+        return;
+      }
+
+      const baseURL = BASE_URL;
+      
+      if (!entry.id) {
+        Alert.alert('Info', 'No detailed items available for this transaction');
+        return;
+      }
+
+      let endpoint = `${baseURL}/api/purchase/${entry.id}`;
+      const response = await fetch(endpoint, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        const paymentsEndpoint = `${baseURL}/api/payments/${entry.id}`;
+        const paymentsResponse = await fetch(paymentsEndpoint, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!paymentsResponse.ok) {
+          console.log('Failed to fetch transaction details from both endpoints');
+          setItemsToView([]);
+          setIsItemsModalOpen(true);
+          return;
+        }
+
+        const transaction = await paymentsResponse.json();
+        
+        if (!transaction || !transaction.payment) {
+          Alert.alert('Info', 'Transaction data not found');
+          return;
+        }
+        
+        processTransactionData(transaction.payment);
+        return;
+      }
+
+      const transaction = await response.json();
+      
+      if (!transaction || !transaction.entry) {
+        Alert.alert('Info', 'Transaction data not found');
+        return;
+      }
+      
+      processTransactionData(transaction.entry);
+    } catch (error) {
+      console.error('Error fetching transaction items:', error);
+      Alert.alert('Error', 'Failed to load transaction items');
+      setItemsToView([]);
+      setIsItemsModalOpen(true);
+    } finally {
+      setLoadingItems(false);
+    }
+  }, [processTransactionData]);
+
+  // Memoized render functions
+  const renderDebitItem = useCallback(({ item, index }) => (
+    <TransactionItem
+      item={item}
+      index={index}
+      isDebit={true}
+      formatDate={formatDate}
+      formatCurrency={formatCurrency}
+      getPaymentMethodDisplay={getPaymentMethodDisplay}
+      getPaymentMethodBadge={getPaymentMethodBadge}
+      onPress={handleViewItems}
+    />
+  ), [formatDate, formatCurrency, getPaymentMethodDisplay, getPaymentMethodBadge, handleViewItems]);
+
+  const renderCreditItem = useCallback(({ item, index }) => (
+    <TransactionItem
+      item={item}
+      index={index}
+      isDebit={false}
+      formatDate={formatDate}
+      formatCurrency={formatCurrency}
+      getPaymentMethodDisplay={getPaymentMethodDisplay}
+      getPaymentMethodBadge={getPaymentMethodBadge}
+      onPress={handleViewItems}
+    />
+  ), [formatDate, formatCurrency, getPaymentMethodDisplay, getPaymentMethodBadge, handleViewItems]);
+
+  const renderItemCard = useCallback(({ item, index }) => (
+    <ItemCard item={item} index={index} formatCurrency={formatCurrency} />
+  ), [formatCurrency]);
+
+  // Memoized key extractors
+  const debitKeyExtractor = useCallback((item) => item.id, []);
+  const creditKeyExtractor = useCallback((item, index) => `${item.type || 'debit'}-${item.id}-${index}`, []);
+  const itemKeyExtractor = useCallback((item, index) => `item-${index}`, []);
+
+  const ItemsModal = useCallback(() => (
     <Modal
       visible={isItemsModalOpen}
       transparent
@@ -251,40 +504,19 @@ export function VendorLedgerView({
                   <View style={styles.summaryItem}>
                     <Text style={styles.summaryLabel}>Subtotal</Text>
                     <Text style={styles.summaryValue}>
-                      {formatCurrency(itemsToView.reduce((sum, item) => sum + Number(item.amount || 0), 0))}
+                      {formatCurrency(itemSummary.subtotal)}
                     </Text>
                   </View>
                   <View style={styles.summaryItem}>
                     <Text style={styles.summaryLabel}>Tax Total</Text>
                     <Text style={styles.summaryValue}>
-                      {formatCurrency(itemsToView.reduce((sum, item) => {
-                        const lineTax = item.lineTax;
-                        if (lineTax !== undefined && lineTax !== null) {
-                          return sum + Number(lineTax);
-                        }
-                        const gstRate = item.gstPercentage || item.gstRate || item.gst || 0;
-                        const taxableValue = item.amount || 0;
-                        const taxAmount = (taxableValue * gstRate) / 100;
-                        return sum + taxAmount;
-                      }, 0))}
+                      {formatCurrency(itemSummary.taxTotal)}
                     </Text>
                   </View>
                   <View style={styles.summaryItem}>
                     <Text style={styles.summaryLabel}>Grand Total</Text>
                     <Text style={[styles.summaryValue, styles.grandTotal]}>
-                      {formatCurrency(
-                        itemsToView.reduce((sum, item) => sum + Number(item.amount || 0), 0) +
-                        itemsToView.reduce((sum, item) => {
-                          const lineTax = item.lineTax;
-                          if (lineTax !== undefined && lineTax !== null) {
-                            return sum + Number(lineTax);
-                          }
-                          const gstRate = item.gstPercentage || item.gstRate || item.gst || 0;
-                          const taxableValue = item.amount || 0;
-                          const taxAmount = (taxableValue * gstRate) / 100;
-                          return sum + taxAmount;
-                        }, 0)
-                      )}
+                      {formatCurrency(itemSummary.grandTotal)}
                     </Text>
                   </View>
                 </View>
@@ -292,72 +524,22 @@ export function VendorLedgerView({
 
               {/* Items List */}
               <View style={styles.itemsList}>
-                {itemsToView.map((item, index) => {
-                  const isService = item.itemType === 'service';
-                  const qty = !isService && item.quantity && !isNaN(Number(item.quantity))
-                    ? `${item.quantity} ${item.unitType || 'Piece'}`
-                    : '—';
-                  const rate = !isService ? formatCurrency(Number(item?.pricePerUnit ?? 0)) : '—';
-                  const total = formatCurrency(Number(item?.amount ?? 0));
-                  const hsnSacCode = isService ? item.sacCode : item.hsnCode;
-
-                  return (
-                    <View key={index} style={styles.itemCard}>
-                      <View style={styles.itemHeader}>
-                        <View style={styles.itemIconContainer}>
-                          {isService ? (
-                            <Server size={16} color="#6b7280" />
-                          ) : (
-                            <Package size={16} color="#6b7280" />
-                          )}
-                        </View>
-                        <View style={styles.itemTitleContainer}>
-                          <Text style={styles.itemName}>{item?.name ?? '—'}</Text>
-                          <View style={styles.itemTags}>
-                            <View style={styles.itemTag}>
-                              <Text style={styles.itemTagText}>
-                                {item.itemType?.toUpperCase() ?? '—'}
-                              </Text>
-                            </View>
-                            {hsnSacCode && (
-                              <View style={styles.itemTag}>
-                                <Text style={styles.itemTagText}>
-                                  HSN/SAC: {hsnSacCode}
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-                        </View>
-                      </View>
-
-                      {isService && item?.description && (
-                        <Text style={styles.itemDescription}>{item.description}</Text>
-                      )}
-
-                      <View style={styles.itemDetails}>
-                        <View style={styles.itemDetail}>
-                          <Text style={styles.itemDetailLabel}>Quantity</Text>
-                          <Text style={styles.itemDetailValue}>{qty}</Text>
-                        </View>
-                        <View style={styles.itemDetail}>
-                          <Text style={styles.itemDetailLabel}>Price/Unit</Text>
-                          <Text style={styles.itemDetailValue}>{rate}</Text>
-                        </View>
-                        <View style={[styles.itemDetail, styles.itemTotal]}>
-                          <Text style={styles.itemDetailLabel}>Total</Text>
-                          <Text style={styles.itemDetailTotal}>{total}</Text>
-                        </View>
-                      </View>
-                    </View>
-                  );
-                })}
+                <FlatList
+                  data={itemsToView}
+                  renderItem={renderItemCard}
+                  keyExtractor={itemKeyExtractor}
+                  scrollEnabled={false}
+                  removeClippedSubviews={true}
+                  maxToRenderPerBatch={5}
+                  windowSize={3}
+                />
               </View>
             </ScrollView>
           )}
         </View>
       </SafeAreaView>
     </Modal>
-  );
+  ), [isItemsModalOpen, loadingItems, itemsToView, formatCurrency, itemSummary, renderItemCard, itemKeyExtractor]);
 
   if (loading) {
     return (
@@ -388,85 +570,8 @@ export function VendorLedgerView({
     );
   }
 
-  const creditPurchaseEntries = (ledgerData.debit || []).filter(
-    (entry) => entry.paymentMethod !== 'Credit'
-  );
-  const creditPaymentEntries = ledgerData.credit || [];
-  const allCreditEntries = [...creditPurchaseEntries, ...creditPaymentEntries];
-
-  const renderTransactionItem = (item, index, isDebit = true) => {
-    const isPurchase = !item.type || item.type === 'debit';
-    const bgColor = isDebit ? '#fef2f2' : '#f0fdf4';
-    const borderColor = isDebit ? '#fecaca' : '#bbf7d0';
-    const textColor = isDebit ? '#dc2626' : '#10b981';
-    
-    const handlePress = () => {
-      if (item.id) {
-        handleViewItems(item);
-      } else {
-        Alert.alert('Info', 'No detailed items available for this transaction');
-      }
-    };
-    
-    return (
-      <TouchableOpacity 
-        style={[styles.transactionItem, { backgroundColor: bgColor, borderColor }]}
-        onPress={handlePress}
-      >
-        <View style={styles.transactionHeader}>
-          <View style={[styles.transactionIndex, { backgroundColor: textColor }]}>
-            <Text style={styles.transactionIndexText}>{index + 1}</Text>
-          </View>
-          <View style={styles.transactionInfo}>
-            <Text style={styles.transactionType}>
-              {isPurchase ? 'Purchase' : getPaymentMethodDisplay(item.paymentMethod)}
-            </Text>
-            <View style={styles.transactionDate}>
-              <Calendar size={12} color="#64748b" />
-              <Text style={styles.transactionDateText}>{formatDate(item.date)}</Text>
-            </View>
-          </View>
-          <View style={styles.transactionAmountContainer}>
-            <Text style={[styles.transactionAmount, { color: textColor }]}>
-              {formatCurrency(item.amount)}
-            </Text>
-            <ExternalLink size={14} color="#3b82f6" />
-          </View>
-        </View>
-
-        {(item.invoiceNo || item.referenceNumber) && (
-          <View style={styles.transactionDetails}>
-            {item.invoiceNo && (
-              <View style={styles.transactionDetail}>
-                <Text style={styles.transactionDetailLabel}>Invoice:</Text>
-                <Text style={styles.transactionDetailValue}>{item.invoiceNo}</Text>
-              </View>
-            )}
-            {item.referenceNumber && (
-              <View style={styles.transactionDetail}>
-                <Text style={styles.transactionDetailLabel}>Ref:</Text>
-                <Text style={styles.transactionDetailValue}>{item.referenceNumber}</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {item.description && (
-          <Text style={styles.transactionDescription}>{item.description}</Text>
-        )}
-
-        <View style={styles.transactionFooter}>
-          <Text style={styles.transactionMethodLabel}>Payment Method</Text>
-          <Badge variant={getPaymentMethodBadge(item.paymentMethod)}>
-            <Text style={styles.transactionMethodText}>{item.paymentMethod || 'Not Specified'}</Text>
-          </Badge>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} removeClippedSubviews={true}>
       <ItemsModal />
       
       {/* Vendor Summary Card */}
@@ -490,11 +595,7 @@ export function VendorLedgerView({
             </View>
             
             <View style={styles.balanceContainer}>
-              <Text style={[
-                styles.balanceAmount,
-                totals.balance > 0 ? styles.balancePositive : 
-                totals.balance < 0 ? styles.balanceNegative : styles.balanceNeutral
-              ]}>
+              <Text style={[styles.balanceAmount, balanceStyle]}>
                 {formatCurrency(Math.abs(totals.balance))}
               </Text>
               <Badge
@@ -522,63 +623,49 @@ export function VendorLedgerView({
 
       {/* Quick Stats */}
       <View style={styles.statsGrid}>
-        <Card style={styles.statCard}>
-          <CardContent style={styles.statContent}>
-            <View style={styles.statHeader}>
-              <View style={[styles.statIcon, styles.statIconRed]}>
-                <TrendingUp size={16} color="#dc2626" />
-              </View>
-              <Text style={styles.statLabel}>Total Purchases</Text>
-            </View>
-            <Text style={styles.statValueRed}>{formatCurrency(totals.debit)}</Text>
-          </CardContent>
-        </Card>
+        <StatCard
+          icon={TrendingUp}
+          iconBg={styles.statIconRed}
+          iconColor="#dc2626"
+          label="Total Purchases"
+          value={formatCurrency(totals.debit)}
+          valueStyle={styles.statValueRed}
+        />
 
-        <Card style={styles.statCard}>
-          <CardContent style={styles.statContent}>
-            <View style={styles.statHeader}>
-              <View style={[styles.statIcon, styles.statIconGreen]}>
-                <CreditCard size={16} color="#16a34a" />
-              </View>
-              <Text style={styles.statLabel}>Total Payments</Text>
-            </View>
-            <Text style={styles.statValueGreen}>{formatCurrency(totals.credit)}</Text>
-          </CardContent>
-        </Card>
+        <StatCard
+          icon={CreditCard}
+          iconBg={styles.statIconGreen}
+          iconColor="#16a34a"
+          label="Total Payments"
+          value={formatCurrency(totals.credit)}
+          valueStyle={styles.statValueGreen}
+        />
 
-        <Card style={styles.statCard}>
-          <CardContent style={styles.statContent}>
-            <View style={styles.statHeader}>
-              <View style={[styles.statIcon, styles.statIconBlue]}>
-                <Calendar size={16} color="#2563eb" />
-              </View>
-              <Text style={styles.statLabel}>Net Balance</Text>
-            </View>
-            <Text style={[
-              styles.statValue,
-              totals.balance > 0 ? styles.statValueOrange :
-              totals.balance < 0 ? styles.statValueEmerald : styles.statValueBlue
-            ]}>
-              {formatCurrency(Math.abs(totals.balance))}
-            </Text>
-          </CardContent>
-        </Card>
+        <StatCard
+          icon={Calendar}
+          iconBg={styles.statIconBlue}
+          iconColor="#2563eb"
+          label="Net Balance"
+          value={formatCurrency(Math.abs(totals.balance))}
+          valueStyle={[
+            styles.statValue,
+            totals.balance > 0 ? styles.statValueOrange :
+            totals.balance < 0 ? styles.statValueEmerald : styles.statValueBlue
+          ]}
+        />
 
-        <Card style={styles.statCard}>
-          <CardContent style={styles.statContent}>
-            <View style={styles.statHeader}>
-              <View style={[
-                styles.statIcon,
-                totals.balance > 0 ? styles.statIconOrange :
-                totals.balance < 0 ? styles.statIconEmerald : styles.statIconBlue
-              ]}>
-                <FileText size={16} color={
-                  totals.balance > 0 ? '#ea580c' :
-                  totals.balance < 0 ? '#059669' : '#2563eb'
-                } />
-              </View>
-              <Text style={styles.statLabel}>Status</Text>
-            </View>
+        <StatCard
+          icon={FileText}
+          iconBg={
+            totals.balance > 0 ? styles.statIconOrange :
+            totals.balance < 0 ? styles.statIconEmerald : styles.statIconBlue
+          }
+          iconColor={
+            totals.balance > 0 ? '#ea580c' :
+            totals.balance < 0 ? '#059669' : '#2563eb'
+          }
+          label="Status"
+          badge={
             <Badge
               variant={
                 totals.balance > 0
@@ -604,8 +691,8 @@ export function VendorLedgerView({
                   : 'Settled'}
               </Text>
             </Badge>
-          </CardContent>
-        </Card>
+          }
+        />
       </View>
 
       {/* Debit and Credit Sections */}
@@ -629,10 +716,14 @@ export function VendorLedgerView({
               </View>
             ) : (
               <FlatList
-                data={[...ledgerData.debit].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
-                keyExtractor={(item) => item.id}
+                data={sortedDebitEntries}
+                keyExtractor={debitKeyExtractor}
                 scrollEnabled={false}
-                renderItem={({ item, index }) => renderTransactionItem(item, index, true)}
+                renderItem={renderDebitItem}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={10}
+                windowSize={5}
+                initialNumToRender={10}
               />
             )}
           </CardContent>
@@ -660,10 +751,14 @@ export function VendorLedgerView({
               </View>
             ) : (
               <FlatList
-                data={[...allCreditEntries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
-                keyExtractor={(item, index) => `${item.type || 'debit'}-${item.id}-${index}`}
+                data={sortedCreditEntries}
+                keyExtractor={creditKeyExtractor}
                 scrollEnabled={false}
-                renderItem={({ item, index }) => renderTransactionItem(item, index, false)}
+                renderItem={renderCreditItem}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={10}
+                windowSize={5}
+                initialNumToRender={10}
               />
             )}
           </CardContent>
@@ -673,6 +768,7 @@ export function VendorLedgerView({
   );
 }
 
+// Styles remain the same...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1285,4 +1381,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#10b981',
   },
-});
+}); 

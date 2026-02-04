@@ -13,7 +13,6 @@ import {
 import { BASE_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import AppLayout from '../../components/layout/AppLayout'; // ✅ Use AppLayout
 import UpdateNotification from '../../components/notifications/UpdateNotification';
 import UpdateNotificationBadge from '../../components/notifications/UpdateNotificationBadge';
 
@@ -152,23 +151,20 @@ export default function AdminDashboardScreen({ navigation }) {
 
   if (isLoading) {
     return (
-      <AppLayout>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2196F3" />
-          <Text style={styles.loadingText}>Loading dashboard data...</Text>
-        </View>
-      </AppLayout>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2196F3" />
+        <Text style={styles.loadingText}>Loading dashboard data...</Text>
+      </View>
     );
   }
 
   return (
-    <AppLayout>
-      <ScrollView
-        style={styles.scrollView}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
+    <ScrollView
+      style={styles.scrollView}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
         {/* ✅ Dashboard Header Section */}
         <View style={styles.header}>
           <View style={styles.headerTextContainer}>
@@ -237,7 +233,6 @@ export default function AdminDashboardScreen({ navigation }) {
           <UpdateNotification />
         </View>
       </ScrollView>
-    </AppLayout>
   );
 }
 

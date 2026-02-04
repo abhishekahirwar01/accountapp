@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import {
   View,
   Text,
@@ -12,11 +12,11 @@ import {
   Platform,
   Image,
   Alert,
-} from 'react-native';
+} from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Context Hooks
@@ -55,7 +55,7 @@ function normalizeRole(rawRole) {
   return role;
 }
 
-export default function Header() {
+export default memo(function Header() {
   const [showSearch, setShowSearch] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -67,17 +67,12 @@ export default function Header() {
   const [formattedRole, setFormattedRole] = useState('');
 
   const navigation = useNavigation();
-  const route = useRoute();
 
   // Context data
   const { triggerCompaniesRefresh } = useCompany();
 
-  // Refresh companies whenever Header comes to focus
-  useFocusEffect(
-    React.useCallback(() => {
-      triggerCompaniesRefresh();
-    }, [triggerCompaniesRefresh]),
-  );
+  // Note: Companies are loaded once in CompanySwitcher and cached
+  // No need to refresh on every screen focus to prevent loading flicker
 
   useEffect(() => {
     const today = new Date();
@@ -97,7 +92,7 @@ export default function Header() {
   // Get user data from storage
   const getUserData = async () => {
     try {
-      const userData = await AsyncStorage.getItem('currentUser');
+      const userData = await AsyncStorage.getItem('user');
       const userRole = await AsyncStorage.getItem('role');
 
       if (userData) setCurrentUser(JSON.parse(userData));
@@ -215,11 +210,6 @@ export default function Header() {
   if (showSearch) {
     return (
       <>
-        <StatusBar
-          barStyle="dark-content"
-          backgroundColor="#FFFFFF"
-          translucent={false}
-        />
         <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }}>
           <View style={styles.searchContainer}>
             <TouchableOpacity
@@ -302,11 +292,6 @@ export default function Header() {
   // Main UI
   return (
     <>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#FFFFFF"
-        translucent={false}
-      />
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }}>
         <View style={[
           styles.container,
@@ -485,7 +470,7 @@ export default function Header() {
       </SafeAreaView>
     </>
   );
-}
+});
 
 const styles = StyleSheet.create({
   
@@ -493,8 +478,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',

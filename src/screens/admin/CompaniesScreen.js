@@ -25,7 +25,6 @@ import { BASE_URL } from '../../config';
 
 import AdminCompanyForm from '../../components/companies/AdminCompanyForm';
 import CompanyCard from '../../components/companies/CompanyCard';
-import AppLayout from '../../components/layout/AppLayout';
 
 // ---------- UI COMPONENTS ----------
 const Card = ({ children, style }) => (
@@ -379,11 +378,10 @@ export default function AdminCompaniesPage() {
   }
 
   return (
-    <AppLayout>
-      <SafeAreaView style={styles.container} edges={['left', 'right']}>
-        {renderAnimatedHeader()}
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
+      {renderAnimatedHeader()}
 
-        <Animated.FlatList
+      <Animated.FlatList
           data={filteredCompanies}
           renderItem={({ item }) => (
             <CompanyCard
@@ -443,7 +441,6 @@ export default function AdminCompaniesPage() {
           onConfirm={confirmDelete}
         />
       </SafeAreaView>
-    </AppLayout>
   );
 }
 

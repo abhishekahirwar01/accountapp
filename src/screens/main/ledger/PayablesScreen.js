@@ -5,13 +5,11 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Modal,
   ActivityIndicator,
   FlatList,
   Alert,
   RefreshControl,
-  Dimensions,
   Platform,
   BackHandler,
 } from 'react-native';
@@ -20,25 +18,11 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Filter,
-  Download,
-  Calendar,
   ArrowLeft,
-  FileText,
-  TrendingUp,
-  TrendingDown,
-  CreditCard,
-  Users,
-  IndianRupee,
-  ChevronRight,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Minus,
-  DownloadIcon,
 } from 'lucide-react-native';
 import { BASE_URL } from '../../../config';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
-// Import your React Native components
 import {
   Card,
   CardHeader,
@@ -99,9 +83,6 @@ export default function PayablesScreen() {
     companies: false,
     products: false,
   });
-
-  // Batch request controller
-  const abortControllersRef = useRef({});
 
   // Handle hardware back button and swipe gestures
   useFocusEffect(
@@ -173,7 +154,7 @@ export default function PayablesScreen() {
     }
   };
 
-  // Optimized fetch products - only load once
+  // Optimized fetch products - only load once, in background
   const fetchProducts = useCallback(async () => {
     if (dataLoadedRef.current.products) return;
 
@@ -195,7 +176,7 @@ export default function PayablesScreen() {
     }
   }, [baseURL]);
 
-  // Optimized fetch vendors - only load once or when company changes
+  // Optimized fetch vendors
   const fetchVendors = useCallback(async (forceRefresh = false) => {
     if (dataLoadedRef.current.vendors && !forceRefresh) return;
 
@@ -236,7 +217,7 @@ export default function PayablesScreen() {
     }
   }, [baseURL, selectedCompanyId]);
 
-  // Optimized fetch expenses - only load once or when company changes
+  // Optimized fetch expenses
   const fetchExpenses = useCallback(async (forceRefresh = false) => {
     if (dataLoadedRef.current.expenses && !forceRefresh) return;
 
@@ -274,9 +255,6 @@ export default function PayablesScreen() {
 
       setExpenses(expensesArray);
       dataLoadedRef.current.expenses = true;
-
-      // Fetch totals for expenses in background (non-blocking)
-      fetchExpenseTotals(expensesArray, token);
     } catch (error) {
       console.error('Error fetching expenses:', error);
       setExpenses([]);
@@ -285,61 +263,7 @@ export default function PayablesScreen() {
     }
   }, [baseURL, selectedCompanyId]);
 
-  // Separate function for fetching expense totals (non-blocking)
-  const fetchExpenseTotals = async (expensesArray, token) => {
-    const totals = {};
-    
-    // Fetch in batches of 5 to avoid overwhelming the server
-    const batchSize = 5;
-    for (let i = 0; i < expensesArray.length; i += batchSize) {
-      const batch = expensesArray.slice(i, i + batchSize);
-      
-      await Promise.all(
-        batch.map(async expense => {
-          try {
-            const params = new URLSearchParams();
-            params.append('expenseId', expense._id);
-            if (dateRange.from) params.append('fromDate', dateRange.from);
-            if (dateRange.to) params.append('toDate', dateRange.to);
-            if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-
-            const totalRes = await fetch(
-              `${baseURL}/api/ledger/expense-payables?${params.toString()}`,
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              },
-            );
-            
-            if (totalRes.ok) {
-              const totalData = await totalRes.json();
-              const cashExpenses = (totalData.debit || [])
-                .filter(e => e.paymentMethod !== 'Credit')
-                .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-
-              const payments = (totalData.credit || []).reduce(
-                (sum, e) => sum + Number(e.amount || 0),
-                0,
-              );
-
-              totals[expense._id] = cashExpenses + payments;
-            }
-          } catch (error) {
-            console.error(
-              `Error fetching total for expense ${expense._id}:`,
-              error,
-            );
-          }
-        })
-      );
-      
-      // Update state after each batch
-      setExpenseTotals(prev => ({ ...prev, ...totals }));
-    }
-  };
-
-  // Optimized fetch companies - only load once
+  // Optimized fetch companies
   const fetchCompanies = useCallback(async () => {
     if (dataLoadedRef.current.companies) return;
 
@@ -367,29 +291,40 @@ export default function PayablesScreen() {
     }
   }, [baseURL]);
 
-  // Initial data load - parallel requests for better performance
+  // Initial data load - parallel for speed
   useEffect(() => {
     const loadInitialData = async () => {
-      // Load all initial data in parallel
       await Promise.all([
-        fetchProducts(),
-        fetchVendors(),
-        fetchExpenses(),
+        currentView === 'vendor' ? fetchVendors() : fetchExpenses(),
         fetchCompanies(),
       ]);
+      
+      // Load products in background (non-blocking)
+      fetchProducts();
     };
 
     loadInitialData();
   }, []);
 
-  // Reload vendors and expenses only when company changes
+  // Reset data when company changes
   useEffect(() => {
-    if (selectedCompanyId) {
+    const resetAndFetch = async () => {
       dataLoadedRef.current.vendors = false;
       dataLoadedRef.current.expenses = false;
-      fetchVendors(true);
-      fetchExpenses(true);
-    }
+      
+      setVendors([]);
+      setExpenses([]);
+      setVendorBalances({});
+      setExpenseTotals({});
+      setTransactionTotals({ totalCredit: 0, totalDebit: 0 });
+      
+      await Promise.all([
+        fetchVendors(true),
+        fetchExpenses(true)
+      ]);
+    };
+
+    resetAndFetch();
   }, [selectedCompanyId]);
 
   // Fetch ledger data based on current view
@@ -624,188 +559,12 @@ export default function PayablesScreen() {
     }
   }, [currentView, fetchVendors, fetchExpenses, fetchLedgerData]);
 
-  // Optimized fetch overall totals - only when needed
-  const fetchOverallTotals = useCallback(async () => {
-    if (currentView !== 'vendor' || vendors.length === 0) return;
-
-    try {
-      setLoadingTotals(true);
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication token not found.');
-      }
-
-      let totalCredit = 0;
-      let totalDebit = 0;
-
-      // Fetch in batches of 3 to avoid overwhelming the server
-      const batchSize = 3;
-      for (let i = 0; i < vendors.length; i += batchSize) {
-        const batch = vendors.slice(i, i + batchSize);
-        
-        const vendorResults = await Promise.all(
-          batch.map(async vendor => {
-            try {
-              const params = new URLSearchParams();
-              params.append('vendorId', vendor._id);
-              if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-              
-              const response = await fetch(
-                `${baseURL}/api/ledger/vendor-payables?${params.toString()}`,
-                {
-                  method: 'GET',
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                  },
-                },
-              );
-
-              if (response.ok) {
-                const data = await response.json();
-                const debitTotal = (data.debit || []).reduce(
-                  (sum, entry) => sum + (entry.amount || 0),
-                  0,
-                );
-
-                const creditPurchaseEntries = (data.debit || []).filter(
-                  entry => entry.paymentMethod !== 'Credit',
-                );
-                const creditPaymentEntries = data.credit || [];
-
-                const creditTotal = [
-                  ...creditPurchaseEntries,
-                  ...creditPaymentEntries,
-                ].reduce((sum, entry) => sum + (entry.amount || 0), 0);
-
-                return {
-                  debit: debitTotal,
-                  credit: creditTotal,
-                };
-              }
-              return { debit: 0, credit: 0 };
-            } catch (error) {
-              console.error(
-                `Error fetching ledger data for vendor ${vendor._id}:`,
-                error,
-              );
-              return { debit: 0, credit: 0 };
-            }
-          })
-        );
-
-        // Update totals after each batch
-        vendorResults.forEach(result => {
-          totalDebit += result.debit;
-          totalCredit += result.credit;
-        });
-
-        setTransactionTotals({
-          totalCredit,
-          totalDebit,
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching overall totals:', error);
-      setTransactionTotals({
-        totalCredit: 0,
-        totalDebit: 0,
-      });
-    } finally {
-      setLoadingTotals(false);
-    }
-  }, [currentView, vendors, selectedCompanyId, baseURL]);
-
-  // Optimized fetch vendor balance
-  const fetchVendorBalance = useCallback(
-    async vendorId => {
-      if (!vendorId || vendorBalances[vendorId] !== undefined) return;
-
-      try {
-        setLoadingBalances(prev => ({ ...prev, [vendorId]: true }));
-
-        const token = await AsyncStorage.getItem('token');
-        if (!token) {
-          throw new Error('Authentication token not found.');
-        }
-
-        const params = new URLSearchParams();
-        if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-        
-        const response = await fetch(
-          `${baseURL}/api/vendors/${vendorId}/balance?${params.toString()}`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          },
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          setVendorBalances(prev => ({
-            ...prev,
-            [vendorId]: data.balance || 0,
-          }));
-        } else {
-          setVendorBalances(prev => ({
-            ...prev,
-            [vendorId]: 0,
-          }));
-        }
-      } catch (error) {
-        console.error(`Error fetching balance for vendor ${vendorId}:`, error);
-        setVendorBalances(prev => ({
-          ...prev,
-          [vendorId]: 0,
-        }));
-      } finally {
-        setLoadingBalances(prev => ({ ...prev, [vendorId]: false }));
-      }
-    },
-    [vendorBalances, selectedCompanyId, baseURL],
-  );
-
-  // Fetch balances and totals only when on vendor view
-  useEffect(() => {
-    if (currentView === 'vendor' && vendors.length > 0) {
-      // Fetch balances in batches
-      const fetchBalancesInBatches = async () => {
-        const batchSize = 5;
-        for (let i = 0; i < vendors.length; i += batchSize) {
-          const batch = vendors.slice(i, i + batchSize);
-          await Promise.all(batch.map(vendor => fetchVendorBalance(vendor._id)));
-        }
-      };
-
-      fetchBalancesInBatches();
-      fetchOverallTotals();
-    }
-  }, [vendors, currentView, selectedCompanyId]);
-
-  // Calculate statistics - memoized
   const stats = useMemo(() => {
-    const settledVendors = vendors.filter(v => {
-      const balance = vendorBalances[v._id];
-      return balance !== undefined && balance === 0;
-    }).length;
-
-    const netBalance =
-      transactionTotals.totalDebit - transactionTotals.totalCredit;
-
     return {
       totalVendors: vendors.length,
       totalExpenses: expenses.length,
-      netBalance,
-      totalExpenseAmount: Object.values(expenseTotals).reduce(
-        (sum, amount) => sum + amount,
-        0,
-      ),
-      settledVendors,
-      totalCredit: transactionTotals.totalCredit,
-      totalDebit: transactionTotals.totalDebit,
     };
-  }, [vendors, expenses, expenseTotals, vendorBalances, transactionTotals]);
+  }, [vendors.length, expenses.length]);
 
   const expenseOptions = useMemo(
     () =>
@@ -932,7 +691,7 @@ export default function PayablesScreen() {
                 <Icon
                   name="calendar-blank"
                   size={16}
-                  color={dateRange.from ? '#3B82F6' : '#94A3B8'}
+                  color={dateRange.from ? '#3B82F6' : '#2564bd'}
                 />
                 <Text
                   style={[
@@ -959,7 +718,7 @@ export default function PayablesScreen() {
                 <Icon
                   name="calendar-blank"
                   size={16}
-                  color={dateRange.to ? '#3B82F6' : '#94A3B8'}
+                  color={dateRange.to ? '#3B82F6' : '#2564bd'}
                 />
                 <Text
                   style={[
@@ -1100,19 +859,13 @@ export default function PayablesScreen() {
     </View>
   ));
 
-  // Show loading only on first mount, not on tab switches
-  if ((vendorsLoading || expensesLoading) && !dataLoadedRef.current.vendors && !dataLoadedRef.current.expenses) {
+  // Minimal loading state
+  if ((vendorsLoading || expensesLoading) && vendors.length === 0 && expenses.length === 0) {
     return (
       <SafeAreaView style={styles.loadingScreen}>
         <View style={styles.loadingContent}>
-          <View style={styles.loadingHeader}>
-            <View>
-              <Skeleton style={styles.loadingTitle} />
-              <Skeleton style={styles.loadingSubtitle} />
-            </View>
-            <Skeleton style={styles.loadingButton} />
-          </View>
-          <Skeleton style={styles.loadingCard} />
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text style={styles.loadingText}>Loading...</Text>
         </View>
       </SafeAreaView>
     );
@@ -1201,6 +954,11 @@ export default function PayablesScreen() {
                   selectedCompanyId={selectedCompanyId}
                   dateRange={dateRange}
                   formatCurrency={formatCurrency}
+                  setVendorBalances={setVendorBalances}
+                  setLoadingBalances={setLoadingBalances}
+                  setTransactionTotals={setTransactionTotals}
+                  setLoadingTotals={setLoadingTotals}
+                  setExpenseTotals={setExpenseTotals}
                 />
               )
             ) : selectedExpense ? (
@@ -1223,6 +981,7 @@ export default function PayablesScreen() {
                 }}
                 selectedCompanyId={selectedCompanyId}
                 formatCurrency={formatCurrency}
+                setExpenseTotals={setExpenseTotals}
               />
             )}
           </View>
@@ -1231,8 +990,6 @@ export default function PayablesScreen() {
     </SafeAreaView>
   );
 }
-
-const { width } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
   container: {
@@ -1253,36 +1010,13 @@ const styles = StyleSheet.create({
   },
   loadingContent: {
     flex: 1,
-  },
-  loadingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
   },
-  loadingTitle: {
-    height: 18,
-    width: 150,
-    backgroundColor: '#e2e8f0',
-    borderRadius: 4,
-    marginBottom: 8,
-  },
-  loadingSubtitle: {
-    height: 16,
-    width: 100,
-    backgroundColor: '#e2e8f0',
-    borderRadius: 4,
-  },
-  loadingButton: {
-    height: 12,
-    width: 160,
-    backgroundColor: '#e2e8f0',
-    borderRadius: 8,
-  },
-  loadingCard: {
-    height: 200,
-    backgroundColor: '#e2e8f0',
-    borderRadius: 12,
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#64748b',
   },
   header: {
     marginBottom: 8,
@@ -1315,9 +1049,6 @@ const styles = StyleSheet.create({
   },
   mobileToggle: {
     display: 'flex',
-  },
-  desktopToggle: {
-    display: 'none',
   },
   filterSection: {
     marginBottom: 20,
@@ -1458,7 +1189,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   dateInputPlaceholder: {
-    color: '#94A3B8',
+    color: '#252627',
     fontWeight: '400',
   },
   dateSeparator: {
@@ -1468,7 +1199,7 @@ const styles = StyleSheet.create({
   dateSeparatorLine: {
     width: 8,
     height: 1.5,
-    backgroundColor: '#CBD5E1',
+    backgroundColor: '#3e3e3f',
   },
   modalOverlay: {
     flex: 1,
@@ -1529,93 +1260,7 @@ const styles = StyleSheet.create({
     color: '#3B82F6',
     fontWeight: '600',
   },
-  statsSection: {
-    marginBottom: 24,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  statCard: {
-    width: '48%',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    overflow: 'hidden',
-    marginBottom: 10,
-    minHeight: 120,
-  },
-  statCardContent: {
-    padding: 12,
-    flex: 1,
-    justifyContent: 'space-between',
-  },
-  statCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statCardTitle: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#64748b',
-    flex: 1,
-  },
-  statCardValueRow: {
-    marginBottom: 4,
-  },
-  statCardValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#0f172a',
-  },
-  statCardSubtitle: {
-    fontSize: 10,
-    color: '#94a3b8',
-    lineHeight: 14,
-  },
-  statCardIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  statLoading: {
-    marginVertical: 8,
-  },
-  netPayableCard: {
-    borderColor: '#fecaca',
-    backgroundColor: '#fef2f2',
-  },
-  netAdvanceCard: {
-    borderColor: '#bbf7d0',
-    backgroundColor: '#f0fdf4',
-  },
-  creditCard: {
-    borderColor: '#bfdbfe',
-    backgroundColor: '#eff6ff',
-  },
-  debitCard: {
-    borderColor: '#fed7aa',
-    backgroundColor: '#fff7ed',
-  },
   mainContent: {
     gap: 24,
-  },
-  comingSoonContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  comingSoonText: {
-    fontSize: 18,
-    color: '#64748b',
-    textAlign: 'center',
   },
 });

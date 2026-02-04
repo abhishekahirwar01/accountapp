@@ -17,6 +17,10 @@ import {
   ActivityIndicator,
   RefreshControl,
   FlatList,
+  Modal, 
+  Dimensions,
+  Animated,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
@@ -27,6 +31,9 @@ import {
   FileText,
   Briefcase,
   ChevronDown,
+  X,
+  Check,
+  Search,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -37,10 +44,306 @@ import CompaniesTab from '../../components/analytics/CompaniesTab';
 import UsersTab from '../../components/analytics/UsersTab';
 import ProfitAndLossTab from '../../components/analytics/ProfitAndLoss';
 import BalanceSheetTab from '../../components/analytics/BalanceSheet';
-import AppLayout from '../../components/layout/AppLayout';
 
 import { BASE_URL } from '../../config';
-// ...existing code...
+
+const { width } = Dimensions.get('window');
+
+// Custom Dropdown Component with Search
+const CustomDropdown = ({
+  label,
+  value,
+  items = [],
+  onValueChange,
+  placeholder = 'Select an option',
+  isLoading = false,
+  disabled = false,
+  style = {},
+  emptyMessage = 'No options available',
+  showClearButton = true,
+  searchable = true,
+  searchPlaceholder = 'Search...',
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedLabel, setSelectedLabel] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredItems, setFilteredItems] = useState([]);
+  const searchInputRef = useRef(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+
+  useEffect(() => {
+    const item = items.find(i => i?._id === value);
+    setSelectedLabel(
+      item?.contactName || item?.businessName || item?.label || placeholder
+    );
+  }, [value, items, placeholder]);
+
+  // Filter items based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredItems(items);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    const filtered = items.filter(item => {
+      const itemText = (
+        item?.contactName || 
+        item?.businessName || 
+        item?.label || 
+        ''
+      ).toLowerCase();
+      return itemText.includes(query);
+    });
+    
+    setFilteredItems(filtered);
+  }, [items, searchQuery]);
+
+  const handleOpen = () => {
+    if (disabled || isLoading) return;
+    setIsOpen(true);
+    setSearchQuery('');
+    setFilteredItems(items);
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 100,
+        friction: 10,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      if (searchable && searchInputRef.current) {
+        setTimeout(() => {
+          searchInputRef.current?.focus();
+        }, 100);
+      }
+    });
+  };
+
+  const handleClose = () => {
+    setSearchQuery('');
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 0.95,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setIsOpen(false));
+  };
+
+  const handleSelect = (item) => {
+    if (item?._id !== undefined) {
+      onValueChange(item._id);
+    }
+    handleClose();
+  };
+
+  const handleClear = () => {
+    onValueChange('');
+    handleClose();
+  };
+
+  const handleSearchChange = (text) => {
+    setSearchQuery(text);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  };
+
+  const renderItem = (item, index) => (
+    <TouchableOpacity
+      key={item._id || `item-${index}`}
+      style={[
+        styles.dropdownItem,
+        value === item._id && styles.dropdownItemSelected,
+        index === filteredItems.length - 1 && styles.dropdownItemLast,
+      ]}
+      onPress={() => handleSelect(item)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.dropdownItemContent}>
+        <Text
+          style={[
+            styles.dropdownItemText,
+            value === item._id && styles.dropdownItemTextSelected,
+          ]}
+          numberOfLines={1}
+        >
+          {item.contactName || item.businessName || item.label}
+        </Text>
+        {value === item._id && (
+          <Check size={18} color="#007bff" style={styles.dropdownCheckIcon} />
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+
+  return (
+    <View style={[styles.dropdownField, style]}>
+      {label && <Text style={styles.dropdownLabel}>{label}</Text>}
+      
+      <TouchableOpacity
+        style={[
+          styles.dropdownTrigger,
+          disabled && styles.dropdownTriggerDisabled,
+          isLoading && styles.dropdownTriggerLoading,
+          isOpen && styles.dropdownTriggerOpen,
+        ]}
+        onPress={handleOpen}
+        disabled={disabled || isLoading}
+        activeOpacity={0.8}
+      >
+        {isLoading ? (
+          <View style={styles.dropdownLoadingContainer}>
+            <ActivityIndicator size="small" color="#6c757d" />
+            <Text style={styles.dropdownLoadingText}>Loading...</Text>
+          </View>
+        ) : (
+          <>
+            <Text
+              style={[
+                styles.dropdownTriggerText,
+                !value && styles.dropdownTriggerTextPlaceholder,
+              ]}
+              numberOfLines={1}
+            >
+              {selectedLabel}
+            </Text>
+            <View style={styles.dropdownTriggerIcons}>
+              {showClearButton && value && (
+                <TouchableOpacity
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleClear();
+                  }}
+                  style={styles.clearButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <X size={16} color="#6c757d" />
+                </TouchableOpacity>
+              )}
+              <ChevronDown
+                size={18}
+                color={disabled ? '#adb5bd' : '#495057'}
+                style={[
+                  styles.dropdownArrow,
+                  isOpen && styles.dropdownArrowOpen,
+                ]}
+              />
+            </View>
+          </>
+        )}
+      </TouchableOpacity>
+
+      <Modal
+        visible={isOpen}
+        transparent
+        animationType="none"
+        onRequestClose={handleClose}
+      >
+        <TouchableOpacity
+          style={styles.dropdownBackdrop}
+          activeOpacity={1}
+          onPress={handleClose}
+        >
+          <Animated.View
+            style={[
+              styles.dropdownModal,
+              {
+                opacity: fadeAnim,
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
+          >
+            <View style={styles.dropdownHeader}>
+              <Text style={styles.dropdownHeaderTitle}>{label}</Text>
+              <TouchableOpacity
+                onPress={handleClose}
+                style={styles.dropdownCloseButton}
+              >
+                <X size={22} color="#495057" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Search Bar */}
+            {searchable && items.length > 5 && (
+              <View style={styles.searchContainer}>
+                <Search size={18} color="#6c757d" style={styles.searchIcon} />
+                <TextInput
+                  ref={searchInputRef}
+                  style={styles.searchInput}
+                  placeholder={searchPlaceholder}
+                  placeholderTextColor="#6c757d"
+                  value={searchQuery}
+                  onChangeText={handleSearchChange}
+                  returnKeyType="search"
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity
+                    onPress={clearSearch}
+                    style={styles.clearSearchButton}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <X size={16} color="#6c757d" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            <FlatList
+              data={filteredItems}
+              renderItem={({ item, index }) => renderItem(item, index)}
+              keyExtractor={(item, index) => item._id || `item-${index}`}
+              style={styles.dropdownList}
+              showsVerticalScrollIndicator={true}
+              ListEmptyComponent={
+                <View style={styles.dropdownEmpty}>
+                  <Text style={styles.dropdownEmptyText}>
+                    {searchQuery ? 'No matching results found' : emptyMessage}
+                  </Text>
+                  {searchQuery && (
+                    <TouchableOpacity
+                      onPress={clearSearch}
+                      style={styles.clearSearchButtonEmpty}
+                    >
+                      <Text style={styles.clearSearchTextEmpty}>
+                        Clear search
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              }
+              ListHeaderComponent={
+                searchable && items.length > 0 && searchQuery && (
+                  <View style={styles.searchResultsHeader}>
+                    <Text style={styles.searchResultsText}>
+                      {filteredItems.length} result{filteredItems.length !== 1 ? 's' : ''} found
+                    </Text>
+                  </View>
+                )
+              }
+            />
+          </Animated.View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+};
 
 export default function AnalyticsScreen() {
   const route = useRoute();
@@ -131,14 +434,6 @@ export default function AnalyticsScreen() {
     ],
     [],
   );
-
-  const getSafeClientName = useCallback(client => {
-    return client?.contactName || 'Unknown Client';
-  }, []);
-
-  const getSafeBusinessName = useCallback(company => {
-    return company?.businessName || 'Unknown Company';
-  }, []);
 
   const fetchClients = useCallback(async () => {
     if (!isMountedRef.current) return;
@@ -392,72 +687,6 @@ export default function AnalyticsScreen() {
     selectedClientId,
   ]);
 
-  const renderPicker = useCallback(
-    (
-      value,
-      onValueChange,
-      items,
-      label,
-      placeholder,
-      isLoading = false,
-      customStyle = {},
-    ) => (
-      <View style={[styles.pickerField, customStyle]}>
-        <Text style={styles.selectionLabel}>{label}</Text>
-        <View style={styles.pickerWrapper}>
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#6c757d" />
-              <Text style={styles.loadingText}>Loading...</Text>
-            </View>
-          ) : (
-            <>
-              <Picker
-                selectedValue={value}
-                onValueChange={onValueChange}
-                style={styles.hiddenPicker}
-                dropdownIconColor="#6c757d"
-                enabled={items && items.length > 0}
-              >
-                <Picker.Item
-                  label={placeholder}
-                  value=""
-                  style={styles.pickerPlaceholderText}
-                />
-                {items &&
-                  items.map((item, idx) => (
-                    <Picker.Item
-                      key={item?._id ?? `opt-${idx}`}
-                      label={
-                        item?.contactName || item?.businessName || placeholder
-                      }
-                      value={item?._id ?? ''}
-                      style={styles.pickerItemText}
-                    />
-                  ))}
-              </Picker>
-              <Text style={styles.pickerDisplay} numberOfLines={1}>
-                {value && items
-                  ? items.find(i => i && (i._id === value || i.value === value))
-                      ?.contactName ||
-                    items.find(i => i && (i._id === value || i.value === value))
-                      ?.businessName ||
-                    placeholder
-                  : placeholder}
-              </Text>
-              <ChevronDown
-                size={20}
-                color="#6c757d"
-                style={styles.pickerIcon}
-              />
-            </>
-          )}
-        </View>
-      </View>
-    ),
-    [getSafeClientName, getSafeBusinessName],
-  );
-
   const renderHeaderAndSelection = useCallback(
     () => (
       <View style={styles.headerContainer}>
@@ -470,26 +699,36 @@ export default function AnalyticsScreen() {
 
         <View style={styles.selectionContainer}>
           <View style={styles.twoColumnSelection}>
-            {renderPicker(
-              selectedClientId,
-              handleClientChange,
-              clients,
-              'Select Client',
-              '-- Select Client --' ,
-              isClientsLoading,
-              styles.pickerFieldHalf,
-            )}
+            <CustomDropdown
+              label="Select Client"
+              value={selectedClientId}
+              items={clients}
+              onValueChange={handleClientChange}
+              placeholder="-- Select Client --"
+              isLoading={isClientsLoading}
+              style={styles.dropdownFieldHalf}
+              emptyMessage="No clients available"
+              searchable={true}
+              searchPlaceholder="Search clients..."
+            />
 
             {selectedClientId ? (
-              renderPicker(
-                selectedCompanyId,
-                handleCompanyChange,
-                [{ _id: '', businessName: 'All Companies' }, ...companies],
-                'Select Company',
-                'All Companies',
-                isCompaniesLoading,
-                styles.pickerFieldHalf,
-              )
+              <CustomDropdown
+                label="Select Company"
+                value={selectedCompanyId}
+                items={[
+                  { _id: '', businessName: 'All Companies' },
+                  ...companies,
+                ]}
+                onValueChange={handleCompanyChange}
+                placeholder="All Companies"
+                isLoading={isCompaniesLoading}
+                style={styles.dropdownFieldHalf}
+                disabled={!selectedClientId}
+                emptyMessage="No companies available"
+                searchable={true}
+                searchPlaceholder="Search companies..."
+              />
             ) : (
               <View style={styles.pickerFieldHalf} />
             )}
@@ -504,7 +743,6 @@ export default function AnalyticsScreen() {
       companies,
       isClientsLoading,
       isCompaniesLoading,
-      renderPicker,
       handleClientChange,
       handleCompanyChange,
     ],
@@ -569,9 +807,8 @@ export default function AnalyticsScreen() {
     );
   }
 
-  // Use FlatList instead of ScrollView to avoid nested virtualization warning
   return (
-    <AppLayout>
+    <>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       
       <FlatList
@@ -609,7 +846,7 @@ export default function AnalyticsScreen() {
         showsVerticalScrollIndicator={true}
         style={styles.container}
       />
-    </AppLayout>
+    </>
   );
 }
 
@@ -672,65 +909,241 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginHorizontal: -6,
   },
-  pickerField: {
+  dropdownField: {
     marginBottom: 10,
+  },
+  dropdownFieldHalf: {
+    flex: 1,
+    marginHorizontal: 6,
   },
   pickerFieldHalf: {
     flex: 1,
     marginHorizontal: 6,
   },
-  selectionLabel: {
+
+  // Custom Dropdown Styles
+  dropdownLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: '#495057',
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  pickerWrapper: {
-    borderWidth: 1,
-    borderColor: '#ced4da',
-    borderRadius: 8,
+  dropdownTrigger: {
+    borderWidth: 1.5,
+    borderColor: '#e9ecef',
+    borderRadius: 12,
     backgroundColor: '#fff',
-    paddingVertical: Platform.OS === 'ios' ? 12 : 0,
-    paddingHorizontal: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    position: 'relative',
-    minHeight: 50,
+    justifyContent: 'space-between',
+    minHeight: 52,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
   },
-  pickerDisplay: {
+  dropdownTriggerOpen: {
+    borderColor: '#007bff',
+    borderWidth: 2,
+    backgroundColor: '#f8f9ff',
+  },
+  dropdownTriggerDisabled: {
+    backgroundColor: '#f8f9fa',
+    borderColor: '#e9ecef',
+  },
+  dropdownTriggerLoading: {
+    backgroundColor: '#f8f9fa',
+  },
+  dropdownTriggerText: {
     flex: 1,
     fontSize: 16,
+    fontWeight: '500',
     color: '#212529',
+    marginRight: 8,
   },
-  pickerIcon: {
-    marginLeft: 8,
+  dropdownTriggerTextPlaceholder: {
+    color: '#4a4a4b',
+    fontWeight: '400',
   },
-  hiddenPicker: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    opacity: Platform.OS === 'android' ? 0 : 1,
-    zIndex: Platform.OS === 'android' ? 10 : 0,
-    color: 'transparent',
+  dropdownTriggerIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  pickerPlaceholderText: {
-    color: '#adb5bd',
+  clearButton: {
+    padding: 4,
+    marginRight: 8,
+    backgroundColor: '#f1f3f5',
+    borderRadius: 12,
   },
-  pickerItemText: {
-    color: '#212529',
+  dropdownArrow: {
+    transition: 'transform 0.2s',
   },
-  loadingContainer: {
+  dropdownArrowOpen: {
+    transform: [{ rotate: '180deg' }],
+  },
+  dropdownLoadingContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  loadingText: {
-    marginLeft: 8,
+  dropdownLoadingText: {
+    marginLeft: 10,
     fontSize: 14,
     color: '#6c757d',
+    fontWeight: '500',
+  },
+
+  // Search Bar Styles
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    marginHorizontal: 16,
+    marginVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#212529',
+    padding: 0,
+  },
+  clearSearchButton: {
+    padding: 4,
+    backgroundColor: '#e9ecef',
+    borderRadius: 12,
+  },
+  clearSearchButtonEmpty: {
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#007bff',
+    borderRadius: 8,
+  },
+  clearSearchTextEmpty: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+
+  // Search Results Header
+  searchResultsHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  searchResultsText: {
+    fontSize: 13,
+    color: '#6c757d',
+    fontWeight: '500',
+  },
+
+  // Modal Backdrop
+  dropdownBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+
+  // Modal Content
+  dropdownModal: {
+    width: width - 40,
+    maxHeight: 500,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  dropdownHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    backgroundColor: '#f8f9fa',
+  },
+  dropdownHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#212529',
+  },
+  dropdownCloseButton: {
+    padding: 4,
+  },
+  dropdownList: {
+    maxHeight: 500,
+  },
+  dropdownItem: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f3f5',
+  },
+  dropdownItemSelected: {
+    backgroundColor: '#f8f9ff',
+  },
+  dropdownItemLast: {
+    borderBottomWidth: 0,
+  },
+  dropdownItemContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    color: '#495057',
+    flex: 1,
+  },
+  dropdownItemTextSelected: {
+    color: '#007bff',
+    fontWeight: '600',
+  },
+  dropdownCheckIcon: {
+    marginLeft: 10,
+  },
+  dropdownEmpty: {
+    padding: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dropdownEmptyText: {
+    fontSize: 14,
+    color: '#6c757d',
+    textAlign: 'center',
   },
 
   noClientContainer: {
@@ -848,4 +1261,4 @@ const styles = StyleSheet.create({
   reportContent: {
     flex: 1,
   },
-});
+}); 

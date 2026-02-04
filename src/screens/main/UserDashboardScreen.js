@@ -10,7 +10,10 @@ import {
   Modal,
   FlatList,
   RefreshControl,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
+import { KeyboardAwareFlatList } from 'react-native-keyboard-aware-scroll-view';
 import {
   IndianRupee,
   CreditCard,
@@ -22,7 +25,7 @@ import {
 import Toast from 'react-native-toast-message';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import AppLayout from '../../components/layout/AppLayout';
+
 import RecentTransactions from '../../components/dashboard/RecentTransactions';
 import ProductStock from '../../components/dashboard/ProductStock';
 import { TransactionForm } from '../../components/transactions/TransactionForm';
@@ -374,15 +377,17 @@ export default function UserDashboardScreen({ navigation, route }) {
             <Text style={styles.cardTitle} numberOfLines={1}>
               {title}
             </Text>
-            <View style={[styles.iconContainer, { backgroundColor: iconBgColor }]}>
+            <View
+              style={[styles.iconContainer, { backgroundColor: iconBgColor }]}
+            >
               <Icon size={18} color="#ffffff" strokeWidth={2.5} />
             </View>
           </View>
-          
+
           <Text style={styles.cardValue} numberOfLines={1}>
             {value}
           </Text>
-          
+
           <Text style={styles.cardDescription} numberOfLines={1}>
             {description}
           </Text>
@@ -392,81 +397,90 @@ export default function UserDashboardScreen({ navigation, route }) {
   );
 
   const renderHeader = () => (
-    <View>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerText}>
-          <Text style={styles.title}>User Dashboard</Text>
-          <Text style={styles.subtitle}>
-            {selectedCompany
-              ? `An overview of ${selectedCompany.businessName}.`
-              : 'An overview across your accessible companies.'}
-          </Text>
+    <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+      <View>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerText}>
+            <Text style={styles.title}>User Dashboard</Text>
+            <Text style={styles.subtitle}>
+              {selectedCompany
+                ? `An overview of ${selectedCompany.businessName}.`
+                : 'An overview across your accessible companies.'}
+            </Text>
+          </View>
+
+          {companies.length > 0 && (
+            <View style={styles.headerActions}>
+              <UpdateWalkthrough />
+
+              {isAdmin && (
+                <TouchableOpacity
+                  onPress={handleTransactionPress}
+                  style={[styles.btn, styles.btnSolid]}
+                  activeOpacity={0.85}
+                >
+                  <PlusCircle
+                    size={16}
+                    style={{ marginRight: 8 }}
+                    color="#fff"
+                  />
+                  <Text style={{ color: 'white' }}>New Transaction</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </View>
 
-        {companies.length > 0 && (
-          <View style={styles.headerActions}>
-            <UpdateWalkthrough />
-
-            {isAdmin && (
-              <TouchableOpacity
-                onPress={handleTransactionPress}
-                style={[styles.btn, styles.btnSolid]}
-                activeOpacity={0.85}
-              >
-                <PlusCircle size={16} style={{ marginRight: 8 }} color="#fff" />
-                <Text style={{ color: 'white' }}>New Transaction</Text>
-              </TouchableOpacity>
-            )}
+        {/* KPI Cards Grid */}
+        {kpis.length > 0 && (
+          <View style={styles.kpiGrid}>
+            {kpis.map(k => (
+              <KPICard
+                key={k.key}
+                title={k.title}
+                value={k.value}
+                Icon={k.icon}
+                description={k.description}
+                iconBgColor={k.iconBgColor}
+              />
+            ))}
           </View>
         )}
       </View>
-
-      {/* KPI Cards Grid */}
-      {kpis.length > 0 && (
-        <View style={styles.kpiGrid}>
-          {kpis.map(k => (
-            <KPICard
-              key={k.key}
-              title={k.title}
-              value={k.value}
-              Icon={k.icon}
-              description={k.description}
-              iconBgColor={k.iconBgColor}
-            />
-          ))}
-        </View>
-      )}
-    </View>
+    </TouchableWithoutFeedback>
   );
 
   // --- List Content Component
   const renderContent = () => (
-    <View style={styles.contentGrid}>
-      <ProductStock />
-      <RecentTransactions
-        transactions={recentTransactions}
-        serviceNameById={serviceNameById}
-      />
-    </View>
+    <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+      <View style={styles.contentGrid}>
+        <ProductStock
+          navigation={navigation}
+          refetchPermissions={refetchPermissions}
+          refetchUserPermissions={refetchUserPermissions}
+        />
+        <RecentTransactions
+          transactions={recentTransactions}
+          serviceNameById={serviceNameById}
+        />
+      </View>
+    </TouchableWithoutFeedback>
   );
 
   // --- Render Loading
   if (isLoading) {
     return (
-      <AppLayout>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0f62fe" />
-          <Text style={styles.loadingText}>Loading dashboard...</Text>
-        </View>
-      </AppLayout>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0f62fe" />
+        <Text style={styles.loadingText}>Loading dashboard...</Text>
+      </View>
     );
   }
 
   if (companies.length === 0) {
     return (
-      <AppLayout>
-        <ScrollView
+      <ScrollView
           contentContainerStyle={styles.emptyContainer}
           refreshControl={
             <RefreshControl
@@ -483,28 +497,34 @@ export default function UserDashboardScreen({ navigation, route }) {
             You don't have access to any company yet. Please contact your admin.
           </Text>
         </ScrollView>
-      </AppLayout>
     );
   }
 
   return (
-    <AppLayout>
-      <FlatList
-        data={[]}
-        renderItem={null}
-        ListHeaderComponent={renderHeader}
-        ListFooterComponent={renderContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#0f62fe']}
-            tintColor="#0f62fe"
-          />
-        }
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-      />
+    <>
+    <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+      <KeyboardAwareFlatList
+          data={[]}
+          renderItem={null}
+          ListHeaderComponent={renderHeader}
+          ListFooterComponent={renderContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#0f62fe']}
+              tintColor="#0f62fe"
+            />
+          }
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="none"
+          enableOnAndroid={true}
+          enableAutomaticScroll={true}
+          extraScrollHeight={100}
+        />
+      </TouchableWithoutFeedback>
 
       <Modal
         visible={isTransactionFormOpen}
@@ -539,7 +559,7 @@ export default function UserDashboardScreen({ navigation, route }) {
       </Modal>
 
       <Toast />
-    </AppLayout>
+    </>
   );
 }
 
@@ -614,7 +634,7 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     backgroundColor: 'white',
   },
-  
+
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

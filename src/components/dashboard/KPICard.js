@@ -1,84 +1,121 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Card, Text, useTheme } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import { IndianRupee, CreditCard, Users, Building } from 'lucide-react-native';
 
-const formatCurrency = amount =>
-  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(
-    amount,
+// Move formatCurrency outside component to prevent recreation
+const formatCurrency = (amount) =>
+  new Intl.NumberFormat('en-IN', { 
+    style: 'currency', 
+    currency: 'INR',
+    // maximumFractionDigits: 0,
+  }).format(amount);
+
+// Move static data outside component
+const KPI_CONFIG = [
+  {
+    key: 'sales',
+    title: 'Total Sales',
+    icon: IndianRupee,
+    color: '#3b82f6',
+    getValue: (data) => formatCurrency(data?.totalSales || 0),
+    getDescription: (selectedCompanyId) => 
+      selectedCompanyId ? 'For selected company' : 'Across all companies',
+  },
+  {
+    key: 'purchases',
+    title: 'Total Purchases',
+    icon: CreditCard,
+    color: '#8b5cf6',
+    getValue: (data) => formatCurrency(data?.totalPurchases || 0),
+    getDescription: () => 'All purchases',
+  },
+  {
+    key: 'users',
+    title: 'Active Users',
+    icon: Users,
+    color: '#10b981',
+    getValue: (data) => (data?.users || 0).toString(),
+    getDescription: () => 'Registered users',
+  },
+  {
+    key: 'companies',
+    title: 'Companies',
+    icon: Building,
+    color: '#f59e0b',
+    getValue: (data) => (data?.companies || 0).toString(),
+    getDescription: () => 'Total companies',
+  },
+];
+
+// Memoized KPI Card component
+const KpiCard = React.memo(({ title, value, icon: Icon, description, color }) => {
+  return (
+    <View style={styles.cardWrapper}>
+      <View style={styles.card}>
+        <View style={styles.cardInner}>
+          <View style={styles.headerRow}>
+            <Text variant="labelMedium" style={styles.title} numberOfLines={1}>
+              {title}
+            </Text>
+            <View style={[styles.iconContainer, { backgroundColor: color }]}>
+              <Icon size={18} color="#ffffff" strokeWidth={2.5} />
+            </View>
+          </View>
+          
+          <Text variant="headlineMedium" style={styles.value} numberOfLines={1}>
+            {value}
+          </Text>
+          
+          <Text variant="bodySmall" style={styles.description} numberOfLines={1}>
+            {description}
+          </Text>
+        </View>
+      </View>
+    </View>
   );
+});
 
-export function KpiCards({ data, selectedCompanyId }) {
-  const theme = useTheme();
+KpiCard.displayName = 'KpiCard';
 
-  const kpiData = [
-    {
-      title: 'Total Sales',
-      value: formatCurrency(data?.totalSales || 0),
-      icon: IndianRupee,
-      description: selectedCompanyId
-        ? 'For selected company'
-        : 'Across all companies',
-      color: '#3b82f6',
-    },
-    {
-      title: 'Total Purchases',
-      value: formatCurrency(data?.totalPurchases || 0),
-      icon: CreditCard,
-      description: 'All purchases',
-      color: '#8b5cf6',
-    },
-    {
-      title: 'Active Users',
-      value: (data?.users || 0).toString(),
-      icon: Users,
-      description: 'Registered users',
-      color: '#10b981',
-    },
-    {
-      title: 'Companies',
-      value: (data?.companies || 0).toString(),
-      icon: Building,
-      description: 'Total companies',
-      color: '#f59e0b',
-    },
-  ];
+// Main component - CHANGED: Using function declaration instead of const
+function KpiCards({ data, selectedCompanyId }) {
+  // Memoize kpiData to prevent recalculation on every render
+  const kpiData = useMemo(() => {
+    return KPI_CONFIG.map(config => ({
+      key: config.key,
+      title: config.title,
+      value: config.getValue(data),
+      icon: config.icon,
+      description: config.getDescription(selectedCompanyId),
+      color: config.color,
+    }));
+  }, [data, selectedCompanyId]);
 
   return (
     <View style={styles.container}>
       {kpiData.map((kpi) => (
-        <View key={kpi.title} style={styles.cardWrapper}>
-          <View style={styles.card}>
-            <View style={styles.cardInner}>
-              <View style={styles.headerRow}>
-                <Text variant="labelMedium" style={styles.title} numberOfLines={1}>
-                  {kpi.title}
-                </Text>
-                <View style={[styles.iconContainer, { backgroundColor: kpi.color }]}>
-                  <kpi.icon size={18} color="#ffffff" strokeWidth={2.5} />
-                </View>
-              </View>
-              
-              <Text variant="headlineMedium" style={styles.value} numberOfLines={1}>
-                {kpi.value}
-              </Text>
-              
-              <Text variant="bodySmall" style={styles.description} numberOfLines={1}>
-                {kpi.description}
-              </Text>
-            </View>
-          </View>
-        </View>
+        <KpiCard
+          key={kpi.key}
+          title={kpi.title}
+          value={kpi.value}
+          icon={kpi.icon}
+          description={kpi.description}
+          color={kpi.color}
+        />
       ))}
     </View>
   );
 }
 
+// CHANGED: Export using export { } syntax
+export { KpiCards };
+
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 6,
     padding: 8,
   },
   cardWrapper: {

@@ -39,7 +39,7 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
   const [showCompanyModal, setShowCompanyModal] = useState(false);
   const [companySearch, setCompanySearch] = useState('');
   
-  // 🔥 NEW: Temporary selection state
+ 
   const [tempSelectedCompanies, setTempSelectedCompanies] = useState([]);
 
   const [formData, setFormData] = useState({
@@ -53,7 +53,7 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
     roleId: '',
   });
 
-  // 🔥 Validation errors state
+  
   const [errors, setErrors] = useState({
     userName: '',
     userId: '',
@@ -93,13 +93,13 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
     }
   }, [roles, user]);
 
-  // 🔥 NEW: Open modal and initialize temp selection
+  //  Open modal and initialize temp selection
   const handleOpenModal = () => {
     setTempSelectedCompanies([...formData.companies]);
     setShowCompanyModal(true);
   };
 
-  // 🔥 NEW: Toggle company in temporary selection
+  //  Toggle company in temporary selection
   const handleToggleCompany = id => {
     setTempSelectedCompanies(prev =>
       prev.includes(id)
@@ -108,7 +108,7 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
     );
   };
 
-  // 🔥 NEW: Handle Select All / Deselect All (works on temp selection)
+  //  Handle Select All / Deselect All (works on temp selection)
   const handleSelectAllCompanies = () => {
     const filteredIds = filteredCompanies.map(c => c._id);
     const allSelected = filteredIds.every(id => tempSelectedCompanies.includes(id));
@@ -123,7 +123,7 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
     }
   };
 
-  // 🔥 NEW: Apply temp selection to formData when Done is clicked
+  //  Apply temp selection to formData when Done is clicked
   const handleDoneSelection = () => {
     setFormData(prev => ({
       ...prev,
@@ -133,14 +133,14 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
     setCompanySearch('');
   };
 
-  // 🔥 NEW: Cancel and revert to original selection
+  //  Cancel and revert to original selection
   const handleCancelSelection = () => {
     setTempSelectedCompanies([...formData.companies]);
     setShowCompanyModal(false);
     setCompanySearch('');
   };
 
-  // 🔥 Validation Functions
+  //  Validation Functions
   const validateEmail = email => {
     if (!email || email.trim() === '') {
       return 'Email is required';
@@ -220,7 +220,7 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
     return isValid;
   };
 
-  // 🔥 Clear error when user starts typing
+  //  Clear error when user starts typing
   const handleInputChange = (field, value) => {
     setFormData({ ...formData, [field]: value });
     // Clear error for this field
@@ -229,7 +229,7 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
     }
   };
 
-  // 🔥 Clear role error when a role is selected
+  //  Clear role error when a role is selected
   const handleRoleSelect = (roleId) => {
     setFormData({ ...formData, roleId });
     if (errors.roleId) {
@@ -274,7 +274,7 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
     c.businessName.toLowerCase().includes(companySearch.toLowerCase()),
   );
 
-  // 🔥 Check if all filtered companies are selected (in temp selection)
+  //  Check if all filtered companies are selected (in temp selection)
   const allFilteredSelected = filteredCompanies.length > 0 && 
     filteredCompanies.every(c => tempSelectedCompanies.includes(c._id));
 
@@ -498,7 +498,7 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
                 />
               </View>
 
-              {/* 🔥 Select All Button with new icon */}
+              {/*  Select All Button with new icon */}
               <TouchableOpacity
                 style={styles.selectAllBtn}
                 onPress={handleSelectAllCompanies}
@@ -706,7 +706,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   searchBar: { flex: 1, padding: 8, fontSize: 14 },
-  // 🔥 Select All Button Styles
+  //  Select All Button Styles
   selectAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',

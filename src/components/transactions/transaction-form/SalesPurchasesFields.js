@@ -1235,7 +1235,7 @@ export const SalesPurchasesFields = props => {
               <Icon name={IconMap.ShoppingCart} size={16} color="#1E40AF" />
               <Text style={styles.sectionHeaderText}>Product Selection</Text>
               {isOriginalProduct && (
-                <Text style={styles.originalProductWarning}>
+                <Text style={styles.originalProductWarning} numberOfLines={2}>
                   (Product name is fixed — you can edit Qty, price or add new
                   products)
                 </Text>
@@ -2844,6 +2844,8 @@ const styles = StyleSheet.create({
     color: '#D97706',
     marginLeft: 8,
     fontStyle: 'italic',
+    flex: 1,
+    minWidth: 150,
   },
   readOnlyProductContainer: {
     position: 'relative',
