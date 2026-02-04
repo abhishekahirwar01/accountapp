@@ -36,7 +36,8 @@ export function PermissionProvider({ children }) {
 
       const currentUser = await getCurrentUser();
 
-      if (currentUser?.role !== 'customer') {
+      // Fetch client-scoped permissions for both `client` and `customer` roles
+      if (currentUser?.role !== 'client' && currentUser?.role !== 'customer') {
         setIsLoading(false);
         return;
       }
@@ -88,8 +89,9 @@ export function PermissionProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    setIsLoading(false);
-  }, []);
+    // Fetch permissions on mount so UI menus reflect permissions immediately
+    fetchPermissions();
+  }, [fetchPermissions]);
 
   const value = { permissions, isLoading, refetch: fetchPermissions };
 

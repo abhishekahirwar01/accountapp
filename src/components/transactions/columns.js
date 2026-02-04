@@ -62,6 +62,7 @@ import { PaymentMethodCell } from './PaymentMethodCell';
 import WhatsAppComposerDialog from './WhatsAppComposerDialog';
 import { whatsappConnectionService } from '../../lib/whatsapp-connection';
 import { BASE_URL } from '../../config';
+import { TooltipContent } from '../ui/Tooltip';
 
 /** Build a filter function that can match party/vendor, description and line names */
 export const makeCustomFilterFn = serviceNameById => {
@@ -75,16 +76,24 @@ export const makeCustomFilterFn = serviceNameById => {
     let partyName = '';
     const pv = tx.party || tx.vendor;
     if (pv && typeof pv === 'object') {
-      partyName = pv.name || pv.vendorName || '';
+      partyName = String(pv.name || pv.vendorName || '');
     }
 
-    const desc = (tx.description || tx.narration || '').toLowerCase();
+    const desc = String(tx.description || tx.narration || '').toLowerCase();
 
     // lines (products/services)
     const lines = getUnifiedLines(tx, serviceNameById);
-    const matchLine = lines.some(l => (l.name || '').toLowerCase().includes(q));
+    const matchLine = lines.some(l =>
+      String(l.name || '')
+        .toLowerCase()
+        .includes(q),
+    );
 
-    return partyName.toLowerCase().includes(q) || desc.includes(q) || matchLine;
+    return (
+      String(partyName).toLowerCase().includes(q) ||
+      desc.includes(q) ||
+      matchLine
+    );
   };
 };
 
@@ -741,69 +750,7 @@ const DropdownMenuLabel = ({ children }) => (
 
 const DropdownMenuSeparator = () => <View style={styles.menuSeparator} />;
 
-// Items Tooltip Component
-const ItemsTooltip = ({ isVisible, onClose, lines }) => {
-  if (!isVisible) return null;
-
-  return (
-    <Modal
-      transparent
-      visible={isVisible}
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <Pressable style={styles.tooltipOverlay} onPress={onClose}>
-        <Pressable style={styles.tooltipContent}>
-          <View style={styles.tooltipHeader}>
-            <Text style={styles.tooltipTitle}>Items & Services</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Feather name="x" size={20} color="#374151" />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={styles.tooltipList}>
-            {lines.map((line, index) => (
-              <View key={index} style={styles.tooltipItem}>
-                <View
-                  style={[
-                    styles.itemIcon,
-                    line.type === 'product'
-                      ? styles.productIcon
-                      : styles.serviceIcon,
-                  ]}
-                >
-                  {line.type === 'product' ? (
-                    <Feather name="package" size={14} color="#0369a1" />
-                  ) : (
-                    <Feather name="tool" size={14} color="#92400e" />
-                  )}
-                </View>
-                <View style={styles.tooltipItemDetails}>
-                  <Text style={styles.tooltipItemName}>{line.name}</Text>
-                  {line.type === 'product' && (
-                    <Text style={styles.tooltipItemMeta}>
-                      {line.quantity}
-                      {line.unitType ? ` ${line.unitType}` : ''}
-                      {line.pricePerUnit
-                        ? ` @ ${new Intl.NumberFormat('en-IN').format(
-                            Number(line.pricePerUnit),
-                          )}`
-                        : ''}
-                    </Text>
-                  )}
-                  {line.type === 'service' && line.description && (
-                    <Text style={styles.tooltipItemDesc}>
-                      {line.description}
-                    </Text>
-                  )}
-                </View>
-              </View>
-            ))}
-          </ScrollView>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-};
+// Legacy ItemsTooltip removed — use `TooltipContent` (from ../ui/Tooltip) inside `LinesCell` for a richer, consistent UI.
 
 // ✅ SortableHeader Component (alag component)
 const SortableHeader = ({ title, onSort }) => {
@@ -853,12 +800,12 @@ const LinesCell = ({ transaction, serviceNameById, onViewItems }) => {
     let contactName = 'N/A';
     if (transaction.type === 'purchases') {
       contactName =
-        typeof transaction.vendor === 'object'
+        transaction.vendor && typeof transaction.vendor === 'object'
           ? transaction.vendor.vendorName
           : transaction.vendor || 'N/A';
     } else {
       contactName =
-        typeof transaction.party === 'object'
+        transaction.party && typeof transaction.party === 'object'
           ? transaction.party.name
           : transaction.party || 'N/A';
     }
@@ -950,13 +897,13 @@ const LinesCell = ({ transaction, serviceNameById, onViewItems }) => {
               key={idx}
               style={[
                 styles.itemIcon,
-                line.type === 'product'
+                line.itemType === 'product'
                   ? styles.productIcon
                   : styles.serviceIcon,
                 { marginLeft: idx > 0 ? -8 : 0 },
               ]}
             >
-              {line.type === 'product' ? (
+              {line.itemType === 'product' ? (
                 <Feather name="package" size={12} color="#0369a1" />
               ) : (
                 <Feather name="tool" size={12} color="#92400e" />
@@ -982,11 +929,118 @@ const LinesCell = ({ transaction, serviceNameById, onViewItems }) => {
         </View>
       </TouchableOpacity>
 
-      <ItemsTooltip
-        isVisible={showTooltip}
+      <TooltipContent
+        visible={showTooltip}
         onClose={() => setShowTooltip(false)}
-        lines={lines}
-      />
+        title="Item Details"
+      >
+        {/* Header Totals Section - Matches Screenshot Top Bar */}
+        <View style={styles.screenshotTotalsContainer}>
+          <View style={styles.screenshotTotalColumn}>
+            <Text style={styles.screenshotLabel}>Subtotal</Text>
+            <Text style={styles.screenshotValue}>
+              {new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR',
+              }).format(lines.reduce((s, l) => s + Number(l.amount || 0), 0))}
+            </Text>
+          </View>
+
+          <View style={styles.screenshotTotalColumn}>
+            <Text style={styles.screenshotLabel}>Tax Total</Text>
+            <Text style={styles.screenshotValue}>
+              {new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR',
+              }).format(lines.reduce((s, l) => s + Number(l.lineTax || 0), 0))}
+            </Text>
+          </View>
+
+          <View style={styles.screenshotTotalColumn}>
+            <Text style={styles.screenshotLabel}>Grand Total</Text>
+            <Text style={[styles.screenshotValue, { color: '#10b981' }]}>
+              {new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR',
+              }).format(
+                lines.reduce(
+                  (s, l) => s + Number(l.lineTotal || l.amount || 0),
+                  0,
+                ),
+              )}
+            </Text>
+          </View>
+        </View>
+
+        {/* Items List - Matches the Rounded Card in Screenshot */}
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {lines.map((line, idx) => (
+            <View key={idx} style={styles.screenshotItemCard}>
+              {/* Item Header (Icon + Name + Badges) */}
+              <View style={styles.screenshotItemHeader}>
+                <View style={styles.screenshotIconCircle}>
+                  <Feather
+                    name={line.itemType === 'service' ? 'tool' : 'package'}
+                    size={18}
+                    color="#64748b"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.screenshotItemName}>{line.name}</Text>
+                  <View style={styles.screenshotBadgeRow}>
+                    <View style={styles.screenshotBadge}>
+                      <Text style={styles.screenshotBadgeText}>
+                        {line.itemType || 'Product'}
+                      </Text>
+                    </View>
+                    {line.code && (
+                      <View style={styles.screenshotBadge}>
+                        <Text style={styles.screenshotBadgeText}>
+                          HSN: {line.code}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+
+              {/* Quantity & Price Grid */}
+              <View style={styles.screenshotGrid}>
+                <View>
+                  <Text style={styles.screenshotLabelSmall}>Quantity</Text>
+                  <Text style={styles.screenshotDataText}>
+                    {line.itemType === 'service'
+                      ? '-'
+                      : `${line.quantity || '0'} ${line.unitType || 'Piece'}`}
+                  </Text>
+                </View>
+                <View>
+                  <Text style={styles.screenshotLabelSmall}>Price/Unit</Text>
+                  <Text style={styles.screenshotDataText}>
+                    {line.itemType === 'service'
+                      ? '-'
+                      : new Intl.NumberFormat('en-IN', {
+                          style: 'currency',
+                          currency: 'INR',
+                        }).format(line.pricePerUnit || 0)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Item Total Line */}
+              <View style={styles.screenshotItemFooter}>
+                <Text style={styles.screenshotFooterLabel}>Item Total</Text>
+                <Text style={styles.screenshotFooterValue}>
+                  {new Intl.NumberFormat('en-IN', {
+                    style: 'currency',
+                    currency: 'INR',
+                  }).format(line.amount || 0)}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      </TooltipContent>
     </View>
   );
 };
@@ -1007,7 +1061,6 @@ const TransactionActions = ({
   serviceNameById,
   parties = [],
 }) => {
-
   const { permissions } = useUserPermissions();
   const canEmail = !!permissions?.canSendInvoiceEmail;
   const canWhatsApp = !!permissions?.canSendInvoiceWhatsapp;
@@ -1274,7 +1327,7 @@ const TransactionActions = ({
           disabled={!isWhatsAppAllowed || !canWhatsApp}
         >
           Send on WhatsApp
-          {!canWhatsApp && " (No permission)"}
+          {!canWhatsApp && ' (No permission)'}
         </DropdownMenuItem>
 
         {/* 2) Send via Email */}
@@ -2017,8 +2070,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'flex-end',
     // gap: 4,
-    marginTop: -6
-    
+    marginTop: -6,
   },
   partyMainContent: {
     flexDirection: 'row',
@@ -2160,6 +2212,172 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6b7280',
     fontStyle: 'italic',
+  },
+
+  tooltipTotalsTop: {
+    padding: 12,
+    backgroundColor: '#f8fafc',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+
+  tooltipItemsList: {
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+  },
+
+  tooltipLineCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#eef2ff',
+  },
+  tooltipLineContent: {
+    flexDirection: 'column',
+  },
+  tooltipLineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tooltipLineInfo: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  tooltipLineName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  tooltipItemMeta: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  tooltipServiceDescription: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 6,
+  },
+  itemTypeBadgeSmall: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  itemTypeBadgeTextSmall: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  tooltipLineDetails: {
+    marginTop: 10,
+  },
+
+  // Screenshot-style totals + cards
+  screenshotTotalsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    marginBottom: 10,
+  },
+  screenshotTotalColumn: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  screenshotLabel: {
+    fontSize: 11,
+    color: '#94a3b8',
+    textTransform: 'uppercase',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  screenshotValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  screenshotItemCard: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    backgroundColor: '#fff',
+  },
+  screenshotItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  screenshotIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f8fafc',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  screenshotItemName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  screenshotBadgeRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 4,
+  },
+  screenshotBadge: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  screenshotBadgeText: {
+    fontSize: 10,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  screenshotGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  screenshotLabelSmall: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginBottom: 2,
+  },
+  screenshotDataText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  screenshotItemFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    pt: 12,
+    paddingTop: 12,
+  },
+  screenshotFooterLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  screenshotFooterValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#10b981', // Emerald green from screenshot
   },
 
   // Amount

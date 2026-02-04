@@ -23,7 +23,7 @@ import { generatePDF } from 'react-native-html-to-pdf';
 import { parseHtmlToElements, renderParsedElements } from './HtmlNoteRenderer';
 
 // Constants
-const ITEMS_PER_PAGE = 40; // Maximum items per page
+const ITEMS_PER_PAGE = 28; // Maximum items per page
 const A4_WIDTH = 595; // A4 width in points
 const A4_HEIGHT = 842; // A4 height in points
 

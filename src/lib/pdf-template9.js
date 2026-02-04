@@ -22,7 +22,21 @@ const BORDER_COLOR = '#e5e7eb';
 const TABLE_HEADER_BG = '#3b82f6';
 const PAGE_WIDTH = 595;
 const PAGE_HEIGHT = 842;
-const ITEMS_PER_PAGE = 38;
+const ITEMS_PER_PAGE = 34;
+const MAX_DETAIL_LINES_PER_ITEM = 3; // approximate extra rows when items have details
+
+// Layout measurement constants (used for dynamic pagination)
+const PAGE_PADDING_TOP = 18; // matches .page padding-top
+const PAGE_PADDING_BOTTOM = 24; // matches .page padding-bottom
+const HEADER_EST = 180; // estimated height consumed by header/address section (px)
+const FOOTER_RESERVE = 140; // reserve for totals/bank/notes to avoid orphaning
+
+const NAME_FONT_SIZE = 8; // font size used for item name column
+const DETAIL_FONT_SIZE = 6; // font size used for item detail lines
+const NAME_LINE_HEIGHT = 10; // approximate px per line for names
+const DETAIL_LINE_HEIGHT = 8; // approximate px per line for details
+const ROW_VERTICAL_PADDING = 8; // padding (top+bottom) per row in px
+const CHAR_WIDTH_FACTOR = 0.5; // average char width multiplier vs font-size (approx)
 
 // HTML Notes Rendering Function
 const renderNotesHTML = notes => {
@@ -64,12 +78,96 @@ const safeNumberToWords = amount => {
   }
 };
 
-// Split items into pages
-const splitItemsIntoPages = (items, itemsPerPage = ITEMS_PER_PAGE) => {
-  const pages = [];
-  for (let i = 0; i < items.length; i += itemsPerPage) {
-    pages.push(items.slice(i, i + itemsPerPage));
+// Estimate how many wrapped lines a text will use in a column of given width
+const estimateWrappedLines = (text, colWidth, fontSize = NAME_FONT_SIZE) => {
+  if (!text) return 1;
+  const str = String(text).replace(/<br\s*\/?>(\s*)/gi, '\n');
+  const linesFromBreaks = str.split('\n');
+
+  const width = Math.max(20, colWidth - 8); // allow for padding
+  const avgCharWidth = fontSize * CHAR_WIDTH_FACTOR;
+
+  const estimateForLine = line => {
+    // basic word wrap simulation using avg char width
+    const words = line.split(/\s+/).filter(Boolean);
+    let lines = 1;
+    let current = 0;
+    for (const w of words) {
+      const wWidth = w.length * avgCharWidth + avgCharWidth; // plus space
+      if (current + wWidth > width) {
+        lines++;
+        current = wWidth;
+      } else {
+        current += wWidth;
+      }
+    }
+    return lines;
+  };
+
+  let total = 0;
+  for (const ln of linesFromBreaks) {
+    total += estimateForLine(ln);
   }
+  return Math.max(1, total);
+};
+
+// Split items into pages (height-based) — uses column widths to estimate row heights
+const splitItemsIntoPages = (items, colWidths, pageHeight = PAGE_HEIGHT) => {
+  const pages = [];
+  if (!Array.isArray(items) || items.length === 0) return pages;
+
+  const availableHeight = Math.max(
+    200,
+    pageHeight -
+      PAGE_PADDING_TOP -
+      PAGE_PADDING_BOTTOM -
+      HEADER_EST -
+      FOOTER_RESERVE,
+  );
+
+  let currentPage = [];
+  let usedHeight = 0;
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+
+    // Estimate name wrapping using name column width
+    const nameColWidth = colWidths[1] || 180;
+    const nameLines = estimateWrappedLines(
+      item.name || '',
+      nameColWidth,
+      NAME_FONT_SIZE,
+    );
+
+    // Estimate details lines using same name column width (details are small text)
+    const details = Array.isArray(item.details) ? item.details : [];
+    let detailsLines = 0;
+    for (const d of details) {
+      detailsLines += estimateWrappedLines(
+        d || '',
+        nameColWidth,
+        DETAIL_FONT_SIZE,
+      );
+    }
+
+    // Basic per-item height in px
+    const itemHeight =
+      nameLines * NAME_LINE_HEIGHT +
+      detailsLines * DETAIL_LINE_HEIGHT +
+      ROW_VERTICAL_PADDING;
+
+    // If adding this item exceeds available height, and page already has content -> push page
+    if (usedHeight + itemHeight > availableHeight && currentPage.length > 0) {
+      pages.push(currentPage);
+      currentPage = [];
+      usedHeight = 0;
+    }
+
+    currentPage.push(item);
+    usedHeight += itemHeight;
+  }
+
+  if (currentPage.length) pages.push(currentPage);
   return pages;
 };
 
@@ -88,38 +186,76 @@ const getAddressLines = address =>
   address ? address.split('\n').filter(line => line.trim() !== '') : [];
 
 // Generate items table HTML for a specific page
-const generateItemsTableHTML = (items, colWidths, showIGST, showCGSTSGST, totalColumnIndex, startIndex = 0) => {
+const generateItemsTableHTML = (
+  items,
+  colWidths,
+  showIGST,
+  showCGSTSGST,
+  totalColumnIndex,
+  startIndex = 0,
+) => {
   return items
     .map((item, index) => {
       return `
         <div class="table-row">
-          <div class="table-cell cell-center" style="width: ${colWidths[0]}px;">${startIndex + index + 1}</div>
+          <div class="table-cell cell-center" style="width: ${
+            colWidths[0]
+          }px;">${startIndex + index + 1}</div>
           <div class="table-cell cell-left" style="width: ${colWidths[1]}px;">
             <div style="font-weight: 500;">${item.name}</div>
             ${(item.details || [])
-              .map(detail => `<div style="font-size: 6px; color: #666; margin-top: 1px;">${detail}</div>`)
+              .map(
+                detail =>
+                  `<div style="font-size: 6px; color: #666; margin-top: 1px;">${detail}</div>`,
+              )
               .join('')}
           </div>
-          <div class="table-cell cell-center" style="width: ${colWidths[2]}px;">${item.code || '-'}</div>
+          <div class="table-cell cell-center" style="width: ${
+            colWidths[2]
+          }px;">${item.code || '-'}</div>
           <div class="table-cell cell-center" style="width: ${colWidths[3]}px;">
-            ${item.itemType === 'service' ? '-' : formatQuantity(item.quantity || 0, item.unit)}
+            ${
+              item.itemType === 'service'
+                ? '-'
+                : formatQuantity(item.quantity || 0, item.unit)
+            }
           </div>
-          <div class="table-cell cell-center" style="width: ${colWidths[4]}px;">${formatCurrency(item.pricePerUnit || 0)}</div>
-          <div class="table-cell cell-center" style="width: ${colWidths[5]}px;">${formatCurrency(item.taxableValue || 0)}</div>
-          ${showIGST
-            ? `
-              <div class="table-cell cell-center" style="width: ${colWidths[6]}px;">${(item.gstRate || 0).toFixed(2)}</div>
-              <div class="table-cell cell-center" style="width: ${colWidths[7]}px;">${formatCurrency(item.igst || 0)}</div>
+          <div class="table-cell cell-center" style="width: ${
+            colWidths[4]
+          }px;">${formatCurrency(item.pricePerUnit || 0)}</div>
+          <div class="table-cell cell-center" style="width: ${
+            colWidths[5]
+          }px;">${formatCurrency(item.taxableValue || 0)}</div>
+          ${
+            showIGST
+              ? `
+              <div class="table-cell cell-center" style="width: ${
+                colWidths[6]
+              }px;">${(item.gstRate || 0).toFixed(2)}</div>
+              <div class="table-cell cell-center" style="width: ${
+                colWidths[7]
+              }px;">${formatCurrency(item.igst || 0)}</div>
             `
-            : showCGSTSGST
-            ? `
-              <div class="table-cell cell-center" style="width: ${colWidths[6]}px;">${((item.gstRate || 0) / 2).toFixed(2)}</div>
-              <div class="table-cell cell-center" style="width: ${colWidths[7]}px;">${formatCurrency(item.cgst || 0)}</div>
-              <div class="table-cell cell-center" style="width: ${colWidths[8]}px;">${((item.gstRate || 0) / 2).toFixed(2)}</div>
-              <div class="table-cell cell-center" style="width: ${colWidths[9]}px;">${formatCurrency(item.sgst || 0)}</div>
+              : showCGSTSGST
+              ? `
+              <div class="table-cell cell-center" style="width: ${
+                colWidths[6]
+              }px;">${((item.gstRate || 0) / 2).toFixed(2)}</div>
+              <div class="table-cell cell-center" style="width: ${
+                colWidths[7]
+              }px;">${formatCurrency(item.cgst || 0)}</div>
+              <div class="table-cell cell-center" style="width: ${
+                colWidths[8]
+              }px;">${((item.gstRate || 0) / 2).toFixed(2)}</div>
+              <div class="table-cell cell-center" style="width: ${
+                colWidths[9]
+              }px;">${formatCurrency(item.sgst || 0)}</div>
             `
-            : ''}
-          <div class="table-cell cell-center" style="width: ${colWidths[totalColumnIndex]}px; font-weight: 600; border-right: none;">
+              : ''
+          }
+          <div class="table-cell cell-center" style="width: ${
+            colWidths[totalColumnIndex]
+          }px; font-weight: 600; border-right: none;">
             ${formatCurrency(item.total || 0)}
           </div>
         </div>
@@ -156,40 +292,95 @@ const generatePageHTML = (
   showCGSTSGST,
   title,
   startIndex = 0,
-  isLastPage = false
+  isLastPage = false,
 ) => {
   const companyName = company?.businessName || company?.companyName || '-';
   const partyAddress = getBillingAddress(party);
-  const shippingAddressString = getShippingAddress(shippingAddress, partyAddress);
+  const shippingAddressString = getShippingAddress(
+    shippingAddress,
+    partyAddress,
+  );
+
+  // Prepare shipping fallbacks and state code display (show like Template1)
+  const shippingLabel = capitalizeWords(
+    shippingAddress?.label || party?.name || '-',
+  );
+  const shippingAddrContent = shippingAddress?.address
+    ? capitalizeWords(shippingAddressString)
+    : capitalizeWords(partyAddress || '-');
+  const shippingState = shippingAddress?.state
+    ? `${capitalizeWords(shippingAddress.state)} (${
+        getStateCode(shippingAddress.state) || '-'
+      })`
+    : party?.state
+    ? `${capitalizeWords(party.state)} (${getStateCode(party.state) || '-'})`
+    : '-';
+  const shippingPhone = shippingAddress?.contactNumber
+    ? safeFormatPhoneNumber(shippingAddress.contactNumber)
+    : party?.contactNumber
+    ? safeFormatPhoneNumber(party.contactNumber)
+    : '-';
   const totalColumnIndex = colWidths.length - 1;
-  
+  const tableWidth = Array.isArray(colWidths)
+    ? colWidths.reduce((acc, w) => acc + w, 0)
+    : 0;
+  const tableWidthAdjusted = tableWidth + 2; // small tweak for borders/padding
+
   return `
     <div class="page">
       <!-- Header Section -->
-       <div class="company-subtitle">${title}</div>
-      <div class="header-section">
+      <div style="width: ${tableWidthAdjusted}px; margin-left: auto;">
+        <div class="company-subtitle">${title}</div>
+        <div class="header-section">
         <div class="header-left">
           <div class="company-title">${capitalizeWords(companyName)}</div>
            <div class="company-contact">
            
-            ${company?.gstin ? `<div><strong>GSTIN:</strong> ${company.gstin}</div>` : ''}
-             <div><strong>Phone:</strong> ${company?.mobileNumber ? safeFormatPhoneNumber(company.mobileNumber) : company?.Telephone ? safeFormatPhoneNumber(company.Telephone) : '-'}</div>
+            ${
+              company?.gstin
+                ? `<div><strong>GSTIN:</strong> ${company.gstin}</div>`
+                : ''
+            }
+             <div><strong>Phone:</strong> ${
+               company?.mobileNumber
+                 ? safeFormatPhoneNumber(company.mobileNumber)
+                 : company?.Telephone
+                 ? safeFormatPhoneNumber(company.Telephone)
+                 : '-'
+             }</div>
           </div>
          
           <div class="company-info">
-            ${getAddressLines(company?.address).map(line => `<div>${line}</div>`).join('')}
-            ${company?.addressState ? `<div>${capitalizeWords(company.City || '')}, ${capitalizeWords(company.addressState)}, ${capitalizeWords(company.Country || '')}${company?.Pincode ? ` - ${company.Pincode}` : ''}</div>` : ''}
+            ${getAddressLines(company?.address)
+              .map(line => `<div>${line}</div>`)
+              .join('')}
+            ${
+              company?.addressState
+                ? `<div>${capitalizeWords(
+                    company.City || '',
+                  )}, ${capitalizeWords(
+                    company.addressState,
+                  )}, ${capitalizeWords(company.Country || '')}${
+                    company?.Pincode ? ` - ${company.Pincode}` : ''
+                  }</div>`
+                : ''
+            }
           </div>
          
           <div class="company-state">
-            <strong>State:</strong> ${company?.addressState || '-'} - Pincode: ${company?.Pincode || '-'}
+            <strong>State:</strong> ${
+              company?.addressState || '-'
+            } - Pincode: ${company?.Pincode || '-'}
           </div>
         </div>
         <div class="header-right">
-          ${company?.logo
-            ? `<img src="${BASE_URL}${company.logo}" class="company-logo" />`
-            : '<div style="width: 80px; height: 80px;"></div>'}
+          ${
+            company?.logo
+              ? `<img src="${BASE_URL}${company.logo}" class="company-logo" />`
+              : '<div style="width: 80px; height: 80px;"></div>'
+          }
         </div>
+      </div>
       </div>
 
       <!-- Invoice Details and Party Info -->
@@ -198,28 +389,48 @@ const generatePageHTML = (
           <div class="address-column">
             <div class="address-title">Details of Buyer | Billed to :</div>
             <div class="address-content">
-              <div class="address-name">${capitalizeWords(party?.name || '-')}</div>
-              <div class="address-name"><span class="address-label">Address:</span>${capitalizeWords(partyAddress || '-')}</div>
-              <div class="address-line"><span class="address-label">GSTIN:</span> ${party.gstin || '-'}</div>
-              <div class="address-line"><span class="address-label">PAN:</span> ${party?.pan || '-'}</div>
-              <div class="address-line"><span class="address-label">Phone:</span> ${party?.contactNumber ? safeFormatPhoneNumber(party.contactNumber) : '-'}</div>
-              <div class="address-line"><span class="address-label">Place of Supply:</span> ${shippingAddress?.state ? `${shippingAddress.state}` : party?.state ? `${party.state}` : '-'}</div>
+              <div class="address-name">${capitalizeWords(
+                party?.name || '-',
+              )}</div>
+              <div class="address-name"><span class="address-label">Address:</span>${capitalizeWords(
+                partyAddress || '-',
+              )}</div>
+              <div class="address-line"><span class="address-label">GSTIN:</span> ${
+                party.gstin || '-'
+              }</div>
+              <div class="address-line"><span class="address-label">PAN:</span> ${
+                party?.pan || '-'
+              }</div>
+              <div class="address-line"><span class="address-label">Phone:</span> ${
+                party?.contactNumber
+                  ? safeFormatPhoneNumber(party.contactNumber)
+                  : '-'
+              }</div>
+              <div class="address-line"><span class="address-label">Place of Supply:</span> ${
+                shippingAddress?.state
+                  ? `${shippingAddress.state} (${
+                      getStateCode(shippingAddress.state) || '-'
+                    })`
+                  : party?.state
+                  ? `${party.state} (${getStateCode(party.state) || '-'})`
+                  : '-'
+              }</div> 
             </div>
           </div>
           
           <div class="address-column">
             <div class="address-title">Details of Consigned | Shipped to :</div>
             <div class="address-content">
-              <div class="address-name">${capitalizeWords(shippingAddress?.label || party?.name || '-')}</div>
-              ${shippingAddress?.address ? `<div class="address-line">${capitalizeWords(shippingAddressString)}</div>` : '<div class="address-line">-</div>'}
-              <div class="address-line"><span class="address-label">Country:</span> ${company?.Country || '-'}</div>
-              <div class="address-line"><span class="address-label">Phone:</span>   ${shippingAddress?.contactNumber
-                  ? safeFormatPhoneNumber(party?.contactNumber || '')
-                  : party?.contactNumber
-                  ? safeFormatPhoneNumber(party?.contactNumber || '')
-                  : '-'}</div>
-              <div class="address-line"><span class="address-label">GSTIN:</span> ${party?.gstin || '-'}</div>
-              <div class="address-line"><span class="address-label">State:</span> ${shippingAddress?.state ? capitalizeWords(shippingAddress.state) : party?.state ? capitalizeWords(party.state) : '-'}</div>
+              <div class="address-name">${shippingLabel}</div>
+              <div class="address-line">${shippingAddrContent}</div>
+              <div class="address-line"><span class="address-label">Country:</span> ${
+                company?.Country || '-'
+              }</div>
+              <div class="address-line"><span class="address-label">Phone:</span> ${shippingPhone}</div>
+              <div class="address-line"><span class="address-label">GSTIN:</span> ${
+                party?.gstin || '-'
+              }</div>
+              <div class="address-line"><span class="address-label">State:</span> ${shippingState}</div>
             </div>
           </div>
         </div>
@@ -227,11 +438,15 @@ const generatePageHTML = (
         <div class="invoice-info-box">
           <div class="invoice-row">
             <span class="invoice-label">Invoice #:</span>
-            <span class="invoice-value">${transaction?.invoiceNumber?.toString() || 'AES5250016'}</span>
+            <span class="invoice-value">${
+              transaction?.invoiceNumber?.toString() || 'AES5250016'
+            }</span>
           </div>
           <div class="invoice-row">
             <span class="invoice-label">Invoice Date:</span>
-            <span class="invoice-value">${formatDateSafe(transaction?.date)}</span>
+            <span class="invoice-value">${formatDateSafe(
+              transaction?.date,
+            )}</span>
           </div>
           <div class="invoice-row">
             <span class="invoice-label">P.O. No.:</span>
@@ -239,7 +454,9 @@ const generatePageHTML = (
           </div>
           <div class="invoice-row">
             <span class="invoice-label">P.O. Date:</span>
-            <span class="invoice-value">${formatDateSafe(transaction?.poDate)}</span>
+            <span class="invoice-value">${formatDateSafe(
+              transaction?.poDate,
+            )}</span>
           </div>
           <div class="invoice-row">
             <span class="invoice-label">E-Way No.:</span>
@@ -250,67 +467,172 @@ const generatePageHTML = (
 
       <!-- Items Table -->
       <div class="table-container">
-        <div class="table-header">
-          <div class="header-cell" style="width: ${colWidths[0]}px;">Sr.No</div>
-          <div class="header-cellP" style="width: ${colWidths[1]}px; ">Name of Product / Service</div>
-          <div class="header-cell" style="width: ${colWidths[2]}px;">HSN/SAC</div>
-          <div class="header-cell" style="width: ${colWidths[3]}px;">Qty</div>
-          <div class="header-cell" style="width: ${colWidths[4]}px;">Rate (Rs.)</div>
-          <div class="header-cell" style="width: ${colWidths[5]}px;">Taxable Value (Rs.)</div>
-          ${showIGST
+        <table class="invoice-table">
+          <thead>
+            <tr>
+              <th style="width: ${
+                colWidths[0]
+              }px; text-align:center;">Sr.No</th>
+              <th style="width: ${
+                colWidths[1]
+              }px; text-align:left;">Name of Product / Service</th>
+              <th style="width: ${
+                colWidths[2]
+              }px; text-align:center;">HSN/SAC</th>
+              <th style="width: ${colWidths[3]}px; text-align:center;">Qty</th>
+              <th style="width: ${
+                colWidths[4]
+              }px; text-align:center;">Rate (Rs.)</th>
+              <th style="width: ${
+                colWidths[5]
+              }px; text-align:center;">Taxable Value (Rs.)</th>
+              ${
+                showIGST
+                  ? `
+                    <th style="width: ${colWidths[6]}px; text-align:center;">IGST%</th>
+                    <th style="width: ${colWidths[7]}px; text-align:center;">IGST Amt (Rs.)</th>
+                  `
+                  : showCGSTSGST
+                  ? `
+                    <th style="width: ${colWidths[6]}px; text-align:center;">CGST%</th>
+                    <th style="width: ${colWidths[7]}px; text-align:center;">CGST Amt (Rs.)</th>
+                    <th style="width: ${colWidths[8]}px; text-align:center;">SGST%</th>
+                    <th style="width: ${colWidths[9]}px; text-align:center;">SGST Amt (Rs.)</th>
+                  `
+                  : ''
+              }
+              <th style="width: ${
+                colWidths[totalColumnIndex]
+              }px; text-align:center;">Total (Rs.)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${pageData
+              .map(
+                (item, index) => `
+                <tr class="item-row">
+                  <td style="text-align:center; padding:6px;">${
+                    startIndex + index + 1
+                  }</td>
+                  <td style="padding:6px; text-align:left; vertical-align: top;">
+                    <div style="font-weight:500;">${item.name}</div>
+                    ${(item.details || [])
+                      .map(
+                        detail =>
+                          `<div style="font-size: 6px; color: #666; margin-top: 1px;">${detail}</div>`,
+                      )
+                      .join('')}
+                  </td>
+                  <td style="text-align:center; padding:6px;">${
+                    item.code || '-'
+                  }</td>
+                  <td style="text-align:center; padding:6px;">${
+                    item.itemType === 'service'
+                      ? '-'
+                      : formatQuantity(item.quantity || 0, item.unit)
+                  }</td>
+                  <td style="text-align:center; padding:6px;">${formatCurrency(
+                    item.pricePerUnit || 0,
+                  )}</td>
+                  <td style="text-align:center; padding:6px;">${formatCurrency(
+                    item.taxableValue || 0,
+                  )}</td>
+                  ${
+                    showIGST
+                      ? `
+                        <td style="text-align:center; padding:6px;">${(
+                          item.gstRate || 0
+                        ).toFixed(2)}</td>
+                        <td style="text-align:center; padding:6px;">${formatCurrency(
+                          item.igst || 0,
+                        )}</td>
+                      `
+                      : showCGSTSGST
+                      ? `
+                        <td style="text-align:center; padding:6px;">${(
+                          (item.gstRate || 0) / 2
+                        ).toFixed(2)}</td>
+                        <td style="text-align:center; padding:6px;">${formatCurrency(
+                          item.cgst || 0,
+                        )}</td>
+                        <td style="text-align:center; padding:6px;">${(
+                          (item.gstRate || 0) / 2
+                        ).toFixed(2)}</td>
+                        <td style="text-align:center; padding:6px;">${formatCurrency(
+                          item.sgst || 0,
+                        )}</td>
+                      `
+                      : ''
+                  }
+                  <td style="text-align:center; padding:6px; font-weight:600;">${formatCurrency(
+                    item.total || 0,
+                  )}</td>
+                </tr>
+              `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+        ${
+          isLastPage
             ? `
-              <div class="header-cell" style="width: ${colWidths[6]}px;">IGST%</div>
-              <div class="header-cell" style="width: ${colWidths[7]}px;">IGST Amt (Rs.)</div>
-            `
-            : showCGSTSGST
-            ? `
-              <div class="header-cell" style="width: ${colWidths[6]}px;">CGST%</div>
-              <div class="header-cell" style="width: ${colWidths[7]}px;">CGST Amt (Rs.)</div>
-              <div class="header-cell" style="width: ${colWidths[8]}px;">SGST%</div>
-              <div class="header-cell" style="width: ${colWidths[9]}px;">SGST Amt (Rs.)</div>
-            `
-            : ''}
-          <div class="header-cell" style="width: ${colWidths[totalColumnIndex]}px; border-right: none;">Total (Rs.)</div>
-        </div>
-
-        ${generateItemsTableHTML(pageData, colWidths, showIGST, showCGSTSGST, totalColumnIndex, startIndex)}
-
-        ${isLastPage ? `
-          <div class="table-footer-row">
-            <div class="footer-items-qty">
-              Total Items / Qty : ${totalItems} / ${totalQty}
+          <div class="final-qty-row-container" style="width: ${tableWidthAdjusted}px; margin-left: auto;">
+            <div class="final-qty-row">
+              <strong>Total Items / Qty :</strong> ${totalItems} / ${totalQty}
             </div>
           </div>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
 
-      ${isLastPage ? `
+      ${
+        isLastPage
+          ? `
         <!-- Summary Section -->
-        <div class="summary-container">
-          <div class="summary-box">
+        <div class="summary-container" style="width: ${tableWidthAdjusted}px; margin-left: auto;">
+          <div class="summary-box" style="margin-left: auto; width: 300px;">
             <div class="summary-row">
               <span class="summary-label">Taxable Amount</span>
-              <span class="summary-value">Rs ${formatCurrency(totalTaxable)}</span>
+              <span class="summary-value">Rs ${formatCurrency(
+                totalTaxable,
+              )}</span>
             </div>
-            ${isGSTApplicable && showCGSTSGST ? `
+            ${
+              isGSTApplicable && showCGSTSGST
+                ? `
               <div class="summary-row">
                 <span class="summary-label">CGST</span>
-                <span class="summary-value">Rs ${formatCurrency(totalCGST)}</span>
+                <span class="summary-value">Rs ${formatCurrency(
+                  totalCGST,
+                )}</span>
               </div>
               <div class="summary-row">
                 <span class="summary-label">SGST</span>
-                <span class="summary-value">Rs ${formatCurrency(totalSGST)}</span>
+                <span class="summary-value">Rs ${formatCurrency(
+                  totalSGST,
+                )}</span>
               </div>
-            ` : ''}
-            ${isGSTApplicable && showIGST ? `
+            `
+                : ''
+            }
+            ${
+              isGSTApplicable && showIGST
+                ? `
               <div class="summary-row">
                 <span class="summary-label">IGST</span>
-                <span class="summary-value">Rs ${formatCurrency(totalIGST)}</span>
+                <span class="summary-value">Rs ${formatCurrency(
+                  totalIGST,
+                )}</span>
               </div>
-            ` : ''}
+            `
+                : ''
+            }
             <div class="summary-row total-row">
               <span class="summary-label-total">Total Amount</span>
-              <span class="summary-value-total">Rs. ${formatCurrency(totalAmount)}</span>
+              <span class="summary-value-total">Rs. ${formatCurrency(
+                totalAmount,
+              )}</span>
             </div>
           </div>
         </div>
@@ -320,35 +642,65 @@ const generatePageHTML = (
         </div>
 
         <!-- Bank Details and Signature -->
-        <div class="bank-signature-section">
-          ${!shouldHideBankDetails && isBankDetailAvailable
-            ? `
-              <div class="bank-details">
-                <div class="section-header">Bank Details:</div>
-                ${bankData?.bankName ? `<div class="bank-row"><span class="bank-label">Name:</span> ${capitalizeWords(bankData.bankName)}</div>` : ''}
-                ${bankData?.ifscCode ? `<div class="bank-row"><span class="bank-label">IFSC:</span> ${bankData.ifscCode}</div>` : ''}
-                ${bankData?.accountNo ? `<div class="bank-row"><span class="bank-label">Acc No:</span> ${bankData.accountNo}</div>` : ''}
-                ${bankData?.branchAddress ? `<div class="bank-row"><span class="bank-label">Branch:</span> ${bankData.branchAddress}</div>` : ''}
-                ${bankData?.upiDetails?.upiMobile ? `<div class="bank-row"><span class="bank-label">UPI Mobile:</span> ${bankData.upiDetails.upiMobile}</div>` : ''}
+        <div style="width: ${tableWidthAdjusted}px; margin-left: auto;">
+          <div class="bank-signature-section">
+            ${
+              !shouldHideBankDetails && isBankDetailAvailable
+                ? `
+                <div class="bank-details">
+                  <div class="section-header">Bank Details:</div>
+                  ${
+                    bankData?.bankName
+                      ? `<div class="bank-row"><span class="bank-label">Name:</span> ${capitalizeWords(
+                          bankData.bankName,
+                        )}</div>`
+                      : ''
+                  }
+                  ${
+                    bankData?.ifscCode
+                      ? `<div class="bank-row"><span class="bank-label">IFSC:</span> ${bankData.ifscCode}</div>`
+                      : ''
+                  }
+                  ${
+                    bankData?.accountNo
+                      ? `<div class="bank-row"><span class="bank-label">Acc No:</span> ${bankData.accountNo}</div>`
+                      : ''
+                  }
+                  ${
+                    bankData?.branchAddress
+                      ? `<div class="bank-row"><span class="bank-label">Branch:</span> ${bankData.branchAddress}</div>`
+                      : ''
+                  }
+                  ${
+                    bankData?.upiDetails?.upiMobile
+                      ? `<div class="bank-row"><span class="bank-label">UPI Mobile:</span> ${bankData.upiDetails.upiMobile}</div>`
+                      : ''
+                  }
+                </div>
+              `
+                : ''
+            }
+            
+            <div class="signature-block">
+              <div class="signature-title">For ${companyName}</div>
+              <div class="signature-space"></div>
+              <div class="signature-label">AUTHORISED SIGNATORY</div>
+            </div>
+          </div>
+
+          ${
+            transaction?.notes
+              ? `
+              <div class="notes-section">
+                ${renderNotesHTML(transaction.notes)}
               </div>
             `
-            : ''}
-          
-          <div class="signature-block">
-            <div class="signature-title">For ${companyName}</div>
-            <div class="signature-space"></div>
-            <div class="signature-label">AUTHORISED SIGNATORY</div>
-          </div>
-        </div>
-
-        ${transaction?.notes
-          ? `
-            <div class="notes-section">
-              ${renderNotesHTML(transaction.notes)}
-            </div>
-          `
-          : ''}
-      ` : ''}
+              : ''
+          }
+        </div> 
+      `
+          : ''
+      }
 
       <div class="page-footer">${pageIndex + 1} / ${totalPages} page</div>
     </div>
@@ -379,8 +731,8 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
     showCGSTSGST,
   } = preparedData;
 
-  const typedItems = preparedData.itemsWithGST || allItems;
-  const itemsToRender = typedItems;
+  const typedItems = preparedData.itemsWithGST || allItems || [];
+  const itemsToRender = typedItems || [];
 
   const shouldHideBankDetails = transaction.type === 'proforma';
 
@@ -463,6 +815,7 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
 
   const colWidths = getColWidths();
   const totalColumnIndex = colWidths.length - 1;
+  const tableWidth = colWidths.reduce((acc, w) => acc + w, 0);
 
   const title =
     transaction.type === 'proforma'
@@ -471,8 +824,12 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
       ? 'TAX INVOICE'
       : 'INVOICE';
 
-  const itemPages = splitItemsIntoPages(itemsToRender, ITEMS_PER_PAGE);
-  const totalPages = itemPages.length;
+  const itemPages = splitItemsIntoPages(
+    itemsToRender || [],
+    colWidths,
+    PAGE_HEIGHT,
+  );
+  const totalPages = Math.max(1, itemPages.length || 1);
 
   const generateHTML = () => {
     let startIndex = 0;
@@ -504,7 +861,7 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
         showCGSTSGST,
         title,
         startIndex,
-        pageIndex === totalPages - 1
+        pageIndex === totalPages - 1,
       );
       startIndex += pageItems.length;
       return pageHTML;
@@ -535,16 +892,28 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
       line-height: 1.4;
     }
     
+    /* FIX: Page breaking logic to avoid extra blank pages and A4 rounding issues */
     .page {
-      width: ${PAGE_WIDTH}pt;
-      min-height: ${PAGE_HEIGHT}pt;
-      padding: 20px 30px;
-      page-break-after: always;
+      width: 210mm;
+      /* Keep slightly smaller than exact A4 to avoid rounding overflow */
+      min-height: 296mm;
+      padding: 15mm;
+      margin: 0 auto; /* avoid large margins that become part of page height */
+      margin-bottom: 5mm; /* visual gap in preview only */
+      background: white;
       position: relative;
+      overflow: hidden;
+      border-bottom: 1px solid #ccc; /* small visual separator in preview */
+      /* Page-break rules optimized */
+      page-break-after: always;
+      page-break-inside: avoid;
+      box-sizing: border-box;
     }
-    
+
+    /* Last page should not force another blank page */
     .page:last-child {
       page-break-after: auto;
+      margin-bottom: 0;
     }
     
     .header-section {
@@ -595,8 +964,8 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
     }
     
     .company-logo {
-      width: 80px;
-      height: 80px;
+      width: 64px;
+      height: 64px;
       object-fit: contain;
     }
     
@@ -676,48 +1045,55 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
     }
     
     .table-container {
-      border: 1px solid ${BORDER_COLOR};
-      margin-bottom: 10px;
+      width: 100%;
+      margin-top: 10px;
     }
-    
-    .table-header {
-      display: flex;
+
+    /* Use native table layout for reliable column alignment and header repetition */
+    .invoice-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .invoice-table thead {
+      display: table-header-group; /* ensure header repeats on each page */
+    }
+
+    .invoice-table th {
       background-color: ${TABLE_HEADER_BG};
       color: white;
       font-weight: bold;
-      font-size: 7.5px;
-    }
-    
-    .header-cell {
-      padding: 6px 4px;
-      border-right: 1px solid white;
+      font-size: 8px;
+      padding: 6px 6px;
+      border: 1px solid #ddd;
       text-align: center;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      vertical-align: middle;
     }
-      .header-cellP{
-       padding: 6px 4px;
-      border-right: 1px solid white;
-      text-align: left;
-      display: flex;
-      align-items: center;
-    //   justify-content: center;
-      }
-    
-    .table-row {
-      display: flex;
-      border-bottom: 1px solid ${BORDER_COLOR};
-      min-height: 20px;
+
+    .invoice-table td {
+      padding: 6px;
+      border: 1px solid #ddd;
+      font-size: 8px;
+      vertical-align: top;
+      overflow: hidden;
+      word-wrap: break-word;
     }
-    
-    .table-cell {
-      padding: 4px;
-      border-right: 1px solid ${BORDER_COLOR};
-      font-size: 7.5px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+
+    .item-row {
+      page-break-inside: avoid; /* prevents a single row splitting across pages */
+      break-inside: avoid;
+      -webkit-column-break-inside: avoid;
+    }
+
+    .final-qty-row {
+      background-color:#ffffff;
+      padding: 8px;
+      border: 1px solid ${BORDER_COLOR};
+      border-top: none;
+      font-size: 9px;
+      width: 100%;
+      display: block;
     }
     
     .cell-center {
@@ -740,6 +1116,8 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
       background-color: #f3f4f6;
       border-top: 1px solid ${BORDER_COLOR};
       padding: 6px 8px;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     
     .footer-items-qty {
@@ -815,9 +1193,11 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
       display: flex;
       justify-content: space-between;
       gap: 15px;
-      // margin-bottom: 8px;
       border-top: 1px solid ${TABLE_HEADER_BG};
-      // padding-top: 10px;
+      border-bottom: 1px solid ${TABLE_HEADER_BG}; /* added bottom border */
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 0;
     }
     
     .bank-details {
@@ -881,13 +1261,15 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
     
     .notes-section {
       padding: 10px;
-      border-top: 1px solid ${TABLE_HEADER_BG};
-      // border-radius: 4px;
-    //   background-color: #fffbeb;
+      /* Removed border-top to let bank/signature section control the line */
       margin-bottom: 12px;
       font-size: 7.5px;
       line-height: 1.4;
       padding-left: 15px;
+      width: 100%;
+      box-sizing: border-box;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     
     .page-footer {

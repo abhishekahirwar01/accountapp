@@ -12,7 +12,6 @@ import { TrendingUp, PieChart } from 'lucide-react-native';
 import { useCompany } from '../../../contexts/company-context';
 import ProfitAndLossTab from '../../main/reports/ProfitLossScreen';
 import BalanceSheetTab from '../../main/reports/BalanceSheetScreen';
-import AppLayout from '../../../components/layout/AppLayout';
 export default function Reports() {
   const [activeTab, setActiveTab] = useState('profit-loss');
   const [refreshing, setRefreshing] = useState(false);
@@ -51,25 +50,23 @@ export default function Reports() {
   ];
 
   return (
-    <AppLayout>
-      {/* <SafeAreaView style={styles.safeArea}> */}
-      <ScrollView
-        style={styles.container}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#007AFF']}
-          />
-        }
-      >
-        {/* Header */}
-        {/* <View style={styles.header}>
-          <Text style={styles.title}>Reports</Text>
-          <Text style={styles.subtitle}>Financial statements and analytics</Text>
-        </View> */}
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={['#007AFF']}
+        />
+      }
+    >
+      {/* Header */}
+      {/* <View style={styles.header}>
+        <Text style={styles.title}>Reports</Text>
+        <Text style={styles.subtitle}>Financial statements and analytics</Text>
+      </View> */}
 
-        {/* Tab Buttons */}
+      {/* Tab Buttons */}
         <View style={styles.tabsContainer}>
           {tabs.map(tab => (
             <TouchableOpacity
@@ -108,8 +105,6 @@ export default function Reports() {
           </Text>
         </View> */}
       </ScrollView>
-      {/* </SafeAreaView> */}
-    </AppLayout>
   );
 }
 

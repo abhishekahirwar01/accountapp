@@ -1,5 +1,11 @@
 // UsersScreen.js - Optimized Version
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+} from 'react';
 import {
   View,
   Text,
@@ -10,6 +16,7 @@ import {
   Clipboard,
   Dimensions,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from '../../config';
@@ -38,7 +45,6 @@ import { UserForm } from '../../components/users/UserForm';
 import { UserCard } from '../../components/users/UserCard';
 
 import { useToast } from '../../components/hooks/useToast';
-import AppLayout from '../../components/layout/AppLayout';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import { usePermissions } from '../../contexts/permission-context';
@@ -168,9 +174,9 @@ export default function UsersPage() {
   const { permissions, refetch } = usePermissions();
   const { refetch: refetchUserPermissions } = useUserPermissions();
   const { triggerCompaniesRefresh, refreshTrigger } = useCompany();
-  
+
   const userLoginUrl = 'https://vinimay.sharda.co.in/user-login';
-  
+
   // Refs for cleanup
   const isMountedRef = useRef(true);
   const abortControllerRef = useRef(null);
@@ -220,60 +226,67 @@ export default function UsersPage() {
   }, [userLoginUrl, toast]);
 
   // Optimized fetch with abort support
-  const fetchUsersAndCompanies = useCallback(async (signal) => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('Authentication token not found.');
+  const fetchUsersAndCompanies = useCallback(
+    async signal => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) throw new Error('Authentication token not found.');
 
-      const [usersRes, companiesRes] = await Promise.all([
-        fetch(`${BASE_URL}/api/users`, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal,
-        }),
-        fetch(`${BASE_URL}/api/companies/my`, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal,
-        }),
-      ]);
+        const [usersRes, companiesRes] = await Promise.all([
+          fetch(`${BASE_URL}/api/users`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal,
+          }),
+          fetch(`${BASE_URL}/api/companies/my`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal,
+          }),
+        ]);
 
-      if (!usersRes.ok || !companiesRes.ok) {
-        throw new Error('Failed to fetch data');
+        if (!usersRes.ok || !companiesRes.ok) {
+          throw new Error('Failed to fetch data');
+        }
+
+        const usersData = await usersRes.json();
+        const companiesData = await companiesRes.json();
+
+        const base64Url = token.split('.')[1];
+        const payload = JSON.parse(base64Decode(base64Url));
+        const currentUserId = payload.userId || payload.id || payload._id;
+
+        let filteredUsers = usersData;
+        if (payload.role === 'admin') {
+          filteredUsers = usersData.filter(u => u._id !== currentUserId);
+        }
+
+        if (isMountedRef.current) {
+          setUsers(Array.isArray(filteredUsers) ? filteredUsers : []);
+          setCompanies(
+            Array.isArray(companiesData)
+              ? companiesData
+              : companiesData?.data || [],
+          );
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+
+        if (isMountedRef.current) {
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: err.message || 'Failed to fetch data',
+          });
+        }
       }
-
-      const usersData = await usersRes.json();
-      const companiesData = await companiesRes.json();
-
-      const base64Url = token.split('.')[1];
-      const payload = JSON.parse(base64Decode(base64Url));
-      const currentUserId = payload.userId || payload.id || payload._id;
-
-      let filteredUsers = usersData;
-      if (payload.role === 'admin') {
-        filteredUsers = usersData.filter(u => u._id !== currentUserId);
-      }
-
-      if (isMountedRef.current) {
-        setUsers(Array.isArray(filteredUsers) ? filteredUsers : []);
-        setCompanies(Array.isArray(companiesData) ? companiesData : companiesData?.data || []);
-      }
-    } catch (err) {
-      if (err.name === 'AbortError') return;
-      
-      if (isMountedRef.current) {
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: err.message || 'Failed to fetch data',
-        });
-      }
-    }
-  }, [toast]);
+    },
+    [toast],
+  );
 
   // Initial data fetch
   useEffect(() => {
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
-    
+
     const loadData = async () => {
       setIsLoading(true);
       try {
@@ -293,7 +306,7 @@ export default function UsersPage() {
   }, [fetchUsersAndCompanies]);
 
   // Optimized companies-only fetch
-  const fetchCompaniesOnly = useCallback(async (signal) => {
+  const fetchCompaniesOnly = useCallback(async signal => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
@@ -302,9 +315,9 @@ export default function UsersPage() {
         headers: { Authorization: `Bearer ${token}` },
         signal,
       });
-      
+
       if (!res.ok) return;
-      
+
       const data = await res.json();
       if (isMountedRef.current) {
         setCompanies(Array.isArray(data) ? data : data?.data || []);
@@ -328,7 +341,7 @@ export default function UsersPage() {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     const abortController = new AbortController();
-    
+
     try {
       await Promise.all([
         fetchUsersAndCompanies(abortController.signal),
@@ -336,13 +349,13 @@ export default function UsersPage() {
         refetch?.(),
         refetchUserPermissions?.(),
       ]);
-      
+
       if (isMountedRef.current) {
         toast({ title: 'Users data refreshed successfully' });
       }
     } catch (error) {
       if (error.name === 'AbortError') return;
-      
+
       if (isMountedRef.current) {
         toast({
           variant: 'destructive',
@@ -357,7 +370,13 @@ export default function UsersPage() {
     }
 
     return () => abortController.abort();
-  }, [fetchUsersAndCompanies, triggerCompaniesRefresh, refetch, refetchUserPermissions, toast]);
+  }, [
+    fetchUsersAndCompanies,
+    triggerCompaniesRefresh,
+    refetch,
+    refetchUserPermissions,
+    toast,
+  ]);
 
   // Optimized form handlers
   const handleOpenForm = useCallback((user = null) => {
@@ -370,69 +389,81 @@ export default function UsersPage() {
     setSelectedUser(null);
   }, []);
 
-  const handleSave = useCallback(async (formDataFromForm) => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Authentication token not found.',
+  const handleSave = useCallback(
+    async formDataFromForm => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) {
+          Alert.alert('Error', 'Authentication token not found.');
+          return;
+        }
+
+        const method = selectedUser ? 'PUT' : 'POST';
+        const url = selectedUser
+          ? `${BASE_URL}/api/users/${selectedUser._id}`
+          : `${BASE_URL}/api/users`;
+
+        const res = await fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(formDataFromForm),
         });
-        return;
-      }
 
-      const method = selectedUser ? 'PUT' : 'POST';
-      const url = selectedUser
-        ? `${BASE_URL}/api/users/${selectedUser._id}`
-        : `${BASE_URL}/api/users`;
+        const data = await res.json();
 
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(formDataFromForm),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast({
-          variant: 'destructive',
-          title: 'Operation Failed',
-          description:
+        if (!res.ok) {
+          // Backend ka error message Alert mein dikhayega (jaise limit exceeded)
+          Alert.alert(
+            'Operation Failed',
             data.message ||
-            `Failed to ${selectedUser ? 'update' : 'create'} user.`,
-        });
-        return;
+              `Failed to ${selectedUser ? 'update' : 'create'} user.`,
+          );
+          return;
+        }
+
+        // Success Message
+        Alert.alert(
+          'Success',
+          `User ${selectedUser ? 'updated' : 'created'} successfully`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Refresh companies and users after alert is dismissed
+                if (
+                  formDataFromForm.companies &&
+                  formDataFromForm.companies.length > 0
+                ) {
+                  triggerCompaniesRefresh?.();
+                }
+                const abortController = new AbortController();
+                fetchUsersAndCompanies(abortController.signal);
+                handleCloseForm();
+              },
+            },
+          ],
+        );
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+
+        Alert.alert(
+          'Operation Failed',
+          error.message || 'Something went wrong.',
+        );
       }
+    },
+    [
+      selectedUser,
+      triggerCompaniesRefresh,
+      fetchUsersAndCompanies,
+      handleCloseForm,
+    ],
+  );
 
-      toast({
-        title: `User ${selectedUser ? 'updated' : 'created'} successfully`,
-      });
-
-      // Refresh companies if they were assigned/modified
-      if (formDataFromForm.companies && formDataFromForm.companies.length > 0) {
-        triggerCompaniesRefresh?.();
-      }
-
-      const abortController = new AbortController();
-      await fetchUsersAndCompanies(abortController.signal);
-      handleCloseForm();
-    } catch (error) {
-      if (error.name === 'AbortError') return;
-      
-      toast({
-        variant: 'destructive',
-        title: 'Operation Failed',
-        description: error.message || 'Something went wrong.',
-      });
-    }
-  }, [selectedUser, toast, triggerCompaniesRefresh, fetchUsersAndCompanies, handleCloseForm]);
-
-  const openDeleteDialog = useCallback((user) => {
+  const openDeleteDialog = useCallback(user => {
     userToDeleteRef.current = user;
     setIsAlertOpen(true);
   }, []);
@@ -440,7 +471,7 @@ export default function UsersPage() {
   const handleDelete = useCallback(async () => {
     const userToDelete = userToDeleteRef.current;
     if (!userToDelete) return;
-    
+
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
@@ -463,17 +494,17 @@ export default function UsersPage() {
       }
 
       toast({ title: 'User deleted successfully' });
-      
+
       const abortController = new AbortController();
       await fetchUsersAndCompanies(abortController.signal);
-      
+
       if (isMountedRef.current) {
         setIsAlertOpen(false);
         userToDeleteRef.current = null;
       }
     } catch (error) {
       if (error.name === 'AbortError') return;
-      
+
       toast({
         variant: 'destructive',
         title: 'Deletion Failed',
@@ -525,54 +556,57 @@ export default function UsersPage() {
         companyMap={companyMap}
       />
     );
-  }, [isLoading, users, viewMode, permissions?.canCreateUsers, handleOpenForm, openDeleteDialog, companyMap]);
+  }, [
+    isLoading,
+    users,
+    viewMode,
+    permissions?.canCreateUsers,
+    handleOpenForm,
+    openDeleteDialog,
+    companyMap,
+  ]);
 
   // Loading state
   if (isLoading && companies.length === 0) {
     return (
-      <AppLayout>
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.fullscreenLoader}>
-            <ActivityIndicator size="large" color="#2563eb" />
-            <Text style={styles.loadingText}>Loading Users...</Text>
-          </View>
-        </SafeAreaView>
-      </AppLayout>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.fullscreenLoader}>
+          <ActivityIndicator size="large" color="#2563eb" />
+          <Text style={styles.loadingText}>Loading Users...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   // No company state
   if (companies.length === 0) {
     return (
-      <AppLayout>
-        <SafeAreaView style={styles.safeArea}>
-          <ScrollView
-            contentContainerStyle={styles.scrollContainer}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                colors={['#2563eb']}
-                tintColor="#2563eb"
-              />
-            }
-          >
-            <NoCompanyState />
-          </ScrollView>
-        </SafeAreaView>
-      </AppLayout>
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={['#2563eb']}
+              tintColor="#2563eb"
+            />
+          }
+        >
+          <NoCompanyState />
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
   return (
-    <AppLayout>
-      <ScrollView
-        style={styles.container}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            colors={['#2563eb']}
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          colors={['#2563eb']}
             tintColor="#2563eb"
           />
         }
@@ -654,7 +688,6 @@ export default function UsersPage() {
           </AlertDialog>
         </View>
       </ScrollView>
-    </AppLayout>
   );
 }
 

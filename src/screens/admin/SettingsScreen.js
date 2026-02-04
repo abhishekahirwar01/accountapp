@@ -19,7 +19,6 @@ import ClientsValidityManager from '../../components/admin/settings/ClientsValid
 import ClientForm from '../../components/clients/ClientForm';
 import { BASE_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import AppLayout from '../../components/layout/AppLayout';
 import { useNavigation } from '@react-navigation/native';
 
 export default function SettingsPage() {
@@ -427,16 +426,15 @@ export default function SettingsPage() {
   };
 
   return (
-    <AppLayout>
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}>
-          {loading && (
-            <View style={styles.loadingOverlay}>
-              <ActivityIndicator size="large" color="#0000ff" />
-            </View>
-          )}
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        {loading && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color="#0000ff" />
+          </View>
+        )}
 
-          <FlatList
+        <FlatList
             data={settingsSections}
             renderItem={renderItem}
             keyExtractor={item => item.id}
@@ -486,7 +484,6 @@ export default function SettingsPage() {
           </Modal>
         </View>
       </SafeAreaView>
-    </AppLayout>
   );
 }
 

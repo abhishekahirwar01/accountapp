@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -24,12 +24,10 @@ import {
   CreditCard
 } from 'lucide-react-native';
 
-// Import components
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { BASE_URL } from '../../config';
 
-// Memoized Badge Component
 const Badge = React.memo(({ children, variant = 'default', style }) => {
   const badgeStyles = [
     styles.badge,
@@ -45,7 +43,6 @@ const Badge = React.memo(({ children, variant = 'default', style }) => {
   );
 });
 
-// Memoized Stat Card Component
 const StatCard = React.memo(({ title, value, subtitle, icon: IconComponent, loading, textColor }) => {
   const iconConfig = useMemo(() => {
     const configs = {
@@ -63,7 +60,6 @@ const StatCard = React.memo(({ title, value, subtitle, icon: IconComponent, load
   return (
     <View style={styles.statCard}>
       <View style={styles.statCardContent}>
-        {/* Top Row: Label and Icon */}
         <View style={styles.statTopRow}>
           <Text style={styles.statLabel}>{title}</Text>
           <View style={[styles.statIconBg, { backgroundColor: iconConfig.bg }]}>
@@ -71,7 +67,6 @@ const StatCard = React.memo(({ title, value, subtitle, icon: IconComponent, load
           </View>
         </View>
 
-        {/* Value */}
         {loading ? (
           <ActivityIndicator size="small" color={iconConfig.color} style={styles.statLoader} />
         ) : (
@@ -80,14 +75,12 @@ const StatCard = React.memo(({ title, value, subtitle, icon: IconComponent, load
           </Text>
         )}
 
-        {/* Subtitle */}
         <Text style={styles.statSubtext} numberOfLines={2}>{subtitle}</Text>
       </View>
     </View>
   );
 });
 
-// Memoized List Item Component
 const ListItem = React.memo(({ 
   item, 
   currentView, 
@@ -96,11 +89,19 @@ const ListItem = React.memo(({
   expenseTotals, 
   loadingBalances,
   formatCurrency,
-  onSelect 
+  onSelect,
+  onItemVisible
 }) => {
   const isVendor = currentView === 'vendor';
   const name = isVendor ? item.vendorName : item.name;
   const id = item._id;
+  
+  // Trigger lazy loading when item becomes visible
+  useEffect(() => {
+    if (onItemVisible) {
+      onItemVisible(id, isVendor);
+    }
+  }, [id, isVendor, onItemVisible]);
   
   const total = useMemo(() => {
     if (isVendor) {
@@ -114,14 +115,13 @@ const ListItem = React.memo(({
 
   const isLoading = loadingBalances && loadingBalances[id];
   
-  const { balanceColor, iconBg, iconColor, badgeBg, badgeBorder, balanceText } = useMemo(() => {
+  const { balanceColor, iconBg, iconColor, badgeBg, balanceText } = useMemo(() => {
     if (isVendor) {
       if (total < 0) return {
         balanceColor: '#ef4444',
         iconBg: styles.iconRed,
         iconColor: '#ef4444',
         badgeBg: styles.badgeRed,
-        badgeBorder: '#fecaca',
         balanceText: 'You Owe'
       };
       if (total > 0) return {
@@ -129,7 +129,6 @@ const ListItem = React.memo(({
         iconBg: styles.iconGreen,
         iconColor: '#10b981',
         badgeBg: styles.badgeGreen,
-        badgeBorder: '#bbf7d0',
         balanceText: 'Advance'
       };
       return {
@@ -137,7 +136,6 @@ const ListItem = React.memo(({
         iconBg: styles.iconGray,
         iconColor: '#64748b',
         badgeBg: styles.badgeGray,
-        badgeBorder: '#e2e8f0',
         balanceText: 'Settled'
       };
     }
@@ -146,7 +144,6 @@ const ListItem = React.memo(({
       iconBg: styles.iconBlue,
       iconColor: '#3b82f6',
       badgeBg: styles.expenseBadge,
-      badgeBorder: '#bfdbfe',
       balanceText: ''
     };
   }, [isVendor, total]);
@@ -180,16 +177,22 @@ const ListItem = React.memo(({
             <Text style={styles.itemName} numberOfLines={1}>{name}</Text>
             {isVendor && (
               <View style={styles.itemBalanceInfo}>
-                <Text style={[styles.balanceText, { color: balanceColor }]}>
-                  {balanceText}
-                </Text>
-                {!isLoading && total !== 0 && (
-                  <View style={[styles.balanceBadge, badgeBg]}>
-                    {BalanceIcon}
-                    <Text style={[styles.balanceBadgeText, { color: balanceColor }]}>
-                      {formatCurrency(Math.abs(total))}
+                {isLoading ? (
+                  <ActivityIndicator size="small" color="#3b82f6" />
+                ) : (
+                  <>
+                    <Text style={[styles.balanceText, { color: balanceColor }]}>
+                      {balanceText}
                     </Text>
-                  </View>
+                    {total !== 0 && (
+                      <View style={[styles.balanceBadge, badgeBg]}>
+                        {BalanceIcon}
+                        <Text style={[styles.balanceBadgeText, { color: balanceColor }]}>
+                          {formatCurrency(Math.abs(total))}
+                        </Text>
+                      </View>
+                    )}
+                  </>
                 )}
               </View>
             )}
@@ -199,8 +202,14 @@ const ListItem = React.memo(({
         <View style={styles.itemActions}>
           {!isVendor && (
             <View style={[styles.balanceBadge, styles.expenseBadge]}>
-              <IndianRupee size={12} color="#3b82f6" strokeWidth={2.5} />
-              <Text style={styles.expenseBadgeText}>{formatCurrency(total)}</Text>
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#3b82f6" />
+              ) : (
+                <>
+                  <IndianRupee size={12} color="#3b82f6" strokeWidth={2.5} />
+                  <Text style={styles.expenseBadgeText}>{formatCurrency(total)}</Text>
+                </>
+              )}
             </View>
           )}
           <View style={styles.viewButton}>
@@ -208,10 +217,6 @@ const ListItem = React.memo(({
           </View>
         </View>
       </View>
-      
-      {isVendor && isLoading && (
-        <ActivityIndicator size="small" color="#3b82f6" style={styles.loadingIndicator} />
-      )}
     </TouchableOpacity>
   );
 });
@@ -228,16 +233,378 @@ export function VendorExpenseList({
   onSelect,
   selectedCompanyId,
   dateRange,
-  formatCurrency
+  formatCurrency,
+  // State setters for updating parent
+  setVendorBalances,
+  setLoadingBalances,
+  setTransactionTotals,
+  setLoadingTotals,
+  setExpenseTotals,
 }) {
-  const [vendorLastTransactionDates, setVendorLastTransactionDates] = useState({});
-  const [expenseLastTransactionDates, setExpenseLastTransactionDates] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
-  const itemsPerPage = 7;
+  const [sortConfig, setSortConfig] = useState({
+    key: 'recent', // Default sort is 'recent'
+    direction: 'desc' // Default direction is descending (newest first)
+  });
+  
+  const itemsPerPage = 10;
   const baseURL = BASE_URL;
 
-  // Memoized statistics calculation
+  // Track which items have been loaded for balances (lazy loading)
+  const loadedBalancesRef = useRef(new Set());
+  const loadingQueueRef = useRef(new Set());
+  
+  // Track if we've loaded the global totals
+  const globalTotalsLoadedRef = useRef(false);
+  
+  // Track last transaction dates for sorting
+  const vendorLastTransactionDatesRef = useRef({});
+  const expenseLastTransactionDatesRef = useRef({});
+
+  // ==========================================================================
+  // GLOBAL TOTALS: Fetch for ALL vendors (for KPI cards) - ONE TIME ONLY
+  // ==========================================================================
+  const fetchGlobalTotals = useCallback(async () => {
+    if (currentView !== 'vendor' || vendors.length === 0) return;
+    if (globalTotalsLoadedRef.current) return; // Only load once
+    if (!setLoadingTotals || !setTransactionTotals) return;
+
+    try {
+      setLoadingTotals(true);
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return;
+
+      let totalCredit = 0;
+      let totalDebit = 0;
+      const vendorDates = {};
+
+      // Fetch in batches to avoid overwhelming server
+      const batchSize = 5;
+      for (let i = 0; i < vendors.length; i += batchSize) {
+        const batch = vendors.slice(i, i + batchSize);
+        
+        const vendorResults = await Promise.all(
+          batch.map(async vendor => {
+            try {
+              const params = new URLSearchParams();
+              params.append('vendorId', vendor._id);
+              if (selectedCompanyId) params.append('companyId', selectedCompanyId);
+              
+              const response = await fetch(
+                `${baseURL}/api/ledger/vendor-payables?${params.toString()}`,
+                {
+                  method: 'GET',
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                  },
+                },
+              );
+
+              if (response.ok) {
+                const data = await response.json();
+                const debitTotal = (data.debit || []).reduce(
+                  (sum, entry) => sum + (entry.amount || 0),
+                  0,
+                );
+
+                const creditPurchaseEntries = (data.debit || []).filter(
+                  entry => entry.paymentMethod !== 'Credit',
+                );
+                const creditPaymentEntries = data.credit || [];
+
+                const creditTotal = [
+                  ...creditPurchaseEntries,
+                  ...creditPaymentEntries,
+                ].reduce((sum, entry) => sum + (entry.amount || 0), 0);
+
+                // Get last transaction date for sorting
+                const allEntries = [...(data.debit || []), ...(data.credit || [])];
+                let lastDate = null;
+                if (allEntries.length > 0) {
+                  lastDate = allEntries.reduce((latest, entry) => {
+                    return new Date(entry.date) > new Date(latest) ? entry.date : latest;
+                  }, allEntries[0].date);
+                }
+                
+                return {
+                  debit: debitTotal,
+                  credit: creditTotal,
+                  lastDate,
+                  vendorId: vendor._id
+                };
+              }
+              return { debit: 0, credit: 0, lastDate: null, vendorId: vendor._id };
+            } catch (error) {
+              console.error(
+                `Error fetching ledger data for vendor ${vendor._id}:`,
+                error,
+              );
+              return { debit: 0, credit: 0, lastDate: null, vendorId: vendor._id };
+            }
+          })
+        );
+
+        // Accumulate totals and dates
+        vendorResults.forEach(result => {
+          totalDebit += result.debit;
+          totalCredit += result.credit;
+          if (result.lastDate) {
+            vendorDates[result.vendorId] = result.lastDate;
+          }
+        });
+
+        // Update state progressively
+        setTransactionTotals({
+          totalCredit,
+          totalDebit,
+        });
+        
+        // Update dates ref
+        vendorLastTransactionDatesRef.current = {
+          ...vendorLastTransactionDatesRef.current,
+          ...vendorDates
+        };
+      }
+
+      globalTotalsLoadedRef.current = true;
+    } catch (error) {
+      console.error('Error fetching global totals:', error);
+    } finally {
+      setLoadingTotals(false);
+    }
+  }, [currentView, vendors, selectedCompanyId, baseURL, setLoadingTotals, setTransactionTotals]);
+
+  // ==========================================================================
+  // LAZY LOADING: Fetch balance for individual items when they become visible
+  // ==========================================================================
+  const fetchVendorBalance = useCallback(
+    async (vendorId) => {
+      if (loadedBalancesRef.current.has(vendorId) || loadingQueueRef.current.has(vendorId)) {
+        return;
+      }
+
+      loadingQueueRef.current.add(vendorId);
+      
+      if (setLoadingBalances) {
+        setLoadingBalances(prev => ({ ...prev, [vendorId]: true }));
+      }
+
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) return;
+
+        const params = new URLSearchParams();
+        if (selectedCompanyId) params.append('companyId', selectedCompanyId);
+        
+        const response = await fetch(
+          `${baseURL}/api/vendors/${vendorId}/balance?${params.toString()}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (setVendorBalances) {
+            setVendorBalances(prev => ({
+              ...prev,
+              [vendorId]: data.balance || 0,
+            }));
+          }
+          loadedBalancesRef.current.add(vendorId);
+        }
+      } catch (error) {
+        console.error(`Error fetching balance for vendor ${vendorId}:`, error);
+      } finally {
+        loadingQueueRef.current.delete(vendorId);
+        if (setLoadingBalances) {
+          setLoadingBalances(prev => ({ ...prev, [vendorId]: false }));
+        }
+      }
+    },
+    [selectedCompanyId, baseURL, setVendorBalances, setLoadingBalances],
+  );
+
+  const fetchExpenseTotal = useCallback(
+    async (expenseId) => {
+      if (loadedBalancesRef.current.has(expenseId) || loadingQueueRef.current.has(expenseId)) {
+        return;
+      }
+
+      loadingQueueRef.current.add(expenseId);
+
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) return;
+
+        const params = new URLSearchParams();
+        params.append('expenseId', expenseId);
+        if (dateRange?.from) params.append('fromDate', dateRange.from);
+        if (dateRange?.to) params.append('toDate', dateRange.to);
+        if (selectedCompanyId) params.append('companyId', selectedCompanyId);
+
+        const response = await fetch(
+          `${baseURL}/api/ledger/expense-payables?${params.toString()}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          const cashExpenses = (data.debit || [])
+            .filter(e => e.paymentMethod !== 'Credit')
+            .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
+          const payments = (data.credit || []).reduce(
+            (sum, e) => sum + Number(e.amount || 0),
+            0,
+          );
+
+          const total = cashExpenses + payments;
+          
+          // Get last transaction date for sorting
+          const allEntries = [...(data.debit || []), ...(data.credit || [])];
+          let lastDate = null;
+          if (allEntries.length > 0) {
+            lastDate = allEntries.reduce((latest, entry) => {
+              return new Date(entry.date) > new Date(latest) ? entry.date : latest;
+            }, allEntries[0].date);
+          }
+          
+          if (setExpenseTotals) {
+            setExpenseTotals(prev => ({ ...prev, [expenseId]: total }));
+          }
+          
+          if (lastDate) {
+            expenseLastTransactionDatesRef.current[expenseId] = lastDate;
+          }
+          
+          loadedBalancesRef.current.add(expenseId);
+        }
+      } catch (error) {
+        console.error(`Error fetching total for expense ${expenseId}:`, error);
+      } finally {
+        loadingQueueRef.current.delete(expenseId);
+      }
+    },
+    [baseURL, selectedCompanyId, dateRange, setExpenseTotals],
+  );
+
+  // Handle item visibility for lazy loading
+  const handleItemVisible = useCallback((itemId, isVendor) => {
+    if (isVendor) {
+      fetchVendorBalance(itemId);
+    } else {
+      fetchExpenseTotal(itemId);
+    }
+  }, [fetchVendorBalance, fetchExpenseTotal]);
+
+  // ==========================================================================
+  // SORTING LOGIC - Always sorts by 'recent' by default
+  // ==========================================================================
+  
+  // Sort items with memoization to avoid unnecessary re-sorting
+  const sortedItems = useMemo(() => {
+    const itemsToSort = currentView === 'vendor' ? [...vendors] : [...expenses];
+    
+    if (itemsToSort.length === 0) return [];
+    
+    // Create a stable sorted array
+    return [...itemsToSort].sort((a, b) => {
+      // Default sort is 'recent' - newest transactions first
+      const aDate = currentView === 'vendor' 
+        ? vendorLastTransactionDatesRef.current[a._id]
+        : expenseLastTransactionDatesRef.current[a._id];
+      const bDate = currentView === 'vendor'
+        ? vendorLastTransactionDatesRef.current[b._id]
+        : expenseLastTransactionDatesRef.current[b._id];
+      
+      // Handle items without dates (show them last)
+      if (!aDate && !bDate) return 0;
+      if (!aDate) return 1; // b comes first if a has no date
+      if (!bDate) return -1; // a comes first if b has no date
+      
+      // Sort by date (newest first by default)
+      const dateA = new Date(aDate).getTime();
+      const dateB = new Date(bDate).getTime();
+      return sortConfig.direction === 'desc' ? dateB - dateA : dateA - dateB;
+    });
+  }, [
+    currentView,
+    vendors,
+    expenses,
+    sortConfig.direction, // Only direction can change, key is always 'recent'
+  ]);
+
+  // Process items with balances
+  const items = useMemo(() => {
+    return sortedItems.map(item => {
+      if (currentView === 'vendor') {
+        let overallBalance = 0;
+        if (!selectedCompanyId && item.balances) {
+          // Sum all company balances
+          for (const [companyId, balance] of Object.entries(item.balances)) {
+            overallBalance += Number(balance || 0);
+          }
+        } else if (selectedCompanyId && vendorBalances[item._id] !== undefined) {
+          // Use company-specific balance
+          overallBalance = vendorBalances[item._id];
+        } else {
+          // Fallback to stored balance
+          overallBalance = item.balance || 0;
+        }
+        return {
+          ...item,
+          balance: overallBalance
+        };
+      } else {
+        return item;
+      }
+    });
+  }, [currentView, sortedItems, selectedCompanyId, vendorBalances]);
+
+  // ==========================================================================
+  // EFFECTS
+  // ==========================================================================
+  
+  // Fetch global totals when vendors are loaded (ONE TIME)
+  useEffect(() => {
+    if (currentView === 'vendor' && vendors.length > 0 && !globalTotalsLoadedRef.current) {
+      fetchGlobalTotals();
+    }
+  }, [currentView, vendors.length, fetchGlobalTotals]);
+
+  // Reset when view or company changes
+  useEffect(() => {
+    setCurrentPage(1);
+    loadedBalancesRef.current.clear();
+    globalTotalsLoadedRef.current = false;
+  }, [currentView, selectedCompanyId]);
+
+  // ==========================================================================
+  // PAGINATION
+  // ==========================================================================
+  
+  const { paginatedItems, totalPages } = useMemo(() => {
+    const totalPages = Math.ceil(items.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedItems = items.slice(startIndex, endIndex);
+    
+    return { paginatedItems, totalPages };
+  }, [items, currentPage, itemsPerPage]);
+
+  // ==========================================================================
+  // STATS (KPI CARDS) - Always show global totals for ALL vendors
+  // ==========================================================================
+  
   const stats = useMemo(() => {
     if (currentView === 'vendor') {
       let settledVendors = 0;
@@ -248,219 +615,55 @@ export function VendorExpenseList({
         }
       }
 
-      let totalExpenseAmount = 0;
-      for (const amount of Object.values(expenseTotals)) {
-        totalExpenseAmount += amount;
-      }
-
       const netBalance = transactionTotals.totalDebit - transactionTotals.totalCredit;
 
       return {
         totalVendors: vendors.length,
-        totalExpenses: expenses.length,
         netBalance,
-        totalExpenseAmount,
         settledVendors,
         totalCredit: transactionTotals.totalCredit,
         totalDebit: transactionTotals.totalDebit,
       };
     } else {
-      let totalExpenseAmount = 0;
-      for (const amount of Object.values(expenseTotals)) {
-        totalExpenseAmount += amount;
-      }
+      const totalExpenseAmount = Object.values(expenseTotals).reduce(
+        (sum, amount) => sum + amount,
+        0,
+      );
 
       return {
-        totalVendors: vendors.length,
         totalExpenses: expenses.length,
-        netBalance: 0,
         totalExpenseAmount,
-        settledVendors: 0,
-        totalCredit: 0,
-        totalDebit: 0,
       };
     }
-  }, [vendors, expenses, expenseTotals, vendorBalances, transactionTotals, selectedCompanyId, currentView]);
+  }, [vendors.length, expenses.length, vendorBalances, transactionTotals, expenseTotals, currentView]);
 
-  // Optimized fetch for last transaction dates
-  const fetchLastTransactionDates = useCallback(async () => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        console.error('Authentication token not found.');
-        return;
-      }
-
-      const vendorLastDates = {};
-      const expenseLastDates = {};
-
-      // Process vendors
-      const vendorDatePromises = vendors.map(async (vendor) => {
-        try {
-          const params = new URLSearchParams();
-          params.append('vendorId', vendor._id);
-          if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-
-          const response = await fetch(
-            `${baseURL}/api/ledger/vendor-payables?${params.toString()}`,
-            {
-              method: 'GET',
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'Cache-Control': 'no-cache'
-              },
-            }
-          );
-
-          if (response.ok) {
-            const data = await response.json();
-            const allEntries = [...(data.debit || []), ...(data.credit || [])];
-            if (allEntries.length > 0) {
-              let mostRecentDate = allEntries[0].date;
-              for (let i = 1; i < allEntries.length; i++) {
-                const entryDate = allEntries[i].date;
-                if (new Date(entryDate) > new Date(mostRecentDate)) {
-                  mostRecentDate = entryDate;
-                }
-              }
-              vendorLastDates[vendor._id] = mostRecentDate;
-            }
-          }
-        } catch (error) {
-          console.error(`Error fetching last transaction date for vendor ${vendor._id}:`, error);
-        }
-      });
-
-      // Process expenses
-      const expenseDatePromises = expenses.map(async (expense) => {
-        try {
-          const params = new URLSearchParams();
-          params.append('expenseId', expense._id);
-          if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-
-          const response = await fetch(
-            `${baseURL}/api/ledger/expense-payables?${params.toString()}`,
-            {
-              method: 'GET',
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'Cache-Control': 'no-cache'
-              },
-            }
-          );
-
-          if (response.ok) {
-            const data = await response.json();
-            const allEntries = [...(data.debit || []), ...(data.credit || [])];
-            if (allEntries.length > 0) {
-              let mostRecentDate = allEntries[0].date;
-              for (let i = 1; i < allEntries.length; i++) {
-                const entryDate = allEntries[i].date;
-                if (new Date(entryDate) > new Date(mostRecentDate)) {
-                  mostRecentDate = entryDate;
-                }
-              }
-              expenseLastDates[expense._id] = mostRecentDate;
-            }
-          }
-        } catch (error) {
-          console.error(`Error fetching last transaction date for expense ${expense._id}:`, error);
-        }
-      });
-
-      // Execute promises in batches to avoid overwhelming the network
-      const BATCH_SIZE = 5;
-      
-      // Process vendors in batches
-      for (let i = 0; i < vendorDatePromises.length; i += BATCH_SIZE) {
-        const batch = vendorDatePromises.slice(i, i + BATCH_SIZE);
-        await Promise.all(batch);
-      }
-      
-      // Process expenses in batches
-      for (let i = 0; i < expenseDatePromises.length; i += BATCH_SIZE) {
-        const batch = expenseDatePromises.slice(i, i + BATCH_SIZE);
-        await Promise.all(batch);
-      }
-
-      setVendorLastTransactionDates(vendorLastDates);
-      setExpenseLastTransactionDates(expenseLastDates);
-    } catch (error) {
-      console.error('Error fetching last transaction dates:', error);
-    }
-  }, [vendors, expenses, selectedCompanyId, baseURL]);
-
-  // Debounced useEffect for fetching dates
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchLastTransactionDates();
-    }, 300); // Small delay to prevent rapid re-fetches
-    
-    return () => clearTimeout(timer);
-  }, [fetchLastTransactionDates]);
-
-  // Memoized items list with sorting
-  const items = useMemo(() => {
-    if (currentView === 'vendor') {
-      const sortedVendors = [...vendors].sort((a, b) => {
-        const aDate = vendorLastTransactionDates[a._id];
-        const bDate = vendorLastTransactionDates[b._id];
-        if (!aDate && !bDate) return 0;
-        if (!aDate) return 1;
-        if (!bDate) return -1;
-        return new Date(bDate).getTime() - new Date(aDate).getTime();
-      });
-
-      return sortedVendors.map(vendor => {
-        let overallBalance = 0;
-        if (!selectedCompanyId && vendor.balances) {
-          for (const [companyId, balance] of Object.entries(vendor.balances)) {
-            overallBalance += Number(balance || 0);
-          }
-        } else if (selectedCompanyId && vendorBalances[vendor._id] !== undefined) {
-          overallBalance = vendorBalances[vendor._id];
-        } else {
-          overallBalance = vendor.balance || 0;
-        }
-        return {
-          ...vendor,
-          balance: overallBalance
-        };
-      });
-    } else {
-      return [...expenses].sort((a, b) => {
-        const aDate = expenseLastTransactionDates[a._id];
-        const bDate = expenseLastTransactionDates[b._id];
-        if (!aDate && !bDate) return 0;
-        if (!aDate) return 1;
-        if (!bDate) return -1;
-        return new Date(bDate).getTime() - new Date(aDate).getTime();
-      });
-    }
-  }, [currentView, vendors, expenses, vendorLastTransactionDates, expenseLastTransactionDates, selectedCompanyId, vendorBalances]);
-
-  // Memoized pagination
-  const { paginatedItems, totalPages } = useMemo(() => {
-    const totalPages = Math.ceil(items.length / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const paginatedItems = items.slice(startIndex, endIndex);
-    
-    return { paginatedItems, totalPages };
-  }, [items, currentPage]);
-
-  // Reset page when view changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [currentView]);
-
+  // ==========================================================================
+  // HANDLERS
+  // ==========================================================================
+  
   const onRefreshList = useCallback(async () => {
     setRefreshing(true);
-    await fetchLastTransactionDates();
+    loadedBalancesRef.current.clear();
+    globalTotalsLoadedRef.current = false;
+    vendorLastTransactionDatesRef.current = {};
+    expenseLastTransactionDatesRef.current = {};
+    
+    // Re-fetch global totals
+    if (currentView === 'vendor') {
+      await fetchGlobalTotals();
+      // Re-fetch balances for visible items
+      await Promise.all(paginatedItems.map(item => fetchVendorBalance(item._id)));
+    } else {
+      await Promise.all(paginatedItems.map(item => fetchExpenseTotal(item._id)));
+    }
+    
     setRefreshing(false);
-  }, [fetchLastTransactionDates]);
+  }, [currentView, paginatedItems, fetchVendorBalance, fetchExpenseTotal, fetchGlobalTotals]);
 
-  // Memoized renderItem function
+  // ==========================================================================
+  // RENDER FUNCTIONS
+  // ==========================================================================
+  
   const renderItem = useCallback(({ item }) => (
     <ListItem
       item={item}
@@ -471,13 +674,12 @@ export function VendorExpenseList({
       loadingBalances={loadingBalances}
       formatCurrency={formatCurrency}
       onSelect={onSelect}
+      onItemVisible={handleItemVisible}
     />
-  ), [currentView, selectedCompanyId, vendorBalances, expenseTotals, loadingBalances, formatCurrency, onSelect]);
+  ), [currentView, selectedCompanyId, vendorBalances, expenseTotals, loadingBalances, formatCurrency, onSelect, handleItemVisible]);
 
-  // Memoized key extractor
   const keyExtractor = useCallback((item) => item._id, []);
 
-  // Memoized header icon
   const HeaderIcon = currentView === 'vendor' ? Users : FileText;
   const headerIconColor = currentView === 'vendor' ? '#059669' : '#3b82f6';
   const headerIconBg = currentView === 'vendor' ? styles.headerIconGreen : styles.headerIconBlue;
@@ -494,9 +696,8 @@ export function VendorExpenseList({
           />
         }
         showsVerticalScrollIndicator={false}
-        removeClippedSubviews={true}
       >
-        {/* Stats Cards */}
+        {/* Stats Cards - ALWAYS show totals for ALL vendors */}
         {currentView === 'vendor' ? (
           <View style={styles.statsGrid}>
             <StatCard
@@ -553,7 +754,7 @@ export function VendorExpenseList({
           </View>
         )}
 
-        {/* Main List Card */}
+        {/* Main List Card - Paginated */}
         <View style={styles.mainCard}>
           <View style={styles.mainHeader}>
             <View style={styles.headerContent}>
@@ -572,11 +773,13 @@ export function VendorExpenseList({
                   </Text>
                 </View>
               </View>
-              <Badge variant="secondary" style={styles.headerBadge}>
-                <Text style={styles.headerBadgeText}>
-                  {items.length}
-                </Text>
-              </Badge>
+              <View style={styles.headerRight}>
+                <Badge variant="secondary" style={styles.headerBadge}>
+                  <Text style={styles.headerBadgeText}>
+                    {items.length}
+                  </Text>
+                </Badge>
+              </View>
             </View>
           </View>
 
@@ -605,7 +808,7 @@ export function VendorExpenseList({
                   removeClippedSubviews={true}
                   maxToRenderPerBatch={10}
                   windowSize={5}
-                  initialNumToRender={7}
+                  initialNumToRender={10}
                   updateCellsBatchingPeriod={50}
                   ItemSeparatorComponent={() => <View style={styles.separator} />}
                 />
@@ -738,6 +941,7 @@ const styles = StyleSheet.create({
   },
   mainHeader: {
     padding: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
     backgroundColor: '#fafbfc',
@@ -746,6 +950,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 12,
   },
   headerIconContainer: {
     flexDirection: 'row',
@@ -785,6 +990,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748b',
     lineHeight: 18,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   headerBadge: {
     backgroundColor: '#f1f5f9',
@@ -914,9 +1123,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#bfdbfe',
   },
-  loadingIndicator: {
-    marginTop: 12,
-  },
   separator: {
     height: 1,
     backgroundColor: '#f1f5f9',
@@ -1028,4 +1234,4 @@ const styles = StyleSheet.create({
     opacity: 0.4,
     backgroundColor: '#f8fafc',
   },
-});
+});  

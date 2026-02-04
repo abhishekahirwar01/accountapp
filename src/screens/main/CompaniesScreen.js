@@ -29,7 +29,6 @@ import { useUserPermissions } from '../../contexts/user-permissions-context';
 import { useCompany } from '../../contexts/company-context';
 import { BASE_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import AppLayout from '../../components/layout/AppLayout';
 
 // Memoized Company Card Component
 const CompanyCard = React.memo(
@@ -451,20 +450,17 @@ const CompaniesScreen = () => {
   // Loading State
   if (isLoading || isLoadingPerms) {
     return (
-      <AppLayout>
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#007AFF" />
-            <Text style={styles.loadingText}>Loading companies...</Text>
-          </View>
-        </SafeAreaView>
-      </AppLayout>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading companies...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <AppLayout>
-      <View style={styles.container}>
+    <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerTitle}>
@@ -531,7 +527,6 @@ const CompaniesScreen = () => {
           </View>
         </Modal>
       </View>
-    </AppLayout>
   );
 };
 

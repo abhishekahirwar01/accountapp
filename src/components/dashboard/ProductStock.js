@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   ScrollView,
@@ -13,8 +13,10 @@ import {
   Alert,
   Platform,
   Animated,
+  Keyboard,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import smartFetch from '../../lib/smartFetch';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 // Import your actual components and contexts
@@ -203,6 +205,9 @@ const SearchBar = ({ placeholder, value, onChangeText, style }) => {
         value={value}
         onChangeText={onChangeText}
         placeholderTextColor="#9ca3af"
+        returnKeyType="search"
+        blurOnSubmit={false}
+        autoCorrect={false}
       />
       {value.length > 0 && (
         <TouchableOpacity onPress={() => onChangeText('')}>
@@ -298,7 +303,10 @@ const ProductStock = ({
   refetchUserPermissions,
 }) => {
   const [products, setProducts] = useState([]);
+  const [services, setServices] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUsingCache, setIsUsingCache] = useState(false);
+  const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -320,42 +328,146 @@ const ProductStock = ({
     permissions?.canCreateProducts ?? permissions?.canCreateInventory ?? false;
   const showCreateButtons = canCreateProducts || webCanCreate;
 
-  const fetchProducts = async () => {
-    setIsLoading(true);
+  const fetchProducts = async (force = false) => {
+    // force=true is used by pull-to-refresh to perform a network refresh
+    if (!force) setIsLoading(prev => prev && prev);
+
+    const prodEndpoint = selectedCompanyId
+      ? `/api/products?companyId=${selectedCompanyId}`
+      : `/api/products`;
+    const servEndpoint = selectedCompanyId
+      ? `/api/services?companyId=${selectedCompanyId}`
+      : `/api/services`;
+
+    const prodKey = `products:${selectedCompanyId || 'all'}`;
+    const servKey = `services:${selectedCompanyId || 'all'}`;
+
+    // Cache-first read
     try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('Authentication token not found.');
+      const [prodResult, servResult] = await Promise.allSettled([
+        smartFetch(prodEndpoint, { cacheKey: prodKey, forceRefresh: force }),
+        smartFetch(servEndpoint, { cacheKey: servKey, forceRefresh: force }),
+      ]);
 
-      // Get user role
-      const userRole = await AsyncStorage.getItem('role');
-      setRole(userRole || 'user');
+      let usedCache = false;
 
-      const url = selectedCompanyId
-        ? `${baseURL}/api/products?companyId=${selectedCompanyId}`
-        : `${baseURL}/api/products`;
+      // Products
+      if (prodResult.status === 'fulfilled' && prodResult.value?.data) {
+        const pdata = prodResult.value.data;
+        let productsList = Array.isArray(pdata) ? pdata : pdata.products || [];
 
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+        // Client-side extra safety filter
+        if (selectedCompanyId) {
+          productsList = productsList.filter(p => {
+            const cId =
+              typeof p.company === 'object' ? p.company?._id : p.company;
+            return cId === selectedCompanyId || !cId;
+          });
+        }
 
-      if (!res.ok) throw new Error('Failed to fetch products.');
-      let data = await res.json();
-      let productsList = Array.isArray(data) ? data : data.products || [];
+        setProducts(productsList);
+        if (prodResult.value.fromCache) usedCache = true;
+      }
 
-      // Client-side extra safety filter
-      if (selectedCompanyId) {
-        productsList = productsList.filter(p => {
-          // Product's company can be an object or a string ID
-          const cId = typeof p.company === 'object' ? p.company?._id : p.company;
-          return cId === selectedCompanyId || !cId; // !cId handles products that are globally available
+      // Services
+      if (servResult.status === 'fulfilled' && servResult.value?.data) {
+        const sdata = servResult.value.data;
+        const servicesList = Array.isArray(sdata)
+          ? sdata
+          : sdata.services || [];
+        setServices(servicesList);
+        if (servResult.value.fromCache) usedCache = true;
+
+        // Merge services into products list as lightweight 'service' items for dashboard view
+        setProducts(prev => {
+          const existingIds = new Set(prev.map(p => p._id));
+          const appended = servicesList
+            .filter(s => !existingIds.has(s._id))
+            .map(s => ({
+              _id: s._id,
+              name: s.serviceName || s.name,
+              type: 'service',
+              stocks: 0,
+              price: s.price,
+            }));
+          return [...prev, ...appended];
         });
       }
 
-      setProducts(productsList);
+      setIsUsingCache(usedCache);
+
+      // If we returned cached data, do a background refresh to warm cache and update UI if changed
+      if (usedCache && !force) {
+        setIsBackgroundRefreshing(true);
+        Promise.allSettled([
+          smartFetch(prodEndpoint, { cacheKey: prodKey, forceRefresh: true }),
+          smartFetch(servEndpoint, { cacheKey: servKey, forceRefresh: true }),
+        ])
+          .then(results => {
+            const [p, s] = results;
+            if (
+              p.status === 'fulfilled' &&
+              !p.value.fromCache &&
+              p.value.data
+            ) {
+              const pdata = p.value.data;
+              let productsList = Array.isArray(pdata)
+                ? pdata
+                : pdata.products || [];
+              if (selectedCompanyId) {
+                productsList = productsList.filter(p => {
+                  const cId =
+                    typeof p.company === 'object' ? p.company?._id : p.company;
+                  return cId === selectedCompanyId || !cId;
+                });
+              }
+              setProducts(productsList);
+            }
+
+            if (
+              s.status === 'fulfilled' &&
+              !s.value.fromCache &&
+              s.value.data
+            ) {
+              const sdata = s.value.data;
+              const servicesList = Array.isArray(sdata)
+                ? sdata
+                : sdata.services || [];
+              setServices(servicesList);
+
+              setProducts(prev => {
+                const base = prev.filter(p => p.type !== 'service');
+                const existingIds = new Set(base.map(p => p._id));
+                const appended = servicesList
+                  .filter(s => !existingIds.has(s._id))
+                  .map(s => ({
+                    _id: s._id,
+                    name: s.serviceName || s.name,
+                    type: 'service',
+                    stocks: 0,
+                    price: s.price,
+                  }));
+                return [...base, ...appended];
+              });
+            }
+          })
+          .catch(() => {})
+          .finally(() => setIsBackgroundRefreshing(false));
+      }
+
+      // If nothing was set (no cache & network failed), show an error
+      if (
+        prodResult.status === 'rejected' &&
+        (!prodResult.reason || !prodResult.reason.response) &&
+        !selectedCompanyId &&
+        services.length === 0
+      ) {
+        // this is a very rare branch; let the catch handle it below
+      }
     } catch (error) {
       toast({
         variant: 'destructive',
-        title: 'Failed to load products',
+        title: 'Failed to load inventory',
         description: error.message,
       });
     } finally {
@@ -368,10 +480,23 @@ const ProductStock = ({
     fetchProducts();
   }, [selectedCompanyId]);
 
+  // Load stored role from AsyncStorage so role-driven UI (eg. Edit button) works correctly
+  useEffect(() => {
+    const getRole = async () => {
+      try {
+        const storedRole = await AsyncStorage.getItem('role');
+        if (storedRole) setRole(storedRole);
+      } catch (error) {
+        // ignore - role is optional
+      }
+    };
+    getRole();
+  }, []);
+
   const onRefresh = () => {
     setRefreshing(true);
     Promise.all([
-      fetchProducts(),
+      fetchProducts(true),
       refetchPermissions ? refetchPermissions() : Promise.resolve(),
       refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
     ]).finally(() => {
@@ -418,16 +543,21 @@ const ProductStock = ({
     setIsAddServiceOpen(false);
     toast({
       title: 'Service Created',
-      description: `${capitalizeWords(
-        newService.serviceName,
-      )} has been added successfully.`,
+      description: `${capitalizeWords(newService.serviceName)} has been added.`,
     });
-    fetchProducts();
+    // keep UI snappy
+    setTimeout(() => fetchProducts(true), 1000);
   };
 
-  const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  const filteredProducts = useMemo(() => {
+    const q = (searchTerm || '').trim().toLowerCase();
+    if (!products || products.length === 0) return [];
+    if (!q) return products;
+    return products.filter(p => {
+      const name = (p.name || p.serviceName || '').toLowerCase();
+      return name.includes(q);
+    });
+  }, [products, searchTerm]);
 
   const renderProductItem = ({ item }) => (
     <ProductMobileCard
@@ -449,15 +579,23 @@ const ProductStock = ({
   );
 
   const shouldShowComponent = () => {
-    const hasProductPermission = permissions?.canCreateProducts;
-    const hasUserInventoryPermission = userCaps?.canCreateInventory;
-    const maxInventories = permissions?.maxInventories ?? 0;
-    
+    // Web logic ke hisab se exact flags
+    const canCreateProducts = permissions?.canCreateProducts; // Context-level product creation flag
+    const userInventoryCap = userCaps?.canCreateInventory; // User-specific capability (New Architecture)
+    const maxInventoriesAllowed = permissions?.maxInventories ?? 0;
 
-    if (!hasProductPermission && !hasUserInventoryPermission && maxInventories === 0) {
+    // Agar user ke paas product banane ki permission NAHI hai
+    // AND inventory manage karne ki capability NAHI hai
+    // AND unke plan mein max inventory 0 hai
+    // TOH component hide kar do.
+    if (
+      !canCreateProducts &&
+      !userInventoryCap &&
+      maxInventoriesAllowed === 0
+    ) {
       return false;
     }
-    
+
     return true;
   };
 
@@ -509,13 +647,7 @@ const ProductStock = ({
             style={styles.searchBar}
           />
 
-          <ScrollView
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-            style={styles.scrollView}
-            contentContainerStyle={styles.productScrollContent}
-          >
+          <View>
             {isLoading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#6366f1" />
@@ -553,16 +685,32 @@ const ProductStock = ({
                       keyExtractor={item => item._id}
                       scrollEnabled={false}
                       contentContainerStyle={{ paddingBottom: 160 }}
+                      refreshing={refreshing}
+                      onRefresh={onRefresh}
+                      initialNumToRender={4}
+                      maxToRenderPerBatch={8}
+                      windowSize={5}
+                      removeClippedSubviews
+                      keyboardShouldPersistTaps="always"
+                      keyboardDismissMode="none"
                     />
                   </View>
                 ) : (
                   /* Mobile Card View */
                   <FlatList
-                    data={filteredProducts.slice(0, 4)}
+                    data={filteredProducts.slice(0, 3)}
                     renderItem={renderProductItem}
                     keyExtractor={item => item._id}
                     scrollEnabled={false}
                     contentContainerStyle={styles.mobileList}
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    initialNumToRender={4}
+                    maxToRenderPerBatch={8}
+                    windowSize={5}
+                    removeClippedSubviews
+                    keyboardShouldPersistTaps="always"
+                    keyboardDismissMode="none"
                   />
                 )}
               </View>
@@ -584,7 +732,7 @@ const ProductStock = ({
                 )}
               </View>
             )}
-          </ScrollView>
+          </View>
 
           {filteredProducts.length > 3 && (
             <CustomButton
@@ -866,7 +1014,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontWeight: '400',
   },
- 
+
   scrollView: {
     maxHeight: 600,
   },
@@ -906,7 +1054,7 @@ const styles = StyleSheet.create({
   },
   mobileList: {
     gap: 12,
-    paddingBottom: 220,
+    paddingBottom: 0,
   },
   productScrollContent: {
     paddingBottom: 220,

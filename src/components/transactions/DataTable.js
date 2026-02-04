@@ -31,9 +31,11 @@ export default function DataTable({
   // Debouncing for search filter
   const [localFilter, setLocalFilter] = useState(filter);
   useEffect(() => {
-    // If filter prop changes from parent (e.g. cleared), update local state
-    if (filter !== localFilter) {
-      setLocalFilter(filter);
+    // Only sync parent -> local when parent explicitly clears the filter.
+    // This prevents overwriting user typing mid-debounce and avoids
+    // the search box shrinking unexpectedly while the user types.
+    if (filter === '' && localFilter !== '') {
+      setLocalFilter('');
     }
   }, [filter]);
 

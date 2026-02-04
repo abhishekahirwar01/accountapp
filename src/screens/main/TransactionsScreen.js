@@ -56,7 +56,6 @@ import {
   MobileTableSkeleton,
 } from '../../components/transactions/transaction-form/table-skeleton';
 import { BASE_URL } from '../../config';
-import AppLayout from '../../components/layout/AppLayout';
 
 const { width, height } = Dimensions.get('window');
 
@@ -974,7 +973,7 @@ const TransactionsScreen = ({ navigation }) => {
       const productName =
         productNameById.get(p.product) || p.product?.name || '(product)';
       const productId =
-        typeof p.product === 'object' ? p.product._id : p.product;
+        p.product && typeof p.product === 'object' ? p.product._id : p.product;
       const productObj = productsList.find(prod => prod._id === productId);
       const hsnCode = productObj?.hsn || '';
 
@@ -1003,17 +1002,19 @@ const TransactionsScreen = ({ navigation }) => {
 
     const svcs = svcArr.map(s => {
       const id =
-        typeof s.service === 'object'
+        s.service && typeof s.service === 'object'
           ? s.service._id
           : s.service ??
-            (typeof s.serviceName === 'object'
+            (s.serviceName && typeof s.serviceName === 'object'
               ? s.serviceName._id
               : s.serviceName);
 
       const name =
         (id && serviceNameById.get(String(id))) ||
-        (typeof s.service === 'object' && s.service.serviceName) ||
-        (typeof s.serviceName === 'object' && s.serviceName.serviceName) ||
+        (s.service && typeof s.service === 'object' && s.service.serviceName) ||
+        (s.serviceName &&
+          typeof s.serviceName === 'object' &&
+          s.serviceName.serviceName) ||
         '(service)';
 
       const serviceObj = servicesList.find(svc => svc._id === id);
@@ -1156,7 +1157,9 @@ const TransactionsScreen = ({ navigation }) => {
 
       // Get company ID
       const companyId =
-        typeof tx.company === 'object' ? tx.company._id : tx.company || '';
+        tx.company && typeof tx.company === 'object'
+          ? tx.company._id
+          : tx.company || '';
 
       if (!companyId) {
         throw new Error('Company not found');
@@ -1698,8 +1701,7 @@ const TransactionsScreen = ({ navigation }) => {
   };
 
   return (
-    <AppLayout>
-      <View style={styles.container}>
+    <View style={styles.container}>
         {/* 1. Jab tak initial loading hai, sirf Skeleton dikhao */}
         {isLoading ? (
           <View style={styles.skeletonContainer}>
@@ -2267,7 +2269,6 @@ const TransactionsScreen = ({ navigation }) => {
           </View>
         </Modal>
       </View>
-    </AppLayout>
   );
 };
 

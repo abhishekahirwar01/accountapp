@@ -53,7 +53,6 @@ import ClientCard from '../../components/clients/ClientCard';
 import ClientForm from '../../components/clients/ClientForm';
 import { useToast } from '../../components/hooks/useToast';
 import { BASE_URL } from '../../config';
-import AppLayout from '../../components/layout/AppLayout';
 import {
   AlertDialog,
   AlertDialogHeader,
@@ -626,11 +625,10 @@ export default function ClientManagementPage() {
   }
 
   return (
-    <AppLayout>
-      <View style={styles.container}>
-        {renderHeader()}
+    <View style={styles.container}>
+      {renderHeader()}
 
-        <Animated.FlatList
+      <Animated.FlatList
           data={filteredClients}
           renderItem={({ item: client }) => (
             <ClientCard
@@ -910,7 +908,6 @@ export default function ClientManagementPage() {
           </SafeAreaView>
         </Modal>
       </View>
-    </AppLayout>
   );
 }
 

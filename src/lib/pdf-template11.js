@@ -17,7 +17,7 @@ import { capitalizeWords } from './utils';
 import { BASE_URL } from '../config';
 
 // Constants
-const ITEMS_PER_PAGE = 40; // Adjust based on layout
+const ITEMS_PER_PAGE = 28; // Adjust based on layout
 const A4_WIDTH = 595; // A4 width in points
 const A4_HEIGHT = 842; // A4 height in points
 
