@@ -144,9 +144,20 @@ export function AppSidebar(props) {
     currentRole === 'admin' ||
     (!!clientPermissions && clientPermissions.canCreateUsers);
 
-  const isActive = screenName => route.name === screenName;
-  const isReportsActive = route.name?.startsWith('Reports');
-  const isLedgerActive = route.name?.startsWith('Ledger');
+  // Get active screen from tab navigator state passed in props
+  const getActiveScreen = () => {
+    if (props.state && props.state.routes) {
+      return props.state.routes[props.state.index]?.name;
+    }
+    return null;
+  };
+
+  const activeScreen = getActiveScreen();
+
+  // Check if screen is active
+  const isActive = screenName => activeScreen === screenName;
+  const isReportsActive = activeScreen?.startsWith('Reports');
+  const isLedgerActive = activeScreen?.startsWith('Ledger');
 
   // ----- Admin Menu -----
   const AdminMenu = () => (
