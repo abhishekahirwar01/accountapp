@@ -139,7 +139,18 @@ export default function UserSidebar(props) {
     });
   };
 
-  const isActive = screenName => route.name === screenName;
+  // Get active screen from tab navigator state passed in props
+  const getActiveScreen = () => {
+    if (props.state && props.state.routes) {
+      return props.state.routes[props.state.index]?.name;
+    }
+    return null;
+  };
+
+  const activeScreen = getActiveScreen();
+
+  // Check if screen is active
+  const isActive = screenName => activeScreen === screenName;
 
   // Enhanced Menu Button for Desktop - keeping original functionality
   const MenuButton = ({
