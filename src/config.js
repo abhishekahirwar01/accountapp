@@ -1,5 +1,13 @@
+// export const BASE_URL =
+//   'https://accountapp-backend-shardaassociates.onrender.com';
+// export const BASE_URL =
+//   'https://accountapp-backend-ooxj.vercel.app';
+
 export const BASE_URL =
-  'https://accountapp-backend-shardaassociates.onrender.com';
+  'https://vinimaynativebe.sharda.co.in';
+
+
+
 
 // import { Platform } from 'react-native';
 

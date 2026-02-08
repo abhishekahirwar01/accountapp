@@ -947,7 +947,7 @@ const exportToExcel = useCallback(async () => {
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
             <View style={styles.iconBadge}>
-              <Icon name="book-open-variant" size={24} color="#3B82F6" />
+              <Icon name="book-open-variant" size={20} color="#3B82F6" />
             </View>
             <View>
               <Text style={styles.title}>Customer Ledger</Text>
@@ -1365,8 +1365,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   iconBadge: {
-    width: 48,
-    height: 48,
+    width: 40,
+    height: 40,
     borderRadius: 12,
     backgroundColor: '#EFF6FF',
     justifyContent: 'center',
@@ -1374,7 +1374,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   title: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
     color: '#111827',
     letterSpacing: -0.5,
@@ -1382,15 +1382,15 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 13,
     color: '#6B7280',
-    marginTop: 2,
+    // marginTop: 2,
     fontWeight: '500',
   },
   exportButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#3B82F6',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 10,
     elevation: 2,
     shadowColor: '#3B82F6',
@@ -1406,7 +1406,7 @@ const styles = StyleSheet.create({
   exportButtonText: {
     color: '#FFFFFF',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 12,
     marginLeft: 6,
   },
   scrollView: {

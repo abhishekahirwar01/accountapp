@@ -52,6 +52,8 @@ const tabScreenOptions = {
   headerShown: false, // Header is now in parent Stack
   animationEnabled: false, // Disable tab switch animation to prevent flicker
   freezeOnBlur: true, // Freeze inactive screens to prevent re-renders
+    lazy: true,
+  detachInactiveScreens: true,
 };
 
 function MainTabNavigator({ route }) {

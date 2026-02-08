@@ -1,4 +1,4 @@
-// pdf-templateA5-3-updated.js - Complete fixed code for A5 with increased items per page
+// pdf-templateA5-3-fixed-pagination.js - Fixed multi-page support with headers
 import React from 'react';
 import { generatePDF } from 'react-native-html-to-pdf';
 import RNHTMLtoPDF from 'react-native-html-to-pdf';
@@ -15,6 +15,25 @@ import {
 } from './pdf-utils';
 import { capitalizeWords, parseNotesHtml } from './utils';
 import { BASE_URL } from '../config';
+
+// A5 dimensions in points
+const A5_HEIGHT = 595; // 210mm in points
+const A5_WIDTH = 420;  // 148mm in points
+
+// Height constants for precise calculation
+const HEIGHTS = {
+  header: 85,        // Top header + title row + info grid
+  tableHeader: 20,   // Items table header
+  itemRow: 14,       // Each item row
+  totalRow: 14,      // Total row
+  wordsSection: 12,  // Total in words
+  hsnSection: 60,    // HSN summary table (approximate)
+  bottomGrid: 52,    // Bank + QR + Totals
+  notesSection: 30,  // Notes section
+  pageFooter: 10,    // Page number
+  padding: 24,       // Top + bottom padding (12mm each)
+  buffer: 10,        // Safety margin
+};
 
 const getClientName = client => {
   if (!client) return 'Client Name';
@@ -39,8 +58,6 @@ const renderNotesHTML = notes => {
     return notes.replace(/\n/g, '<br>');
   }
 };
-
-
 
 // Extract header section to a separate function so it can be reused on every page
 const generateHeaderSection = (data) => {
@@ -341,7 +358,103 @@ const TemplateA5_3PDF = ({
     }
   };
 
-  // Generate table headers exactly as in image
+  // Calculate available space for items on each page
+  const calculateItemsPerPage = (isFirstPage, isLastPage) => {
+    let availableHeight = A5_HEIGHT - HEIGHTS.padding - HEIGHTS.buffer;
+    
+    // Subtract header (always present)
+    availableHeight -= HEIGHTS.header;
+    
+    // Subtract table header
+    availableHeight -= HEIGHTS.tableHeader;
+    
+    // Subtract page footer
+    availableHeight -= HEIGHTS.pageFooter;
+    
+    if (isLastPage) {
+      // Last page has additional sections
+      availableHeight -= HEIGHTS.totalRow;
+      availableHeight -= HEIGHTS.wordsSection;
+      availableHeight -= HEIGHTS.hsnSection;
+      availableHeight -= HEIGHTS.bottomGrid;
+      if (transaction?.notes) {
+        availableHeight -= HEIGHTS.notesSection;
+      }
+    }
+    
+    // Calculate how many items fit
+    const itemsFit = Math.floor(availableHeight / HEIGHTS.itemRow);
+    return Math.max(1, itemsFit); // At least 1 item
+  };
+
+  // Dynamic pagination
+  const itemsCount = itemsWithGST?.length || 0;
+  
+  // Calculate pages dynamically
+  const paginateItems = () => {
+    const pages = [];
+    let remainingItems = [...(itemsWithGST || [])];
+    let pageNum = 1;
+    
+    // Handle empty items case
+    if (remainingItems.length === 0) {
+      return [{
+        items: [],
+        isLast: true,
+        pageNumber: 1,
+      }];
+    }
+    
+    while (remainingItems.length > 0) {
+      const isFirstPage = pageNum === 1;
+      const itemsPerPage = calculateItemsPerPage(isFirstPage, false);
+      
+      // Check if this would be the last page
+      const wouldBeLastPage = remainingItems.length <= itemsPerPage;
+      
+      if (wouldBeLastPage) {
+        // Recalculate with last page constraints
+        const itemsPerLastPage = calculateItemsPerPage(isFirstPage, true);
+        
+        if (remainingItems.length <= itemsPerLastPage) {
+          // All remaining items fit on last page
+          pages.push({
+            items: remainingItems,
+            isLast: true,
+            pageNumber: pageNum,
+          });
+          break;
+        } else {
+          // Need to split - take what fits on regular page
+          const itemsForThisPage = remainingItems.slice(0, itemsPerPage);
+          pages.push({
+            items: itemsForThisPage,
+            isLast: false,
+            pageNumber: pageNum,
+          });
+          remainingItems = remainingItems.slice(itemsPerPage);
+          pageNum++;
+        }
+      } else {
+        // Regular page (not last)
+        const itemsForThisPage = remainingItems.slice(0, itemsPerPage);
+        pages.push({
+          items: itemsForThisPage,
+          isLast: false,
+          pageNumber: pageNum,
+        });
+        remainingItems = remainingItems.slice(itemsPerPage);
+        pageNum++;
+      }
+    }
+    
+    return pages;
+  };
+  
+  const pages = paginateItems();
+  const totalPages = pages.length;
+
+  // Generate table headers
   const generateTableHeaders = () => {
     if (!isGSTApplicable || showNoTax) {
       return `
@@ -515,7 +628,7 @@ const TemplateA5_3PDF = ({
     }
   };
 
-  // Generate HSN Summary exactly as in image
+  // Generate HSN Summary
   const generateHsnSummary = () => {
     if (!isGSTApplicable) return '';
 
@@ -627,21 +740,13 @@ const TemplateA5_3PDF = ({
     `;
   };
 
-  
-
-  // Split items into pages if needed - INCREASED items per page for A5
-  const itemsPerPage = 35; 
-  const itemsCount = itemsWithGST?.length || 0;
-  const totalPages = Math.max(1, Math.ceil(itemsCount / itemsPerPage));
-
   // Generate content for each page
-  const generatePageContent = (pageNumber) => {
-    const isFirstPage = pageNumber === 1;
-    const isLastPage = pageNumber === totalPages;
+  const generatePageContent = (pageData, globalStartIndex) => {
+    const { items, isLast, pageNumber } = pageData;
+    const startIndex = globalStartIndex;
     
-    const startIndex = (pageNumber - 1) * itemsPerPage;
-    const endIndex = Math.min(startIndex + itemsPerPage, itemsCount);
-    const pageItems = itemsWithGST?.slice(startIndex, endIndex) || [];
+    // Ensure last page is properly detected
+    const isActuallyLastPage = isLast || pageNumber === totalPages;
 
     return `
       <div class="page">
@@ -670,13 +775,13 @@ const TemplateA5_3PDF = ({
             ${generateTableHeaders()}
           </thead>
           <tbody>
-            ${generatePageTableRows(pageItems, startIndex)}
-            ${isLastPage ? generateTotalRow() : ''}
+            ${generatePageTableRows(items, startIndex)}
+            ${isActuallyLastPage ? generateTotalRow() : ''}
           </tbody>
         </table>
 
         ${
-          isLastPage
+          isActuallyLastPage
             ? `
               <!-- Total in Words (only on last page) -->
               <div class="words-section">
@@ -785,7 +890,6 @@ const TemplateA5_3PDF = ({
                  transaction?.notes
                   ? `
                 <div class="notes-box">
-                  
                   <div class="notes-content">${renderNotesHTML(transaction.notes)}</div>
                 </div>
               `
@@ -806,14 +910,17 @@ const TemplateA5_3PDF = ({
   const generateHTMLContent = () => {
     // Generate all pages
     let allPagesHTML = '';
-    for (let i = 1; i <= totalPages; i++) {
-      allPagesHTML += generatePageContent(i);
+    let globalStartIndex = 0;
+    
+    pages.forEach((pageData, idx) => {
+      allPagesHTML += generatePageContent(pageData, globalStartIndex);
+      globalStartIndex += pageData.items.length;
       
       // Add page break for all pages except the last one
-      if (i < totalPages) {
+      if (idx < pages.length - 1) {
         allPagesHTML += '<div style="page-break-before: always;"></div>';
       }
-    }
+    });
 
     return `
       <!DOCTYPE html>
@@ -835,7 +942,7 @@ const TemplateA5_3PDF = ({
   return generateHTMLContent();
 };
 
-// Updated CSS for proper A5 sizing and page breaks with increased items per page
+// CSS styles (same as before)
 const styles = {
   css: `
     @media print {
@@ -860,20 +967,19 @@ const styles = {
       font-size: 7px;
       color: #000;
       background: #fff;
-      width: 148mm; /* A5 width */
+      width: 148mm;
       margin: 0 auto;
       padding: 0;
     }
     
     .page {
       width: 148mm;
-      min-height: 210mm; /* A5 height */
+      min-height: 210mm;
       padding: 6mm 5mm;
       position: relative;
       overflow: hidden;
     }
     
-    /* Top Header */
     .top-header {
       text-align: center;
       padding-bottom: 2px;
@@ -898,7 +1004,6 @@ const styles = {
       line-height: 1.2;
     }
     
-    /* Title Row */
     .title-row {
       display: flex;
       justify-content: space-between;
@@ -906,7 +1011,6 @@ const styles = {
       border: 1px solid #0066cc;
       padding: 2px 3px;
       font-size: 6px;
-      // margin-bottom: 2px;
     }
     
     .gstin-box {
@@ -926,12 +1030,10 @@ const styles = {
       font-size: 5px;
     }
     
-    /* Info Grid - Three Columns */
     .info-grid {
       display: flex;
       border: 1px solid #0066cc;
       border-top: none;
-      // margin-bottom: 2px;
     }
     
     .info-box {
@@ -975,13 +1077,11 @@ const styles = {
       font-size: 6px;
     }
     
-    /* Items Table - Reduced height for more rows */
     .items-table {
       width: 100%;
       border-collapse: collapse;
       border: 1px solid #0066cc;
       border-top: none;
-      // margin-bottom: 2px;
       font-size: 6px;
     }
     
@@ -1000,7 +1100,6 @@ const styles = {
     }
     
     .tax-header {
-      // background: rgba(3, 113, 193, 0.2);
     }
     
     .sub-header-cell {
@@ -1010,7 +1109,6 @@ const styles = {
       text-align: center;
       font-weight: bold;
       font-size: 5px;
-      // background: rgba(3, 113, 193, 0.2);
     }
     
     .item-row {
@@ -1022,7 +1120,7 @@ const styles = {
       padding: 2px;
       text-align: center;
       font-size: 6px;
-      height: 14px; /* Reduced from 16px */
+      height: 14px;
     }
     
     .text-left {
@@ -1037,7 +1135,6 @@ const styles = {
       color: #666;
     }
     
-    /* Total Row */
     .total-row {
       background: rgba(3, 113, 193, 0.2);
       font-weight: bold;
@@ -1065,33 +1162,18 @@ const styles = {
       font-size: 6px;
     }
     
-    /* Words Section */
     .words-section {
       border: 1px solid #0066cc;
       border-top: none;
       padding: 2px;
-      // margin-bottom: 2px;
       font-size: 6px;
       text-transform: uppercase;
       line-height: 1.2;
     }
     
-    /* HSN Summary */
     .hsn-section {
       border: 1px solid #0066cc;
       border-top: none;
-      // margin-bottom: 2px;
-    }
-    
-    .hsn-title-row {
-      background: rgba(3, 113, 193, 0.2);
-      border-bottom: 1px solid #0066cc;
-      padding: 2px 3px;
-    }
-    
-    .hsn-title {
-      font-weight: bold;
-      font-size: 7px;
     }
     
     .hsn-table {
@@ -1143,12 +1225,10 @@ const styles = {
       font-size: 6px;
     }
     
-    /* Bottom Grid - Reduced height */
     .bottom-grid {
       display: flex;
       border: 1px solid #0066cc;
       border-top: none;
-      // margin-bottom: 2px;
       min-height: 50px;
     }
     
@@ -1222,7 +1302,6 @@ const styles = {
       font-size: 6px;
     }
     
-    /* Notes Box - Reduced height */
     .notes-box {
       border: 1px solid #0066cc;
       border-top: none;
@@ -1239,7 +1318,6 @@ const styles = {
       font-size: 6px;
     }
     
-    /* Page Footer */
     .page-footer {
       position: absolute;
       bottom: 6mm;
@@ -1251,7 +1329,7 @@ const styles = {
   `,
 };
 
-// Generate PDF function with A5 dimensions
+// Generate PDF function
 export const generatePdfForTemplateA5_3 = async (
   transaction,
   company,
@@ -1283,8 +1361,8 @@ export const generatePdfForTemplateA5_3 = async (
       }_${Date.now()}`,
       directory: 'Documents',
       base64: false,
-      height: 595,  // A5 height in points (210mm)
-      width: 420,   // A5 width in points (148mm)
+      height: 595,
+      width: 420,
     };
 
     const file = await generatePDF(options);

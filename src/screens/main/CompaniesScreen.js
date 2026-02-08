@@ -551,9 +551,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 2,
+    // marginBottom: 2,
     color: '#1a1a1a',
   },
   subtitle: {
@@ -801,8 +801,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#007AFF',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
     borderRadius: 8,
     gap: 8,
   },

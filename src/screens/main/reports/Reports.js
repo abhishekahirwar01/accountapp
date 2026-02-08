@@ -19,7 +19,7 @@ export default function Reports() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    triggerCompaniesRefresh().finally(() => {
+    Promise.resolve(triggerCompaniesRefresh()).finally(() => {
       setRefreshing(false);
     });
   }, [triggerCompaniesRefresh]);
@@ -67,44 +67,44 @@ export default function Reports() {
       </View> */}
 
       {/* Tab Buttons */}
-        <View style={styles.tabsContainer}>
-          {tabs.map(tab => (
-            <TouchableOpacity
-              key={tab.id}
-              style={[
-                styles.tabButton,
-                activeTab === tab.id && styles.activeTabButton,
-              ]}
-              onPress={() => setActiveTab(tab.id)}
-            >
-              <View style={styles.tabContent}>
-                {tab.icon}
-                <Text
-                  style={[
-                    styles.tabText,
-                    activeTab === tab.id && styles.activeTabText,
-                  ]}
-                >
-                  {tab.title}
-                </Text>
-              </View>
-              {activeTab === tab.id && <View style={styles.activeIndicator} />}
-            </TouchableOpacity>
-          ))}
-        </View>
+      <View style={styles.tabsContainer}>
+        {tabs.map(tab => (
+          <TouchableOpacity
+            key={tab.id}
+            style={[
+              styles.tabButton,
+              activeTab === tab.id && styles.activeTabButton,
+            ]}
+            onPress={() => setActiveTab(tab.id)}
+          >
+            <View style={styles.tabContent}>
+              {tab.icon}
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === tab.id && styles.activeTabText,
+                ]}
+              >
+                {tab.title}
+              </Text>
+            </View>
+            {activeTab === tab.id && <View style={styles.activeIndicator} />}
+          </TouchableOpacity>
+        ))}
+      </View>
 
-        {/* Content Area */}
-        <View style={styles.contentContainer}>
-          {tabs.find(tab => tab.id === activeTab)?.component}
-        </View>
+      {/* Content Area */}
+      <View style={styles.contentContainer}>
+        {tabs.find(tab => tab.id === activeTab)?.component}
+      </View>
 
-        {/* Footer Info */}
-        {/* <View style={styles.footer}>
+      {/* Footer Info */}
+      {/* <View style={styles.footer}>
           <Text style={styles.footerText}>
             Switch between reports using the tabs above
           </Text>
         </View> */}
-      </ScrollView>
+    </ScrollView>
   );
 }
 

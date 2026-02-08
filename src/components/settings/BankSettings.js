@@ -1,5 +1,5 @@
-// BankSettings.js
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+// BankSettings.js 
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -53,9 +53,169 @@ import { BASE_URL } from '../../config';
 
 const { width, height } = Dimensions.get('window');
 
+// Memoized components
+const DropdownMenu = React.memo(({ item, onViewDetails, onEdit, onDelete }) => (
+  <View style={styles.dropdownMenu}>
+    <TouchableOpacity
+      style={styles.dropdownItem}
+      onPress={() => onViewDetails(item)}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.dropdownIconContainer, { backgroundColor: '#EFF6FF' }]}>
+        <Eye size={16} color="#3B82F6" />
+      </View>
+      <Text style={styles.dropdownItemText}>View Details</Text>
+    </TouchableOpacity>
+    
+    <View style={styles.dropdownDivider} />
+    
+    <TouchableOpacity
+      style={styles.dropdownItem}
+      onPress={() => onEdit(item)}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.dropdownIconContainer, { backgroundColor: '#ECFDF5' }]}>
+        <Edit size={16} color="#10B981" />
+      </View>
+      <Text style={styles.dropdownItemText}>Edit</Text>
+    </TouchableOpacity>
+    
+    <View style={styles.dropdownDivider} />
+    
+    <TouchableOpacity
+      style={styles.dropdownItem}
+      onPress={() => onDelete(item)}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.dropdownIconContainer, { backgroundColor: '#FEF2F2' }]}>
+        <Trash2 size={16} color="#EF4444" />
+      </View>
+      <Text style={[styles.dropdownItemText, styles.dropdownItemTextDanger]}>Delete</Text>
+    </TouchableOpacity>
+  </View>
+));
+
+const BankDetailCard = React.memo(({ item, dropdownVisible, onToggleDropdown, onViewDetails, onEdit, onDelete }) => (
+  <View style={styles.card}>
+    <View style={styles.cardHeader}>
+      <View style={styles.cardTitleRow}>
+        <View style={styles.bankIconContainer}>
+          <Building2 size={22} color="#3B82F6" />
+        </View>
+        <View style={styles.cardTitleContainer}>
+          <Text style={styles.cardTitle}>{capitalizeWords(item.bankName)}</Text>
+          <View style={styles.accountBadge}>
+            <Text style={styles.accountBadgeText}>Account: {item.accountNo}</Text>
+          </View>
+        </View>
+      </View>
+      <View>
+        <TouchableOpacity
+          style={styles.moreButton}
+          onPress={() => onToggleDropdown(item._id)}
+          activeOpacity={0.7}
+        >
+          <MoreHorizontal size={22} color="#6B7280" />
+        </TouchableOpacity>
+        
+        {dropdownVisible === item._id && (
+          <View style={styles.dropdownContainer}>
+            <DropdownMenu
+              item={item}
+              onViewDetails={onViewDetails}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
+          </View>
+        )}
+      </View>
+    </View>
+
+    <View style={styles.cardContent}>
+      {item.branchAddress && (
+        <View style={styles.infoRow}>
+          <View style={styles.infoIconContainer}>
+            <MapPin size={16} color="#8B5CF6" />
+          </View>
+          <View style={styles.infoContent}>
+            <Text style={styles.infoLabel}>Branch Address</Text>
+            <Text style={styles.infoValue}>{item.branchAddress}</Text>
+          </View>
+        </View>
+      )}
+
+      {item.city && (
+        <View style={styles.infoRow}>
+          <View style={styles.infoIconContainer}>
+            <Building size={16} color="#F59E0B" />
+          </View>
+          <View style={styles.infoContent}>
+            <Text style={styles.infoLabel}>City</Text>
+            <Text style={styles.infoValue}>{item.city}</Text>
+          </View>
+        </View>
+      )}
+
+      {item.ifscCode && (
+        <View style={styles.infoRow}>
+          <View style={styles.infoIconContainer}>
+            <CreditCard size={16} color="#EC4899" />
+          </View>
+          <View style={styles.infoContent}>
+            <Text style={styles.infoLabel}>IFSC Code</Text>
+            <Text style={styles.infoValue}>{item.ifscCode}</Text>
+          </View>
+        </View>
+      )}
+    </View>
+  </View>
+));
+
+const TableRow = React.memo(({ item, index, dropdownVisible, onToggleDropdown, onViewDetails, onEdit, onDelete }) => (
+  <View style={[styles.tableRow, index % 2 === 0 && styles.tableRowEven]}>
+    <View style={styles.tableCell}>
+      <View style={styles.tableCellContent}>
+        <View style={styles.tableBankIcon}>
+          <Building2 size={18} color="#3B82F6" />
+        </View>
+        <Text style={styles.tableCellText}>{capitalizeWords(item.bankName)}</Text>
+      </View>
+    </View>
+    <View style={styles.tableCell}>
+      <View style={styles.accountNumberBadge}>
+        <Text style={styles.accountNumberText}>{item.accountNo}</Text>
+      </View>
+    </View>
+    <View style={styles.tableCell}>
+      <Text style={styles.tableCellText} numberOfLines={2}>{item.branchAddress || 'N/A'}</Text>
+    </View>
+    <View style={[styles.tableCell, styles.actionsCell]}>
+      <View>
+        <TouchableOpacity
+          style={styles.tableMoreButton}
+          onPress={() => onToggleDropdown(item._id)}
+          activeOpacity={0.7}
+        >
+          <MoreHorizontal size={20} color="#6B7280" />
+        </TouchableOpacity>
+        
+        {dropdownVisible === item._id && (
+          <View style={styles.tableDropdownContainer}>
+            <DropdownMenu
+              item={item}
+              onViewDetails={onViewDetails}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
+          </View>
+        )}
+      </View>
+    </View>
+  </View>
+));
+
 const BankSettings = () => {
   const [bankDetails, setBankDetails] = useState([]);
-  const [filteredBankDetails, setFilteredBankDetails] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -69,26 +229,41 @@ const BankSettings = () => {
   const [itemsPerPage] = useState(10);
   const [dropdownVisible, setDropdownVisible] = useState(null);
   const scrollViewRef = useRef(null);
+  
+  // Cache for user company ID
+  const userCompanyIdRef = useRef(null);
 
-  // Function to get user's company ID from token
-  const getUserCompanyId = async () => {
+  
+  const getUserCompanyId = useCallback(async () => {
+    if (userCompanyIdRef.current !== null) {
+      return userCompanyIdRef.current;
+    }
+    
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return null;
 
       const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload.companyId || null;
+      const companyId = payload.companyId || null;
+      userCompanyIdRef.current = companyId;
+      return companyId;
     } catch (error) {
       console.error('Error decoding token:', error);
       return null;
     }
-  };
+  }, []);
 
-  // Fetch bank details
+  
   const fetchBankDetails = useCallback(async () => {
+    const controller = new AbortController();
     setIsLoading(true);
+    
     try {
-      const token = await AsyncStorage.getItem('token');
+      const [token, userCompanyId] = await Promise.all([
+        AsyncStorage.getItem('token'),
+        getUserCompanyId()
+      ]);
+      
       if (!token) {
         Toast.show({
           type: 'error',
@@ -100,6 +275,7 @@ const BankSettings = () => {
 
       const response = await fetch(`${BASE_URL}/api/bank-details`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -109,30 +285,27 @@ const BankSettings = () => {
       const data = await response.json();
       const allBankDetails = data.data || data || [];
 
-      // Get user's company ID and filter bank details
-      const userCompanyId = await getUserCompanyId();
+      // Filter on client side if needed
+      const filteredData = userCompanyId 
+        ? allBankDetails.filter(detail => detail.company === userCompanyId)
+        : allBankDetails;
 
-      if (userCompanyId) {
-        const userBankDetails = allBankDetails.filter(
-          (detail) => detail.company === userCompanyId
-        );
-        setBankDetails(userBankDetails);
-        setFilteredBankDetails(userBankDetails);
-      } else {
-        setBankDetails(allBankDetails);
-        setFilteredBankDetails(allBankDetails);
-      }
+      setBankDetails(filteredData);
     } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Failed to load bank details',
-        text2: error.message || 'Something went wrong.',
-      });
+      if (error.name !== 'AbortError') {
+        Toast.show({
+          type: 'error',
+          text1: 'Failed to load bank details',
+          text2: error.message || 'Something went wrong.',
+        });
+      }
     } finally {
       setIsLoading(false);
       setRefreshing(false);
     }
-  }, []);
+    
+    return () => controller.abort();
+  }, [getUserCompanyId]);
 
   // Handle refresh
   const onRefresh = useCallback(() => {
@@ -144,57 +317,63 @@ const BankSettings = () => {
     fetchBankDetails();
   }, [fetchBankDetails]);
 
-  // Search functionality
-  useEffect(() => {
+  
+  const filteredBankDetails = useMemo(() => {
     if (searchQuery.trim() === '') {
-      setFilteredBankDetails(bankDetails);
-    } else {
-      const filtered = bankDetails.filter(bank =>
-        bank.bankName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        bank.accountNo?.includes(searchQuery) ||
-        bank.managerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        bank.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        bank.branchAddress?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setFilteredBankDetails(filtered);
+      return bankDetails;
     }
-    setCurrentPage(1);
+    
+    const lowerQuery = searchQuery.toLowerCase();
+    return bankDetails.filter(bank =>
+      bank.bankName?.toLowerCase().includes(lowerQuery) ||
+      bank.accountNo?.includes(searchQuery) ||
+      bank.managerName?.toLowerCase().includes(lowerQuery) ||
+      bank.city?.toLowerCase().includes(lowerQuery) ||
+      bank.branchAddress?.toLowerCase().includes(lowerQuery)
+    );
   }, [searchQuery, bankDetails]);
 
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredBankDetails.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentItems = filteredBankDetails.slice(startIndex, endIndex);
+  
+  const paginationData = useMemo(() => {
+    const totalPages = Math.ceil(filteredBankDetails.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentItems = filteredBankDetails.slice(startIndex, endIndex);
+    
+    return { totalPages, startIndex, endIndex, currentItems };
+  }, [filteredBankDetails, currentPage, itemsPerPage]);
 
-  // Open form for creating or editing a bank detail
-  const handleOpenForm = (bankDetail = null) => {
+  const { totalPages, startIndex, endIndex, currentItems } = paginationData;
+
+  
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  
+  const handleOpenForm = useCallback((bankDetail = null) => {
     setSelectedBankDetail(bankDetail);
     setIsFormOpen(true);
     setDropdownVisible(null);
-  };
+  }, []);
 
-  // Open delete confirmation dialog
-  const handleOpenDeleteDialog = (bankDetail) => {
+  const handleOpenDeleteDialog = useCallback((bankDetail) => {
     setBankDetailToDelete(bankDetail);
     setIsAlertOpen(true);
     setDropdownVisible(null);
-  };
+  }, []);
 
-  // Open full details modal
-  const handleOpenDetailsModal = (bankDetail) => {
+  const handleOpenDetailsModal = useCallback((bankDetail) => {
     setSelectedBankDetailForDetails(bankDetail);
     setIsDetailsModalOpen(true);
     setDropdownVisible(null);
-  };
+  }, []);
 
-  // Toggle dropdown
-  const toggleDropdown = (id) => {
-    setDropdownVisible(dropdownVisible === id ? null : id);
-  };
+  const toggleDropdown = useCallback((id) => {
+    setDropdownVisible(prev => prev === id ? null : id);
+  }, []);
 
-  // Form submission success handler
-  const handleFormSuccess = () => {
+  const handleFormSuccess = useCallback(() => {
     setIsFormOpen(false);
     fetchBankDetails();
     const action = selectedBankDetail ? 'updated' : 'created';
@@ -204,11 +383,11 @@ const BankSettings = () => {
       text2: `The bank detail has been ${action}.`,
     });
     setSelectedBankDetail(null);
-  };
+  }, [selectedBankDetail, fetchBankDetails]);
 
-  // Delete bank detail
-  const handleDeleteBankDetail = async () => {
+  const handleDeleteBankDetail = useCallback(async () => {
     if (!bankDetailToDelete) return;
+    
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
@@ -249,160 +428,34 @@ const BankSettings = () => {
       setIsAlertOpen(false);
       setBankDetailToDelete(null);
     }
-  };
+  }, [bankDetailToDelete, fetchBankDetails]);
 
-  // Render dropdown menu
-  const renderDropdownMenu = (item) => (
-    <View style={styles.dropdownMenu}>
-      <TouchableOpacity
-        style={styles.dropdownItem}
-        onPress={() => handleOpenDetailsModal(item)}
-        activeOpacity={0.7}
-      >
-        <View style={[styles.dropdownIconContainer, { backgroundColor: '#EFF6FF' }]}>
-          <Eye size={16} color="#3B82F6" />
-        </View>
-        <Text style={styles.dropdownItemText}>View Details</Text>
-      </TouchableOpacity>
-      
-      <View style={styles.dropdownDivider} />
-      
-      <TouchableOpacity
-        style={styles.dropdownItem}
-        onPress={() => handleOpenForm(item)}
-        activeOpacity={0.7}
-      >
-        <View style={[styles.dropdownIconContainer, { backgroundColor: '#ECFDF5' }]}>
-          <Edit size={16} color="#10B981" />
-        </View>
-        <Text style={styles.dropdownItemText}>Edit</Text>
-      </TouchableOpacity>
-      
-      <View style={styles.dropdownDivider} />
-      
-      <TouchableOpacity
-        style={styles.dropdownItem}
-        onPress={() => handleOpenDeleteDialog(item)}
-        activeOpacity={0.7}
-      >
-        <View style={[styles.dropdownIconContainer, { backgroundColor: '#FEF2F2' }]}>
-          <Trash2 size={16} color="#EF4444" />
-        </View>
-        <Text style={[styles.dropdownItemText, styles.dropdownItemTextDanger]}>Delete</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  
+  const renderBankDetailCard = useCallback(({ item }) => (
+    <BankDetailCard
+      item={item}
+      dropdownVisible={dropdownVisible}
+      onToggleDropdown={toggleDropdown}
+      onViewDetails={handleOpenDetailsModal}
+      onEdit={handleOpenForm}
+      onDelete={handleOpenDeleteDialog}
+    />
+  ), [dropdownVisible, toggleDropdown, handleOpenDetailsModal, handleOpenForm, handleOpenDeleteDialog]);
 
-  // Render bank detail card for mobile
-  const renderBankDetailCard = ({ item }) => (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.cardTitleRow}>
-          <View style={styles.bankIconContainer}>
-            <Building2 size={24} color="#3B82F6" />
-          </View>
-          <View style={styles.cardTitleContainer}>
-            <Text style={styles.cardTitle}>{capitalizeWords(item.bankName)}</Text>
-            <View style={styles.accountBadge}>
-              <Text style={styles.accountBadgeText}>Account: {item.accountNo}</Text>
-            </View>
-          </View>
-        </View>
-        <View>
-          <TouchableOpacity
-            style={styles.moreButton}
-            onPress={() => toggleDropdown(item._id)}
-            activeOpacity={0.7}
-          >
-            <MoreHorizontal size={22} color="#6B7280" />
-          </TouchableOpacity>
-          
-          {dropdownVisible === item._id && (
-            <View style={styles.dropdownContainer}>
-              {renderDropdownMenu(item)}
-            </View>
-          )}
-        </View>
-      </View>
+  const renderTableRow = useCallback((item, index) => (
+    <TableRow
+      key={item._id}
+      item={item}
+      index={index}
+      dropdownVisible={dropdownVisible}
+      onToggleDropdown={toggleDropdown}
+      onViewDetails={handleOpenDetailsModal}
+      onEdit={handleOpenForm}
+      onDelete={handleOpenDeleteDialog}
+    />
+  ), [dropdownVisible, toggleDropdown, handleOpenDetailsModal, handleOpenForm, handleOpenDeleteDialog]);
 
-      <View style={styles.cardContent}>
-        {item.branchAddress && (
-          <View style={styles.infoRow}>
-            <View style={styles.infoIconContainer}>
-              <MapPin size={16} color="#8B5CF6" />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Branch Address</Text>
-              <Text style={styles.infoValue}>{item.branchAddress}</Text>
-            </View>
-          </View>
-        )}
-
-        {item.city && (
-          <View style={styles.infoRow}>
-            <View style={styles.infoIconContainer}>
-              <Building size={16} color="#F59E0B" />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>City</Text>
-              <Text style={styles.infoValue}>{item.city}</Text>
-            </View>
-          </View>
-        )}
-
-        {item.ifscCode && (
-          <View style={styles.infoRow}>
-            <View style={styles.infoIconContainer}>
-              <CreditCard size={16} color="#EC4899" />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>IFSC Code</Text>
-              <Text style={styles.infoValue}>{item.ifscCode}</Text>
-            </View>
-          </View>
-        )}
-      </View>
-    </View>
-  );
-
-  // Render table row for desktop/tablet
-  const renderTableRow = (item, index) => (
-    <View style={[styles.tableRow, index % 2 === 0 && styles.tableRowEven]} key={item._id}>
-      <View style={styles.tableCell}>
-        <View style={styles.tableCellContent}>
-          <View style={styles.tableBankIcon}>
-            <Building2 size={18} color="#3B82F6" />
-          </View>
-          <Text style={styles.tableCellText}>{capitalizeWords(item.bankName)}</Text>
-        </View>
-      </View>
-      <View style={styles.tableCell}>
-        <View style={styles.accountNumberBadge}>
-          <Text style={styles.accountNumberText}>{item.accountNo}</Text>
-        </View>
-      </View>
-      <View style={styles.tableCell}>
-        <Text style={styles.tableCellText} numberOfLines={2}>{item.branchAddress || 'N/A'}</Text>
-      </View>
-      <View style={[styles.tableCell, styles.actionsCell]}>
-        <View>
-          <TouchableOpacity
-            style={styles.tableMoreButton}
-            onPress={() => toggleDropdown(item._id)}
-            activeOpacity={0.7}
-          >
-            <MoreHorizontal size={20} color="#6B7280" />
-          </TouchableOpacity>
-          
-          {dropdownVisible === item._id && (
-            <View style={styles.tableDropdownContainer}>
-              {renderDropdownMenu(item)}
-            </View>
-          )}
-        </View>
-      </View>
-    </View>
-  );
+  const keyExtractor = useCallback((item) => item._id, []);
 
   if (isLoading) {
     return (
@@ -426,6 +479,7 @@ const BankSettings = () => {
         ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        removeClippedSubviews={true}
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 
@@ -439,7 +493,7 @@ const BankSettings = () => {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.headerIcon}>
-              <Building2 size={32} color="#3B82F6" />
+              <Building2 size={24} color="#3B82F6" />
             </View>
             <View style={styles.headerContent}>
               <Text style={styles.title}>Manage Bank Details</Text>
@@ -455,34 +509,16 @@ const BankSettings = () => {
             activeOpacity={0.8}
           >
             <View style={styles.addButtonIconContainer}>
-              <PlusCircle size={20} color="#FFFFFF" />
+              <PlusCircle size={18} color="#FFFFFF" />
             </View>
             <Text style={styles.addButtonText}>Add New Bank</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Stats Bar */}
-        {/* <View style={styles.statsBar}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{filteredBankDetails.length}</Text>
-            <Text style={styles.statLabel}>Total Banks</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{currentPage}</Text>
-            <Text style={styles.statLabel}>Current Page</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{totalPages}</Text>
-            <Text style={styles.statLabel}>Total Pages</Text>
-          </View>
-        </View> */}
-
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <View style={styles.searchInputContainer}>
-            <Search size={20} color="#9CA3AF" style={styles.searchIcon} />
+            <Search size={18} color="#9CA3AF" style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search by bank name, account number, city..."
@@ -524,7 +560,7 @@ const BankSettings = () => {
                 </View>
               </View>
               
-              {currentItems.map((item, index) => renderTableRow(item, index))}
+              {currentItems.map(renderTableRow)}
             </View>
 
             {/* Mobile Card View */}
@@ -532,10 +568,15 @@ const BankSettings = () => {
               <FlatList
                 data={currentItems}
                 renderItem={renderBankDetailCard}
-                keyExtractor={(item) => item._id}
+                keyExtractor={keyExtractor}
                 scrollEnabled={false}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.cardList}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={10}
+                updateCellsBatchingPeriod={50}
+                windowSize={10}
+                initialNumToRender={10}
               />
             </View>
 
@@ -894,8 +935,8 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   headerIcon: {
-    width: 54,
-    height: 54,
+    width: 40,
+    height: 40,
     borderRadius: 16,
     backgroundColor: '#EFF6FF',
     justifyContent: 'center',
@@ -906,16 +947,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: '#111827',
-    // marginBottom: 4,
     letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6B7280',
-    lineHeight: 20,
+    lineHeight: 10,
     fontWeight: '500',
   },
   addButton: {
@@ -937,48 +977,12 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     letterSpacing: 0.3,
   },
-  statsBar: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 8,
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#3B82F6',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  statDivider: {
-    width: 1,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 8,
-  },
   searchContainer: {
-    paddingHorizontal: 16,
+    // paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: '#F3F4F6',
   },
@@ -1001,8 +1005,8 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 14,
-    fontSize: 15,
+    paddingVertical: 10,
+    fontSize: 12,
     color: '#111827',
     fontWeight: '500',
   },
@@ -1018,7 +1022,7 @@ const styles = StyleSheet.create({
     display: Platform.OS === 'web' ? 'flex' : 'none',
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginTop: 8,
+    // marginTop: 8,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
@@ -1125,7 +1129,7 @@ const styles = StyleSheet.create({
   },
   mobileContainer: {
     display: Platform.OS === 'web' ? 'none' : 'flex',
-    padding: 16,
+    // padding: 16,
   },
   cardList: {
     gap: 16,
@@ -1146,7 +1150,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 6,
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
@@ -1158,8 +1162,8 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   bankIconContainer: {
-    width: 48,
-    height: 48,
+    width: 40,
+    height: 40,
     borderRadius: 12,
     backgroundColor: '#EFF6FF',
     justifyContent: 'center',
@@ -1170,10 +1174,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '700',
     color: '#111827',
-    marginBottom: 6,
+    marginBottom: 4,
     letterSpacing: -0.3,
   },
   accountBadge: {
@@ -1184,13 +1188,13 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   accountBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#92400E',
     letterSpacing: 0.2,
   },
   moreButton: {
-    padding: 10,
+    padding: 6,
     borderRadius: 10,
     backgroundColor: '#F9FAFB',
     borderWidth: 1,
@@ -1624,4 +1628,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default BankSettings;
+export default BankSettings; 

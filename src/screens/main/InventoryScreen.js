@@ -46,7 +46,9 @@ import BarcodeDisplay from '../../components/ui/BarcodeDisplay';
 const { width } = Dimensions.get('window');
 const ITEMS_PER_PAGE = 10;
 
-
+// ==========================================
+// UTILITY FUNCTIONS - Moved outside component for better performance
+// ==========================================
 const formatCurrencyINR = value => {
   if (value === null || value === undefined || value === '') return '₹0.00';
   const num = typeof value === 'string' ? parseFloat(value) : value;
@@ -80,18 +82,36 @@ const formatDate = dateString => {
   });
 };
 
-
+// ==========================================
+// MEMOIZED COMPONENTS
+// ==========================================
 const ProductCard = memo(
   ({ item, index, isSelected, onSelect, onEdit }) => {
     const isLowStock = (item.stocks ?? 0) <= 10;
+    
+    // Memoize company name extraction
+    const companyName = useMemo(() => {
+      return typeof item.company === 'object' && item.company
+        ? item.company.businessName
+        : 'No Company';
+    }, [item.company]);
+
+    const handlePress = useCallback(() => {
+      onSelect(item._id, !isSelected, index);
+    }, [item._id, isSelected, index, onSelect]);
+
+    const handleEdit = useCallback(() => {
+      onEdit(item);
+    }, [item, onEdit]);
 
     return (
       <View style={[styles.card, isSelected && styles.selectedCard]}>
         <View style={styles.cardHeader}>
           <View style={styles.productInfo}>
             <TouchableOpacity
-              onPress={() => onSelect(item._id, !isSelected, index)}
+              onPress={handlePress}
               style={styles.checkboxContainer}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Icon
                 name={isSelected ? 'check-box' : 'check-box-outline-blank'}
@@ -107,9 +127,7 @@ const ProductCard = memo(
                 {capitalizeFirst(item.name)}
               </Text>
               <Text style={styles.companyName} numberOfLines={1}>
-                {typeof item.company === 'object' && item.company
-                  ? item.company.businessName
-                  : 'No Company'}
+                {companyName}
               </Text>
             </View>
           </View>
@@ -177,7 +195,11 @@ const ProductCard = memo(
               stockQuantity={item.stocks}
             />
           </View>
-          <TouchableOpacity style={styles.editButton} onPress={() => onEdit(item)}>
+          <TouchableOpacity 
+            style={styles.editButton} 
+            onPress={handleEdit}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Icon name="edit" size={16} color="#3b82f6" />
             <Text style={styles.editButtonText}>Edit</Text>
           </TouchableOpacity>
@@ -191,16 +213,26 @@ const ProductCard = memo(
       prevProps.isSelected === nextProps.isSelected &&
       prevProps.item.stocks === nextProps.item.stocks &&
       prevProps.item.costPrice === nextProps.item.costPrice &&
-      prevProps.item.sellingPrice === nextProps.item.sellingPrice
+      prevProps.item.sellingPrice === nextProps.item.sellingPrice &&
+      prevProps.item.name === nextProps.item.name &&
+      prevProps.item.unit === nextProps.item.unit &&
+      prevProps.item.hsn === nextProps.item.hsn
     );
   }
 );
 
 ProductCard.displayName = 'ProductCard';
 
-
 const ServiceCard = memo(
   ({ item, onEdit, onDelete }) => {
+    const handleEdit = useCallback(() => {
+      onEdit(item);
+    }, [item, onEdit]);
+
+    const handleDelete = useCallback(() => {
+      onDelete(item);
+    }, [item, onDelete]);
+
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -242,14 +274,16 @@ const ServiceCard = memo(
           <View style={styles.serviceActionsContainer}>
             <TouchableOpacity
               style={styles.editButton}
-              onPress={() => onEdit(item)}
+              onPress={handleEdit}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Icon name="edit" size={16} color="#3b82f6" />
               <Text style={styles.editButtonText}>Edit</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.deleteButtonCompact}
-              onPress={() => onDelete(item)}
+              onPress={handleDelete}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Icon name="delete" size={16} color="#ef4444" />
             </TouchableOpacity>
@@ -262,13 +296,13 @@ const ServiceCard = memo(
     return (
       prevProps.item._id === nextProps.item._id &&
       prevProps.item.amount === nextProps.item.amount &&
-      prevProps.item.sac === nextProps.item.sac
+      prevProps.item.sac === nextProps.item.sac &&
+      prevProps.item.serviceName === nextProps.item.serviceName
     );
   }
 );
 
 ServiceCard.displayName = 'ServiceCard';
-
 
 const QuantityControl = memo(({ productId, quantity, onQuantityChange }) => {
   const handleDecrement = useCallback(() => {
@@ -301,6 +335,7 @@ const QuantityControl = memo(({ productId, quantity, onQuantityChange }) => {
         ]}
         onPress={handleDecrement}
         disabled={quantity <= 1}
+        hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
       >
         <Icon name="remove" size={20} color="#64748b" />
       </TouchableOpacity>
@@ -320,6 +355,7 @@ const QuantityControl = memo(({ productId, quantity, onQuantityChange }) => {
         ]}
         onPress={handleIncrement}
         disabled={quantity >= 100}
+        hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
       >
         <Icon name="add" size={20} color="#64748b" />
       </TouchableOpacity>
@@ -377,12 +413,15 @@ export default function InventoryScreen() {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [userRole, setUserRole] = useState(null);
 
-  // Permissions
-  const canCreateProducts =
-    userCaps?.canCreateProducts ?? userCaps?.canCreateInventory ?? false;
-  const webCanCreate = permissions?.canCreateProducts ?? false;
-  const hasCreatePermission = canCreateProducts || webCanCreate;
+  // Permissions - Memoized
+  const hasCreatePermission = useMemo(() => {
+    const canCreateProducts =
+      userCaps?.canCreateProducts ?? userCaps?.canCreateInventory ?? false;
+    const webCanCreate = permissions?.canCreateProducts ?? false;
+    return canCreateProducts || webCanCreate;
+  }, [userCaps?.canCreateProducts, userCaps?.canCreateInventory, permissions?.canCreateProducts]);
 
+  // Load user data once on mount
   useEffect(() => {
     const loadUserData = async () => {
       try {
@@ -405,24 +444,31 @@ export default function InventoryScreen() {
     }, [triggerCompaniesRefresh])
   );
 
-  // Initialize bulk print quantities
-  useEffect(() => {
+  // Initialize bulk print quantities - optimized with useMemo
+  const initialBulkQuantities = useMemo(() => {
     if (isBulkPrintDialogOpen && selectedProducts.length > 0) {
-      const initialQuantities = {};
+      const quantities = {};
       selectedProducts.forEach(productId => {
         const product = products.find(p => p._id === productId);
         if (product) {
-          initialQuantities[productId] = Math.min(product.stocks || 1, 100);
+          quantities[productId] = Math.min(product.stocks || 1, 100);
         }
       });
-      setBulkPrintQuantities(initialQuantities);
+      return quantities;
     }
+    return {};
   }, [isBulkPrintDialogOpen, selectedProducts, products]);
 
+  useEffect(() => {
+    if (Object.keys(initialBulkQuantities).length > 0) {
+      setBulkPrintQuantities(initialBulkQuantities);
+    }
+  }, [initialBulkQuantities]);
+
   // ==========================================
-  //  Fetch functions 
+  // Fetch functions - Optimized with AbortController
   // ==========================================
-  const fetchCompanies = useCallback(async () => {
+  const fetchCompanies = useCallback(async (signal) => {
     setIsLoadingCompanies(true);
     try {
       const token = await AsyncStorage.getItem('token');
@@ -430,24 +476,27 @@ export default function InventoryScreen() {
 
       const res = await fetch(`${BASE_URL}/api/companies/my`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal,
       });
       if (!res.ok) throw new Error('Failed to fetch companies.');
       const data = await res.json();
       setCompanies(Array.isArray(data) ? data : data.companies || []);
     } catch (err) {
-      console.error(err);
-      toast({
-        variant: 'destructive',
-        title: 'Failed to load companies',
-        description: err.message || 'Something went wrong.',
-      });
+      if (err.name !== 'AbortError') {
+        console.error(err);
+        toast({
+          variant: 'destructive',
+          title: 'Failed to load companies',
+          description: err.message || 'Something went wrong.',
+        });
+      }
     } finally {
       setIsLoadingCompanies(false);
     }
   }, [toast]);
 
   const fetchProducts = useCallback(
-    async (isSilent = false) => {
+    async (isSilent = false, signal) => {
       if (!isSilent) setIsLoadingProducts(true);
       try {
         const token = await AsyncStorage.getItem('token');
@@ -459,13 +508,14 @@ export default function InventoryScreen() {
 
         const res = await fetch(`${BASE_URL}/api/products${queryParam}`, {
           headers: { Authorization: `Bearer ${token}` },
+          signal,
         });
         if (!res.ok) throw new Error('Failed to fetch products.');
         const data = await res.json();
         setProducts(Array.isArray(data) ? data : data.products || []);
         setProductCurrentPage(1);
       } catch (error) {
-        if (!isSilent) {
+        if (error.name !== 'AbortError' && !isSilent) {
           toast({
             variant: 'destructive',
             title: 'Failed to load products',
@@ -481,7 +531,7 @@ export default function InventoryScreen() {
   );
 
   const fetchServices = useCallback(
-    async (isSilent = false) => {
+    async (isSilent = false, signal) => {
       if (!isSilent) setIsLoadingServices(true);
       try {
         const token = await AsyncStorage.getItem('token');
@@ -489,13 +539,14 @@ export default function InventoryScreen() {
 
         const res = await fetch(`${BASE_URL}/api/services`, {
           headers: { Authorization: `Bearer ${token}` },
+          signal,
         });
         if (!res.ok) throw new Error('Failed to fetch services.');
         const data = await res.json();
         setServices(Array.isArray(data) ? data : data.services || []);
         setServiceCurrentPage(1);
       } catch (error) {
-        if (!isSilent) {
+        if (error.name !== 'AbortError' && !isSilent) {
           toast({
             variant: 'destructive',
             title: 'Failed to load services',
@@ -510,11 +561,22 @@ export default function InventoryScreen() {
     [toast]
   );
 
-
+  // Initial data fetch with AbortController
   useEffect(() => {
-    Promise.all([fetchCompanies(), fetchProducts(), fetchServices()]).catch(
-      err => console.error('Initial load error:', err)
-    );
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    Promise.all([
+      fetchCompanies(signal),
+      fetchProducts(false, signal),
+      fetchServices(false, signal)
+    ]).catch(err => {
+      if (err.name !== 'AbortError') {
+        console.error('Initial load error:', err);
+      }
+    });
+
+    return () => controller.abort();
   }, []);
 
   const fetchCompaniesSilent = useCallback(async () => {
@@ -543,15 +605,19 @@ export default function InventoryScreen() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
+    const controller = new AbortController();
+    
     Promise.all([
-      fetchCompanies(),
-      fetchProducts(),
-      fetchServices(),
+      fetchCompanies(controller.signal),
+      fetchProducts(false, controller.signal),
+      fetchServices(false, controller.signal),
       refetch ? refetch() : Promise.resolve(),
       refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
     ]).finally(() => {
       setRefreshing(false);
     });
+
+    return () => controller.abort();
   }, [
     fetchCompanies,
     fetchProducts,
@@ -561,7 +627,7 @@ export default function InventoryScreen() {
   ]);
 
   // ==========================================
-  // CRUD Operations
+  // CRUD Operations - All optimized with useCallback
   // ==========================================
   const openCreateProduct = useCallback(() => {
     setProductToEdit(null);
@@ -587,11 +653,13 @@ export default function InventoryScreen() {
     saved => {
       setIsProductFormOpen(false);
       setProductToEdit(null);
-      setProducts(prev =>
-        prev.some(p => p._id === saved._id)
-          ? prev.map(p => (p._id === saved._id ? saved : p))
-          : [saved, ...prev]
-      );
+      setProducts(prev => {
+        const exists = prev.some(p => p._id === saved._id);
+        if (exists) {
+          return prev.map(p => (p._id === saved._id ? saved : p));
+        }
+        return [saved, ...prev];
+      });
       toast({
         title: 'Product saved',
         description: 'Product has been saved successfully.',
@@ -604,11 +672,13 @@ export default function InventoryScreen() {
     saved => {
       setIsServiceFormOpen(false);
       setServiceToEdit(null);
-      setServices(prev =>
-        prev.some(s => s._id === saved._id)
-          ? prev.map(s => (s._id === saved._id ? saved : s))
-          : [saved, ...prev]
-      );
+      setServices(prev => {
+        const exists = prev.some(s => s._id === saved._id);
+        if (exists) {
+          return prev.map(s => (s._id === saved._id ? saved : s));
+        }
+        return [saved, ...prev];
+      });
       toast({
         title: 'Service saved',
         description: 'Service has been saved successfully.',
@@ -804,17 +874,6 @@ export default function InventoryScreen() {
     [lastSelectedIndex, products]
   );
 
-  const handleSelectAllProducts = useCallback(
-    checked => {
-      if (checked) {
-        setSelectedProducts(filteredProducts.map(p => p._id));
-      } else {
-        setSelectedProducts([]);
-      }
-    },
-    [filteredProducts]
-  );
-
   const handleQuantityChange = useCallback((productId, newQuantity) => {
     setBulkPrintQuantities(prev => ({
       ...prev,
@@ -822,9 +881,9 @@ export default function InventoryScreen() {
     }));
   }, []);
 
-  
-  
-  
+  // ==========================================
+  // MEMOIZED COMPUTED VALUES
+  // ==========================================
   const userAllowedCompanyIds = useMemo(() => {
     return companies.map(c => String(c._id));
   }, [companies]);
@@ -1023,7 +1082,6 @@ export default function InventoryScreen() {
     openCreateService,
   ]);
 
-
   const renderItem = useCallback(
     ({ item, index }) => {
       if (activeTab === 'products') {
@@ -1083,7 +1141,7 @@ export default function InventoryScreen() {
   ]);
 
   // ==========================================
-  // Header Component
+  // Header Component - Memoized
   // ==========================================
   const renderHeader = useCallback(() => {
     return (
@@ -1217,7 +1275,7 @@ export default function InventoryScreen() {
   ]);
 
   // ==========================================
-  // Footer Component
+  // Footer Component - Memoized
   // ==========================================
   const renderFooter = useCallback(() => {
     if (
@@ -1385,44 +1443,44 @@ export default function InventoryScreen() {
   if (companies.length === 0) {
     return (
       <SafeAreaView style={styles.safeArea}>
-          <ScrollView
-            contentContainerStyle={styles.noCompanyContainer}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                colors={['#007AFF']}
-              />
-            }
-          >
-            <View style={styles.noCompanyCard}>
-              <View style={styles.noCompanyIcon}>
-                <Icon name="business" size={32} color="#007AFF" />
-              </View>
-              <Text style={styles.noCompanyTitle}>Company Setup Required</Text>
-              <Text style={styles.noCompanyDescription}>
-                Contact us to enable your company account and access all
-                features.
-              </Text>
-              <View style={styles.noCompanyButtons}>
-                <TouchableOpacity
-                  style={styles.primaryButton}
-                  onPress={() => Linking.openURL('tel:+918989773689')}
-                >
-                  <Icon name="phone" size={20} color="white" />
-                  <Text style={styles.primaryButtonText}>+91-8989773689</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.secondaryButton}
-                  onPress={() => Linking.openURL('mailto:support@company.com')}
-                >
-                  <Icon name="email" size={20} color="#007AFF" />
-                  <Text style={styles.secondaryButtonText}>Email Us</Text>
-                </TouchableOpacity>
-              </View>
+        <ScrollView
+          contentContainerStyle={styles.noCompanyContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#007AFF']}
+            />
+          }
+        >
+          <View style={styles.noCompanyCard}>
+            <View style={styles.noCompanyIcon}>
+              <Icon name="business" size={32} color="#007AFF" />
             </View>
-          </ScrollView>
-        </SafeAreaView>
+            <Text style={styles.noCompanyTitle}>Company Setup Required</Text>
+            <Text style={styles.noCompanyDescription}>
+              Contact us to enable your company account and access all
+              features.
+            </Text>
+            <View style={styles.noCompanyButtons}>
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={() => Linking.openURL('tel:+918989773689')}
+              >
+                <Icon name="phone" size={20} color="white" />
+                <Text style={styles.primaryButtonText}>+91-8989773689</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => Linking.openURL('mailto:support@company.com')}
+              >
+                <Icon name="email" size={20} color="#007AFF" />
+                <Text style={styles.secondaryButtonText}>Email Us</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
@@ -1433,262 +1491,259 @@ export default function InventoryScreen() {
     <View style={styles.container}>
       {socket && user && (
         <InventorySocketListener
-            socket={socket}
-            user={user}
-            onProductUpdate={() => {
-              fetchProducts(true);
-              refetch?.();
-              refetchUserPermissions?.();
-            }}
-            onServiceUpdate={() => {
-              fetchServices(true);
-              refetch?.();
-              refetchUserPermissions?.();
-            }}
-          />
-        )}
-
-        
-        <FlatList
-          data={getData}
-          keyExtractor={keyExtractor}
-          renderItem={renderItem}
-          getItemLayout={getItemLayout}
-          ListHeaderComponent={renderHeader}
-          ListFooterComponent={renderFooter}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          contentContainerStyle={styles.contentContainer}
-          showsVerticalScrollIndicator={false}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          removeClippedSubviews={true}
-          updateCellsBatchingPeriod={50}
+          socket={socket}
+          user={user}
+          onProductUpdate={() => {
+            fetchProducts(true);
+            refetch?.();
+            refetchUserPermissions?.();
+          }}
+          onServiceUpdate={() => {
+            fetchServices(true);
+            refetch?.();
+            refetchUserPermissions?.();
+          }}
         />
+      )}
 
-     
-        <Modal
-          visible={isBulkPrintDialogOpen}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setIsBulkPrintDialogOpen(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.bulkPrintDialog}>
-              <View style={styles.dialogHeader}>
+      <FlatList
+        data={getData}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        getItemLayout={getItemLayout}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={true}
+        updateCellsBatchingPeriod={50}
+      />
+
+      <Modal
+        visible={isBulkPrintDialogOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsBulkPrintDialogOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.bulkPrintDialog}>
+            <View style={styles.dialogHeader}>
+              <View>
+                <Text style={styles.dialogTitle}>Print Barcode Labels</Text>
+                <Text style={styles.dialogSubtitle}>
+                  Set print quantities for {selectedProducts.length} selected
+                  products
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setIsBulkPrintDialogOpen(false)}
+                style={styles.closeButton}
+              >
+                <Icon name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryRow}>
                 <View>
-                  <Text style={styles.dialogTitle}>Print Barcode Labels</Text>
-                  <Text style={styles.dialogSubtitle}>
-                    Set print quantities for {selectedProducts.length} selected
-                    products
+                  <Text style={styles.summaryTitle}>
+                    {selectedProducts.length} Products Selected
+                  </Text>
+                  <Text style={styles.summarySubtext}>
+                    Total Labels:{' '}
+                    {Object.values(bulkPrintQuantities).reduce(
+                      (sum, qty) => sum + qty,
+                      0
+                    )}
                   </Text>
                 </View>
                 <TouchableOpacity
-                  onPress={() => setIsBulkPrintDialogOpen(false)}
-                  style={styles.closeButton}
-                >
-                  <Icon name="close" size={24} color="#64748b" />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.summaryCard}>
-                <View style={styles.summaryRow}>
-                  <View>
-                    <Text style={styles.summaryTitle}>
-                      {selectedProducts.length} Products Selected
-                    </Text>
-                    <Text style={styles.summarySubtext}>
-                      Total Labels:{' '}
-                      {Object.values(bulkPrintQuantities).reduce(
-                        (sum, qty) => sum + qty,
-                        0
-                      )}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.resetButton}
-                    onPress={() => {
-                      const newQuantities = {};
-                      selectedProducts.forEach(id => {
-                        const product = products.find(p => p._id === id);
-                        newQuantities[id] = Math.min(product?.stocks || 1, 100);
-                      });
-                      setBulkPrintQuantities(newQuantities);
-                    }}
-                  >
-                    <Text style={styles.resetButtonText}>Reset to Stock</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <ScrollView style={styles.productList}>
-                {selectedProducts.map(productId => {
-                  const product = products.find(p => p._id === productId);
-                  if (!product) return null;
-
-                  return (
-                    <View key={productId} style={styles.productListItem}>
-                      <View style={styles.productListInfo}>
-                        <Text style={styles.productListName} numberOfLines={1}>
-                          {product.name}
-                        </Text>
-                        <Text style={styles.productListMeta}>
-                          Stock: {product.stocks} | ID: {product._id}
-                        </Text>
-                      </View>
-
-                      <QuantityControl
-                        productId={productId}
-                        quantity={bulkPrintQuantities[productId] || 1}
-                        onQuantityChange={handleQuantityChange}
-                      />
-                    </View>
-                  );
-                })}
-              </ScrollView>
-
-              <View style={styles.dialogFooter}>
-                <TouchableOpacity
-                  style={styles.cancelDialogButton}
+                  style={styles.resetButton}
                   onPress={() => {
-                    setIsBulkPrintDialogOpen(false);
-                    setBulkPrintQuantities({});
+                    const newQuantities = {};
+                    selectedProducts.forEach(id => {
+                      const product = products.find(p => p._id === id);
+                      newQuantities[id] = Math.min(product?.stocks || 1, 100);
+                    });
+                    setBulkPrintQuantities(newQuantities);
                   }}
                 >
-                  <Text style={styles.cancelDialogButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.printDialogButton,
-                    isPrinting && styles.printDialogButtonDisabled,
-                  ]}
-                  onPress={handleBulkPrint}
-                  disabled={isPrinting}
-                >
-                  <Icon name="print" size={20} color="white" />
-                  <Text style={styles.printDialogButtonText}>
-                    {isPrinting ? 'Printing...' : 'Print All Labels'}
-                  </Text>
+                  <Text style={styles.resetButtonText}>Reset to Stock</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+
+            <ScrollView style={styles.productList}>
+              {selectedProducts.map(productId => {
+                const product = products.find(p => p._id === productId);
+                if (!product) return null;
+
+                return (
+                  <View key={productId} style={styles.productListItem}>
+                    <View style={styles.productListInfo}>
+                      <Text style={styles.productListName} numberOfLines={1}>
+                        {product.name}
+                      </Text>
+                      <Text style={styles.productListMeta}>
+                        Stock: {product.stocks} | ID: {product._id}
+                      </Text>
+                    </View>
+
+                    <QuantityControl
+                      productId={productId}
+                      quantity={bulkPrintQuantities[productId] || 1}
+                      onQuantityChange={handleQuantityChange}
+                    />
+                  </View>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.dialogFooter}>
+              <TouchableOpacity
+                style={styles.cancelDialogButton}
+                onPress={() => {
+                  setIsBulkPrintDialogOpen(false);
+                  setBulkPrintQuantities({});
+                }}
+              >
+                <Text style={styles.cancelDialogButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.printDialogButton,
+                  isPrinting && styles.printDialogButtonDisabled,
+                ]}
+                onPress={handleBulkPrint}
+                disabled={isPrinting}
+              >
+                <Icon name="print" size={20} color="white" />
+                <Text style={styles.printDialogButtonText}>
+                  {isPrinting ? 'Printing...' : 'Print All Labels'}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
-        </Modal>
+        </View>
+      </Modal>
 
-        {/* Product Form Dialog */}
-        <Dialog
-          open={isProductFormOpen}
-          onOpenChange={isOpen => {
-            if (!isOpen) {
-              setProductToEdit(null);
-              setIsProductFormOpen(false);
-            }
-          }}
-        >
-          <DialogContent>
-            <View>
-              <DialogHeader>
-                <DialogTitle>
-                  {productToEdit ? 'Edit Product' : 'Create New Product'}
-                </DialogTitle>
-                <DialogDescription>
-                  {productToEdit
-                    ? 'Update the product details.'
-                    : 'Fill in the form to add a new product.'}
-                </DialogDescription>
-              </DialogHeader>
-              <ScrollView>
-                <ProductForm
-                  product={productToEdit}
-                  onSuccess={onProductSaved}
-                  onClose={() => {
-                    setIsProductFormOpen(false);
-                    setProductToEdit(null);
-                  }}
-                />
-              </ScrollView>
-            </View>
-          </DialogContent>
-        </Dialog>
+      {/* Product Form Dialog */}
+      <Dialog
+        open={isProductFormOpen}
+        onOpenChange={isOpen => {
+          if (!isOpen) {
+            setProductToEdit(null);
+            setIsProductFormOpen(false);
+          }
+        }}
+      >
+        <DialogContent>
+          <View>
+            <DialogHeader>
+              <DialogTitle>
+                {productToEdit ? 'Edit Product' : 'Create New Product'}
+              </DialogTitle>
+              <DialogDescription>
+                {productToEdit
+                  ? 'Update the product details.'
+                  : 'Fill in the form to add a new product.'}
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollView>
+              <ProductForm
+                product={productToEdit}
+                onSuccess={onProductSaved}
+                onClose={() => {
+                  setIsProductFormOpen(false);
+                  setProductToEdit(null);
+                }}
+              />
+            </ScrollView>
+          </View>
+        </DialogContent>
+      </Dialog>
 
-        {/* Service Form Dialog */}
-        <Dialog
-          open={isServiceFormOpen}
-          onOpenChange={isOpen => {
-            if (!isOpen) setServiceToEdit(null);
-            setIsServiceFormOpen(isOpen);
-          }}
-        >
-          <DialogContent>
-            <View style={styles.dialogHeaderRow}>
-              <View style={styles.dialogHeaderLeft}>
-                <Text style={styles.dialogHeaderTitle}>
-                  {serviceToEdit ? 'Edit Service' : 'Create New Service'}
-                </Text>
-                <Text style={styles.dialogHeaderSubtitle}>
-                  {serviceToEdit
-                    ? 'Update service details'
-                    : 'Add new service to your records'}
-                </Text>
-              </View>
-            </View>
-
-            <ServiceForm
-              service={serviceToEdit}
-              onSuccess={onServiceSaved}
-              onClose={() => {
-                setIsServiceFormOpen(false);
-                setServiceToEdit(null);
-              }}
-              headerTitle={
-                serviceToEdit ? 'Edit Service' : 'Create New Service'
-              }
-              headerSubtitle={
-                serviceToEdit
-                  ? 'Update service details'
-                  : 'Add new service to your records'
-              }
-            />
-          </DialogContent>
-        </Dialog>
-
-        {/* Delete Confirmation Modal */}
-        <Modal
-          visible={isAlertOpen}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setIsAlertOpen(false)}
-        >
-          <View style={styles.alertOverlay}>
-            <View style={styles.alertContent}>
-              <Text style={styles.alertTitle}>Are you absolutely sure?</Text>
-              <Text style={styles.alertDescription}>
-                This action cannot be undone. This will permanently delete the{' '}
-                {productToDelete ? 'product' : 'service'}.
+      {/* Service Form Dialog */}
+      <Dialog
+        open={isServiceFormOpen}
+        onOpenChange={isOpen => {
+          if (!isOpen) setServiceToEdit(null);
+          setIsServiceFormOpen(isOpen);
+        }}
+      >
+        <DialogContent>
+          <View style={styles.dialogHeaderRow}>
+            <View style={styles.dialogHeaderLeft}>
+              <Text style={styles.dialogHeaderTitle}>
+                {serviceToEdit ? 'Edit Service' : 'Create New Service'}
               </Text>
-              <View style={styles.alertButtons}>
-                <TouchableOpacity
-                  style={[styles.alertButton, styles.alertCancelButton]}
-                  onPress={() => setIsAlertOpen(false)}
-                >
-                  <Text style={styles.alertCancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.alertButton, styles.alertConfirmButton]}
-                  onPress={handleDelete}
-                >
-                  <Text style={styles.alertConfirmButtonText}>Continue</Text>
-                </TouchableOpacity>
-              </View>
+              <Text style={styles.dialogHeaderSubtitle}>
+                {serviceToEdit
+                  ? 'Update service details'
+                  : 'Add new service to your records'}
+              </Text>
             </View>
           </View>
-        </Modal>
-      </View>
+
+          <ServiceForm
+            service={serviceToEdit}
+            onSuccess={onServiceSaved}
+            onClose={() => {
+              setIsServiceFormOpen(false);
+              setServiceToEdit(null);
+            }}
+            headerTitle={
+              serviceToEdit ? 'Edit Service' : 'Create New Service'
+            }
+            headerSubtitle={
+              serviceToEdit
+                ? 'Update service details'
+                : 'Add new service to your records'
+            }
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={isAlertOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsAlertOpen(false)}
+      >
+        <View style={styles.alertOverlay}>
+          <View style={styles.alertContent}>
+            <Text style={styles.alertTitle}>Are you absolutely sure?</Text>
+            <Text style={styles.alertDescription}>
+              This action cannot be undone. This will permanently delete the{' '}
+              {productToDelete ? 'product' : 'service'}.
+            </Text>
+            <View style={styles.alertButtons}>
+              <TouchableOpacity
+                style={[styles.alertButton, styles.alertCancelButton]}
+                onPress={() => setIsAlertOpen(false)}
+              >
+                <Text style={styles.alertCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.alertButton, styles.alertConfirmButton]}
+                onPress={handleDelete}
+              >
+                <Text style={styles.alertConfirmButtonText}>Continue</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
-
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -2440,5 +2495,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: 'white',
-  },
+  }, 
 });

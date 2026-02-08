@@ -69,7 +69,7 @@ const ClientsValidityManager = ({ onClientClick }) => {
       const data = await res.json();
 
       const list = Array.isArray(data) ? data : data.clients || [];
-      console.log('📦 Clients fetched:', list.length, 'clients');
+      
       setClients(list);
 
       setIsValidityLoading(true);
@@ -99,7 +99,7 @@ const ClientsValidityManager = ({ onClientClick }) => {
             }
 
             const json = await vr.json();
-            console.log(`✅ Validity fetched for ${c.clientUsername}:`, json);
+           
             return { id: c._id, validity: toValidity(json) };
           } catch (error) {
             console.warn(
@@ -123,8 +123,6 @@ const ClientsValidityManager = ({ onClientClick }) => {
         }
       });
 
-      // Debugging: यह log देखो कि validity data सही आ रहा है या नहीं
-      console.log('✅ Validity Map Mobile:', JSON.stringify(map, null, 2));
 
       setValidityByClient(map);
       setIsValidityLoading(false);
@@ -581,7 +579,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     paddingVertical: 12,
-    fontSize: 16,
+    fontSize: 15,
     marginLeft: 8,
     color: '#1f2937',
   },
