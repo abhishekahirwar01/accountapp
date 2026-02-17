@@ -1,4 +1,4 @@
-// Template11InvoicePDF.js - Updated with Improved Dynamic Pagination
+// Template11InvoicePDF.js - Updated with Fixed Logo Position
 import RNHTMLtoPDF from 'react-native-html-to-pdf';
 import { generatePDF } from 'react-native-html-to-pdf';
 import RNFS from 'react-native-fs';
@@ -29,17 +29,18 @@ const ESTIMATED_HEIGHTS = {
 };
 
 const COLOR = {
-  PRIMARY: '#2583C6',
+  PRIMARY: '#264653',
   TEXT: '#343a40',
-  SUB: ' rgba(3, 113, 193, 0.2)',
+  SUB: '#6c757d',
   BORDER: '#2583C6',
   BG: 'rgba(3, 113, 193, 0.2)',
-  WHITE: ' rgba(3, 113, 193, 0.2)',
+  WHITE: '#ffffff',
   BLACK: '#000000',
   LIGHT_GRAY: 'rgba(3, 113, 193, 0.2)',
+  BLUE: '#0066cc',
 };
 
-// Helper functions (same as before)
+// Helper functions
 const detectGSTIN = x => {
   if (!x) return null;
   const gstin =
@@ -98,76 +99,30 @@ const getImageBase64 = async imageUrl => {
   }
 };
 
-// IMPROVED: Split items based on available space
-const splitItemsByPageHeight = (items, estimatedFooterHeight = ESTIMATED_HEIGHTS.FOOTER) => {
-  const pages = [];
-  const headerHeight = ESTIMATED_HEIGHTS.HEADER;
-  const tableHeaderHeight = ESTIMATED_HEIGHTS.TABLE_HEADER;
-  const rowHeight = ESTIMATED_HEIGHTS.TABLE_ROW;
-  
-  // Available content height per page (excluding margins)
-  const pageContentHeight = A4_HEIGHT - 45; // 15pt top padding + 30pt bottom padding
-  
-  let currentPageItems = [];
-  let currentHeight = headerHeight + tableHeaderHeight;
-  let currentPageIndex = 0;
-  
-  items.forEach((item, index) => {
-    const isLastItem = index === items.length - 1;
-    
-    // Calculate potential height: header + table header + items so far + current item
-    let potentialHeight = currentHeight + rowHeight;
-    
-    // Only add footer height if this is the last item on what would be the last page
-    if (isLastItem) {
-      // Check if this would be the last page
-      const wouldBeLastPage = pages.length === 0 && currentPageItems.length === 0;
-      if (wouldBeLastPage) {
-        potentialHeight += estimatedFooterHeight;
-      }
-    }
-    
-    if (potentialHeight > pageContentHeight) {
-      // Start new page with current item
-      if (currentPageItems.length > 0) {
-        pages.push([...currentPageItems]);
-      }
-      currentPageItems = [item];
-      currentHeight = headerHeight + tableHeaderHeight + rowHeight;
-      currentPageIndex++;
-    } else {
-      // Add to current page
-      currentPageItems.push(item);
-      currentHeight += rowHeight;
-    }
-  });
-  
-  // Add the last page if it has items
-  if (currentPageItems.length > 0) {
-    pages.push(currentPageItems);
-  }
-  
-  return pages;
-};
-
-// Alternative: Calculate max items per page based on remaining space
-const calculateMaxItemsPerPage = (estimatedFooterHeight = ESTIMATED_HEIGHTS.FOOTER) => {
+// Calculate max items per page based on remaining space
+const calculateMaxItemsPerPage = (
+  estimatedFooterHeight = ESTIMATED_HEIGHTS.FOOTER,
+) => {
   const headerHeight = ESTIMATED_HEIGHTS.HEADER;
   const tableHeaderHeight = ESTIMATED_HEIGHTS.TABLE_HEADER;
   const rowHeight = ESTIMATED_HEIGHTS.TABLE_ROW;
   const pageContentHeight = A4_HEIGHT - 45;
-  
+
   // For intermediate pages (no footer)
   const spaceForItems = pageContentHeight - headerHeight - tableHeaderHeight;
   const maxItemsIntermediate = Math.floor(spaceForItems / rowHeight);
-  
+
   // For last page (with footer)
-  const spaceForItemsWithFooter = pageContentHeight - headerHeight - tableHeaderHeight - estimatedFooterHeight;
+  const spaceForItemsWithFooter =
+    pageContentHeight -
+    headerHeight -
+    tableHeaderHeight -
+    estimatedFooterHeight;
   const maxItemsLastPage = Math.floor(spaceForItemsWithFooter / rowHeight);
-  
+
   return {
     maxItemsIntermediate,
-    maxItemsLastPage
+    maxItemsLastPage,
   };
 };
 
@@ -180,8 +135,6 @@ export const generatePdfForTemplate11 = async (
   opts,
   bank,
 ) => {
-  // ... (keep all setup code the same until after calcRows calculation)
-  
   const shouldHideBankDetails = transaction.type === 'proforma';
 
   const bankData = bank || transaction?.bank || {};
@@ -293,7 +246,9 @@ export const generatePdfForTemplate11 = async (
       email: company?.emailId || '',
       phone: company?.mobileNumber || '',
       gstin: companyGSTIN,
-      logoUrl: opts?.logoUrl || company?.logoUrl || '',
+      logoUrl: company?.logo
+        ? `${BASE_URL}${company.logo}`
+        : opts?.logoUrl || '',
       state: company?.addressState || '-',
       stampDataUrl: company?.stampDataUrl || '',
     },
@@ -323,64 +278,83 @@ export const generatePdfForTemplate11 = async (
   // Calculate estimated footer height based on content
   let estimatedFooterHeight = ESTIMATED_HEIGHTS.FOOTER;
   if (invoiceData.notes && invoiceData.notes.length > 200) {
-    estimatedFooterHeight += 50; // Extra space for long notes
+    estimatedFooterHeight += 50;
   }
   if (!shouldHideBankDetails && isBankDetailAvailable) {
-    estimatedFooterHeight += 30; // Extra space for bank details
+    estimatedFooterHeight += 30;
   }
 
-  // NEW IMPROVED APPROACH: Calculate exact number of items that can fit
-  const { maxItemsIntermediate, maxItemsLastPage } = calculateMaxItemsPerPage(estimatedFooterHeight);
-  
+  // Calculate exact number of items that can fit
+  const { maxItemsIntermediate, maxItemsLastPage } = calculateMaxItemsPerPage(
+    estimatedFooterHeight,
+  );
+
   // Split items intelligently
   const itemPages = [];
   let remainingItems = [...calcRows];
   let pageIndex = 0;
-  
+
   while (remainingItems.length > 0) {
     const isLastPage = remainingItems.length <= maxItemsLastPage;
-    const maxItemsThisPage = isLastPage ? maxItemsLastPage : maxItemsIntermediate;
-    
+    const maxItemsThisPage = isLastPage
+      ? maxItemsLastPage
+      : maxItemsIntermediate;
+
     const itemsForThisPage = remainingItems.slice(0, maxItemsThisPage);
     itemPages.push(itemsForThisPage);
-    
+
     remainingItems = remainingItems.slice(maxItemsThisPage);
     pageIndex++;
-    
-    // If we have items left but they won't fit on a last page with footer,
-    // we need to create an intermediate page first
-    if (remainingItems.length > 0 && remainingItems.length <= maxItemsLastPage) {
-      // Check if we should move some items from previous page to make room
+
+    if (
+      remainingItems.length > 0 &&
+      remainingItems.length <= maxItemsLastPage
+    ) {
       const totalItems = calcRows.length;
       const itemsSoFar = itemPages.flat().length;
-      
+
       if (itemsSoFar < totalItems) {
-        // We still have items, but they need to fit on a page with footer
-        // Let the algorithm continue to create another page
+        // Continue to create another page
       }
     }
   }
-  
+
   const totalPages = itemPages.length;
 
-  // Generate header HTML (same as before)
+  // Generate header HTML - FIXED LOGO POSITION matching TypeScript template
   const generateHeaderHTML = () => {
+    // Company address formatting
+    const addr = (company?.address || '').trim();
+    const stateText = company?.addressState ? `, ${company.addressState}` : '';
+    const baseAddressText = addr + stateText;
+
     return `
       <div class="page-header">
         <div class="header-content">
-          <div class="company-info">
-            <div class="company-name">${capitalizeWords(invoiceData.company.name || '')}</div>
-            <div class="company-address">
-              ${invoiceData.company.address}
-              ${invoiceData.company.state ? ', ' + invoiceData.company.state : ''}<br/>
-              <strong>Phone No:</strong> ${formatPhoneNumber(invoiceData.company.phone || '')}
-            </div>
-          </div>
           ${
             invoiceData.company.logoUrl
-              ? `<img src="${invoiceData.company.logoUrl}" class="logo" alt="Logo"/>`
+              ? `<div class="logo-wrapper">
+                   <img src="${invoiceData.company.logoUrl}" class="logo" alt="Logo"/>
+                 </div>`
               : ''
           }
+          <div class="company-info">
+            <div class="company-name">${capitalizeWords(
+              (invoiceData.company.name || '').toUpperCase(),
+            )}</div>
+            <div class="company-address">
+              ${baseAddressText}
+            </div>
+            ${
+              invoiceData.company.phone
+                ? `<div class="company-phone">
+                     <strong>Phone No:</strong> ${formatPhoneNumber(
+                       invoiceData.company.phone,
+                     )}
+                   </div>`
+                : ''
+            }
+          </div>
         </div>
         <div class="invoice-header-bar">
           <span>GSTIN: ${invoiceData.company.gstin || '-'}</span>
@@ -399,8 +373,12 @@ export const generatePdfForTemplate11 = async (
           <div class="info-col">
             <div class="col-header">Details of Buyer | Billed to :</div>
             <div class="col-content">
-              <div class="info-row"><span class="label">Name:</span> ${invoiceData.billTo.name}</div>
-              <div class="info-row"><span class="label">Address:</span> ${invoiceData.billTo.billing}</div>
+              <div class="info-row"><span class="label">Name:</span> ${
+                invoiceData.billTo.name
+              }</div>
+              <div class="info-row"><span class="label">Address:</span> ${
+                invoiceData.billTo.billing
+              }</div>
               <div class="info-row"><span class="label">Phone:</span> ${
                 partyPhone !== '-' ? formatPhoneNumber(partyPhone) : '-'
               }</div>
@@ -424,7 +402,7 @@ export const generatePdfForTemplate11 = async (
                 invoiceData.billTo.shipping || invoiceData.billTo.billing || '-'
               }</div>
               <div class="info-row"><span class="label">Country:</span> ${capitalizeWords(
-                shippingAddress?.country || party?.country ,
+                shippingAddress?.country || party?.country || '',
               )}</div>
               <div class="info-row"><span class="label">Phone:</span> ${
                 shippingAddress?.contactNumber
@@ -443,7 +421,9 @@ export const generatePdfForTemplate11 = async (
           </div>
           
           <div class="info-col">
-            <div  style="height: 10%; padding: 10.5px 6px; font-weight: bold; font-size: 9pt; border-bottom: 1px solid ${COLOR.BORDER};"></div>
+            <div  style="height: 10%; padding: 10.5px 6px; font-weight: bold; font-size: 9pt; border-bottom: 1px solid ${
+              COLOR.BORDER
+            };"></div>
             <div class="col-content">
               <div class="meta-row"><span class="label">Invoice No:</span> <span>${
                 invoiceData.invoiceNumber
@@ -478,7 +458,7 @@ export const generatePdfForTemplate11 = async (
     `;
   };
 
-  // Generate table headers (same as before)
+  // Generate table headers
   const generateTableHeaders = () => {
     if (shouldShowIGSTColumns) {
       return `<tr style="background:${COLOR.BG}">
@@ -518,97 +498,224 @@ export const generatePdfForTemplate11 = async (
     </tr>`;
   };
 
-  // Generate table rows (same as before)
+  // Generate table rows
   const generateTableRows = (pageRows, startingSerial = 1) =>
     pageRows
       .map((r, i) => {
         const qtyDisplay =
           typeof r.qty === 'string' ? r.qty : formatQuantity(r.qty, r.unit);
         const srNo = startingSerial + i;
-        
+
         if (shouldShowIGSTColumns) {
           return `<tr>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${srNo}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:left;font-size:8pt;">${r.desc}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${r.hsn}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${qtyDisplay}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.rate)}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.taxable)}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${(r.gstPct || 0).toFixed(2)}%</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.igst)}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.total)}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${srNo}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:left;font-size:8pt;">${r.desc}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${r.hsn}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${qtyDisplay}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${money(
+            r.rate,
+          )}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${money(
+            r.taxable,
+          )}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${(
+            r.gstPct || 0
+          ).toFixed(2)}%</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${money(
+            r.igst,
+          )}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${money(
+            r.total,
+          )}</td>
           </tr>`;
         } else if (shouldShowCGSTSGSTColumns) {
           const halfPct = ((r.gstPct || 0) / 2).toFixed(2);
           return `<tr>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${srNo}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:left;font-size:8pt;">${r.desc}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${r.hsn}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${qtyDisplay}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.rate)}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.taxable)}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${halfPct}%</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.cgst)}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${halfPct}%</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.sgst)}</td>
-            <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.total)}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${srNo}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:left;font-size:8pt;">${r.desc}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${r.hsn}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${qtyDisplay}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${money(
+            r.rate,
+          )}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${money(
+            r.taxable,
+          )}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${halfPct}%</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${money(
+            r.cgst,
+          )}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${halfPct}%</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${money(
+            r.sgst,
+          )}</td>
+            <td style="border:1px solid ${
+              COLOR.BORDER
+            };padding:2px 3px;text-align:center;font-size:8pt;">${money(
+            r.total,
+          )}</td>
           </tr>`;
         }
         return `<tr>
-          <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${srNo}</td>
-          <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:left;font-size:8pt;">${r.desc}</td>
-          <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${r.hsn}</td>
-          <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${qtyDisplay}</td>
-          <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.rate)}</td>
-          <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.taxable)}</td>
-          <td style="border:1px solid ${COLOR.BORDER};padding:2px 3px;text-align:center;font-size:8pt;">${money(r.total)}</td>
+          <td style="border:1px solid ${
+            COLOR.BORDER
+          };padding:2px 3px;text-align:center;font-size:8pt;">${srNo}</td>
+          <td style="border:1px solid ${
+            COLOR.BORDER
+          };padding:2px 3px;text-align:left;font-size:8pt;">${r.desc}</td>
+          <td style="border:1px solid ${
+            COLOR.BORDER
+          };padding:2px 3px;text-align:center;font-size:8pt;">${r.hsn}</td>
+          <td style="border:1px solid ${
+            COLOR.BORDER
+          };padding:2px 3px;text-align:center;font-size:8pt;">${qtyDisplay}</td>
+          <td style="border:1px solid ${
+            COLOR.BORDER
+          };padding:2px 3px;text-align:center;font-size:8pt;">${money(
+          r.rate,
+        )}</td>
+          <td style="border:1px solid ${
+            COLOR.BORDER
+          };padding:2px 3px;text-align:center;font-size:8pt;">${money(
+          r.taxable,
+        )}</td>
+          <td style="border:1px solid ${
+            COLOR.BORDER
+          };padding:2px 3px;text-align:center;font-size:8pt;">${money(
+          r.total,
+        )}</td>
         </tr>`;
       })
       .join('');
 
-  // Generate table footer (same as before)
+  // Generate table footer
   const generateTableFooter = () => {
     if (shouldShowIGSTColumns) {
       return `<tr style="font-weight:bold;background:#f8f9fa;">
-        <td colspan="5" style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:left;">Total</td>
-        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(totalTaxableValue)}</td>
+        <td colspan="5" style="border:1px solid ${
+          COLOR.BORDER
+        };padding:4px;text-align:left;">Total</td>
+        <td style="border:1px solid ${
+          COLOR.BORDER
+        };padding:4px;text-align:center;">${money(totalTaxableValue)}</td>
         <td style="border:1px solid ${COLOR.BORDER};padding:4px;"></td>
-        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(sumIGST)}</td>
-        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(invoiceTotalAmount)}</td>
+        <td style="border:1px solid ${
+          COLOR.BORDER
+        };padding:4px;text-align:center;">${money(sumIGST)}</td>
+        <td style="border:1px solid ${
+          COLOR.BORDER
+        };padding:4px;text-align:center;">${money(invoiceTotalAmount)}</td>
       </tr>`;
     } else if (shouldShowCGSTSGSTColumns) {
       return `<tr style="font-weight:bold;background:#f8f9fa;">
-        <td colspan="5" style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:left;">Total</td>
-        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(totalTaxableValue)}</td>
+        <td colspan="5" style="border:1px solid ${
+          COLOR.BORDER
+        };padding:4px;text-align:left;">Total</td>
+        <td style="border:1px solid ${
+          COLOR.BORDER
+        };padding:4px;text-align:center;">${money(totalTaxableValue)}</td>
         <td style="border:1px solid ${COLOR.BORDER};padding:4px;"></td>
-        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(sumCGST)}</td>
+        <td style="border:1px solid ${
+          COLOR.BORDER
+        };padding:4px;text-align:center;">${money(sumCGST)}</td>
         <td style="border:1px solid ${COLOR.BORDER};padding:4px;"></td>
-        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(sumSGST)}</td>
-        <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(invoiceTotalAmount)}</td>
+        <td style="border:1px solid ${
+          COLOR.BORDER
+        };padding:4px;text-align:center;">${money(sumSGST)}</td>
+        <td style="border:1px solid ${
+          COLOR.BORDER
+        };padding:4px;text-align:center;">${money(invoiceTotalAmount)}</td>
       </tr>`;
     }
     return `<tr style="font-weight:bold;background:#f8f9fa;">
-      <td colspan="5" style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:left;">Total</td>
-      <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(totalTaxableValue)}</td>
-      <td style="border:1px solid ${COLOR.BORDER};padding:4px;text-align:center;">${money(invoiceTotalAmount)}</td>
+      <td colspan="5" style="border:1px solid ${
+        COLOR.BORDER
+      };padding:4px;text-align:left;">Total</td>
+      <td style="border:1px solid ${
+        COLOR.BORDER
+      };padding:4px;text-align:center;">${money(totalTaxableValue)}</td>
+      <td style="border:1px solid ${
+        COLOR.BORDER
+      };padding:4px;text-align:center;">${money(invoiceTotalAmount)}</td>
     </tr>`;
   };
 
-  // Tax summary (same as before)
+  // Tax summary
   const taxSummaryRows = shouldShowIGSTColumns
-    ? `<tr><td style="padding:3px 0;">Taxable Amount</td><td style="text-align:right;padding:3px 0;">Rs ${money(totalTaxableValue)}</td></tr>
-       <tr><td style="padding:3px 0;">Add: IGST</td><td style="text-align:right;padding:3px 0;">Rs ${money(sumIGST)}</td></tr>
-       <tr><td style="padding:3px 0;font-weight:bold;">Total Tax</td><td style="text-align:right;padding:3px 0;font-weight:bold;">Rs ${money(sumIGST)}</td></tr>`
+    ? `<tr><td style="padding:3px 0;">Taxable Amount</td><td style="text-align:right;padding:3px 0;">Rs ${money(
+        totalTaxableValue,
+      )}</td></tr>
+       <tr><td style="padding:3px 0;">Add: IGST</td><td style="text-align:right;padding:3px 0;">Rs ${money(
+         sumIGST,
+       )}</td></tr>
+       <tr><td style="padding:3px 0;font-weight:bold;">Total Tax</td><td style="text-align:right;padding:3px 0;font-weight:bold;">Rs ${money(
+         sumIGST,
+       )}</td></tr>`
     : shouldShowCGSTSGSTColumns
-    ? `<tr><td style="padding:3px 0;">Taxable Amount</td><td style="text-align:right;padding:3px 0;">Rs ${money(totalTaxableValue)}</td></tr>
-       <tr><td style="padding:3px 0;">Add: CGST</td><td style="text-align:right;padding:3px 0;">Rs ${money(sumCGST)}</td></tr>
-       <tr><td style="padding:3px 0;">Add: SGST</td><td style="text-align:right;padding:3px 0;">Rs ${money(sumSGST)}</td></tr>
-       <tr><td style="padding:3px 0;font-weight:bold;">Total Tax</td><td style="text-align:right;padding:3px 0;font-weight:bold;">Rs ${money(sumCGST + sumSGST)}</td></tr>`
-    : `<tr><td style="padding:3px 0;">Taxable Amount</td><td style="text-align:right;padding:3px 0;">Rs ${money(totalTaxableValue)}</td></tr>
-       <tr><td style="padding:3px 0;font-weight:bold;">Total Tax</td><td style="text-align:right;padding:3px 0;font-weight:bold;">Rs ${money(0)}</td></tr>`;
+    ? `<tr><td style="padding:3px 0;">Taxable Amount</td><td style="text-align:right;padding:3px 0;">Rs ${money(
+        totalTaxableValue,
+      )}</td></tr>
+       <tr><td style="padding:3px 0;">Add: CGST</td><td style="text-align:right;padding:3px 0;">Rs ${money(
+         sumCGST,
+       )}</td></tr>
+       <tr><td style="padding:3px 0;">Add: SGST</td><td style="text-align:right;padding:3px 0;">Rs ${money(
+         sumSGST,
+       )}</td></tr>
+       <tr><td style="padding:3px 0;font-weight:bold;">Total Tax</td><td style="text-align:right;padding:3px 0;font-weight:bold;">Rs ${money(
+         sumCGST + sumSGST,
+       )}</td></tr>`
+    : `<tr><td style="padding:3px 0;">Taxable Amount</td><td style="text-align:right;padding:3px 0;">Rs ${money(
+        totalTaxableValue,
+      )}</td></tr>
+       <tr><td style="padding:3px 0;font-weight:bold;">Total Tax</td><td style="text-align:right;padding:3px 0;font-weight:bold;">Rs ${money(
+         0,
+       )}</td></tr>`;
 
   // Generate page HTML with improved logic
-  const generatePageHTML = (pageRows, pageIndex, isLastPage, startingSerial = 1) => {
+  const generatePageHTML = (
+    pageRows,
+    pageIndex,
+    isLastPage,
+    startingSerial = 1,
+  ) => {
     return `
       <div class="page">
         ${generateHeaderHTML()}
@@ -657,12 +764,12 @@ export const generatePdfForTemplate11 = async (
                   }
                   ${
                     bankData.upiDetails?.upiId
-                      ? `<div class="bank-row"><span class="label">UPI Mobile:</span> ${bankData.upiDetails?.upiId}</div>`
+                      ? `<div class="bank-row"><span class="label">UPI ID:</span> ${bankData.upiDetails?.upiId}</div>`
                       : ''
                   }
                   ${
                     bankData.upiDetails?.upiName
-                      ? `<div class="bank-row"><span class="label">UPI Mobile:</span> ${bankData.upiDetails?.upiName}</div>`
+                      ? `<div class="bank-row"><span class="label">UPI Name:</span> ${bankData.upiDetails?.upiName}</div>`
                       : ''
                   }
                   ${
@@ -675,7 +782,7 @@ export const generatePdfForTemplate11 = async (
                     bankData.qrCode
                       ? `<div style="margin-top:10px;text-align:center;">
                            <div style="font-weight:bold;font-size:9pt;margin-bottom:5px;">QR Code</div>
-                           <img src="${BASE_URL}${bankData.qrCode}" style="width:70px;height:70px;object-fit:contain;" />
+                           <img src="${BASE_URL}/${bankData.qrCode}" style="width:70px;height:70px;object-fit:contain;" />
                          </div>`
                       : ''
                   }
@@ -702,7 +809,9 @@ export const generatePdfForTemplate11 = async (
                 ${taxSummaryRows}
                 <tr class="total-row">
                   <td style="padding:8px 0;">Total Amount After Tax :</td>
-                  <td style="text-align:right;padding:8px 0;">Rs. ${money(invoiceTotalAmount)}</td>
+                  <td style="text-align:right;padding:8px 0;">Rs. ${money(
+                    invoiceTotalAmount,
+                  )}</td>
                 </tr>
               </table>
             </div>
@@ -743,22 +852,21 @@ export const generatePdfForTemplate11 = async (
   // Build all pages with correct serial numbers
   const allPagesHTML = itemPages
     .map((pageRows, pageIndex) => {
-      // Calculate starting serial number for this page
       let startingSerial = 1;
       for (let i = 0; i < pageIndex; i++) {
         startingSerial += itemPages[i].length;
       }
-      
+
       return generatePageHTML(
-        pageRows, 
-        pageIndex, 
+        pageRows,
+        pageIndex,
         pageIndex === totalPages - 1,
-        startingSerial
+        startingSerial,
       );
     })
     .join('');
 
-  // Complete HTML (same as before)
+  // Complete HTML with FIXED logo styles
   const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -807,34 +915,63 @@ export const generatePdfForTemplate11 = async (
       margin-bottom: 8px;
     }
     
+    /* Header content with logo on LEFT side */
     .header-content {
       display: flex;
-      justify-content: space-between;
       align-items: flex-start;
       margin-bottom: 4px;
+      position: relative;
+      min-height: 60px;
+    }
+    
+    /* Logo wrapper - positioned on LEFT */
+    .logo-wrapper {
+      width: 60px;
+      height: 60px;
+      margin-right: 10px;
+      margin-top: 4px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+    }
+    
+    .logo { 
+      width: 60px; 
+      height: 56px; 
+      object-fit: contain;
+      display: block;
     }
     
     .company-info { 
       flex: 1;
-      margin-right: 10px;
+      display: flex;
+      flex-direction: column;
     }
     
     .company-name { 
-      font-size: 13pt; 
+      font-size: 16pt; 
       font-weight: bold; 
       text-transform: uppercase;
-      margin-bottom: 2px;
+      margin-bottom: 4px;
+      color: ${COLOR.PRIMARY};
     }
     
     .company-address { 
-      font-size: 8pt; 
-      line-height: 1.1;
+      font-size: 9pt; 
+      line-height: 1.3;
+      color: ${COLOR.SUB};
+      margin-bottom: 4px;
     }
     
-    .logo { 
-      width: 50px; 
-      height: 50px; 
-      object-fit: contain; 
+    .company-phone {
+      font-size: 9pt;
+      line-height: 1.3;
+      color: ${COLOR.SUB};
+    }
+    
+    .company-phone strong {
+      font-weight: bold;
     }
     
     .invoice-header-bar {
@@ -842,11 +979,12 @@ export const generatePdfForTemplate11 = async (
       justify-content: space-between;
       align-items: center;
       font-weight: bold;
-      font-size: 9pt;
-      margin-top: 4px;
-      padding: 4px 6px;
-      border: 1px solid ${COLOR.BORDER};
-      margin-bottom: 8px;
+      font-size: 11pt;
+      margin-top: 0px;
+      padding: 8px 6px;
+      border-top: 1px solid ${COLOR.BLUE};
+      border-bottom: 1px solid ${COLOR.BLUE};
+      margin-bottom: 0px;
     }
     
     .info-grid {
@@ -854,14 +992,14 @@ export const generatePdfForTemplate11 = async (
       width: 100%;
       border-collapse: collapse;
       margin-bottom: 8px;
-      border: 1px solid ${COLOR.BORDER};
+      border: 1px solid ${COLOR.BLUE};
     }
     
     .info-col {
       display: table-cell;
       width: 33.33%;
       vertical-align: top;
-      border-right: 1px solid ${COLOR.BORDER};
+      border-right: 1px solid ${COLOR.BLUE};
     }
     
     .info-col:last-child {
@@ -869,37 +1007,50 @@ export const generatePdfForTemplate11 = async (
     }
     
     .col-header {
-      padding: 3px 6px;
+      padding: 8px 6px;
       font-weight: bold;
-      font-size: 9pt;
-      border-bottom: 1px solid ${COLOR.BORDER};
-      text-align: center;
+      font-size: 10pt;
+      border-bottom: 1px solid ${COLOR.BLUE};
+      text-align: left;
     }
     
     .col-content {
-      padding: 6px;
-      font-size: 8pt;
+      padding: 10px 6px;
+      font-size: 9pt;
     }
     
     .info-row {
-      margin-bottom: 3px;
+      margin-bottom: 8px;
       display: flex;
+      line-height: 1.4;
     }
     
     .info-row .label {
       font-weight: bold;
-      min-width: 70px;
+      min-width: 95px;
+      flex-shrink: 0;
+    }
+    
+    .info-row span:not(.label) {
+      flex: 1;
     }
     
     .meta-row {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 3px;
-      font-size: 8pt;
+      margin-bottom: 10px;
+      font-size: 9pt;
+      font-weight: bold;
     }
     
     .meta-row .label {
       font-weight: bold;
+      text-align: left;
+    }
+    
+    .meta-row span:not(.label) {
+      font-weight: normal;
+      text-align: right;
     }
     
     table.items {
@@ -910,22 +1061,27 @@ export const generatePdfForTemplate11 = async (
     }
     
     table.items th, table.items td {
-      border: 1px solid ${COLOR.BORDER};
-      padding: 2px 3px;
+      border: 1px solid ${COLOR.BLUE};
+      padding: 3px 4px;
       vertical-align: top;
       text-align: center;
-      line-height: 1.2;
+      line-height: 1.3;
     }
     
     table.items th {
       font-weight: bold;
       font-size: 8pt;
+      background-color: rgba(200, 225, 255, 1);
+    }
+    
+    table.items td:nth-child(2) {
+      text-align: left;
     }
     
     .footer-grid {
       display: table;
       width: 100%;
-      border: 1px solid ${COLOR.BORDER};
+      border: 1px solid ${COLOR.BLUE};
       border-collapse: collapse;
       table-layout: fixed;
     }
@@ -934,7 +1090,7 @@ export const generatePdfForTemplate11 = async (
       display: table-cell;
       width: 60%;
       vertical-align: top;
-      border-right: 1px solid ${COLOR.BORDER};
+      border-right: 1px solid ${COLOR.BLUE};
       padding: 0;
     }
     
@@ -946,18 +1102,19 @@ export const generatePdfForTemplate11 = async (
     }
     
     .section-header {
-      background: ${COLOR.LIGHT_GRAY};
-      padding: 3px 6px;
+      background: rgba(200, 225, 255, 1);
+      padding: 8px 6px;
       font-weight: bold;
-      font-size: 9pt;
-      border-bottom: 1px solid ${COLOR.BORDER};
+      font-size: 10pt;
+      border-bottom: 1px solid ${COLOR.BLUE};
       margin: 0;
+      text-align: center;
     }
     
     .section-content {
-      padding: 6px;
-      border-bottom: 1px solid ${COLOR.BORDER};
-      font-size: 8pt;
+      padding: 10px;
+      border-bottom: 1px solid ${COLOR.BLUE};
+      font-size: 9pt;
     }
     
     .section-content:last-child {
@@ -982,34 +1139,35 @@ export const generatePdfForTemplate11 = async (
     
     .tax-table {
       width: 100%;
-      font-size: 8pt;
+      font-size: 9pt;
     }
     
     .tax-table td {
-      padding: 2px 0;
+      padding: 4px 0;
     }
     
     .total-row {
       font-weight: bold;
-      border-top: 2px solid ${COLOR.BORDER};
-      padding-top: 6px;
-      margin-top: 6px;
+      border-top: 2px solid ${COLOR.BLUE};
+      padding-top: 8px;
+      margin-top: 8px;
     }
     
     .signature-section {
       text-align: center;
-      padding: 10px 6px 6px 6px;
-      border-top: 1px solid ${COLOR.BORDER};
+      padding: 15px 6px 6px 6px;
+      border-top: 1px solid ${COLOR.BLUE};
       margin: 0;
     }
     
     .signature-line {
-      border-top: 1px solid ${COLOR.BORDER};
-      margin-top: 40px;
-      padding-top: 4px;
+      border-top: 1px solid ${COLOR.BLUE};
+      margin-top: 50px;
+      padding-top: 6px;
       width: 80%;
       margin-left: auto;
       margin-right: auto;
+      font-size: 9pt;
     }
     
     .terms-section {
@@ -1017,12 +1175,6 @@ export const generatePdfForTemplate11 = async (
       font-size: 7pt;
       line-height: 1.2;
       margin-left: 10px;
-    }
-    
-    .terms-title {
-      font-weight: bold;
-      margin-bottom: 4px;
-      font-size: 8pt;
     }
     
     .watermark {
@@ -1034,14 +1186,6 @@ export const generatePdfForTemplate11 = async (
       transform: rotate(-45deg);
       z-index: -1;
       font-weight: bold;
-    }
-    
-    .footer-note {
-      font-size: 7pt;
-      text-align: center;
-      margin-top: 6px;
-      margin-bottom: 15px;
-      color: #666;
     }
     
     .page-number {

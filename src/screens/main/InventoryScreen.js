@@ -88,7 +88,7 @@ const formatDate = dateString => {
 const ProductCard = memo(
   ({ item, index, isSelected, onSelect, onEdit }) => {
     const isLowStock = (item.stocks ?? 0) <= 10;
-    
+
     // Memoize company name extraction
     const companyName = useMemo(() => {
       return typeof item.company === 'object' && item.company
@@ -115,12 +115,12 @@ const ProductCard = memo(
             >
               <Icon
                 name={isSelected ? 'check-box' : 'check-box-outline-blank'}
-                size={24}
+                size={16}
                 color={isSelected ? '#3b82f6' : '#64748b'}
               />
             </TouchableOpacity>
             <View style={styles.iconCircle}>
-              <Icon name="inventory-2" size={20} color="#3b82f6" />
+              <Icon name="inventory-2" size={18} color="#3b82f6" />
             </View>
             <View style={styles.productDetails}>
               <Text style={styles.productName} numberOfLines={1}>
@@ -195,8 +195,8 @@ const ProductCard = memo(
               stockQuantity={item.stocks}
             />
           </View>
-          <TouchableOpacity 
-            style={styles.editButton} 
+          <TouchableOpacity
+            style={styles.editButton}
             onPress={handleEdit}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
@@ -218,7 +218,7 @@ const ProductCard = memo(
       prevProps.item.unit === nextProps.item.unit &&
       prevProps.item.hsn === nextProps.item.hsn
     );
-  }
+  },
 );
 
 ProductCard.displayName = 'ProductCard';
@@ -299,7 +299,7 @@ const ServiceCard = memo(
       prevProps.item.sac === nextProps.item.sac &&
       prevProps.item.serviceName === nextProps.item.serviceName
     );
-  }
+  },
 );
 
 ServiceCard.displayName = 'ServiceCard';
@@ -323,7 +323,7 @@ const QuantityControl = memo(({ productId, quantity, onQuantityChange }) => {
       val = Math.max(1, Math.min(100, val));
       onQuantityChange(productId, val);
     },
-    [productId, onQuantityChange]
+    [productId, onQuantityChange],
   );
 
   return (
@@ -419,7 +419,11 @@ export default function InventoryScreen() {
       userCaps?.canCreateProducts ?? userCaps?.canCreateInventory ?? false;
     const webCanCreate = permissions?.canCreateProducts ?? false;
     return canCreateProducts || webCanCreate;
-  }, [userCaps?.canCreateProducts, userCaps?.canCreateInventory, permissions?.canCreateProducts]);
+  }, [
+    userCaps?.canCreateProducts,
+    userCaps?.canCreateInventory,
+    permissions?.canCreateProducts,
+  ]);
 
   // Load user data once on mount
   useEffect(() => {
@@ -441,7 +445,7 @@ export default function InventoryScreen() {
   useFocusEffect(
     React.useCallback(() => {
       triggerCompaniesRefresh();
-    }, [triggerCompaniesRefresh])
+    }, [triggerCompaniesRefresh]),
   );
 
   // Initialize bulk print quantities - optimized with useMemo
@@ -468,32 +472,35 @@ export default function InventoryScreen() {
   // ==========================================
   // Fetch functions - Optimized with AbortController
   // ==========================================
-  const fetchCompanies = useCallback(async (signal) => {
-    setIsLoadingCompanies(true);
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('Authentication token not found.');
+  const fetchCompanies = useCallback(
+    async signal => {
+      setIsLoadingCompanies(true);
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) throw new Error('Authentication token not found.');
 
-      const res = await fetch(`${BASE_URL}/api/companies/my`, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal,
-      });
-      if (!res.ok) throw new Error('Failed to fetch companies.');
-      const data = await res.json();
-      setCompanies(Array.isArray(data) ? data : data.companies || []);
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error(err);
-        toast({
-          variant: 'destructive',
-          title: 'Failed to load companies',
-          description: err.message || 'Something went wrong.',
+        const res = await fetch(`${BASE_URL}/api/companies/my`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal,
         });
+        if (!res.ok) throw new Error('Failed to fetch companies.');
+        const data = await res.json();
+        setCompanies(Array.isArray(data) ? data : data.companies || []);
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error(err);
+          toast({
+            variant: 'destructive',
+            title: 'Failed to load companies',
+            description: err.message || 'Something went wrong.',
+          });
+        }
+      } finally {
+        setIsLoadingCompanies(false);
       }
-    } finally {
-      setIsLoadingCompanies(false);
-    }
-  }, [toast]);
+    },
+    [toast],
+  );
 
   const fetchProducts = useCallback(
     async (isSilent = false, signal) => {
@@ -527,7 +534,7 @@ export default function InventoryScreen() {
         if (!isSilent) setIsLoadingProducts(false);
       }
     },
-    [toast, selectedCompanyId]
+    [toast, selectedCompanyId],
   );
 
   const fetchServices = useCallback(
@@ -558,7 +565,7 @@ export default function InventoryScreen() {
         if (!isSilent) setIsLoadingServices(false);
       }
     },
-    [toast]
+    [toast],
   );
 
   // Initial data fetch with AbortController
@@ -569,7 +576,7 @@ export default function InventoryScreen() {
     Promise.all([
       fetchCompanies(signal),
       fetchProducts(false, signal),
-      fetchServices(false, signal)
+      fetchServices(false, signal),
     ]).catch(err => {
       if (err.name !== 'AbortError') {
         console.error('Initial load error:', err);
@@ -598,7 +605,10 @@ export default function InventoryScreen() {
   useEffect(() => {
     if (refreshTrigger && refreshTrigger > 0) {
       fetchCompaniesSilent().catch(err =>
-        console.error('Inventory fetchCompaniesSilent after trigger failed:', err)
+        console.error(
+          'Inventory fetchCompaniesSilent after trigger failed:',
+          err,
+        ),
       );
     }
   }, [refreshTrigger, fetchCompaniesSilent]);
@@ -606,7 +616,7 @@ export default function InventoryScreen() {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     const controller = new AbortController();
-    
+
     Promise.all([
       fetchCompanies(controller.signal),
       fetchProducts(false, controller.signal),
@@ -665,7 +675,7 @@ export default function InventoryScreen() {
         description: 'Product has been saved successfully.',
       });
     },
-    [toast]
+    [toast],
   );
 
   const onServiceSaved = useCallback(
@@ -684,7 +694,7 @@ export default function InventoryScreen() {
         description: 'Service has been saved successfully.',
       });
     },
-    [toast]
+    [toast],
   );
 
   const confirmDeleteProduct = useCallback(p => {
@@ -710,7 +720,7 @@ export default function InventoryScreen() {
           {
             method: 'DELETE',
             headers: { Authorization: `Bearer ${token}` },
-          }
+          },
         );
         if (!res.ok) throw new Error('Failed to delete product.');
         setProducts(prev => prev.filter(p => p._id !== productToDelete._id));
@@ -721,7 +731,7 @@ export default function InventoryScreen() {
           {
             method: 'DELETE',
             headers: { Authorization: `Bearer ${token}` },
-          }
+          },
         );
         if (!res.ok) throw new Error('Failed to delete service.');
         setServices(prev => prev.filter(s => s._id !== serviceToDelete._id));
@@ -751,7 +761,7 @@ export default function InventoryScreen() {
       setIsPrinting(true);
 
       const productsToPrint = products.filter(p =>
-        selectedProducts.includes(p._id)
+        selectedProducts.includes(p._id),
       );
 
       let labelsHtml = '';
@@ -828,7 +838,7 @@ export default function InventoryScreen() {
 
       Alert.alert(
         'Bulk Print Started',
-        `Printing ${totalLabels} labels for ${selectedProducts.length} products`
+        `Printing ${totalLabels} labels for ${selectedProducts.length} products`,
       );
 
       setIsBulkPrintDialogOpen(false);
@@ -858,7 +868,7 @@ export default function InventoryScreen() {
           setSelectedProducts(prev => [...new Set([...prev, ...rangeIds])]);
         } else {
           setSelectedProducts(prev =>
-            prev.filter(id => !rangeIds.includes(id))
+            prev.filter(id => !rangeIds.includes(id)),
           );
         }
         setLastSelectedIndex(index);
@@ -871,7 +881,7 @@ export default function InventoryScreen() {
         setLastSelectedIndex(index ?? null);
       }
     },
-    [lastSelectedIndex, products]
+    [lastSelectedIndex, products],
   );
 
   const handleQuantityChange = useCallback((productId, newQuantity) => {
@@ -936,12 +946,12 @@ export default function InventoryScreen() {
 
   const productTotalPages = useMemo(
     () => Math.ceil(filteredProducts.length / ITEMS_PER_PAGE) || 1,
-    [filteredProducts.length]
+    [filteredProducts.length],
   );
 
   const serviceTotalPages = useMemo(
     () => Math.ceil(filteredServices.length / ITEMS_PER_PAGE) || 1,
-    [filteredServices.length]
+    [filteredServices.length],
   );
 
   const paginatedProducts = useMemo(() => {
@@ -976,214 +986,16 @@ export default function InventoryScreen() {
   }, []);
 
   // ==========================================
-  // Action Buttons Renderer
-  // ==========================================
-  const renderActionButtons = useCallback(() => {
-    if (!hasCreatePermission) {
-      return null;
-    }
-
-    if (activeTab === 'products') {
-      return (
-        <View style={styles.actionButtons}>
-          <ExcelImportExport
-            templateData={[
-              {
-                Company:
-                  companies.length > 0
-                    ? companies[0].businessName
-                    : 'Your Company',
-                'Item Name': '',
-                Stock: '',
-                Unit: '',
-                'Cost Price': '',
-                'Selling Price': '',
-                HSN: '',
-              },
-            ]}
-            templateFileName="product_template.xlsx"
-            onImportSuccess={fetchProducts}
-            expectedColumns={[
-              'Company',
-              'Item Name',
-              'Stock',
-              'Unit',
-              'Cost Price',
-              'Selling Price',
-              'HSN',
-            ]}
-            transformImportData={data => {
-              return data.map(item => {
-                const companyName = item['Company']?.trim();
-                const foundCompany = companies.find(
-                  c =>
-                    c.businessName.toLowerCase() === companyName?.toLowerCase()
-                );
-
-                return {
-                  company: foundCompany?._id || companies[0]?._id || '',
-                  name: item['Item Name'],
-                  stocks: Number(item['Stock']) || 0,
-                  unit: item['Unit'] || 'Piece',
-                  costPrice: Number(item['Cost Price']) || 0,
-                  sellingPrice: Number(item['Selling Price']) || 0,
-                  hsn: item['HSN'] || '',
-                };
-              });
-            }}
-            activeTab={activeTab}
-            companies={companies}
-          />
-          <TouchableOpacity style={styles.button} onPress={openCreateProduct}>
-            <Icon name="add-circle" size={20} color="white" />
-            <Text style={styles.buttonText}>Add Product</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    if (activeTab === 'services') {
-      return (
-        <View style={styles.actionButtons}>
-          <ExcelImportExport
-            templateData={[
-              {
-                'Service Name': '',
-                Amount: '',
-                SAC: '',
-              },
-            ]}
-            templateFileName="service_template.xlsx"
-            importEndpoint={`${BASE_URL}/api/services`}
-            onImportSuccess={fetchServices}
-            expectedColumns={['Service Name', 'Amount', 'SAC']}
-            transformImportData={data =>
-              data.map(item => ({
-                serviceName: item['Service Name'],
-                amount: extractNumber(item['Amount']),
-                sac: item['SAC'],
-              }))
-            }
-          />
-          <TouchableOpacity style={styles.button} onPress={openCreateService}>
-            <Icon name="add-circle" size={20} color="white" />
-            <Text style={styles.buttonText}>Add Service</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-  }, [
-    hasCreatePermission,
-    activeTab,
-    companies,
-    fetchProducts,
-    fetchServices,
-    openCreateProduct,
-    openCreateService,
-  ]);
-
-  const renderItem = useCallback(
-    ({ item, index }) => {
-      if (activeTab === 'products') {
-        const isSelected = selectedProducts.includes(item._id);
-        return (
-          <ProductCard
-            item={item}
-            index={index}
-            isSelected={isSelected}
-            onSelect={handleSelectProduct}
-            onEdit={openEditProduct}
-          />
-        );
-      } else {
-        return (
-          <ServiceCard
-            item={item}
-            onEdit={openEditService}
-            onDelete={confirmDeleteService}
-          />
-        );
-      }
-    },
-    [
-      activeTab,
-      selectedProducts,
-      handleSelectProduct,
-      openEditProduct,
-      openEditService,
-      confirmDeleteService,
-    ]
-  );
-
-  const keyExtractor = useCallback(item => item._id, []);
-
-  const getItemLayout = useCallback(
-    (data, index) => ({
-      length: 200,
-      offset: 200 * index,
-      index,
-    }),
-    []
-  );
-
-  const getData = useMemo(() => {
-    if (activeTab === 'products') {
-      return filteredProducts.length > 0 ? paginatedProducts : [];
-    } else {
-      return filteredServices.length > 0 ? paginatedServices : [];
-    }
-  }, [
-    activeTab,
-    filteredProducts.length,
-    paginatedProducts,
-    filteredServices.length,
-    paginatedServices,
-  ]);
-
-  // ==========================================
-  // Header Component - Memoized
+  // Header Component - Updated to match UserScreen
   // ==========================================
   const renderHeader = useCallback(() => {
     return (
       <View>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Inventory Management</Text>
-            {selectedProducts.length > 0 ? (
-              <Text style={styles.selectionCount}>
-                {selectedProducts.length} selected
-              </Text>
-            ) : (
-              <Text style={styles.subtitle}>
-                Track and manage your products and services.
-              </Text>
-            )}
-          </View>
-        </View>
-
-        <View style={styles.headerActionsRow}>
-          {hasCreatePermission && renderActionButtons()}
-
-          {selectedProducts.length > 0 && (
-            <TouchableOpacity
-              style={[styles.button, styles.bulkPrintBtn]}
-              onPress={() => setIsBulkPrintDialogOpen(true)}
-            >
-              <Icon name="print" size={20} color="white" />
-              <Text style={styles.buttonText}>
-                Print ({selectedProducts.length})
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
+        {/* Tabs Section */}
         <View style={styles.tabsContainer}>
           <View style={styles.tabs}>
             <TouchableOpacity
-              style={[
-                styles.tab,
-                activeTab === 'products' && styles.activeTab,
-              ]}
+              style={[styles.tab, activeTab === 'products' && styles.activeTab]}
               onPress={() => setActiveTab('products')}
             >
               <Text
@@ -1196,10 +1008,7 @@ export default function InventoryScreen() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[
-                styles.tab,
-                activeTab === 'services' && styles.activeTab,
-              ]}
+              style={[styles.tab, activeTab === 'services' && styles.activeTab]}
               onPress={() => setActiveTab('services')}
             >
               <Text
@@ -1214,6 +1023,22 @@ export default function InventoryScreen() {
           </View>
         </View>
 
+        {/* Bulk Print Bar (Appears when items selected) */}
+        {selectedProducts.length > 0 && (
+          <View style={styles.selectionToolbar}>
+            <TouchableOpacity
+              style={[styles.button, styles.bulkPrintBtn]}
+              onPress={() => setIsBulkPrintDialogOpen(true)}
+            >
+              <Icon name="print" size={20} color="white" />
+              <Text style={styles.buttonText}>
+                Print ({selectedProducts.length}) Labels
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Empty States */}
         {activeTab === 'products' &&
           !isLoadingProducts &&
           filteredProducts.length === 0 && (
@@ -1223,20 +1048,10 @@ export default function InventoryScreen() {
               <Text style={styles.emptyStateDescription}>
                 {hasCreatePermission
                   ? 'Create your first product to get started.'
-                  : 'No products available in your inventory.'}
+                  : 'No products available.'}
               </Text>
-              {hasCreatePermission && (
-                <TouchableOpacity
-                  style={styles.button}
-                  onPress={openCreateProduct}
-                >
-                  <Icon name="add-circle" size={20} color="white" />
-                  <Text style={styles.buttonText}>Add Product</Text>
-                </TouchableOpacity>
-              )}
             </View>
           )}
-
         {activeTab === 'services' &&
           !isLoadingServices &&
           filteredServices.length === 0 && (
@@ -1246,32 +1061,20 @@ export default function InventoryScreen() {
               <Text style={styles.emptyStateDescription}>
                 {hasCreatePermission
                   ? 'Create your first service to get started.'
-                  : 'No services available in your inventory.'}
+                  : 'No services available.'}
               </Text>
-              {hasCreatePermission && (
-                <TouchableOpacity
-                  style={styles.button}
-                  onPress={openCreateService}
-                >
-                  <Icon name="add-circle" size={20} color="white" />
-                  <Text style={styles.buttonText}>Add Service</Text>
-                </TouchableOpacity>
-              )}
             </View>
           )}
       </View>
     );
   }, [
     selectedProducts.length,
-    hasCreatePermission,
-    renderActionButtons,
     activeTab,
     filteredProducts.length,
     filteredServices.length,
     isLoadingProducts,
     isLoadingServices,
-    openCreateProduct,
-    openCreateService,
+    hasCreatePermission,
   ]);
 
   // ==========================================
@@ -1289,7 +1092,7 @@ export default function InventoryScreen() {
             Showing {(productCurrentPage - 1) * ITEMS_PER_PAGE + 1} to{' '}
             {Math.min(
               productCurrentPage * ITEMS_PER_PAGE,
-              filteredProducts.length
+              filteredProducts.length,
             )}{' '}
             of {filteredProducts.length} products
           </Text>
@@ -1354,7 +1157,7 @@ export default function InventoryScreen() {
             Showing {(serviceCurrentPage - 1) * ITEMS_PER_PAGE + 1} to{' '}
             {Math.min(
               serviceCurrentPage * ITEMS_PER_PAGE,
-              filteredServices.length
+              filteredServices.length,
             )}{' '}
             of {filteredServices.length} services
           </Text>
@@ -1423,6 +1226,64 @@ export default function InventoryScreen() {
     goToNextServicePage,
   ]);
 
+  const renderItem = useCallback(
+    ({ item, index }) => {
+      if (activeTab === 'products') {
+        const isSelected = selectedProducts.includes(item._id);
+        return (
+          <ProductCard
+            item={item}
+            index={index}
+            isSelected={isSelected}
+            onSelect={handleSelectProduct}
+            onEdit={openEditProduct}
+          />
+        );
+      } else {
+        return (
+          <ServiceCard
+            item={item}
+            onEdit={openEditService}
+            onDelete={confirmDeleteService}
+          />
+        );
+      }
+    },
+    [
+      activeTab,
+      selectedProducts,
+      handleSelectProduct,
+      openEditProduct,
+      openEditService,
+      confirmDeleteService,
+    ],
+  );
+
+  const keyExtractor = useCallback(item => item._id, []);
+
+  const getItemLayout = useCallback(
+    (data, index) => ({
+      length: 200,
+      offset: 200 * index,
+      index,
+    }),
+    [],
+  );
+
+  const getData = useMemo(() => {
+    if (activeTab === 'products') {
+      return filteredProducts.length > 0 ? paginatedProducts : [];
+    } else {
+      return filteredServices.length > 0 ? paginatedServices : [];
+    }
+  }, [
+    activeTab,
+    filteredProducts.length,
+    paginatedProducts,
+    filteredServices.length,
+    paginatedServices,
+  ]);
+
   // ==========================================
   // Loading State
   // ==========================================
@@ -1459,8 +1320,7 @@ export default function InventoryScreen() {
             </View>
             <Text style={styles.noCompanyTitle}>Company Setup Required</Text>
             <Text style={styles.noCompanyDescription}>
-              Contact us to enable your company account and access all
-              features.
+              Contact us to enable your company account and access all features.
             </Text>
             <View style={styles.noCompanyButtons}>
               <TouchableOpacity
@@ -1505,6 +1365,116 @@ export default function InventoryScreen() {
           }}
         />
       )}
+
+      {/* FIXED HEADER - Add this BEFORE FlatList (matches UserScreen exactly) */}
+      <View style={styles.fixedHeader}>
+        <View style={styles.headerTitle}>
+          <Text
+            style={styles.title}
+            numberOfLines={1}
+            adjustsFontSizeToFit={true}
+            minimumFontScale={0.7}
+          >
+            Inventory Management
+          </Text>
+          <Text style={styles.subtitle}>
+            {selectedProducts.length > 0
+              ? `${selectedProducts.length} selected`
+              : 'manage your products and services.'}
+          </Text>
+        </View>
+        <View style={styles.headerActions}>
+          {hasCreatePermission && (
+            <View style={styles.buttonGroup}>
+              {/* Import/Export Component */}
+              <ExcelImportExport
+                templateData={
+                  activeTab === 'products'
+                    ? [
+                        {
+                          Company:
+                            companies.length > 0
+                              ? companies[0].businessName
+                              : 'Your Company',
+                          'Item Name': '',
+                          Stock: '',
+                          Unit: '',
+                          'Cost Price': '',
+                          'Selling Price': '',
+                          HSN: '',
+                        },
+                      ]
+                    : [{ 'Service Name': '', Amount: '', SAC: '' }]
+                }
+                templateFileName={
+                  activeTab === 'products'
+                    ? 'product_template.xlsx'
+                    : 'service_template.xlsx'
+                }
+                onImportSuccess={
+                  activeTab === 'products' ? fetchProducts : fetchServices
+                }
+                expectedColumns={
+                  activeTab === 'products'
+                    ? [
+                        'Company',
+                        'Item Name',
+                        'Stock',
+                        'Unit',
+                        'Cost Price',
+                        'Selling Price',
+                        'HSN',
+                      ]
+                    : ['Service Name', 'Amount', 'SAC']
+                }
+                transformImportData={data => {
+                  if (activeTab === 'products') {
+                    return data.map(item => {
+                      const companyName = item['Company']?.trim();
+                      const foundCompany = companies.find(
+                        c =>
+                          c.businessName.toLowerCase() ===
+                          companyName?.toLowerCase(),
+                      );
+                      return {
+                        company: foundCompany?._id || companies[0]?._id || '',
+                        name: item['Item Name'],
+                        stocks: Number(item['Stock']) || 0,
+                        unit: item['Unit'] || 'Piece',
+                        costPrice: Number(item['Cost Price']) || 0,
+                        sellingPrice: Number(item['Selling Price']) || 0,
+                        hsn: item['HSN'] || '',
+                      };
+                    });
+                  }
+                  return data.map(item => ({
+                    serviceName: item['Service Name'],
+                    amount: extractNumber(item['Amount']),
+                    sac: item['SAC'],
+                  }));
+                }}
+                activeTab={activeTab}
+                companies={companies}
+              />
+
+              {/* + Product/Service Button */}
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={
+                  activeTab === 'products'
+                    ? openCreateProduct
+                    : openCreateService
+                }
+              >
+                <Icon name="add-circle" size={16} color="white" />
+                <Text style={styles.addButtonText}>
+                  {activeTab === 'products' ? 'Product' : 'Service'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </View>
 
       <FlatList
         data={getData}
@@ -1559,7 +1529,7 @@ export default function InventoryScreen() {
                     Total Labels:{' '}
                     {Object.values(bulkPrintQuantities).reduce(
                       (sum, qty) => sum + qty,
-                      0
+                      0,
                     )}
                   </Text>
                 </View>
@@ -1698,9 +1668,7 @@ export default function InventoryScreen() {
               setIsServiceFormOpen(false);
               setServiceToEdit(null);
             }}
-            headerTitle={
-              serviceToEdit ? 'Edit Service' : 'Create New Service'
-            }
+            headerTitle={serviceToEdit ? 'Edit Service' : 'Create New Service'}
             headerSubtitle={
               serviceToEdit
                 ? 'Update service details'
@@ -1756,7 +1724,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 14,
-    paddingTop: 4,
+    paddingTop: 0,
     flexGrow: 1,
   },
   loadingContainer: {
@@ -1771,25 +1739,63 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#64748b',
   },
-  header: {
-    marginBottom: 14,
+ 
+  fixedHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 4, 
+    paddingBottom: 6,
+    borderBottomWidth: 2,
+    borderBottomColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
+  },
+  headerTitle: {
+    flex: 1,
+    marginRight: 8,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#0f172a',
+    fontSize: 19,
+    fontWeight: 'bold',
+    color: '#1a1a1a',
   },
   subtitle: {
-    fontSize: 13,
-    color: '#64748b',
+    fontSize: 10,
+    color: '#666',
+    marginTop: 0,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginTop: 12,
+    gap: 12,
+    marginTop: 9,
   },
+  buttonGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 8,
+    elevation: 4,
+    marginBottom: 4,
+  },
+  addButtonText: {
+    color: 'white',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  header: {
+    marginBottom: 14,
+  },
+
   headerActionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1804,7 +1810,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#3b82f6',
-    paddingHorizontal: 16,
+    paddingHorizontal: 10,
     borderRadius: 8,
     gap: 8,
   },
@@ -1827,13 +1833,14 @@ const styles = StyleSheet.create({
   },
   tabsContainer: {
     marginBottom: 10,
+    marginTop: 6,
   },
   tabs: {
     flexDirection: 'row',
     backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 4,
-    marginBottom: 12,
+    marginBottom: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -1843,7 +1850,7 @@ const styles = StyleSheet.create({
   tab: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: 8,
     alignItems: 'center',
   },
@@ -1888,13 +1895,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   cardHeader: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
   iconCircle: {
-    width: 40,
-    height: 40,
+    width: 35,
+    height: 35,
     borderRadius: 20,
     backgroundColor: '#eff6ff',
     justifyContent: 'center',
@@ -1902,7 +1910,8 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   cardBody: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   cardFooter: {
     flexDirection: 'row',
@@ -1952,13 +1961,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   productName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#0f172a',
-    marginBottom: 4,
   },
   companyName: {
-    fontSize: 13,
+    fontSize: 10,
     color: '#64748b',
     fontWeight: '500',
   },
@@ -1978,7 +1986,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   stockValue: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
     lineHeight: 20,
   },
@@ -1992,7 +2000,7 @@ const styles = StyleSheet.create({
     color: '#ef4444',
   },
   unit: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
     color: '#64748b',
     lineHeight: 20,
@@ -2018,12 +2026,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   costPrice: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#0f172a',
   },
   sellingPrice: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#10b981',
   },
@@ -2040,7 +2048,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   hsnValue: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: '#0f172a',
   },
@@ -2052,7 +2060,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   serviceName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#0f172a',
     marginBottom: 4,
@@ -2072,7 +2080,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   serviceAmount: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#10b981',
   },
@@ -2306,6 +2314,50 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '500',
   },
+  headerRowMain: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingTop: 4,
+  },
+  titleContainer: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  headerActionsRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  buttonGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  mainAddButton: {
+    backgroundColor: '#2563eb',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    height: 30,
+    justifyContent: 'center',
+  },
+  mainAddButtonText: {
+    color: 'white',
+    fontWeight: '700',
+    fontSize: 13,
+    marginLeft: 2,
+  },
+  selectionToolbar: {
+    backgroundColor: '#f1f5f9',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
   dialogHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2322,10 +2374,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#0f172a',
-    marginBottom: 4,
+    // marginBottom: 4,
   },
   dialogHeaderSubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#64748b',
   },
   modalOverlay: {
@@ -2495,5 +2547,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: 'white',
-  }, 
+  },
 });

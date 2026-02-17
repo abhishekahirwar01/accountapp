@@ -38,7 +38,7 @@ const moderateScale = (size, factor = 0.5) =>
   size + (horizontalScale(size) - size) * factor;
 
 const COLORS = {
-  primary: '#007AFF',
+  primary: '#2563eb',
   primaryDark: '#005AC1',
   background: '#FFFFFF',
   textDark: '#1C1C1E',

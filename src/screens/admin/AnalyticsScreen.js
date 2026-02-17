@@ -63,6 +63,7 @@ const CustomDropdown = ({
   showClearButton = true,
   searchable = true,
   searchPlaceholder = 'Search...',
+  autoFocusSearch = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState('');
@@ -118,7 +119,7 @@ const CustomDropdown = ({
         useNativeDriver: true,
       }),
     ]).start(() => {
-      if (searchable && searchInputRef.current) {
+      if (autoFocusSearch && searchable && searchInputRef.current) {
         setTimeout(() => {
           searchInputRef.current?.focus();
         }, 100);
@@ -225,7 +226,7 @@ const CustomDropdown = ({
               {selectedLabel}
             </Text>
             <View style={styles.dropdownTriggerIcons}>
-              {showClearButton && value && (
+              {/* {showClearButton && value && (
                 <TouchableOpacity
                   onPress={(e) => {
                     e.stopPropagation();
@@ -236,7 +237,7 @@ const CustomDropdown = ({
                 >
                   <X size={16} color="#6c757d" />
                 </TouchableOpacity>
-              )}
+              )} */}
               <ChevronDown
                 size={18}
                 color={disabled ? '#adb5bd' : '#495057'}
@@ -708,7 +709,7 @@ export default function AnalyticsScreen() {
               isLoading={isClientsLoading}
               style={styles.dropdownFieldHalf}
               emptyMessage="No clients available"
-              searchable={true}
+              // searchable={true}
               searchPlaceholder="Search clients..."
             />
 
@@ -891,12 +892,12 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   headerTitle: {
-    fontSize: 26,
+    fontSize: 20  ,
     fontWeight: '800',
     color: '#212529',
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6c757d',
   },
 

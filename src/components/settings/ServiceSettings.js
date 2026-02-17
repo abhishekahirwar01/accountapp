@@ -15,11 +15,13 @@ import {
   TextInput,
   FlatList,
   TouchableWithoutFeedback,
+  PermissionsAndroid,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { pick } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
+import FileViewer from 'react-native-file-viewer';
 import * as XLSX from 'xlsx';
 import Toast from 'react-native-toast-message';
 import {
@@ -365,7 +367,6 @@ const ServiceSettings = () => {
       setIsImporting(false);
     }
   };
-
   const downloadTemplate = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -390,9 +391,29 @@ const ServiceSettings = () => {
 
       const fileName = 'services_import_template.xlsx';
       let path = '';
-
-      // Android aur iOS ke liye alag-alag public paths
+      // Request permission on older Android versions
       if (Platform.OS === 'android') {
+        if (Platform.Version < 33) {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+            {
+              title: 'Storage Permission Required',
+              message:
+                'We need permission to save templates to your Downloads folder',
+              buttonNeutral: 'Ask Later',
+              buttonNegative: 'Cancel',
+              buttonPositive: 'Allow',
+            },
+          );
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            Alert.alert(
+              'Permission Denied',
+              'Storage permission is required to download templates.',
+            );
+            return;
+          }
+        }
+
         // ExternalStorageDirectoryPath se file public Downloads mein jayegi
         path = `${RNFS.ExternalStorageDirectoryPath}/Download/${fileName}`;
       } else {
@@ -403,16 +424,41 @@ const ServiceSettings = () => {
       await RNFS.writeFile(path, base64Data.split(',')[1], 'base64');
 
       if (Platform.OS === 'android') {
-        // System ko refresh karna taaki file turant dikhne lage
-        await RNFS.scanFile(path);
+        try {
+          // System ko refresh karna taaki file turant dikhne lage
+          await RNFS.scanFile(path);
+        } catch (scanErr) {
+          console.warn('scanFile failed', scanErr);
+        }
 
         Alert.alert(
           'Download Successful',
           `File saved to your Downloads folder as ${fileName}`,
-          [{ text: 'OK' }],
+          [
+            { text: 'OK' },
+            {
+              text: 'Open File',
+              onPress: () => {
+                const fileUri = path;
+                FileViewer.open(fileUri).catch(err => {
+                  console.warn('FileViewer open failed', err);
+                  Alert.alert('File Saved', `Location:\n${path}`);
+                });
+              },
+            },
+          ],
         );
       } else {
         Alert.alert('Download Successful', 'File saved to Documents folder.', [
+          {
+            text: 'Open File',
+            onPress: () => {
+              const fileUri = `file://${path}`;
+              FileViewer.open(fileUri).catch(() => {
+                Alert.alert('File Saved', `Location:\n${path}`);
+              });
+            },
+          },
           { text: 'OK' },
         ]);
       }
@@ -453,7 +499,7 @@ const ServiceSettings = () => {
       <View style={styles.serviceCardHeader}>
         <View style={styles.serviceTitleContainer}>
           <View style={styles.serviceIcon}>
-            <Server size={16} color="#0d9488" />
+            <Server size={14} color="#0d9488" />
           </View>
           <Text style={styles.serviceName} numberOfLines={1}>
             {item.serviceName}
@@ -958,7 +1004,7 @@ const styles = StyleSheet.create({
   mainCard: {
     backgroundColor: 'white',
     borderRadius: 12,
-    padding: 16,
+    padding: 8,
     margin: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -969,19 +1015,19 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'column',
     gap: 16,
-    marginBottom: 20,
+    marginBottom: 10,
   },
   headerLeft: {
     flex: 1,
   },
   title: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#1f2937',
-    marginBottom: 4,
+    // marginBottom: 4,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6b7280',
     lineHeight: 20,
   },
@@ -994,8 +1040,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 8,
     gap: 8,
     flex: 1,
@@ -1003,7 +1049,7 @@ const styles = StyleSheet.create({
   addButtonText: {
     color: 'white',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 12,
   },
   importButton: {
     borderWidth: 1,
@@ -1011,8 +1057,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 8,
     gap: 8,
     flex: 1,
@@ -1020,7 +1066,7 @@ const styles = StyleSheet.create({
   importButtonText: {
     color: '#3b82f6',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 12,
   },
   loadingContent: {
     padding: 40,
@@ -1033,7 +1079,7 @@ const styles = StyleSheet.create({
   serviceCard: {
     backgroundColor: '#f9fafb',
     borderRadius: 8,
-    padding: 16,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#e5e7eb',
   },
@@ -1041,7 +1087,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    // marginBottom: 12,
   },
   serviceTitleContainer: {
     flexDirection: 'row',
@@ -1051,11 +1097,11 @@ const styles = StyleSheet.create({
   },
   serviceIcon: {
     backgroundColor: '#ccfbf1',
-    padding: 8,
+    padding: 6,
     borderRadius: 6,
   },
   serviceName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#111827',
     flex: 1,
@@ -1088,7 +1134,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   dropdownItemText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#334155',
   },
@@ -1121,7 +1167,7 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   detailValue: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#374151',
   },
   userActions: {

@@ -372,7 +372,12 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [step, setStep] = useState(1);
   const [logoFile, setLogoFile] = useState(null);
-  const [logoPreview, setLogoPreview] = useState(company?.logo || null);
+  const initialLogo = company?.logo
+    ? company.logo.startsWith('http')
+      ? company.logo
+      : `${BASE_URL}${company.logo}`
+    : null;
+  const [logoPreview, setLogoPreview] = useState(initialLogo);
   const [showCropper, setShowCropper] = useState(false);
   const [tempImageSrc, setTempImageSrc] = useState('');
   const insets = useSafeAreaInsets();
@@ -601,10 +606,25 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
         throw new Error(result.message || 'Operation failed.');
       }
 
+      // If server returned updated company/logo URL, update preview immediately
+      const returnedLogo =
+        result?.company?.logo ||
+        result?.logo ||
+        result?.logoUrl ||
+        result?.data?.logo;
+      if (returnedLogo) {
+        const finalLogo = returnedLogo.startsWith('http')
+          ? returnedLogo
+          : `${BASE_URL}${returnedLogo}`;
+        setLogoPreview(finalLogo);
+        // Clear the temporary file reference since server now holds the image
+        setLogoFile(null);
+      }
+
       Alert.alert(
         company ? 'Company Updated!' : 'Company Created!',
         `${data.businessName} has been successfully saved.`,
-        [{ text: 'OK', onPress: onFormSubmit }],
+        [{ text: 'OK', onPress: () => onFormSubmit && onFormSubmit(result) }],
       );
     } catch (error) {
       console.error('Submission error:', error);

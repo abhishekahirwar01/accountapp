@@ -488,7 +488,7 @@ const Template_t3 = ({
                 <div class="qr-section">
                   <div class="qr-title">OR Code</div>
                   <div class="qr-container">
-                    <img src="${BASE_URL}${bankData.qrCode}" class="qr-code" />
+                    <img src="${BASE_URL}/${bankData.qrCode}" class="qr-code" />
                   </div>
                 </div>
               `

@@ -595,7 +595,7 @@ const Template8 = ({
                 ? `
               <div style="width: 20%; text-align: center;">
                 <div class="bold mb-2">QR Code</div>
-                <img src="${BASE_URL}${bankData.qrCode}" class="qr-code" />
+                <img src="${BASE_URL}/${bankData.qrCode}" class="qr-code" />
               </div>
             `
                 : ''
@@ -735,7 +735,7 @@ const Template8 = ({
           .logo {
             position: absolute;
             right: 25pt;
-            top: 25pt;
+            top: 45pt;
             width: 70px;
             height: 70px;
           }

@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from 'react';
 import {
   StyleSheet,
   Text,
@@ -16,10 +22,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  Filter,
-  ArrowLeft,
-} from 'lucide-react-native';
+import { Filter, ArrowLeft } from 'lucide-react-native';
 import { BASE_URL } from '../../../config';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
@@ -43,7 +46,7 @@ export default function PayablesScreen() {
   const navigation = useNavigation();
   const baseURL = BASE_URL;
   const [loading, setLoading] = useState(false);
-  const { selectedCompanyId } = useCompany();
+  const { selectedCompanyId, refreshTrigger } = useCompany();
   const [vendorsLoading, setVendorsLoading] = useState(false);
   const [expensesLoading, setExpensesLoading] = useState(false);
   const [ledgerData, setLedgerData] = useState(null);
@@ -177,91 +180,97 @@ export default function PayablesScreen() {
   }, [baseURL]);
 
   // Optimized fetch vendors
-  const fetchVendors = useCallback(async (forceRefresh = false) => {
-    if (dataLoadedRef.current.vendors && !forceRefresh) return;
+  const fetchVendors = useCallback(
+    async (forceRefresh = false) => {
+      if (dataLoadedRef.current.vendors && !forceRefresh) return;
 
-    try {
-      setVendorsLoading(true);
-      const token = await AsyncStorage.getItem('token');
-      const params = new URLSearchParams();
-      if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-      
-      const res = await fetch(`${baseURL}/api/vendors?${params.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      try {
+        setVendorsLoading(true);
+        const token = await AsyncStorage.getItem('token');
+        const params = new URLSearchParams();
+        if (selectedCompanyId) params.append('companyId', selectedCompanyId);
 
-      if (!res.ok) {
-        throw new Error('Failed to fetch vendors');
-      }
-
-      const data = await res.json();
-      let vendorsArray = [];
-
-      if (Array.isArray(data)) {
-        vendorsArray = data;
-      } else if (data && Array.isArray(data.vendors)) {
-        vendorsArray = data.vendors;
-      } else if (data && Array.isArray(data.data)) {
-        vendorsArray = data.data;
-      }
-
-      setVendors(vendorsArray);
-      dataLoadedRef.current.vendors = true;
-    } catch (error) {
-      console.error('Error fetching vendors:', error);
-      setVendors([]);
-    } finally {
-      setVendorsLoading(false);
-    }
-  }, [baseURL, selectedCompanyId]);
-
-  // Optimized fetch expenses
-  const fetchExpenses = useCallback(async (forceRefresh = false) => {
-    if (dataLoadedRef.current.expenses && !forceRefresh) return;
-
-    try {
-      setExpensesLoading(true);
-      const token = await AsyncStorage.getItem('token');
-      const params = new URLSearchParams();
-      if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-      
-      const res = await fetch(
-        `${baseURL}/api/payment-expenses?${params.toString()}`,
-        {
+        const res = await fetch(`${baseURL}/api/vendors?${params.toString()}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        },
-      );
+        });
 
-      if (!res.ok) {
-        throw new Error('Failed to fetch expenses');
+        if (!res.ok) {
+          throw new Error('Failed to fetch vendors');
+        }
+
+        const data = await res.json();
+        let vendorsArray = [];
+
+        if (Array.isArray(data)) {
+          vendorsArray = data;
+        } else if (data && Array.isArray(data.vendors)) {
+          vendorsArray = data.vendors;
+        } else if (data && Array.isArray(data.data)) {
+          vendorsArray = data.data;
+        }
+
+        setVendors(vendorsArray);
+        dataLoadedRef.current.vendors = true;
+      } catch (error) {
+        console.error('Error fetching vendors:', error);
+        setVendors([]);
+      } finally {
+        setVendorsLoading(false);
       }
+    },
+    [baseURL, selectedCompanyId],
+  );
 
-      const data = await res.json();
-      let expensesArray = [];
+  // Optimized fetch expenses
+  const fetchExpenses = useCallback(
+    async (forceRefresh = false) => {
+      if (dataLoadedRef.current.expenses && !forceRefresh) return;
 
-      if (Array.isArray(data)) {
-        expensesArray = data;
-      } else if (data && Array.isArray(data.expenses)) {
-        expensesArray = data.expenses;
-      } else if (data && Array.isArray(data.data)) {
-        expensesArray = data.data;
-      } else if (data && data.success && Array.isArray(data.data)) {
-        expensesArray = data.data;
+      try {
+        setExpensesLoading(true);
+        const token = await AsyncStorage.getItem('token');
+        const params = new URLSearchParams();
+        if (selectedCompanyId) params.append('companyId', selectedCompanyId);
+
+        const res = await fetch(
+          `${baseURL}/api/payment-expenses?${params.toString()}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+
+        if (!res.ok) {
+          throw new Error('Failed to fetch expenses');
+        }
+
+        const data = await res.json();
+        let expensesArray = [];
+
+        if (Array.isArray(data)) {
+          expensesArray = data;
+        } else if (data && Array.isArray(data.expenses)) {
+          expensesArray = data.expenses;
+        } else if (data && Array.isArray(data.data)) {
+          expensesArray = data.data;
+        } else if (data && data.success && Array.isArray(data.data)) {
+          expensesArray = data.data;
+        }
+
+        setExpenses(expensesArray);
+        dataLoadedRef.current.expenses = true;
+      } catch (error) {
+        console.error('Error fetching expenses:', error);
+        setExpenses([]);
+      } finally {
+        setExpensesLoading(false);
       }
-
-      setExpenses(expensesArray);
-      dataLoadedRef.current.expenses = true;
-    } catch (error) {
-      console.error('Error fetching expenses:', error);
-      setExpenses([]);
-    } finally {
-      setExpensesLoading(false);
-    }
-  }, [baseURL, selectedCompanyId]);
+    },
+    [baseURL, selectedCompanyId],
+  );
 
   // Optimized fetch companies
   const fetchCompanies = useCallback(async () => {
@@ -298,7 +307,7 @@ export default function PayablesScreen() {
         currentView === 'vendor' ? fetchVendors() : fetchExpenses(),
         fetchCompanies(),
       ]);
-      
+
       // Load products in background (non-blocking)
       fetchProducts();
     };
@@ -311,17 +320,14 @@ export default function PayablesScreen() {
     const resetAndFetch = async () => {
       dataLoadedRef.current.vendors = false;
       dataLoadedRef.current.expenses = false;
-      
+
       setVendors([]);
       setExpenses([]);
       setVendorBalances({});
       setExpenseTotals({});
       setTransactionTotals({ totalCredit: 0, totalDebit: 0 });
-      
-      await Promise.all([
-        fetchVendors(true),
-        fetchExpenses(true)
-      ]);
+
+      await Promise.all([fetchVendors(true), fetchExpenses(true)]);
     };
 
     resetAndFetch();
@@ -559,6 +565,19 @@ export default function PayablesScreen() {
     }
   }, [currentView, fetchVendors, fetchExpenses, fetchLedgerData]);
 
+  // Trigger refresh when refreshTrigger increments. Use ref to avoid
+  // re-running when onRefresh identity changes.
+  const onRefreshRef = React.useRef(onRefresh);
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  }, [onRefresh]);
+
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      onRefreshRef.current();
+    }
+  }, [refreshTrigger]);
+
   const stats = useMemo(() => {
     return {
       totalVendors: vendors.length,
@@ -588,7 +607,7 @@ export default function PayablesScreen() {
       <View style={styles.filterHeader}>
         <View style={styles.filterHeaderLeft}>
           <View style={styles.filterIconWrapper}>
-            <Filter size={14} color="#475569" strokeWidth={2.5} />
+            <Icon name="filter-variant" size={18} color="#3B82F6" />
           </View>
           <Text style={styles.filterTitle}>Filters</Text>
           {getActiveFilterCount() > 0 && (
@@ -613,7 +632,8 @@ export default function PayablesScreen() {
         <View style={styles.filterGrid}>
           {currentView === 'vendor' ? (
             <View style={styles.filterItem}>
-              <Text style={styles.filterLabel}>Vendor</Text>
+              <Text style={styles.filterLabel}>
+                 <Icon name="account-multiple" size={14} color="#6B7280" />{' '}Vendor</Text>
               <TouchableOpacity
                 style={[
                   styles.filterInput,
@@ -667,7 +687,9 @@ export default function PayablesScreen() {
 
           <View style={styles.filterItem}>
             <View style={styles.dateFilterHeader}>
-              <Text style={styles.filterLabel}>Date Range</Text>
+              
+              <Text style={styles.filterLabel}>
+                 <Icon name="calendar-start" size={14} color="#6B7280" /> {' '}Date Range</Text>
               {(dateRange.from || dateRange.to) && (
                 <TouchableOpacity
                   style={styles.dateResetButton}
@@ -860,7 +882,11 @@ export default function PayablesScreen() {
   ));
 
   // Minimal loading state
-  if ((vendorsLoading || expensesLoading) && vendors.length === 0 && expenses.length === 0) {
+  if (
+    (vendorsLoading || expensesLoading) &&
+    vendors.length === 0 &&
+    expenses.length === 0
+  ) {
     return (
       <SafeAreaView style={styles.loadingScreen}>
         <View style={styles.loadingContent}>
@@ -882,26 +908,7 @@ export default function PayablesScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <View style={styles.headerTop}>
-              {isDetailOpen && (
-                <TouchableOpacity
-                  style={styles.backButton}
-                  onPress={() => {
-                    setSelectedVendor('');
-                    setSelectedExpense('');
-                    setSelectedVendorFilter('');
-                    setSelectedExpenseFilter('');
-                    AsyncStorage.removeItem('selectedVendor_payables');
-                  }}
-                >
-                  <ArrowLeft size={16} color="#64748b" />
-                  <Text style={styles.backButtonText}>Back to List</Text>
-                </TouchableOpacity>
-              )}
-
-              <View style={styles.headerMain}>
+           <View style={styles.headerMain}>
                 <View style={styles.titleRow}>
                   <Text style={styles.title}>
                     {currentView === 'vendor'
@@ -916,6 +923,26 @@ export default function PayablesScreen() {
                   </View>
                 </View>
               </View>
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <View style={styles.headerTop}>
+              {isDetailOpen && (
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={() => {
+                    setSelectedVendor('');
+                    setSelectedExpense('');
+                    setSelectedVendorFilter('');
+                    setSelectedExpenseFilter('');
+                    AsyncStorage.removeItem('selectedVendor_payables');
+                  }}
+                >
+                  <ArrowLeft size={16} color="#3B82F6" />
+                  <Text style={styles.backButtonText}>Back to List</Text>
+                </TouchableOpacity>
+              )}
+
+           
             </View>
           </View>
 
@@ -1028,22 +1055,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 16,
+    // marginBottom: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
+
+    // backgroundColor:'white'
   },
   backButtonText: {
-    fontSize: 14,
-    color: '#64748b',
+    color: '#3B82F6',
+    fontSize: 15,
+    fontWeight: '600',
+    marginLeft: 8,
   },
-  headerMain: {},
+  headerMain: {
+    backgroundColor:'white',
+     paddingHorizontal: 10,
+     paddingVertical:10,
+      elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+  },
   titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#0f172a',
   },
@@ -1051,7 +1091,15 @@ const styles = StyleSheet.create({
     display: 'flex',
   },
   filterSection: {
-    marginBottom: 20,
+    marginBottom: 4,
+    backgroundColor:'white',
+     borderRadius: 16,
+    padding: 12,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   filterHeader: {
     flexDirection: 'row',
@@ -1103,13 +1151,13 @@ const styles = StyleSheet.create({
   },
   filterCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    // borderRadius: 16,
+    // padding: 12,
+    // shadowColor: '#0F172A',
+    // shadowOffset: { width: 0, height: 2 },
+    // shadowOpacity: 0.04,
+    // shadowRadius: 8,
+    // elevation: 2,
   },
   filterGrid: {
     gap: 16,
@@ -1133,8 +1181,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 13,
-    minHeight: 48,
+    // paddingVertical: 13,
+    minHeight: 40,
   },
   filterInputActive: {
     backgroundColor: '#FFFFFF',
@@ -1174,8 +1222,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 13,
-    minHeight: 48,
+    // paddingVertical: 11,
+    minHeight: 40,
   },
   dateInputActive: {
     backgroundColor: '#FFFFFF',

@@ -1,125 +1,190 @@
-import {
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  ScrollView,
-  RefreshControl,
-} from 'react-native';
-import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Animated } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
 import PayablesScreen from './PayablesScreen';
 import ReceivablesScreen from './ReceivablesScreen';
 import { useCompany } from '../../../contexts/company-context';
+import { ArrowDownCircle, ArrowUpCircle,CircleDollarSign , TrendingUp ,Landmark , Coins,FileDown } from 'lucide-react-native';
+
 export default function Ledger() {
   const [activeTab, setActiveTab] = useState('payables');
-  const [refreshing, setRefreshing] = useState(false);
   const { triggerCompaniesRefresh } = useCompany();
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const [tabWidth, setTabWidth] = useState(0);
 
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-   
-  triggerCompaniesRefresh();
-  
-  
-  setTimeout(() => {
-    setRefreshing(false);
-  }, 1000);
-  }, [triggerCompaniesRefresh]);
+  useEffect(() => {
+    Animated.timing(slideAnim, {
+      toValue: activeTab === 'payables' ? 0 : 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [activeTab]);
+
+  const handleTabLayout = (event) => {
+    const { width } = event.nativeEvent.layout;
+    setTabWidth(width / 2);
+  };
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          colors={['#007AFF']}
-        />
-      }
-    >
-      
-        <View style={styles.tabContainer}>
+    <View style={styles.container}>
+      {/* Tab Container */}
+      <View style={styles.tabWrapper}>
+        <View 
+          style={styles.tabContainer}
+          onLayout={handleTabLayout}
+        >
           <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === 'payables' && styles.activeTabButton,
-            ]}
+            style={styles.tabButton}
             onPress={() => setActiveTab('payables')}
+            activeOpacity={1}
           >
-            <Text
-              style={[
-                styles.tabButtonText,
-                activeTab === 'payables' && styles.activeTabButtonText,
-              ]}
-            >
-              Payables
-            </Text>
+            <View style={styles.tabContent}>
+              <ArrowUpCircle
+                size={18}
+                color={activeTab === 'payables' ? '#DC2626' : '#6B7280'}
+              />
+              <Text
+                style={[
+                  styles.tabButtonText,
+                  activeTab === 'payables' && styles.activeTabButtonText,
+                ]}
+              >
+                Payables
+              </Text>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === 'receivables' && styles.activeTabButton,
-            ]}
+            style={styles.tabButton}
             onPress={() => setActiveTab('receivables')}
+            activeOpacity={1}
           >
-            <Text
-              style={[
-                styles.tabButtonText,
-                activeTab === 'receivables' && styles.activeTabButtonText,
-              ]}
-            >
-              Receivables
-            </Text>
+            <View style={styles.tabContent}>
+              <ArrowDownCircle
+                size={18}
+                color={activeTab === 'receivables' ? '#16A34A' : '#6B7280'}
+              />
+              <Text
+                style={[
+                  styles.tabButtonText,
+                  activeTab === 'receivables' && styles.activeTabButtonText,
+                ]}
+              >
+                Receivables
+              </Text>
+            </View>
           </TouchableOpacity>
-        </View>
 
-        <View style={styles.contentArea}>
-          {activeTab === 'payables' ? (
-            <PayablesScreen />
-          ) : (
-            <ReceivablesScreen />
+          {/* Animated Bottom Line Indicator */}
+          {tabWidth > 0 && (
+            <Animated.View
+              style={[
+                styles.bottomLine,
+                {
+                  width: tabWidth,
+                  transform: [
+                    {
+                      translateX: slideAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, tabWidth],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
           )}
         </View>
-      </ScrollView>
+      </View>
+
+      {/* Content Area */}
+      <View style={styles.contentWrapper}>
+        <View style={styles.contentArea}>
+          <View
+            style={{
+              display: activeTab === 'payables' ? 'flex' : 'none',
+              flex: 1,
+            }}
+          >
+            <PayablesScreen />
+          </View>
+          <View
+            style={{
+              display: activeTab === 'receivables' ? 'flex' : 'none',
+              flex: 1,
+            }}
+          >
+            <ReceivablesScreen />
+          </View>
+        </View>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    // backgroundColor: '#f5f5f5',
+    backgroundColor: '#FAFAFA',
+  },
+  tabWrapper: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    marginTop: 10,
-    borderRadius: 8,
-    padding: 4,
-    elevation: 2,
+    position: 'relative',
+    marginHorizontal: 10,
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 6,
+    zIndex: 1,
   },
-  activeTabButton: {
-    backgroundColor: '#007AFF',
+  tabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 8,
   },
   tabButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
-    color: '#666',
+    color: '#6B7280',
+    letterSpacing: -0.2,
   },
   activeTabButtonText: {
-    color: 'white',
+    color: '#111827',
     fontWeight: '600',
+  },
+  bottomLine: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    height: 2.5,
+    backgroundColor: '#2563EB',
+    borderRadius: 2,
+    zIndex: 2,
+  },
+  contentWrapper: {
+    flex: 1,
+    backgroundColor: '#FAFAFA',
   },
   contentArea: {
     flex: 1,
-    paddingHorizontal: 16,
+    marginHorizontal: 10,
     marginTop: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
 });

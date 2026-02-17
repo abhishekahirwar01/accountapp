@@ -125,8 +125,8 @@ const ProductMobileCard = React.memo(({ product, onEditClick }) => {
 
 const styles = StyleSheet.create({
   card: {
-    margin: 8,
-    marginBottom: 12,
+    // margin: 8,
+    // marginBottom: 12,
     borderRadius: 12,
     elevation: 1,
     shadowColor: '#000',
@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    marginBottom: 12,
+    // marginBottom: 12,
   },
   iconContainer: {
     padding: 8,

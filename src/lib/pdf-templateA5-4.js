@@ -446,7 +446,7 @@ const TemplateA5_4 = ({
                   ${bankData.upiDetails?.upiMobile ? `<div class="bank-row"><div class="bank-label">UPI Mobile:</div><div>${bankData.upiDetails.upiMobile}</div></div>` : ''}
                 </div>
                 <div style="margin-left: auto; margin-right: 5px; margin-top: -10px;">
-                  ${bankData.qrCode ? `<div style="text-align: center;"><div class="bold">QR Code</div><img src="${BASE_URL}${bankData.qrCode}" class="qr-code" /></div>` : ''}
+                  ${bankData.qrCode ? `<div style="text-align: center;"><div class="bold">QR Code</div><img src="${BASE_URL}/${bankData.qrCode}" class="qr-code" /></div>` : ''}
                 </div>
               </div>
             </div>

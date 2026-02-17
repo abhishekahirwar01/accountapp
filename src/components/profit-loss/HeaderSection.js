@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   headerRow: {
     flexDirection: 'row',
@@ -377,13 +377,13 @@ const styles = StyleSheet.create({
     minWidth: 200,
   },
   title: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#111827',
-    marginBottom: 4,
+    // marginBottom: 4,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 10,
     color: '#6b7280',
   },
   controlsContainer: {
@@ -409,10 +409,10 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 14,
+    paddingVertical: 6,
+    fontSize: 12,
     backgroundColor: '#ffffff',
-    minHeight: 40,
+    minHeight: 35,
   },
   dateButton: {
     borderWidth: 1,

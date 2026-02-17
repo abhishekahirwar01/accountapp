@@ -13,6 +13,7 @@ import {
   BackHandler,
   Modal,
   FlatList,
+  RefreshControl,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as XLSX from 'xlsx';
@@ -29,7 +30,6 @@ import { useCompany } from '../../../contexts/company-context';
 import CustomerListCard from '../../../components/Ledger/receivables/CustomerListCard';
 import MobileLedgerCard from '../../../components/Ledger/receivables/MobileLedgerCard';
 import ItemDetailsDialog from '../../../components/Ledger/receivables/ItemDetailsDialog';
-
 
 const { width } = Dimensions.get('window');
 
@@ -56,18 +56,26 @@ const SummaryCard = memo(({ icon, label, value, type, note }) => {
     if (type === 'debit') return [...baseStyle, styles.debitValue];
     if (type === 'balance') {
       const isPositive = note?.includes('Customer Owes');
-      return [...baseStyle, isPositive ? styles.positiveBalance : styles.negativeBalance];
+      return [
+        ...baseStyle,
+        isPositive ? styles.positiveBalance : styles.negativeBalance,
+      ];
     }
     return baseStyle;
   }, [type, note]);
 
   const iconColor = useMemo(() => {
     switch (type) {
-      case 'customer': return '#DC2626';
-      case 'credit': return '#16A34A';
-      case 'debit': return '#2563EB';
-      case 'balance': return '#EA580C';
-      default: return '#6B7280';
+      case 'customer':
+        return '#DC2626';
+      case 'credit':
+        return '#16A34A';
+      case 'debit':
+        return '#2563EB';
+      case 'balance':
+        return '#EA580C';
+      default:
+        return '#6B7280';
     }
   }, [type]);
 
@@ -81,8 +89,13 @@ const SummaryCard = memo(({ icon, label, value, type, note }) => {
           </Text>
           {note && <Text style={styles.balanceNote}>{note}</Text>}
         </View>
-        <View style={[styles.summaryIconContainer, { backgroundColor: `${iconColor}15` }]}>
-          <Icon name={icon} size={20} color={iconColor} />
+        <View
+          style={[
+            styles.summaryIconContainer,
+            { backgroundColor: `${iconColor}15` },
+          ]}
+        >
+          <Icon name={icon} size={18} color={iconColor} />
         </View>
       </View>
     </View>
@@ -91,7 +104,7 @@ const SummaryCard = memo(({ icon, label, value, type, note }) => {
 
 SummaryCard.displayName = 'SummaryCard';
 
-// Memoized Section Header Component
+//  Section Header Component
 const SectionHeader = memo(({ type, subtitle }) => {
   const badgeStyle = type === 'debit' ? styles.debitBadge : styles.creditBadge;
   const iconName = type === 'debit' ? 'arrow-down' : 'arrow-up';
@@ -126,7 +139,6 @@ const EmptyState = memo(({ message, submessage }) => (
 
 EmptyState.displayName = 'EmptyState';
 
-// Memoized No Data Component
 const NoDataState = memo(({ message }) => (
   <View style={styles.noDataContainer}>
     <Icon name="inbox" size={32} color="#E5E7EB" />
@@ -136,7 +148,6 @@ const NoDataState = memo(({ message }) => (
 
 NoDataState.displayName = 'NoDataState';
 
-// Memoized Loading Component
 const LoadingState = memo(({ message }) => (
   <View style={styles.loadingContainer}>
     <ActivityIndicator size="large" color="#3B82F6" />
@@ -148,7 +159,7 @@ LoadingState.displayName = 'LoadingState';
 
 const ReceivablesLedger = () => {
   const navigation = useNavigation();
-  const { selectedCompanyId } = useCompany();
+  const { selectedCompanyId, refreshTrigger } = useCompany();
 
   // State variables
   const [parties, setParties] = useState([]);
@@ -170,6 +181,10 @@ const ReceivablesLedger = () => {
   const [isItemsDialogOpen, setIsItemsDialogOpen] = useState(false);
   const [itemsToView, setItemsToView] = useState([]);
   const [lastTransactionDates, setLastTransactionDates] = useState({});
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Active section state ('debit' or 'credit')
+  const [activeSection, setActiveSection] = useState('debit');
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -187,7 +202,7 @@ const ReceivablesLedger = () => {
   const baseURL = BASE_URL;
 
   // Memoized format function
-  const formatIndianNumber = useCallback((number) => {
+  const formatIndianNumber = useCallback(number => {
     const num = typeof number === 'string' ? parseFloat(number) : number;
     if (isNaN(num)) return '0';
     const [integerPart, decimalPart] = num.toFixed(2).split('.');
@@ -218,10 +233,10 @@ const ReceivablesLedger = () => {
 
       const backHandler = BackHandler.addEventListener(
         'hardwareBackPress',
-        onBackPress
+        onBackPress,
       );
 
-      const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      const unsubscribe = navigation.addListener('beforeRemove', e => {
         if (selectedParty) {
           e.preventDefault();
           setSelectedParty('');
@@ -232,366 +247,427 @@ const ReceivablesLedger = () => {
         backHandler.remove();
         unsubscribe();
       };
-    }, [selectedParty, navigation])
+    }, [selectedParty, navigation]),
   );
 
   // Calculate balances for all customers
-  const calculateAllCustomerBalances = useCallback(async (partiesList, companyId) => {
-    setLoadingBalances(true);
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) return;
+  const calculateAllCustomerBalances = useCallback(
+    async (partiesList, companyId, force = false) => {
+      setLoadingBalances(true);
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) return;
 
-      const params = new URLSearchParams();
-      if (companyId && companyId !== "all") {
-        params.append("companyId", companyId);
-      }
-      params.append("isDashboard", "true");
-
-      const [salesRes, receiptRes] = await Promise.all([
-        fetch(`${baseURL}/api/sales?${params.toString()}`, { 
-          headers: { Authorization: `Bearer ${token}` } 
-        }),
-        fetch(`${baseURL}/api/receipts?${params.toString()}`, { 
-          headers: { Authorization: `Bearer ${token}` } 
-        }),
-      ]);
-
-      const salesData = await salesRes.json();
-      const receiptData = await receiptRes.json();
-      const allSales = salesData.data || [];
-      const allReceipts = receiptData.data || [];
-
-      const balances = {};
-      const lastDates = {};
-
-      const startDate = dateRange.startDate 
-        ? new Date(new Date(dateRange.startDate).setHours(0, 0, 0, 0))
-        : null;
-      const endDate = dateRange.endDate 
-        ? new Date(new Date(dateRange.endDate).setHours(23, 59, 59, 999))
-        : null;
-
-      partiesList.forEach((party) => {
-        let totalCredit = 0;
-        let totalDebit = 0;
-        let latestDate = null;
-
-        allSales.forEach((sale) => {
-          if (String(sale.party?._id || sale.party) !== String(party._id)) return;
-          
-          const sDate = new Date(sale.date);
-          if ((!startDate || sDate >= startDate) && (!endDate || sDate <= endDate)) {
-            const amt = Number(sale.totalAmount || sale.invoiceTotal || 0);
-            totalCredit += amt;
-            if (sale.paymentMethod !== "Credit") totalDebit += amt;
-            if (!latestDate || sDate > latestDate) latestDate = sDate;
-          }
-        });
-
-        allReceipts.forEach((receipt) => {
-          if (String(receipt.party?._id || receipt.party) !== String(party._id)) return;
-          
-          const rDate = new Date(receipt.date);
-          if ((!startDate || rDate >= startDate) && (!endDate || rDate <= endDate)) {
-            totalDebit += Number(receipt.amount || 0);
-            if (!latestDate || rDate > latestDate) latestDate = rDate;
-          }
-        });
-
-        balances[party._id] = totalCredit - totalDebit;
-        lastDates[party._id] = latestDate;
-      });
-
-      setCustomerBalances(balances);
-      setLastTransactionDates(lastDates);
-    } catch (error) {
-      console.error("Sync Error:", error);
-    } finally {
-      setLoadingBalances(false);
-    }
-  }, [baseURL, dateRange.startDate, dateRange.endDate]);
-
-  // Calculate overall totals
-  const calculateOverallTotals = useCallback(async () => {
-    setLoadingOverall(true);
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) return;
-
-      const params = new URLSearchParams();
-      if (companyIdForBalances && companyIdForBalances !== "all") {
-        params.append('companyId', companyIdForBalances);
-      }
-      params.append('isDashboard', 'true');
-
-      const [salesResponse, receiptResponse] = await Promise.all([
-        fetch(`${baseURL}/api/sales?${params.toString()}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${baseURL}/api/receipts?${params.toString()}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
-
-      if (!salesResponse.ok || !receiptResponse.ok) {
-        throw new Error('Failed to fetch data');
-      }
-
-      const salesData = await salesResponse.json();
-      const receiptData = await receiptResponse.json();
-
-      const allSales = salesData.data || salesData.sales || salesData.entries || [];
-      const allReceipts = receiptData.data || receiptData.receipts || receiptData.entries || [];
-
-      let totalCredit = 0;
-      let totalDebit = 0;
-
-      const startDate = dateRange.startDate
-        ? new Date(new Date(dateRange.startDate).setHours(0, 0, 0, 0))
-        : null;
-      const endDate = dateRange.endDate
-        ? new Date(new Date(dateRange.endDate).setHours(23, 59, 59, 999))
-        : null;
-
-      allSales.forEach(sale => {
-        const saleDate = new Date(sale.date);
-        const isInDateRange =
-          (!startDate || saleDate >= startDate) &&
-          (!endDate || saleDate <= endDate);
-
-        if (isInDateRange) {
-          const amount = sale.totalAmount || sale.amount || sale.invoiceTotal || 0;
-          totalCredit += amount;
-          const isCreditTransaction = sale.paymentMethod === 'Credit';
-          if (!isCreditTransaction) {
-            totalDebit += amount;
-          }
+        const params = new URLSearchParams();
+        if (companyId && companyId !== 'all') {
+          params.append('companyId', companyId);
         }
-      });
+        params.append('isDashboard', 'true');
+        if (force) params.append('_', Date.now());
 
-      allReceipts.forEach(receipt => {
-        const receiptDate = new Date(receipt.date);
-        const isInDateRange =
-          (!startDate || receiptDate >= startDate) &&
-          (!endDate || receiptDate <= endDate);
+        const [salesRes, receiptRes] = await Promise.all([
+          fetch(`${baseURL}/api/sales?${params.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${baseURL}/api/receipts?${params.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
 
-        if (isInDateRange) {
-          const amount = receipt.amount || 0;
-          totalDebit += amount;
-        }
-      });
+        const salesData = await salesRes.json();
+        const receiptData = await receiptRes.json();
+        const allSales = salesData.data || [];
+        const allReceipts = receiptData.data || [];
 
-      const overallBalance = totalCredit - totalDebit;
+        const balances = {};
+        const lastDates = {};
 
-      setOverallTotals({
-        totalDebit,
-        totalCredit,
-        overallBalance,
-      });
-    } catch (error) {
-      console.error('Error calculating overall totals:', error);
-    } finally {
-      setLoadingOverall(false);
-    }
-  }, [baseURL, companyIdForBalances, dateRange.startDate, dateRange.endDate]);
+        const startDate = dateRange.startDate
+          ? new Date(new Date(dateRange.startDate).setHours(0, 0, 0, 0))
+          : null;
+        const endDate = dateRange.endDate
+          ? new Date(new Date(dateRange.endDate).setHours(23, 59, 59, 999))
+          : null;
 
-  // Fetch parties
-  const fetchParties = useCallback(async () => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('Authentication token not found');
+        partiesList.forEach(party => {
+          let totalCredit = 0;
+          let totalDebit = 0;
+          let latestDate = null;
 
-      const response = await fetch(`${baseURL}/api/parties`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+          allSales.forEach(sale => {
+            if (String(sale.party?._id || sale.party) !== String(party._id))
+              return;
 
-      if (response.ok) {
-        const data = await response.json();
-        const partiesList = Array.isArray(data) ? data : data.parties || [];
-        setParties(partiesList);
-
-        calculateAllCustomerBalances(partiesList, companyIdForBalances);
-        calculateOverallTotals();
-      }
-    } catch (error) {
-      console.error('Error fetching parties:', error);
-      Alert.alert('Error', 'Failed to fetch customers');
-    }
-  }, [baseURL, calculateAllCustomerBalances, calculateOverallTotals, companyIdForBalances]);
-
-  // Fetch ledger data
-  const fetchLedgerData = useCallback(async () => {
-    if (!selectedParty) {
-      setLedgerData([]);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('Authentication token not found');
-
-      const params = new URLSearchParams();
-      if (companyIdForBalances && companyIdForBalances !== "all") {
-        params.append("companyId", companyIdForBalances);
-      }
-      params.append("isDashboard", "true");
-
-      const [salesResponse, receiptResponse] = await Promise.all([
-        fetch(`${baseURL}/api/sales?${params.toString()}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${baseURL}/api/receipts?${params.toString()}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
-
-      const salesData = await salesResponse.json();
-      const receiptData = await receiptResponse.json();
-
-      const allSales = salesData.data || salesData.sales || salesData.entries || [];
-      const allReceipts = receiptData.data || receiptData.receipts || receiptData.entries || [];
-
-      const filteredSales = allSales.filter(sale => {
-        const salePartyId = sale.party?._id || sale.party;
-        const matchesParty = String(salePartyId) === String(selectedParty);
-        const saleCompanyId =
-          typeof sale.company === 'object'
-            ? sale.company?._id || sale.company?.id
-            : sale.company;
-        const matchesCompany =
-          !companyIdForBalances || saleCompanyId === companyIdForBalances;
-        return matchesParty && matchesCompany;
-      });
-
-      const filteredReceipts = allReceipts.filter(receipt => {
-        const receiptPartyId = receipt.party?._id || receipt.party;
-        const matchesParty = String(receiptPartyId) === String(selectedParty);
-        const receiptCompanyId =
-          typeof receipt.company === 'object'
-            ? receipt.company?._id || receipt.company?.id
-            : receipt.company;
-        const matchesCompany =
-          !companyIdForBalances || receiptCompanyId === companyIdForBalances;
-        return matchesParty && matchesCompany;
-      });
-
-      const ledgerEntries = [];
-
-      const startDate = dateRange.startDate
-        ? new Date(new Date(dateRange.startDate).setHours(0, 0, 0, 0))
-        : null;
-      const endDate = dateRange.endDate
-        ? new Date(new Date(dateRange.endDate).setHours(23, 59, 59, 999))
-        : null;
-
-      filteredSales.forEach(sale => {
-        const saleDate = new Date(sale.date);
-        const isInDateRange =
-          (!startDate || saleDate >= startDate) &&
-          (!endDate || saleDate <= endDate);
-
-        if (isInDateRange) {
-          ledgerEntries.push({
-            id: sale._id,
-            date: sale.date,
-            type: 'credit',
-            transactionType: 'Sales',
-            paymentMethod: sale.paymentMethod || 'Not Specified',
-            amount: sale.totalAmount || sale.amount || sale.invoiceTotal || 0,
-            referenceNumber: sale.invoiceNumber || sale.referenceNumber,
-            description: sale.description,
+            const sDate = new Date(sale.date);
+            if (
+              (!startDate || sDate >= startDate) &&
+              (!endDate || sDate <= endDate)
+            ) {
+              const amt = Number(sale.totalAmount || sale.invoiceTotal || 0);
+              totalCredit += amt;
+              if (sale.paymentMethod !== 'Credit') totalDebit += amt;
+              if (!latestDate || sDate > latestDate) latestDate = sDate;
+            }
           });
 
-          const isCreditTransaction = sale.paymentMethod === 'Credit';
-          if (!isCreditTransaction) {
+          allReceipts.forEach(receipt => {
+            if (
+              String(receipt.party?._id || receipt.party) !== String(party._id)
+            )
+              return;
+
+            const rDate = new Date(receipt.date);
+            if (
+              (!startDate || rDate >= startDate) &&
+              (!endDate || rDate <= endDate)
+            ) {
+              totalDebit += Number(receipt.amount || 0);
+              if (!latestDate || rDate > latestDate) latestDate = rDate;
+            }
+          });
+
+          balances[party._id] = totalCredit - totalDebit;
+          lastDates[party._id] = latestDate;
+        });
+
+        setCustomerBalances(balances);
+        setLastTransactionDates(lastDates);
+      } catch (error) {
+        console.error('Sync Error:', error);
+      } finally {
+        setLoadingBalances(false);
+      }
+    },
+    [baseURL, dateRange.startDate, dateRange.endDate],
+  );
+
+  // Calculate overall totals
+  const calculateOverallTotals = useCallback(
+    async (force = false) => {
+      setLoadingOverall(true);
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) return;
+
+        const params = new URLSearchParams();
+        if (companyIdForBalances && companyIdForBalances !== 'all') {
+          params.append('companyId', companyIdForBalances);
+        }
+        params.append('isDashboard', 'true');
+        if (force) params.append('_', Date.now());
+        // cache-buster is optional via param on caller
+        // callers may pass force by invoking calculateOverallTotals(true)
+
+        const [salesResponse, receiptResponse] = await Promise.all([
+          fetch(`${baseURL}/api/sales?${params.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${baseURL}/api/receipts?${params.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        if (!salesResponse.ok || !receiptResponse.ok) {
+          throw new Error('Failed to fetch data');
+        }
+
+        const salesData = await salesResponse.json();
+        const receiptData = await receiptResponse.json();
+
+        const allSales =
+          salesData.data || salesData.sales || salesData.entries || [];
+        const allReceipts =
+          receiptData.data || receiptData.receipts || receiptData.entries || [];
+
+        let totalCredit = 0;
+        let totalDebit = 0;
+
+        const startDate = dateRange.startDate
+          ? new Date(new Date(dateRange.startDate).setHours(0, 0, 0, 0))
+          : null;
+        const endDate = dateRange.endDate
+          ? new Date(new Date(dateRange.endDate).setHours(23, 59, 59, 999))
+          : null;
+
+        allSales.forEach(sale => {
+          const saleDate = new Date(sale.date);
+          const isInDateRange =
+            (!startDate || saleDate >= startDate) &&
+            (!endDate || saleDate <= endDate);
+
+          if (isInDateRange) {
+            const amount =
+              sale.totalAmount || sale.amount || sale.invoiceTotal || 0;
+            totalCredit += amount;
+            const isCreditTransaction = sale.paymentMethod === 'Credit';
+            if (!isCreditTransaction) {
+              totalDebit += amount;
+            }
+          }
+        });
+
+        allReceipts.forEach(receipt => {
+          const receiptDate = new Date(receipt.date);
+          const isInDateRange =
+            (!startDate || receiptDate >= startDate) &&
+            (!endDate || receiptDate <= endDate);
+
+          if (isInDateRange) {
+            const amount = receipt.amount || 0;
+            totalDebit += amount;
+          }
+        });
+
+        const overallBalance = totalCredit - totalDebit;
+
+        setOverallTotals({
+          totalDebit,
+          totalCredit,
+          overallBalance,
+        });
+      } catch (error) {
+        console.error('Error calculating overall totals:', error);
+      } finally {
+        setLoadingOverall(false);
+      }
+    },
+    [baseURL, companyIdForBalances, dateRange.startDate, dateRange.endDate],
+  );
+
+  // Fetch parties
+  const fetchParties = useCallback(
+    async (force = false) => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) throw new Error('Authentication token not found');
+
+        const url = force
+          ? `${baseURL}/api/parties?_=${Date.now()}`
+          : `${baseURL}/api/parties`;
+
+        const response = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          let partiesList = [];
+          if (Array.isArray(data)) partiesList = data;
+          else if (data && Array.isArray(data.parties))
+            partiesList = data.parties;
+          else if (data && Array.isArray(data.data)) partiesList = data.data;
+          else partiesList = [];
+
+          setParties(partiesList);
+
+          calculateAllCustomerBalances(partiesList, companyIdForBalances);
+          calculateOverallTotals();
+        } else {
+          console.error('Failed to fetch parties:', response.status);
+          setParties([]);
+        }
+      } catch (error) {
+        console.error('Error fetching parties:', error);
+        Alert.alert('Error', 'Failed to fetch customers');
+        setParties([]);
+      }
+    },
+    [
+      baseURL,
+      calculateAllCustomerBalances,
+      calculateOverallTotals,
+      companyIdForBalances,
+    ],
+  );
+
+  // Fetch ledger data
+  const fetchLedgerData = useCallback(
+    async (force = false) => {
+      if (!selectedParty) {
+        setLedgerData([]);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) throw new Error('Authentication token not found');
+
+        const params = new URLSearchParams();
+        if (companyIdForBalances && companyIdForBalances !== 'all') {
+          params.append('companyId', companyIdForBalances);
+        }
+        params.append('isDashboard', 'true');
+        if (force) params.append('_', Date.now());
+
+        const [salesResponse, receiptResponse] = await Promise.all([
+          fetch(`${baseURL}/api/sales?${params.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${baseURL}/api/receipts?${params.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        const salesData = await salesResponse.json();
+        const receiptData = await receiptResponse.json();
+
+        const allSales =
+          salesData.data || salesData.sales || salesData.entries || [];
+        const allReceipts =
+          receiptData.data || receiptData.receipts || receiptData.entries || [];
+
+        const filteredSales = allSales.filter(sale => {
+          const salePartyId = sale.party?._id || sale.party;
+          const matchesParty = String(salePartyId) === String(selectedParty);
+          const saleCompanyId =
+            typeof sale.company === 'object'
+              ? sale.company?._id || sale.company?.id
+              : sale.company;
+          const matchesCompany =
+            !companyIdForBalances || saleCompanyId === companyIdForBalances;
+          return matchesParty && matchesCompany;
+        });
+
+        const filteredReceipts = allReceipts.filter(receipt => {
+          const receiptPartyId = receipt.party?._id || receipt.party;
+          const matchesParty = String(receiptPartyId) === String(selectedParty);
+          const receiptCompanyId =
+            typeof receipt.company === 'object'
+              ? receipt.company?._id || receipt.company?.id
+              : receipt.company;
+          const matchesCompany =
+            !companyIdForBalances || receiptCompanyId === companyIdForBalances;
+          return matchesParty && matchesCompany;
+        });
+
+        const ledgerEntries = [];
+
+        const startDate = dateRange.startDate
+          ? new Date(new Date(dateRange.startDate).setHours(0, 0, 0, 0))
+          : null;
+        const endDate = dateRange.endDate
+          ? new Date(new Date(dateRange.endDate).setHours(23, 59, 59, 999))
+          : null;
+
+        filteredSales.forEach(sale => {
+          const saleDate = new Date(sale.date);
+          const isInDateRange =
+            (!startDate || saleDate >= startDate) &&
+            (!endDate || saleDate <= endDate);
+
+          if (isInDateRange) {
             ledgerEntries.push({
               id: sale._id,
               date: sale.date,
-              type: 'debit',
-              transactionType: 'Sales Payment',
+              type: 'credit',
+              transactionType: 'Sales',
               paymentMethod: sale.paymentMethod || 'Not Specified',
               amount: sale.totalAmount || sale.amount || sale.invoiceTotal || 0,
               referenceNumber: sale.invoiceNumber || sale.referenceNumber,
               description: sale.description,
             });
+
+            const isCreditTransaction = sale.paymentMethod === 'Credit';
+            if (!isCreditTransaction) {
+              ledgerEntries.push({
+                id: sale._id,
+                date: sale.date,
+                type: 'debit',
+                transactionType: 'Sales Payment',
+                paymentMethod: sale.paymentMethod || 'Not Specified',
+                amount:
+                  sale.totalAmount || sale.amount || sale.invoiceTotal || 0,
+                referenceNumber: sale.invoiceNumber || sale.referenceNumber,
+                description: sale.description,
+              });
+            }
           }
-        }
-      });
+        });
 
-      filteredReceipts.forEach(receipt => {
-        const receiptDate = new Date(receipt.date);
-        const isInDateRange =
-          (!startDate || receiptDate >= startDate) &&
-          (!endDate || receiptDate <= endDate);
+        filteredReceipts.forEach(receipt => {
+          const receiptDate = new Date(receipt.date);
+          const isInDateRange =
+            (!startDate || receiptDate >= startDate) &&
+            (!endDate || receiptDate <= endDate);
 
-        if (isInDateRange) {
-          ledgerEntries.push({
-            id: receipt._id,
-            date: receipt.date,
-            type: 'debit',
-            transactionType: 'Receipt',
-            paymentMethod: receipt.paymentMethod || 'Not Specified',
-            amount: receipt.amount || 0,
-            referenceNumber: receipt.referenceNumber,
-            description: receipt.description,
-          });
-        }
-      });
+          if (isInDateRange) {
+            ledgerEntries.push({
+              id: receipt._id,
+              date: receipt.date,
+              type: 'debit',
+              transactionType: 'Receipt',
+              paymentMethod: receipt.paymentMethod || 'Not Specified',
+              amount: receipt.amount || 0,
+              referenceNumber: receipt.referenceNumber,
+              description: receipt.description,
+            });
+          }
+        });
 
-      ledgerEntries.sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-      );
+        ledgerEntries.sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+        );
 
-      setLedgerData(ledgerEntries);
-    } catch (error) {
-      console.error('Error fetching ledger data:', error);
-      Alert.alert('Error', 'Failed to fetch ledger data');
-    } finally {
-      setLoading(false);
-    }
-  }, [baseURL, companyIdForBalances, dateRange.startDate, dateRange.endDate, selectedParty]);
+        setLedgerData(ledgerEntries);
+      } catch (error) {
+        console.error('Error fetching ledger data:', error);
+        Alert.alert('Error', 'Failed to fetch ledger data');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [
+      baseURL,
+      companyIdForBalances,
+      dateRange.startDate,
+      dateRange.endDate,
+      selectedParty,
+    ],
+  );
 
   // Handle viewing items for a transaction
-  const handleViewItems = useCallback(async (entry) => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('Authentication token not found.');
+  const handleViewItems = useCallback(
+    async entry => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) throw new Error('Authentication token not found.');
 
-      let endpoint = `${baseURL}/api/sales/${entry.id}`;
+        let endpoint = `${baseURL}/api/sales/${entry.id}`;
 
-      const response = await fetch(endpoint, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        const receiptsEndpoint = `${baseURL}/api/receipts/${entry.id}`;
-        const receiptsResponse = await fetch(receiptsEndpoint, {
+        const response = await fetch(endpoint, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (!receiptsResponse.ok) {
-          throw new Error('Failed to fetch transaction details');
+        if (!response.ok) {
+          const receiptsEndpoint = `${baseURL}/api/receipts/${entry.id}`;
+          const receiptsResponse = await fetch(receiptsEndpoint, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (!receiptsResponse.ok) {
+            throw new Error('Failed to fetch transaction details');
+          }
+
+          const transaction = await receiptsResponse.json();
+          processTransactionData(transaction.receipt);
+          return;
         }
 
-        const transaction = await receiptsResponse.json();
-        processTransactionData(transaction.receipt);
-        return;
+        const transaction = await response.json();
+        processTransactionData(transaction.entry);
+      } catch (error) {
+        console.error('Error fetching transaction items:', error);
+        setItemsToView([]);
+        setIsItemsDialogOpen(true);
       }
+    },
+    [baseURL],
+  );
 
-      const transaction = await response.json();
-      processTransactionData(transaction.entry);
-    } catch (error) {
-      console.error('Error fetching transaction items:', error);
-      setItemsToView([]);
-      setIsItemsDialogOpen(true);
-    }
-  }, [baseURL]);
-
-  const processTransactionData = useCallback((transaction) => {
+  const processTransactionData = useCallback(transaction => {
     const prods = (transaction.products || []).map(p => ({
       itemType: 'product',
       name: p.product?.name || p.product || '(product)',
@@ -651,28 +727,35 @@ const ReceivablesLedger = () => {
   // Filter customers in modal based on search
   const filteredCustomers = useMemo(() => {
     if (!customerSearchTerm) return parties;
-    
+
     const lowerSearch = customerSearchTerm.toLowerCase();
-    return parties.filter(party =>
-      party.name.toLowerCase().includes(lowerSearch) ||
-      party.contactNumber?.toLowerCase().includes(lowerSearch)
+    return parties.filter(
+      party =>
+        party.name.toLowerCase().includes(lowerSearch) ||
+        party.contactNumber?.toLowerCase().includes(lowerSearch),
     );
   }, [parties, customerSearchTerm]);
 
-  // Separate entries - memoized
-  const { debitEntries, creditEntries } = useMemo(() => ({
-    debitEntries: ledgerData.filter(entry => entry.type === 'debit'),
-    creditEntries: ledgerData.filter(entry => entry.type === 'credit'),
-  }), [ledgerData]);
-
-  const balance = useMemo(() => totals.totalCredit - totals.totalDebit, [totals]);
-  
-  const selectedPartyData = useMemo(() => 
-    parties.find(p => p._id === selectedParty),
-    [parties, selectedParty]
+  // Separate entries
+  const { debitEntries, creditEntries } = useMemo(
+    () => ({
+      debitEntries: ledgerData.filter(entry => entry.type === 'debit'),
+      creditEntries: ledgerData.filter(entry => entry.type === 'credit'),
+    }),
+    [ledgerData],
   );
 
-  // Pagination logic - memoized
+  const balance = useMemo(
+    () => totals.totalCredit - totals.totalDebit,
+    [totals],
+  );
+
+  const selectedPartyData = useMemo(
+    () => parties.find(p => p._id === selectedParty),
+    [parties, selectedParty],
+  );
+
+  // Pagination logic
   const sortedParties = useMemo(() => {
     return parties
       .filter(party => lastTransactionDates[party._id])
@@ -703,156 +786,173 @@ const ReceivablesLedger = () => {
     setCurrentPage(prev => Math.max(prev - 1, 1));
   }, []);
 
-// Export to CSV with proper Android permissions
-const exportToExcel = useCallback(async () => {
-  if (!selectedPartyData) {
-    Alert.alert('Error', 'No customer selected');
-    return;
-  }
-
-  if (ledgerData.length === 0) {
-    Alert.alert('No Data', 'No transactions to export');
-    return;
-  }
-
-  setLoading(true);
-  try {
-    console.log('Starting Excel export...');
-    
-    // Prepare headers
-    const headers = [
-      'Date',
-      'Type',
-      'Transaction Type',
-      'Payment Method',
-      'Amount (₹)',
-      'Reference',
-      'Description'
-    ];
-
-    // Prepare data rows
-    const dataRows = ledgerData.map(entry => [
-      format(new Date(entry.date), 'dd/MM/yyyy'),
-      entry.type.toUpperCase(),
-      entry.transactionType,
-      entry.paymentMethod || '',
-      `₹${formatIndianNumber(entry.amount)}`,
-      entry.referenceNumber || '',
-      entry.description || ''
-    ]);
-
-    // Add summary rows
-    const summaryRows = [
-      [],
-      ['SUMMARY'],
-      ['Total Transactions', ledgerData.length.toString()],
-      ['Total Credit', `₹${formatIndianNumber(totals.totalCredit)}`],
-      ['Total Debit', `₹${formatIndianNumber(totals.totalDebit)}`],
-      ['Net Balance', `₹${formatIndianNumber(Math.abs(balance))} (${balance >= 0 ? 'Customer Owes' : 'You Owe'})`]
-    ];
-
-    // Combine all data
-    const allData = [headers, ...dataRows, ...summaryRows];
-
-    // Create worksheet from array of arrays
-    const ws = XLSX.utils.aoa_to_sheet(allData);
-
-    // Set column widths
-    ws['!cols'] = [
-      { wch: 12 },  // Date
-      { wch: 10 },  // Type
-      { wch: 18 },  // Transaction Type
-      { wch: 15 },  // Payment Method
-      { wch: 15 },  // Amount
-      { wch: 15 },  // Reference
-      { wch: 30 }   // Description
-    ];
-
-    // Create workbook
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Ledger');
-
-    // Generate filename
-    const cleanName = selectedPartyData.name.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const fileName = `Ledger_${cleanName}_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`;
-    
-    console.log('File name:', fileName);
-
-    // Generate Excel file as base64
-    const excelBuffer = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-
-    // Determine file path based on platform
-    let filePath;
-    if (Platform.OS === 'android') {
-      // Use Download folder for Android
-      filePath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
-    } else {
-      // Use Document directory for iOS
-      filePath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
+  // Export to CSV with proper Android permissions
+  const exportToExcel = useCallback(async () => {
+    if (!selectedPartyData) {
+      Alert.alert('Error', 'No customer selected');
+      return;
     }
 
-    // Write file
-    await RNFS.writeFile(filePath, excelBuffer, 'base64');
-    console.log('File written successfully at:', filePath);
-
-    // For Android, scan the file so it appears in file manager
-    if (Platform.OS === 'android') {
-      await RNFS.scanFile(filePath);
+    if (ledgerData.length === 0) {
+      Alert.alert('No Data', 'No transactions to export');
+      return;
     }
 
-    // Verify file was created
-    const fileExists = await RNFS.exists(filePath);
-    console.log('File exists after write:', fileExists);
+    setLoading(true);
+    try {
+      console.log('Starting Excel export...');
 
-    if (!fileExists) {
-      throw new Error('File was not created');
-    }
+      // Prepare headers
+      const headers = [
+        'Date',
+        'Type',
+        'Transaction Type',
+        'Payment Method',
+        'Amount (₹)',
+        'Reference',
+        'Description',
+      ];
 
-    // Show success alert with share option
-    Alert.alert(
-      'Export Successful! ✅',
-      `Excel file has been saved as:\n${fileName}\n\nLocation: ${
-        Platform.OS === 'android' ? 'Downloads folder' : 'Documents folder'
-      }`,
-      [
-        { 
-          text: 'OK', 
-          style: 'default' 
-        },
-        { 
-          text: 'Share File', 
-          onPress: async () => {
-            try {
-              const Share = require('react-native-share').default;
-              await Share.open({
-                title: 'Share Ledger File',
-                message: `Customer Ledger - ${selectedPartyData.name}`,
-                url: Platform.OS === 'android' ? `file://${filePath}` : filePath,
-                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                subject: `Ledger Export - ${selectedPartyData.name}`,
-              });
-            } catch (shareError) {
-              console.log('Share error:', shareError);
-              if (shareError.message !== 'User did not share') {
-                Alert.alert('Info', 'File saved successfully in your Downloads folder.');
+      // Prepare data rows
+      const dataRows = ledgerData.map(entry => [
+        format(new Date(entry.date), 'dd/MM/yyyy'),
+        entry.type.toUpperCase(),
+        entry.transactionType,
+        entry.paymentMethod || '',
+        `₹${formatIndianNumber(entry.amount)}`,
+        entry.referenceNumber || '',
+        entry.description || '',
+      ]);
+
+      // Add summary rows
+      const summaryRows = [
+        [],
+        ['SUMMARY'],
+        ['Total Transactions', ledgerData.length.toString()],
+        ['Total Credit', `₹${formatIndianNumber(totals.totalCredit)}`],
+        ['Total Debit', `₹${formatIndianNumber(totals.totalDebit)}`],
+        [
+          'Net Balance',
+          `₹${formatIndianNumber(Math.abs(balance))} (${
+            balance >= 0 ? 'Customer Owes' : 'You Owe'
+          })`,
+        ],
+      ];
+
+      // Combine all data
+      const allData = [headers, ...dataRows, ...summaryRows];
+
+      // Create worksheet from array of arrays
+      const ws = XLSX.utils.aoa_to_sheet(allData);
+
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 12 }, // Date
+        { wch: 10 }, // Type
+        { wch: 18 }, // Transaction Type
+        { wch: 15 }, // Payment Method
+        { wch: 15 }, // Amount
+        { wch: 15 }, // Reference
+        { wch: 30 }, // Description
+      ];
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Ledger');
+
+      // Generate filename
+      const cleanName = selectedPartyData.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const fileName = `Ledger_${cleanName}_${format(
+        new Date(),
+        'yyyy-MM-dd_HHmm',
+      )}.xlsx`;
+
+      console.log('File name:', fileName);
+
+      // Generate Excel file as base64
+      const excelBuffer = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+
+      // Determine file path based on platform
+      let filePath;
+      if (Platform.OS === 'android') {
+        // Use Download folder for Android
+        filePath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
+      } else {
+        // Use Document directory for iOS
+        filePath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
+      }
+
+      // Write file
+      await RNFS.writeFile(filePath, excelBuffer, 'base64');
+      console.log('File written successfully at:', filePath);
+
+      // For Android, scan the file so it appears in file manager
+      if (Platform.OS === 'android') {
+        await RNFS.scanFile(filePath);
+      }
+
+      // Verify file was created
+      const fileExists = await RNFS.exists(filePath);
+      console.log('File exists after write:', fileExists);
+
+      if (!fileExists) {
+        throw new Error('File was not created');
+      }
+
+      Alert.alert(
+        'Export Successful! ✅',
+        `Excel file has been saved as:\n${fileName}\n\nLocation: ${
+          Platform.OS === 'android' ? 'Downloads folder' : 'Documents folder'
+        }`,
+        [
+          {
+            text: 'OK',
+            style: 'default',
+          },
+          {
+            text: 'Share File',
+            onPress: async () => {
+              try {
+                const Share = require('react-native-share').default;
+                await Share.open({
+                  title: 'Share Ledger File',
+                  message: `Customer Ledger - ${selectedPartyData.name}`,
+                  url:
+                    Platform.OS === 'android' ? `file://${filePath}` : filePath,
+                  type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                  subject: `Ledger Export - ${selectedPartyData.name}`,
+                });
+              } catch (shareError) {
+                console.log('Share error:', shareError);
+                if (shareError.message !== 'User did not share') {
+                  Alert.alert(
+                    'Info',
+                    'File saved successfully in your Downloads folder.',
+                  );
+                }
               }
-            }
-          }
-        }
-      ]
-    );
-
-  } catch (error) {
-    console.error('Error exporting ledger:', error);
-    Alert.alert(
-      'Export Failed', 
-      `Error: ${error.message || 'Unknown error occurred'}`,
-      [{ text: 'OK' }]
-    );
-  } finally {
-    setLoading(false);
-  }
-}, [balance, formatIndianNumber, ledgerData, selectedPartyData, totals.totalCredit, totals.totalDebit]);
+            },
+          },
+        ],
+      );
+    } catch (error) {
+      console.error('Error exporting ledger:', error);
+      Alert.alert(
+        'Export Failed',
+        `Error: ${error.message || 'Unknown error occurred'}`,
+        [{ text: 'OK' }],
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    balance,
+    formatIndianNumber,
+    ledgerData,
+    selectedPartyData,
+    totals.totalCredit,
+    totals.totalDebit,
+  ]);
 
   // Clear filters
   const clearFilters = useCallback(() => {
@@ -877,7 +977,7 @@ const exportToExcel = useCallback(async () => {
     }
   }, []);
 
-  const handlePartyChange = useCallback((value) => {
+  const handlePartyChange = useCallback(value => {
     setSelectedParty(value);
     setShowCustomerModal(false);
     setCustomerSearchTerm('');
@@ -894,6 +994,13 @@ const exportToExcel = useCallback(async () => {
   const toggleEndDatePicker = useCallback(() => {
     setShowEndDatePicker(true);
   }, []);
+
+  useEffect(() => {
+  if (parties.length > 0) {
+    calculateAllCustomerBalances(parties, companyIdForBalances);
+    calculateOverallTotals();
+  }
+}, [parties.length, companyIdForBalances]);
 
   // Auto-refresh when company changes
   useEffect(() => {
@@ -921,7 +1028,12 @@ const exportToExcel = useCallback(async () => {
 
       return () => clearTimeout(timer);
     }
-  }, [dateRange.startDate, dateRange.endDate, companyIdForBalances, selectedParty]);
+  }, [
+    dateRange.startDate,
+    dateRange.endDate,
+    companyIdForBalances,
+    selectedParty,
+  ]);
 
   // Reset page on filter change
   useEffect(() => {
@@ -932,6 +1044,46 @@ const exportToExcel = useCallback(async () => {
   useEffect(() => {
     fetchParties();
   }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchParties(true);
+      if (selectedParty) {
+        await fetchLedgerData(true);
+      } else {
+        // refresh balances and totals when no specific party selected
+        await calculateAllCustomerBalances(parties, companyIdForBalances, true);
+        await calculateOverallTotals(true);
+      }
+    } catch (err) {
+      console.error('Error refreshing receivables:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [
+    fetchParties,
+    fetchLedgerData,
+    selectedParty,
+    parties,
+    calculateAllCustomerBalances,
+    calculateOverallTotals,
+    companyIdForBalances,
+  ]);
+
+  // Call onRefresh when refreshTrigger increments. Use a ref for onRefresh
+  // so this effect only depends on refreshTrigger and doesn't re-run when
+  // onRefresh identity changes (prevents repeated refreshes).
+  const onRefreshRef = React.useRef(onRefresh);
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  }, [onRefresh]);
+
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      onRefreshRef.current();
+    }
+  }, [refreshTrigger]);
 
   useEffect(() => {
     if (selectedParty) {
@@ -946,12 +1098,12 @@ const exportToExcel = useCallback(async () => {
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
-            <View style={styles.iconBadge}>
+            {/* <View style={styles.iconBadge}>
               <Icon name="book-open-variant" size={20} color="#3B82F6" />
-            </View>
+            </View> */}
             <View>
               <Text style={styles.title}>Customer Ledger</Text>
-              <Text style={styles.subtitle}>Manage receivables</Text>
+              {/* <Text style={styles.subtitle}>Manage receivables</Text> */}
             </View>
           </View>
           <TouchableOpacity
@@ -970,10 +1122,13 @@ const exportToExcel = useCallback(async () => {
         </View>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         {/* Back Button */}
         {selectedParty && (
@@ -1002,7 +1157,7 @@ const exportToExcel = useCallback(async () => {
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderLeft}>
               <View style={styles.filterIconContainer}>
-                <Icon name="filter-variant" size={20} color="#3B82F6" />
+                <Icon name="filter-variant" size={18} color="#3B82F6" />
               </View>
               <Text style={styles.cardTitle}>Filters</Text>
             </View>
@@ -1012,7 +1167,8 @@ const exportToExcel = useCallback(async () => {
             {/* Customer Selector */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>
-                <Icon name="account-multiple" size={14} color="#6B7280" /> Customer
+                <Icon name="account-multiple" size={14} color="#6B7280" />{' '}
+                Customer
               </Text>
               <TouchableOpacity
                 style={[
@@ -1030,7 +1186,8 @@ const exportToExcel = useCallback(async () => {
                   numberOfLines={1}
                 >
                   {selectedParty
-                    ? parties.find(p => p._id === selectedParty)?.name || 'Select a customer...'
+                    ? parties.find(p => p._id === selectedParty)?.name ||
+                      'Select a customer...'
                     : 'All customers'}
                 </Text>
                 <Icon name="chevron-down" size={18} color="#94A3B8" />
@@ -1041,7 +1198,8 @@ const exportToExcel = useCallback(async () => {
             <View style={styles.dateRangeContainer}>
               <View style={styles.dateInput}>
                 <Text style={styles.label}>
-                  <Icon name="calendar-start" size={14} color="#6B7280" /> From Date
+                  <Icon name="calendar-start" size={14} color="#6B7280" /> From
+                  Date
                 </Text>
                 <TouchableOpacity
                   style={styles.dateButton}
@@ -1054,7 +1212,7 @@ const exportToExcel = useCallback(async () => {
                       : 'Select date'}
                   </Text>
                   <View style={styles.calendarIcon}>
-                    <Icon name="calendar" size={18} color="#3B82F6" />
+                    <Icon name="calendar" size={15} color="#3B82F6" />
                   </View>
                 </TouchableOpacity>
               </View>
@@ -1074,15 +1232,15 @@ const exportToExcel = useCallback(async () => {
                       : 'Select end date'}
                   </Text>
                   <View style={styles.calendarIcon}>
-                    <Icon name="calendar" size={18} color="#3B82F6" />
+                    <Icon name="calendar" size={15} color="#3B82F6" />
                   </View>
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* Clear Button */}
-            <TouchableOpacity 
-              style={styles.clearButton} 
+            <TouchableOpacity
+              style={styles.clearButton}
               onPress={clearFilters}
               activeOpacity={0.7}
             >
@@ -1134,13 +1292,13 @@ const exportToExcel = useCallback(async () => {
                   <Icon name="close" size={24} color="#64748B" />
                 </TouchableOpacity>
               </View>
-              
+
               {/* Search in Modal */}
               <View style={styles.modalSearchWrapper}>
                 <Icon name="magnify" size={20} color="#9CA3AF" />
                 <TextInput
                   style={styles.modalSearchInput}
-                  placeholder="Search customers..." 
+                  placeholder="Search customers..."
                   placeholderTextColor="#9CA3AF"
                   value={customerSearchTerm}
                   onChangeText={setCustomerSearchTerm}
@@ -1168,7 +1326,8 @@ const exportToExcel = useCallback(async () => {
                       <Text
                         style={[
                           styles.modalItemText,
-                          selectedParty === item._id && styles.modalItemTextSelected,
+                          selectedParty === item._id &&
+                            styles.modalItemTextSelected,
                         ]}
                       >
                         {item.name}
@@ -1187,7 +1346,9 @@ const exportToExcel = useCallback(async () => {
                 ListEmptyComponent={
                   <View style={styles.emptyModalList}>
                     <Icon name="account-off" size={48} color="#E5E7EB" />
-                    <Text style={styles.emptyModalText}>No customers found</Text>
+                    <Text style={styles.emptyModalText}>
+                      No customers found
+                    </Text>
                   </View>
                 }
               />
@@ -1244,6 +1405,92 @@ const exportToExcel = useCallback(async () => {
               </View>
             )}
 
+            <View style={styles.tabsWrapper}>
+              <View style={styles.tabsContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.tab,
+                    activeSection === 'debit' && styles.tabActiveDebit,
+                  ]}
+                  onPress={() => setActiveSection('debit')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.tabContent}>
+                    <Text
+                      style={[
+                        styles.tabText,
+                        activeSection === 'debit' && styles.tabTextActiveDebit,
+                      ]}
+                    >
+                      Debit Side
+                    </Text>
+                    <View
+                      style={[
+                        styles.tabBadge,
+                        activeSection === 'debit' && styles.tabBadgeActiveDebit,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.tabBadgeText,
+                          activeSection === 'debit' &&
+                            styles.tabBadgeTextActiveDebit,
+                        ]}
+                      >
+                        {debitEntries.length}
+                      </Text>
+                    </View>
+                  </View>
+                  {activeSection === 'debit' && (
+                    <View style={styles.tabIndicatorDebit} />
+                  )}
+                </TouchableOpacity>
+
+                <View style={styles.tabDivider} />
+
+                <TouchableOpacity
+                  style={[
+                    styles.tab,
+                    activeSection === 'credit' && styles.tabActiveCredit,
+                  ]}
+                  onPress={() => setActiveSection('credit')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.tabContent}>
+                    <Text
+                      style={[
+                        styles.tabText,
+                        activeSection === 'credit' &&
+                          styles.tabTextActiveCredit,
+                      ]}
+                    >
+                      Credit Side
+                    </Text>
+                    <View
+                      style={[
+                        styles.tabBadge,
+                        activeSection === 'credit' &&
+                          styles.tabBadgeActiveCredit,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.tabBadgeText,
+                          activeSection === 'credit' &&
+                            styles.tabBadgeTextActiveCredit,
+                        ]}
+                      >
+                        {creditEntries.length}
+                      </Text>
+                    </View>
+                  </View>
+                  {activeSection === 'credit' && (
+                    <View style={styles.tabIndicatorCredit} />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
             {/* Ledger Details */}
             <View style={styles.card}>
               <View style={styles.cardHeader}>
@@ -1251,11 +1498,18 @@ const exportToExcel = useCallback(async () => {
                   <View style={styles.ledgerIconContainer}>
                     <Icon name="file-document" size={20} color="#3B82F6" />
                   </View>
-                  <Text style={styles.cardTitle}>Ledger Details</Text>
+                  <Text style={styles.cardTitle}>
+                    {activeSection === 'debit'
+                      ? 'Debit Transactions'
+                      : 'Credit Transactions'}
+                  </Text>
                 </View>
                 <View style={styles.transactionCount}>
                   <Text style={styles.transactionCountText}>
-                    {ledgerData.length} transactions
+                    {activeSection === 'debit'
+                      ? debitEntries.length
+                      : creditEntries.length}{' '}
+                    transactions
                   </Text>
                 </View>
               </View>
@@ -1264,45 +1518,40 @@ const exportToExcel = useCallback(async () => {
                 {loading ? (
                   <LoadingState message="Loading ledger data..." />
                 ) : ledgerData.length === 0 ? (
-                  <EmptyState 
-                    message="No transactions found" 
+                  <EmptyState
+                    message="No transactions found"
                     submessage="Try adjusting your filters"
                   />
                 ) : (
                   <View>
-                    {/* Debit Section */}
-                    <View style={styles.section}>
-                      <SectionHeader type="debit" subtitle="Receipts" />
-                      <View style={styles.sectionContent}>
-                        {debitEntries.length === 0 ? (
-                          <NoDataState message="No debit transactions" />
-                        ) : (
-                          debitEntries.map((entry, index) => (
-                            <MobileLedgerCard
-                              key={`debit-${entry.id}-${index}`}
-                              entry={entry}
-                              type="debit"
-                              formatIndianNumber={formatIndianNumber}
-                              format={format}
-                            />
-                          ))
-                        )}
+                    {/* Show only the active section */}
+                    {activeSection === 'debit' ? (
+                      <View style={styles.section}>
+                        <SectionHeader type="debit" subtitle="Receipts" />
+                        <View style={styles.sectionContent}>
+                          {debitEntries.length === 0 ? (
+                            <NoDataState message="No debit transactions" />
+                          ) : (
+                            debitEntries.map((entry, index) => (
+                              <MobileLedgerCard
+                                key={`debit-${entry.id}-${index}`}
+                                entry={entry}
+                                type="debit"
+                                formatIndianNumber={formatIndianNumber}
+                                format={format}
+                              />
+                            ))
+                          )}
+                        </View>
                       </View>
-                    </View>
-
-                    {/* Credit Section */}
-                    <View style={[styles.section, styles.creditSection]}>
-                      <SectionHeader type="credit" subtitle="Sales" />
-                      <View style={styles.sectionContent}>
-                        {creditEntries.length === 0 ? (
-                          <NoDataState message="No credit transactions" />
-                        ) : (
-                          creditEntries.map((entry, index) => (
-                            // <TouchableOpacity
-                            //   key={`credit-${entry.id}-${index}`}
-                            //   onPress={() => handleViewItems(entry)}
-                            //   activeOpacity={0.7}
-                            // >
+                    ) : (
+                      <View style={styles.section}>
+                        <SectionHeader type="credit" subtitle="Sales" />
+                        <View style={styles.sectionContent}>
+                          {creditEntries.length === 0 ? (
+                            <NoDataState message="No credit transactions" />
+                          ) : (
+                            creditEntries.map((entry, index) => (
                               <MobileLedgerCard
                                 key={`credit-${entry.id}-${index}`}
                                 entry={entry}
@@ -1312,11 +1561,11 @@ const exportToExcel = useCallback(async () => {
                                 showViewDetails={true}
                                 onViewDetails={() => handleViewItems(entry)}
                               />
-                            // </TouchableOpacity>
-                          ))
-                        )}
+                            ))
+                          )}
+                        </View>
                       </View>
-                    </View>
+                    )}
                   </View>
                 )}
               </View>
@@ -1343,9 +1592,8 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FFFFFF',
-    paddingTop: Platform.OS === 'ios' ? 50 : 16,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
     elevation: 4,
@@ -1374,7 +1622,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#111827',
     letterSpacing: -0.5,
@@ -1382,7 +1630,6 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 13,
     color: '#6B7280',
-    // marginTop: 2,
     fontWeight: '500',
   },
   exportButton: {
@@ -1472,8 +1719,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
@@ -1482,8 +1729,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   filterIconContainer: {
-    width: 36,
-    height: 36,
+    width: 30,
+    height: 30,
     borderRadius: 8,
     backgroundColor: '#EFF6FF',
     justifyContent: 'center',
@@ -1516,7 +1763,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   cardContent: {
-    padding: 20,
+    padding: 12,
   },
   inputContainer: {
     marginBottom: 20,
@@ -1536,8 +1783,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 13,
-    minHeight: 48,
+    // paddingVertical: 11,
+    minHeight: 40,
   },
   filterInputActive: {
     backgroundColor: '#FFFFFF',
@@ -1571,9 +1818,8 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
     backgroundColor: '#FFFFFF',
-    minHeight: 54,
+    minHeight: 42,
     elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -1581,13 +1827,13 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   dateButtonText: {
-    fontSize: 15,
+    fontSize: 12,
     color: '#111827',
     fontWeight: '500',
   },
   calendarIcon: {
-    width: 28,
-    height: 28,
+    width: 25,
+    height: 25,
     borderRadius: 6,
     backgroundColor: '#EFF6FF',
     justifyContent: 'center',
@@ -1598,7 +1844,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 16,
     borderWidth: 1.5,
     borderColor: '#E5E7EB',
@@ -1723,7 +1969,7 @@ const styles = StyleSheet.create({
     minWidth: (width - 56) / 3,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 16,
+    padding: 10,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -1731,51 +1977,51 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   customerCard: {
-    borderLeftWidth: 3,
+    borderLeftWidth: 2,
     borderLeftColor: '#DC2626',
   },
   creditCard: {
-    borderLeftWidth: 3,
+    borderLeftWidth: 2,
     borderLeftColor: '#16A34A',
   },
   debitCard: {
-    borderLeftWidth: 3,
+    borderLeftWidth: 2,
     borderLeftColor: '#2563EB',
   },
   balanceCard: {
-    borderLeftWidth: 3,
+    borderLeftWidth: 2,
     borderLeftColor: '#EA580C',
   },
   summaryContent: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'flex-start',
-},
-summaryTextContainer: {
-  flex: 1,
-  marginRight: 8,
-},
-  summaryIconContainer: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-      justifyContent: 'center',
-  alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
- summaryLabel: {
-  fontSize: 12,
-  color: '#6B7280',
-  marginBottom: 4,
-  fontWeight: '600',
-  textTransform: 'uppercase',
-  letterSpacing: 0.5,
-},
-summaryValue: {
-  fontSize: 18,
-  fontWeight: '700',
-  color: '#111827',
-  marginBottom: 2,
-},
+  summaryTextContainer: {
+    flex: 1,
+    marginRight: 8,
+  },
+  summaryIconContainer: {
+    width: 25,
+    height: 25,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  summaryLabel: {
+    fontSize: 10,
+    color: '#6B7280',
+    marginBottom: 4,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 2,
+  },
   creditValue: {
     color: '#16A34A',
   },
@@ -1793,6 +2039,106 @@ summaryValue: {
     color: '#9CA3AF',
     marginTop: 4,
     fontWeight: '500',
+  },
+  tabsWrapper: {
+    marginHorizontal: 8,
+    marginTop: 16,
+    backgroundColor: '#ebebeb',
+    borderRadius: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    overflow: 'hidden',
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    position: 'relative',
+  },
+  tabActiveDebit: {
+    backgroundColor: '#FAFAFA',
+  },
+  tabActiveCredit: {
+    backgroundColor: '#FAFAFA',
+  },
+  tabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  tabDivider: {
+    width: 1,
+    backgroundColor: '#E5E7EB',
+  },
+  tabText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6B7280',
+    letterSpacing: -0.2,
+  },
+  tabTextActiveDebit: {
+    color: '#DC2626',
+    fontWeight: '700',
+  },
+  tabTextActiveCredit: {
+    color: '#16A34A',
+    fontWeight: '700',
+  },
+  tabBadge: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    minWidth: 28,
+    alignItems: 'center',
+  },
+  tabBadgeActiveDebit: {
+    backgroundColor: '#FEE2E2',
+  },
+  tabBadgeActiveCredit: {
+    backgroundColor: '#DCFCE7',
+  },
+  tabBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  tabBadgeTextActiveDebit: {
+    color: '#DC2626',
+    fontWeight: '700',
+  },
+  tabBadgeTextActiveCredit: {
+    color: '#16A34A',
+    fontWeight: '700',
+  },
+  tabIndicatorDebit: {
+    position: 'absolute',
+    bottom: -1,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: '#DC2626',
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
+  },
+  tabIndicatorCredit: {
+    position: 'absolute',
+    bottom: -1,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: '#16A34A',
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
   },
   loadingContainer: {
     alignItems: 'center',
@@ -1831,9 +2177,6 @@ summaryValue: {
     fontWeight: '500',
   },
   section: {
-    marginBottom: 24,
-  },
-  creditSection: {
     marginBottom: 0,
   },
   sectionHeader: {
@@ -1890,6 +2233,6 @@ summaryValue: {
     marginTop: 12,
     fontWeight: '500',
   },
-});
+}); 
 
-export default ReceivablesLedger; 
+export default ReceivablesLedger;

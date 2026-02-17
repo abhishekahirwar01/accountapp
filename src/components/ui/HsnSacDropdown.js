@@ -108,22 +108,23 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 4,
-    padding: 12,
-    minHeight: 44,
+    borderRadius: 8,
+    // padding: 12,
+    paddingHorizontal: 10,
+    minHeight: 40,
   },
   disabled: {
     backgroundColor: '#f5f5f5',
   },
   buttonText: {
-    fontSize: 14,
+    fontSize: 11,
     color: '#333',
   },
   placeholderText: {
     color: '#999',
   },
   arrow: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#666',
   },
   modalOverlay: {

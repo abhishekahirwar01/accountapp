@@ -21,11 +21,38 @@ import { capitalizeWords } from './utils';
 import { BASE_URL } from '../config';
 import { generatePDF } from 'react-native-html-to-pdf';
 import { parseHtmlToElements, renderParsedElements } from './HtmlNoteRenderer';
+import RNFS from 'react-native-fs';
 
 // Constants
 const ITEMS_PER_PAGE = 28; // Maximum items per page
 const A4_WIDTH = 595; // A4 width in points
 const A4_HEIGHT = 842; // A4 height in points
+
+// Helper: Download image and return base64 (React Native)
+const getBase64ImageFromUrl = async imageUrl => {
+  try {
+    if (!imageUrl) return null;
+    // Download to temp file
+    const downloadDest = `${RNFS.CachesDirectoryPath}/img_${Date.now()}`;
+    const result = await RNFS.downloadFile({
+      fromUrl: imageUrl,
+      toFile: downloadDest,
+    }).promise;
+    if (result.statusCode !== 200) return null;
+    const base64 = await RNFS.readFile(downloadDest, 'base64');
+    // Try to guess mime type from extension
+    let ext = imageUrl.split('.').pop().toLowerCase();
+    let mime = 'image/jpeg';
+    if (ext === 'png') mime = 'image/png';
+    else if (ext === 'jpg' || ext === 'jpeg') mime = 'image/jpeg';
+    else if (ext === 'webp') mime = 'image/webp';
+    else if (ext === 'gif') mime = 'image/gif';
+    return `data:${mime};base64,${base64}`;
+  } catch (error) {
+    console.log('Image fetch failed:', imageUrl, error);
+    return null;
+  }
+};
 
 // --- Interface Definition ---
 /**
@@ -791,95 +818,50 @@ const generatePageHTML = (
                   transaction.type !== 'proforma' && isBankDetailAvailable
                     ? `
                 <div class="bank-details">
-                  <div style="font-size: 9px; font-weight: bold; margin-bottom: 5px;">Bank Details:</div>
-                  <div style="display: flex; flex-direction: row; gap: 60px;">
+                  <div style="font-size: 9px; font-weight: bold; margin-bottom: 3px;">Bank Details:</div>
+                  <div style="display: flex; flex-direction: row; gap: 10px;">
                     <div class="bank-info">
                       ${
                         bankData?.bankName
-                          ? `
-                      <div class="bank-row">
-                        <span style="width: 70px; font-weight: bold;">Name:</span>
-                        <span>${capitalizeWords(bankData.bankName)}</span>
-                      </div>
-                      `
+                          ? `<div class="bank-row"><span class="bank-label">Name:</span><span class="bank-value">${capitalizeWords(
+                              bankData.bankName,
+                            )}</span></div>`
                           : ''
                       }
-                      
                       ${
                         bankData?.accountNo
-                          ? `
-                      <div class="bank-row">
-                        <span style="width: 70px; font-weight: bold;">Acc. No:</span>
-                        <span>${bankData.accountNo}</span>
-                      </div>
-                      `
+                          ? `<div class="bank-row"><span class="bank-label">Acc. No:</span><span class="bank-value">${bankData.accountNo}</span></div>`
                           : ''
                       }
-                      
                       ${
                         bankData?.ifscCode
-                          ? `
-                      <div class="bank-row">
-                        <span style="width: 70px; font-weight: bold;">IFSC:</span>
-                        <span>${bankData.ifscCode}</span>
-                      </div>
-                      `
+                          ? `<div class="bank-row"><span class="bank-label">IFSC:</span><span class="bank-value">${bankData.ifscCode}</span></div>`
                           : ''
                       }
-                      
                       ${
                         bankData?.branchAddress
-                          ? `
-                      <div class="bank-row">
-                        <span style="width: 70px; font-weight: bold;">Branch:</span>
-                        <span style="flex: 1; word-wrap: break-word;">${bankData.branchAddress}</span>
-                      </div>
-                      `
+                          ? `<div class="bank-row"><span class="bank-label">Branch:</span><span class="bank-value">${bankData.branchAddress}</span></div>`
                           : ''
                       }
-                      
                       ${
                         bankData?.upiDetails?.upiId
-                          ? `
-                      <div class="bank-row">
-                        <span style="width: 70px; font-weight: bold;">UPI ID:</span>
-                        <span>${bankData.upiDetails.upiId}</span>
-                      </div>
-                      `
+                          ? `<div class="bank-row"><span class="bank-label">UPI ID:</span><span class="bank-value">${bankData.upiDetails.upiId}</span></div>`
                           : ''
                       }
-
                       ${
                         bankData?.upiDetails?.upiName
-                          ? `
-                      <div class="bank-row">
-                        <span style="width: 70px; font-weight: bold;">UPI Name:</span>
-                        <span>${bankData.upiDetails.upiName}</span>
-                      </div>
-                      `
+                          ? `<div class="bank-row"><span class="bank-label">UPI Name:</span><span class="bank-value">${bankData.upiDetails.upiName}</span></div>`
                           : ''
                       }
-
                       ${
                         bankData?.upiDetails?.upiMobile
-                          ? `
-                      <div class="bank-row">
-                        <span style="width: 70px; font-weight: bold;">UPI Mobile:</span>
-                        <span>${bankData.upiDetails.upiMobile}</span>
-                      </div>
-                      `
+                          ? `<div class="bank-row"><span class="bank-label">UPI Mobile:</span><span class="bank-value">${bankData.upiDetails.upiMobile}</span></div>`
                           : ''
                       }
                     </div>
-                    
                     ${
-                      bankData?.qrCode
-                        ? `
-                    <div style="flex-direction: column;  margin-left: 60px;">
-                      <div style="font-size: 9px; font-weight: bold; margin-bottom: 5px;">QR Code</div>
-                      <img src="${BASE_URL}${bankData.qrCode}" class="qr-image" style="max-width: 100%;" />
-                    </div>
-                    `
+                      bankData?.qrBase64
+                        ? `<div style="display: flex; flex-direction: column; align-items: center; margin-left: 60px; width: fit-content;"><div style="font-size: 9px; font-weight: bold; margin-bottom: 0px;">QR Code</div><img src="${bankData.qrBase64}" class="qr-image" alt="QR Code" /></div>`
                         : ''
                     }
                   </div>
@@ -892,6 +874,7 @@ const generatePageHTML = (
                   transaction?.notes
                     ? `
                 <div class="terms-container">
+                  <div style="font-weight: bold; margin-bottom: 2px;">Notes:</div>
                   <div class="terms-content">
                     ${renderNotesHTML(transaction.notes)}
                   </div>
@@ -1194,15 +1177,15 @@ const Template1 = ({
             gap: 4pt;
             align-items: center;
           }
-          
-          .contact-label {
+            align-items: flex-start;
+            margin-bottom: 0pt;
             font-size: 10pt;
             font-weight: bold;
           }
-          
-          .contact-value {
-            font-size: 10pt;
-            font-weight: normal;
+          .bank-label {
+            width: 60pt;
+            font-weight: bold;
+            display: inline-block;
           }
           
           /* Section Styles */
@@ -1477,30 +1460,26 @@ const Template1 = ({
             display: flex;
             flex-direction: row;
             width: 100%;
-            font-size: 7pt;
-            align-items: flex-start;
-            min-height: auto;
-            // margin-top: 5pt;
+            // border-bottom: 1.5pt solid #0371C1;
+            // border-left: 1.5pt solid #0371C1;
+            // border-right: 1.5pt solid #0371C1;
+            align-items: stretch;
+            min-height: 120pt;
           }
           
           .left-section {
             width: 65%;
-            // border-right: 1.5pt solid #0371C1; 
-            padding: 5pt;
+            padding: 0;
             display: flex;
             flex-direction: column;
-            min-height: auto;
-            overflow: hidden;
           }
           
           .right-section {
             width: 35%;
-            border-left: 1pt solid #0371C1; 
-            // padding: 5pt;
+            border-left: 1pt solid #0371C1;
             display: flex;
             flex-direction: column;
-            min-height: auto;
-            justify-content: flex-start;
+            justify-content: space-between;
           }
           
           .amount-tax-box {
@@ -1650,23 +1629,19 @@ const Template1 = ({
           
           /* Signature Block */
           .signature-box {
-            border-top: 1pt solid #0371C1;
-            // border-left: 1px solid #0371C1;
             width: 100%;
-            min-height: 84pt;
+            padding: 5pt;
             display: flex;
             flex-direction: column;
             justify-content: flex-end;
-            padding-top: 2pt;
-            flex-grow: 0;
-            margin-top: 5pt;
+        
           }
 
           .signature-title {
             font-size: 9pt;
             font-weight: bold;
             color: #000000;
-            padding: 3pt;
+            padding: 5pt;
             text-align: center;
             width: 100%;
           }
@@ -1680,7 +1655,7 @@ const Template1 = ({
           
           .signature-line {
             border-top: 1pt solid #0371C1; 
-            width: 80%;
+            width: 100%;
             margin: 0 auto;
             margin-bottom: 1pt;
             margin-top: 10pt; 
@@ -1702,26 +1677,44 @@ const Template1 = ({
           
           /* Bank Details - Left Section */
           .bank-details {
-            margin-bottom: 6pt;
+            padding: 5pt;
+            margin-bottom: 0;
           }
           
+          .bank-info {
+            display: flex;
+            flex-direction: column;
+            gap: 1pt;
+          }
+
           .bank-row {
             display: flex;
             flex-direction: row;
-            // margin-bottom: 1pt;
+            justify-content: flex-start;
+            align-items: flex-start;
+            margin-bottom: 1pt;
             font-size: 8pt;
+          }
+
+          .bank-label {
+            width: 50pt;
+            font-weight: bold;
+            flex-shrink: 0;
+          }
+
+          .bank-value {
+            flex: 1;
+            word-wrap: break-word;
+            padding-left: 2pt;
           }
           
           /* Terms and Conditions */
           .terms-container {
-            // margin-top: 5pt;
             font-size: 8pt;
-            width: 110%;
-            
-            margin-left: -10px;
+            width: 100%;
             border-top: 1pt solid #0371C1;
-            padding-top: 5pt;
-            padding-left: 15pt;
+            padding: 5pt;
+            flex-grow: 1;
           }
           
           .terms-content {
@@ -1746,6 +1739,15 @@ const Template1 = ({
           
           .no-overflow {
             overflow: hidden !important;
+          }
+          
+          /* QR Image Styling */
+          .qr-image {
+            width: 70pt;
+            height: 70pt;
+            object-fit: contain;
+            margin-top: 0pt;
+            padding: 0pt 2pt 2pt 2pt;
           }
           
           /* Utility classes */
@@ -1780,12 +1782,26 @@ export const generatePdfForTemplate1 = async (
   clientName,
 ) => {
   try {
+    // 1. QR Code Base64 Fetch & Verify
+    const bankData = bank || transaction?.bank || {};
+    const qrUrl = bankData?.qrCode
+      ? `${BASE_URL}/${bankData.qrCode.replace(/^\//, '')}`
+      : null;
+    const qrBase64 = qrUrl ? await getBase64ImageFromUrl(qrUrl) : null;
+
+    // 2. Company Logo Base64 Fetch & Verify
+    const logoUrl = company?.logo
+      ? `${BASE_URL}/${company.logo.replace(/^\//, '')}`
+      : null;
+    const logoBase64 = logoUrl ? await getBase64ImageFromUrl(logoUrl) : null;
+
+    // 3. Template call with validated Base64 data
     const htmlContent = Template1({
       transaction,
-      company,
+      company: { ...company, logoBase64 },
       party,
       shippingAddress,
-      bank,
+      bank: { ...bankData, qrBase64 },
       client,
       clientName,
     });
@@ -1800,22 +1816,11 @@ export const generatePdfForTemplate1 = async (
     };
 
     const file = await generatePDF(options);
-
-    // Return a wrapper object with the output method
-    const wrapper = {
+    return {
       ...file,
-      output: (format = 'base64') => {
-        if (format === 'base64') {
-          return file.base64;
-        }
-        if (format === 'filePath') {
-          return file.filePath;
-        }
-        return file.base64;
-      },
+      output: (format = 'base64') =>
+        format === 'filePath' ? file.filePath : file.base64,
     };
-
-    return wrapper;
   } catch (error) {
     throw error;
   }

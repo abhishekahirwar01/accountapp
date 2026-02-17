@@ -18,21 +18,21 @@ import { BASE_URL } from '../config';
 
 // A5 dimensions in points
 const A5_HEIGHT = 595; // 210mm in points
-const A5_WIDTH = 420;  // 148mm in points
+const A5_WIDTH = 420; // 148mm in points
 
 // Height constants for precise calculation
 const HEIGHTS = {
-  header: 85,        // Top header + title row + info grid
-  tableHeader: 20,   // Items table header
-  itemRow: 14,       // Each item row
-  totalRow: 14,      // Total row
-  wordsSection: 12,  // Total in words
-  hsnSection: 60,    // HSN summary table (approximate)
-  bottomGrid: 52,    // Bank + QR + Totals
-  notesSection: 30,  // Notes section
-  pageFooter: 10,    // Page number
-  padding: 24,       // Top + bottom padding (12mm each)
-  buffer: 10,        // Safety margin
+  header: 85, // Top header + title row + info grid
+  tableHeader: 20, // Items table header
+  itemRow: 14, // Each item row
+  totalRow: 14, // Total row
+  wordsSection: 12, // Total in words
+  hsnSection: 60, // HSN summary table (approximate)
+  bottomGrid: 52, // Bank + QR + Totals
+  notesSection: 30, // Notes section
+  pageFooter: 10, // Page number
+  padding: 24, // Top + bottom padding (12mm each)
+  buffer: 10, // Safety margin
 };
 
 const getClientName = client => {
@@ -60,7 +60,7 @@ const renderNotesHTML = notes => {
 };
 
 // Extract header section to a separate function so it can be reused on every page
-const generateHeaderSection = (data) => {
+const generateHeaderSection = data => {
   const {
     company,
     client,
@@ -76,41 +76,59 @@ const generateHeaderSection = (data) => {
     getShippingAddress,
     capitalizeWords,
     formatPhoneNumber,
-    isGSTApplicable
+    isGSTApplicable,
   } = data;
+
+  // Logo path logic
+  const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
 
   return `
     <!-- Top Header with Company Name -->
     <div class="top-header">
-      <div class="company-name-large">${capitalizeWords(
-        getCompanyValue('businessName') ||
-          getCompanyValue('companyName') ||
-          'Tech Solutions Bhopal Pvt. Ltd.',
-      )}</div>
-      <div class="company-address-small">${
-        [
-          getCompanyValue('address'),
-          getCompanyValue('City'),
-          getCompanyValue('addressState'),
-          getCompanyValue('Pincode'),
-        ]
-          .filter(Boolean)
-          .join(', ') || '123, Commercial Area, Gandhi Nagar, Bhopal, Madhya Pradesh, 462036'
-      }</div>
-      <div class="company-contact-small">
-        <strong>Name :</strong> ${capitalizeWords(getClientName(client))} | 
-        <strong>Phone :</strong> ${
-          getCompanyValue('mobileNumber')
-            ? formatPhoneNumber(String(getCompanyValue('mobileNumber')))
-            : '98765-43250'
-        }
+      ${
+        logoSrc
+          ? `
+        <div class="left-logo-box">
+          <img src="${logoSrc}" class="company-logo" />
+        </div>
+      `
+          : ''
+      }
+      
+      <div class="right-info-box" style="${
+        logoSrc ? 'width: 85%;' : 'width: 100%;'
+      }">
+        <div class="company-name-large">${capitalizeWords(
+          getCompanyValue('businessName') ||
+            getCompanyValue('companyName') ||
+            'Company Name',
+        )}</div>
+        <div class="company-address-small">${
+          [
+            getCompanyValue('address'),
+            getCompanyValue('City'),
+            getCompanyValue('addressState'),
+            getCompanyValue('Pincode'),
+          ]
+            .filter(Boolean)
+            .join(', ') || 'Company Address'
+        }</div>
+        <div class="company-contact-small">
+          <strong>Phone :</strong> ${
+            getCompanyValue('mobileNumber')
+              ? formatPhoneNumber(String(getCompanyValue('mobileNumber')))
+              : getCompanyValue('Telephone')
+              ? formatPhoneNumber(String(getCompanyValue('Telephone')))
+              : '-'
+          }
+        </div>
       </div>
     </div>
 
     <!-- GSTIN and Invoice Title Row -->
     <div class="title-row">
       <div class="gstin-box">
-        <strong>GSTIN :</strong> ${getCompanyValue('gstin') || '23AABCP1234D1ZS'}
+        <strong>GSTIN :</strong> ${getCompanyValue('gstin') || '-'}
       </div>
       <div class="invoice-title-box">
         <strong>${
@@ -136,29 +154,29 @@ const generateHeaderSection = (data) => {
             getPartyValue('name') || 'N/A',
           )}</span></div>
           <div class="info-line"><strong>Address</strong><span>${
-            capitalizeWords(getBillingAddress(party)) || 'Bhopal, Bhopal, Madhya Pradesh, 462016'
+            capitalizeWords(getBillingAddress(party)) || '-'
           }</span></div>
           <div class="info-line"><strong>Phone</strong><span>${
             getPartyValue('contactNumber')
-              ? formatPhoneNumber(getPartyValue('contactNumber'))
-              : '98265-21255'
+              ? formatPhoneNumber(String(getPartyValue('contactNumber')))
+              : '-'
           }</span></div>
           <div class="info-line"><strong>GSTIN</strong><span>${
-            getPartyValue('gstin') || '23FFFPS1634H1ZT'
+            getPartyValue('gstin') || '-'
           }</span></div>
           <div class="info-line"><strong>PAN</strong><span>${
-            getPartyValue('pan') || '432188PIB5'
+            getPartyValue('pan') || '-'
           }</span></div>
           <div class="info-line"><strong>Place of Supply</strong><span>${
-            shippingAddress?.state
-              ? `${capitalizeWords(shippingAddress.state)} (${
-                  getStateCode(shippingAddress.state) || '23'
+            actualShippingAddress?.state
+              ? `${capitalizeWords(actualShippingAddress.state)} (${
+                  getStateCode(actualShippingAddress.state) || '-'
                 })`
               : getPartyValue('state')
               ? `${capitalizeWords(getPartyValue('state'))} (${
-                  getStateCode(getPartyValue('state')) || '23'
+                  getStateCode(getPartyValue('state')) || '-'
                 })`
-              : 'Madhya Pradesh (23)'
+              : '-'
           }</span></div>
         </div>
       </div>
@@ -171,32 +189,31 @@ const generateHeaderSection = (data) => {
             actualShippingAddress?.label || getPartyValue('name') || 'N/A',
           )}</span></div>
           <div class="info-line"><strong>Address</strong><span>${capitalizeWords(
-            getShippingAddress(
-              actualShippingAddress,
-              getBillingAddress(party),
-            ),
+            getShippingAddress(actualShippingAddress, getBillingAddress(party)),
           )}</span></div>
-          <div class="info-line"><strong>Country</strong><span>${company?.Country}</span></div>
+          <div class="info-line"><strong>Country</strong><span>${
+            company?.Country || 'India'
+          }</span></div>
           <div class="info-line"><strong>Phone</strong><span>${
             actualShippingAddress?.contactNumber
               ? formatPhoneNumber(String(actualShippingAddress.contactNumber))
               : getPartyValue('contactNumber')
               ? formatPhoneNumber(String(getPartyValue('contactNumber')))
-              : '98265-21255'
+              : '-'
           }</span></div>
           <div class="info-line"><strong>GSTIN</strong><span>${
-            getPartyValue('gstin') || '23FFFPS1634H1ZT'
+            getPartyValue('gstin') || '-'
           }</span></div>
           <div class="info-line"><strong>State</strong><span>${
             actualShippingAddress?.state
               ? `${capitalizeWords(actualShippingAddress.state)} (${
-                  getStateCode(actualShippingAddress.state) || '23'
+                  getStateCode(actualShippingAddress.state) || '-'
                 })`
               : getPartyValue('state')
               ? `${capitalizeWords(getPartyValue('state'))} (${
-                  getStateCode(getPartyValue('state')) || '23'
+                  getStateCode(getPartyValue('state')) || '-'
                 })`
-              : 'Madhya Pradesh (23)'
+              : '-'
           }</span></div>
         </div>
       </div>
@@ -206,25 +223,24 @@ const generateHeaderSection = (data) => {
         <div class="box-title">&nbsp;</div>
         <div class="info-content">
           <div class="info-line"><strong>Invoice No.</strong><span>${
-            getTransactionValue('invoiceNumber') || 'INV-001'
+            getTransactionValue('invoiceNumber') || '-'
           }</span></div>
           <div class="info-line"><strong>Date</strong><span>${
             getTransactionValue('date')
-              ? new Date(getTransactionValue('date')).toLocaleDateString('en-IN')
-              : new Date().toLocaleDateString('en-IN')
-          }</span></div>
-          <div class="info-line"><strong>Invoice Date</strong><span>${
-            getTransactionValue('date')
-              ? new Date(getTransactionValue('date')).toLocaleDateString('en-IN')
-              : '31/12/2025'
+              ? new Date(getTransactionValue('date')).toLocaleDateString(
+                  'en-IN',
+                )
+              : '-'
           }</span></div>
           <div class="info-line"><strong>Due Date</strong><span>${
             getTransactionValue('dueDate')
-              ? new Date(getTransactionValue('dueDate')).toLocaleDateString('en-IN')
+              ? new Date(getTransactionValue('dueDate')).toLocaleDateString(
+                  'en-IN',
+                )
               : '-'
           }</span></div>
           <div class="info-line"><strong>P.O. No.</strong><span>${
-            getTransactionValue('voucher') || 'P.O/48'
+            getTransactionValue('voucher') || '-'
           }</span></div>
           <div class="info-line"><strong>E-Way No.</strong><span>${
             getTransactionValue('eway') || '-'
@@ -245,7 +261,7 @@ const TemplateA5_3PDF = ({
   serviceNameById = new Map(),
 }) => {
   const actualShippingAddress = shippingAddress || transaction?.shippingAddress;
-  
+
   const prepareData = () => {
     try {
       if (!transaction) {
@@ -361,16 +377,16 @@ const TemplateA5_3PDF = ({
   // Calculate available space for items on each page
   const calculateItemsPerPage = (isFirstPage, isLastPage) => {
     let availableHeight = A5_HEIGHT - HEIGHTS.padding - HEIGHTS.buffer;
-    
+
     // Subtract header (always present)
     availableHeight -= HEIGHTS.header;
-    
+
     // Subtract table header
     availableHeight -= HEIGHTS.tableHeader;
-    
+
     // Subtract page footer
     availableHeight -= HEIGHTS.pageFooter;
-    
+
     if (isLastPage) {
       // Last page has additional sections
       availableHeight -= HEIGHTS.totalRow;
@@ -381,7 +397,7 @@ const TemplateA5_3PDF = ({
         availableHeight -= HEIGHTS.notesSection;
       }
     }
-    
+
     // Calculate how many items fit
     const itemsFit = Math.floor(availableHeight / HEIGHTS.itemRow);
     return Math.max(1, itemsFit); // At least 1 item
@@ -389,33 +405,35 @@ const TemplateA5_3PDF = ({
 
   // Dynamic pagination
   const itemsCount = itemsWithGST?.length || 0;
-  
+
   // Calculate pages dynamically
   const paginateItems = () => {
     const pages = [];
     let remainingItems = [...(itemsWithGST || [])];
     let pageNum = 1;
-    
+
     // Handle empty items case
     if (remainingItems.length === 0) {
-      return [{
-        items: [],
-        isLast: true,
-        pageNumber: 1,
-      }];
+      return [
+        {
+          items: [],
+          isLast: true,
+          pageNumber: 1,
+        },
+      ];
     }
-    
+
     while (remainingItems.length > 0) {
       const isFirstPage = pageNum === 1;
       const itemsPerPage = calculateItemsPerPage(isFirstPage, false);
-      
+
       // Check if this would be the last page
       const wouldBeLastPage = remainingItems.length <= itemsPerPage;
-      
+
       if (wouldBeLastPage) {
         // Recalculate with last page constraints
         const itemsPerLastPage = calculateItemsPerPage(isFirstPage, true);
-        
+
         if (remainingItems.length <= itemsPerLastPage) {
           // All remaining items fit on last page
           pages.push({
@@ -447,10 +465,10 @@ const TemplateA5_3PDF = ({
         pageNum++;
       }
     }
-    
+
     return pages;
   };
-  
+
   const pages = paginateItems();
   const totalPages = pages.length;
 
@@ -528,7 +546,9 @@ const TemplateA5_3PDF = ({
                   ? '-'
                   : formatQuantity(item.quantity || 0, item.unit)
               }</td>
-              <td class="item-cell">${formatCurrency(item.pricePerUnit || 0)}</td>
+              <td class="item-cell">${formatCurrency(
+                item.pricePerUnit || 0,
+              )}</td>
               <td class="item-cell">${formatCurrency(item.taxableValue)}</td>
               <td class="item-cell">${item.gstRate}%</td>
               <td class="item-cell">${formatCurrency(item.igst)}</td>
@@ -553,7 +573,9 @@ const TemplateA5_3PDF = ({
                   ? '-'
                   : formatQuantity(item.quantity || 0, item.unit)
               }</td>
-              <td class="item-cell">${formatCurrency(item.pricePerUnit || 0)}</td>
+              <td class="item-cell">${formatCurrency(
+                item.pricePerUnit || 0,
+              )}</td>
               <td class="item-cell">${formatCurrency(item.taxableValue)}</td>
               <td class="item-cell">${(item.gstRate / 2).toFixed(2)}%</td>
               <td class="item-cell">${formatCurrency(item.cgst)}</td>
@@ -596,7 +618,9 @@ const TemplateA5_3PDF = ({
           <td class="total-cell">${totalQty}</td>
           <td class="total-cell"></td>
           <td class="total-cell">${formatCurrency(totalTaxable)}</td>
-          <td class="total-cell grand-total-cell">${formatCurrency(totalAmount)}</td>
+          <td class="total-cell grand-total-cell">${formatCurrency(
+            totalAmount,
+          )}</td>
         </tr>
       `;
     } else if (showIGST) {
@@ -608,7 +632,9 @@ const TemplateA5_3PDF = ({
           <td class="total-cell">${formatCurrency(totalTaxable)}</td>
           <td class="total-cell"></td>
           <td class="total-cell">${formatCurrency(totalIGST)}</td>
-          <td class="total-cell grand-total-cell">${formatCurrency(totalAmount)}</td>
+          <td class="total-cell grand-total-cell">${formatCurrency(
+            totalAmount,
+          )}</td>
         </tr>
       `;
     } else {
@@ -622,7 +648,9 @@ const TemplateA5_3PDF = ({
           <td class="total-cell">${formatCurrency(totalCGST)}</td>
           <td class="total-cell"></td>
           <td class="total-cell">${formatCurrency(totalSGST)}</td>
-          <td class="total-cell grand-total-cell">${formatCurrency(totalAmount)}</td>
+          <td class="total-cell grand-total-cell">${formatCurrency(
+            totalAmount,
+          )}</td>
         </tr>
       `;
     }
@@ -669,33 +697,39 @@ const TemplateA5_3PDF = ({
 
     const createHsnRows = () => {
       return hsnSummary
-        .map(
-          (hsnItem, index) => {
-            if (showIGST) {
-              return `
+        .map((hsnItem, index) => {
+          if (showIGST) {
+            return `
                 <tr class="hsn-row">
                   <td class="hsn-cell">${hsnItem.hsnCode}</td>
-                  <td class="hsn-cell">${formatCurrency(hsnItem.taxableValue)}</td>
+                  <td class="hsn-cell">${formatCurrency(
+                    hsnItem.taxableValue,
+                  )}</td>
                   <td class="hsn-cell">${hsnItem.taxRate}%</td>
                   <td class="hsn-cell">${formatCurrency(hsnItem.taxAmount)}</td>
                   <td class="hsn-cell">${formatCurrency(hsnItem.total)}</td>
                 </tr>
               `;
-            } else if (showCGSTSGST) {
-              return `
+          } else if (showCGSTSGST) {
+            return `
                 <tr class="hsn-row">
                   <td class="hsn-cell">${hsnItem.hsnCode}</td>
-                  <td class="hsn-cell">${formatCurrency(hsnItem.taxableValue)}</td>
+                  <td class="hsn-cell">${formatCurrency(
+                    hsnItem.taxableValue,
+                  )}</td>
                   <td class="hsn-cell">${(hsnItem.taxRate / 2).toFixed(2)}%</td>
-                  <td class="hsn-cell">${formatCurrency(hsnItem.cgstAmount)}</td>
+                  <td class="hsn-cell">${formatCurrency(
+                    hsnItem.cgstAmount,
+                  )}</td>
                   <td class="hsn-cell">${(hsnItem.taxRate / 2).toFixed(2)}%</td>
-                  <td class="hsn-cell">${formatCurrency(hsnItem.sgstAmount)}</td>
+                  <td class="hsn-cell">${formatCurrency(
+                    hsnItem.sgstAmount,
+                  )}</td>
                   <td class="hsn-cell">${formatCurrency(hsnItem.total)}</td>
                 </tr>
               `;
-            }
           }
-        )
+        })
         .join('');
     };
 
@@ -744,7 +778,7 @@ const TemplateA5_3PDF = ({
   const generatePageContent = (pageData, globalStartIndex) => {
     const { items, isLast, pageNumber } = pageData;
     const startIndex = globalStartIndex;
-    
+
     // Ensure last page is properly detected
     const isActuallyLastPage = isLast || pageNumber === totalPages;
 
@@ -766,7 +800,7 @@ const TemplateA5_3PDF = ({
           getShippingAddress,
           capitalizeWords,
           formatPhoneNumber,
-          isGSTApplicable
+          isGSTApplicable,
         })}
 
         <!-- Items Table -->
@@ -785,7 +819,9 @@ const TemplateA5_3PDF = ({
             ? `
               <!-- Total in Words (only on last page) -->
               <div class="words-section">
-                <strong>TOTAL IN WORDS :</strong> ${numberToWords(totalAmount).toUpperCase()}
+                <strong>TOTAL IN WORDS :</strong> ${numberToWords(
+                  totalAmount,
+                ).toUpperCase()}
               </div>
 
               <!-- HSN Summary (only on last page) -->
@@ -802,7 +838,9 @@ const TemplateA5_3PDF = ({
                     <div class="section-title">Bank Details:</div>
                     ${
                       bankData.bankName
-                        ? `<div class="detail-line"><strong>Name:</strong> ${capitalizeWords(bankData.bankName)}</div>`
+                        ? `<div class="detail-line"><strong>Name:</strong> ${capitalizeWords(
+                            bankData.bankName,
+                          )}</div>`
                         : ''
                     }
                     ${
@@ -846,7 +884,7 @@ const TemplateA5_3PDF = ({
                     bankData?.qrCode
                       ? `
                     <div class="section-title">QR Code</div>
-                    <img src="${BASE_URL}${bankData.qrCode}" class="qr-image" />
+                    <img src="${BASE_URL}/${bankData.qrCode}" class="qr-image" />
                   `
                       : '<div class="section-title">QR Code</div>'
                   }
@@ -887,10 +925,12 @@ const TemplateA5_3PDF = ({
 
               <!-- Terms and Notes (only on last page) -->
               ${
-                 transaction?.notes
+                transaction?.notes
                   ? `
                 <div class="notes-box">
-                  <div class="notes-content">${renderNotesHTML(transaction.notes)}</div>
+                  <div class="notes-content">${renderNotesHTML(
+                    transaction.notes,
+                  )}</div>
                 </div>
               `
                   : ''
@@ -911,11 +951,11 @@ const TemplateA5_3PDF = ({
     // Generate all pages
     let allPagesHTML = '';
     let globalStartIndex = 0;
-    
+
     pages.forEach((pageData, idx) => {
       allPagesHTML += generatePageContent(pageData, globalStartIndex);
       globalStartIndex += pageData.items.length;
-      
+
       // Add page break for all pages except the last one
       if (idx < pages.length - 1) {
         allPagesHTML += '<div style="page-break-before: always;"></div>';
@@ -981,16 +1021,40 @@ const styles = {
     }
     
     .top-header {
-      text-align: center;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
       padding-bottom: 2px;
       margin-bottom: 2px;
+      width: 100%;
+    }
+    
+    .left-logo-box {
+      width: 15%;
+      display: flex;
+      justify-content: flex-start;
+      align-items: center;
+    }
+    
+    .company-logo {
+      width: 42pt;
+      height: 42pt;
+      object-fit: contain;
+    }
+    
+    .right-info-box {
+      display: flex;
+      flex-direction: column;
+      text-align: left;
+      padding-left: 6pt;
     }
     
     .company-name-large {
-      font-size: 11px;
+      font-size: 11pt;
       font-weight: bold;
       margin-bottom: 1px;
-      line-height: 1.2;
+      line-height: 1.1;
+      color: #000;
     }
     
     .company-address-small {

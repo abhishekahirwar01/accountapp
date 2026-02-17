@@ -683,7 +683,7 @@ const Template12 = ({
             ? `
           <div class="qr-column">
             <div class="bold">QR Code</div>
-            <img src="${BASE_URL}${bankData.qrCode}" class="qr-image" />
+            <img src="${BASE_URL}/${bankData.qrCode}" class="qr-image" />
           </div>
         `
             : '<div class="qr-column"></div>'

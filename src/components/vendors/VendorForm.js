@@ -1035,7 +1035,7 @@ export function VendorForm({
 const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
-    paddingBottom: 30,
+    // paddingBottom: 30,
   },
   headerWrapper: {
     backgroundColor: '#fff',
@@ -1073,7 +1073,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 16,
@@ -1084,7 +1084,7 @@ const styles = StyleSheet.create({
   label: {
     fontWeight: '600',
     marginBottom: 8,
-    fontSize: 16,
+    fontSize: 14,
     color: '#333',
   },
   requiredStar: {

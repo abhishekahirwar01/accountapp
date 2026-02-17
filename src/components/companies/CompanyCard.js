@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const CompanyCard = ({ company, clientName, onEdit, onDelete }) => {
@@ -57,7 +51,6 @@ const CompanyCard = ({ company, clientName, onEdit, onDelete }) => {
 
         {/* Identifiers - Horizontal Layout */}
         <View style={styles.identifiersContainer}>
-          {/* Registration Number */}
           <View style={styles.identifierItem}>
             <View style={styles.identifierHeader}>
               <View style={[styles.iconContainer, styles.purpleIcon]}>
@@ -70,7 +63,6 @@ const CompanyCard = ({ company, clientName, onEdit, onDelete }) => {
             </Text>
           </View>
 
-          {/* GSTIN */}
           <View style={styles.identifierItem}>
             <View style={styles.identifierHeader}>
               <View style={[styles.iconContainer, styles.orangeIcon]}>
@@ -85,21 +77,21 @@ const CompanyCard = ({ company, clientName, onEdit, onDelete }) => {
         </View>
       </View>
 
-      {/* Actions Footer */}
+      {/* Actions Footer - Modern Balanced Look */}
       <View style={styles.footer}>
+        <View style={{ flex: 1 }} />
         <TouchableOpacity
-          style={[styles.actionButton, styles.editButton]}
+          style={[styles.circleButton, styles.editButtonShadow]}
           onPress={onEdit}
         >
-          <Icon name="pencil" size={16} color="#fff" />
-          <Text style={styles.actionButtonText}>Edit</Text>
+          <Icon name="pencil-outline" size={20} color="#2563eb" />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.actionButton, styles.deleteButton]}
+          style={[styles.circleButton, styles.deleteButtonShadow]}
           onPress={onDelete}
         >
-          <Icon name="trash-can" size={16} color="#fff" />
+          <Icon name="trash-can-outline" size={20} color="#ef4444" />
         </TouchableOpacity>
       </View>
     </View>
@@ -110,8 +102,8 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    margin: 16,
-    marginBottom: 0,
+    margin: 12,
+    marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -120,7 +112,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   header: {
-    backgroundColor: 'linear-gradient(90deg, #f9fafb, #f3f4f6)',
+    backgroundColor: '#f9fafb',
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
@@ -134,25 +126,30 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   companyName: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 4,
+    color: '#111827',
+    textTransform: 'uppercase', // Business Name Capital Letter mein
+    letterSpacing: 0.5,
   },
   businessType: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6b7280',
+    marginTop: 2,
   },
   badge: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#eff6ff',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
   },
   badgeText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#374151',
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#2563eb',
+    textTransform: 'uppercase',
   },
   content: {
     padding: 16,
@@ -163,39 +160,30 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   iconContainer: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-    marginTop: 2,
   },
-  blueIcon: {
-    backgroundColor: 'rgba(37, 99, 235, 0.1)',
-  },
-  greenIcon: {
-    backgroundColor: 'rgba(22, 163, 74, 0.1)',
-  },
-  purpleIcon: {
-    backgroundColor: 'rgba(124, 58, 237, 0.1)',
-  },
-  orangeIcon: {
-    backgroundColor: 'rgba(234, 88, 12, 0.1)',
-  },
+  blueIcon: { backgroundColor: '#eff6ff' },
+  greenIcon: { backgroundColor: '#f0fdf4' },
+  purpleIcon: { backgroundColor: '#f5f3ff' },
+  orangeIcon: { backgroundColor: '#fff7ed' },
   detailContent: {
     flex: 1,
   },
   detailLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginBottom: 2,
+    fontSize: 11,
+    color: '#9ca3af',
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
   detailValue: {
     fontSize: 14,
     fontWeight: '500',
     color: '#1f2937',
-    marginBottom: 2,
   },
   detailSubtext: {
     fontSize: 12,
@@ -205,6 +193,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginTop: 8,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
   },
   identifierItem: {
     flex: 1,
@@ -212,53 +203,50 @@ const styles = StyleSheet.create({
   identifierHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   identifierLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6b7280',
-    marginLeft: 6,
+    fontWeight: '600',
   },
   identifierValue: {
     fontSize: 12,
-    fontFamily: 'monospace',
+    fontWeight: '600',
     backgroundColor: '#f9fafb',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
     color: '#374151',
     borderWidth: 1,
-    borderColor: '#f3f4f6',
+    borderColor: '#e5e7eb',
+    textAlign: 'center',
   },
   footer: {
     flexDirection: 'row',
-    backgroundColor: '#f9fafb',
     padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    gap: 8,
+    paddingTop: 0,
+    backgroundColor: '#fff',
+    justifyContent: 'flex-end',
+    gap: 12,
+    paddingBottom: 16,
   },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  circleButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    gap: 4,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
   },
-  editButton: {
-    backgroundColor: '#3b82f6',
-    flex: 1,
+  editButtonShadow: {
+    borderColor: '#dbeafe',
+    backgroundColor: '#eff6ff',
   },
-  deleteButton: {
-    backgroundColor: '#ef4444',
-    width: 40,
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
+  deleteButtonShadow: {
+    borderColor: '#fee2e2',
+    backgroundColor: '#fef2f2',
   },
 });
 

@@ -88,15 +88,30 @@ const getAddressLines = address =>
   address ? address.split('\n').filter(line => line.trim() !== '') : [];
 
 // Generate items table HTML for a specific page
-const generateItemsTableHTML = (items, colWidths, showIGST, showCGSTSGST, totalColumnIndex, startIndex = 0) => {
+const generateItemsTableHTML = (
+  items,
+  colWidths,
+  showIGST,
+  showCGSTSGST,
+  totalColumnIndex,
+  startIndex = 0,
+) => {
   return items
     .map((item, index) => {
       const isLastItemInList = index === items.length - 1;
       return `
-        <div class="table-row" ${isLastItemInList ? `style="border-bottom: 1px solid ${BORDER_COLOR};"` : ''}>
-          <div class="table-cell table-cell-center" style="width: ${colWidths[0]}px; padding: 4px;">${startIndex + index + 1}</div>
+        <div class="table-row" ${
+          isLastItemInList
+            ? `style="border-bottom: 1px solid ${BORDER_COLOR};"`
+            : ''
+        }>
+          <div class="table-cell table-cell-center" style="width: ${
+            colWidths[0]
+          }px; padding: 4px;">${startIndex + index + 1}</div>
 
-          <div class="table-cell table-cell-left" style="width: ${colWidths[1]}px; padding: 3px; text-align: left; align-items: flex-start;">
+          <div class="table-cell table-cell-left" style="width: ${
+            colWidths[1]
+          }px; padding: 3px; text-align: left; align-items: flex-start;">
             <div class="small-text">${item.name}</div>
             ${(item.details || [])
               .map(
@@ -107,28 +122,60 @@ const generateItemsTableHTML = (items, colWidths, showIGST, showCGSTSGST, totalC
               .join('')}
           </div>
 
-          <div class="table-cell table-cell-center" style="width: ${colWidths[2]}px; padding: 4px;">${item.code || ''}</div>
-          <div class="table-cell table-cell-center" style="width: ${colWidths[3]}px; padding: 2px;">
-            ${item.itemType === 'service' ? '-' : formatQuantity(item.quantity || 0, item.unit)}
+          <div class="table-cell table-cell-center" style="width: ${
+            colWidths[2]
+          }px; padding: 4px;">${item.code || ''}</div>
+          <div class="table-cell table-cell-center" style="width: ${
+            colWidths[3]
+          }px; padding: 2px;">
+            ${
+              item.itemType === 'service'
+                ? '-'
+                : formatQuantity(item.quantity || 0, item.unit)
+            }
           </div>
-          <div class="table-cell" style="width: ${colWidths[4]}px; padding: 4px;">${formatCurrency(item.pricePerUnit || 0)}</div>
-          <div class="table-cell" style="width: ${colWidths[5]}px; padding: 4px;">${formatCurrency(item.taxableValue || 0)}</div>
+          <div class="table-cell" style="width: ${
+            colWidths[4]
+          }px; padding: 4px;">${formatCurrency(item.pricePerUnit || 0)}</div>
+          <div class="table-cell" style="width: ${
+            colWidths[5]
+          }px; padding: 4px;">${formatCurrency(item.taxableValue || 0)}</div>
 
-          ${showIGST
-            ? `
-                <div class="table-cell table-cell-center" style="width: ${colWidths[6]}px; padding: 4px;">${(item.gstRate || 0).toFixed(2)}</div>
-                <div class="table-cell" style="width: ${colWidths[7]}px; padding: 4px;">${formatCurrency(item.igst || 0)}</div>
+          ${
+            showIGST
+              ? `
+                <div class="table-cell table-cell-center" style="width: ${
+                  colWidths[6]
+                }px; padding: 4px;">${(item.gstRate || 0).toFixed(2)}</div>
+                <div class="table-cell" style="width: ${
+                  colWidths[7]
+                }px; padding: 4px;">${formatCurrency(item.igst || 0)}</div>
               `
-            : showCGSTSGST
-            ? `
-                <div class="table-cell table-cell-center" style="width: ${colWidths[6]}px; padding: 4px;">${((item.gstRate || 0) / 2).toFixed(2)}</div>
-                <div class="table-cell" style="width: ${colWidths[7]}px; padding: 4px;">${formatCurrency(item.cgst || 0)}</div>
-                <div class="table-cell table-cell-center" style="width: ${colWidths[8]}px; padding: 4px;">${((item.gstRate || 0) / 2).toFixed(2)}</div>
-                <div class="table-cell" style="width: ${colWidths[9]}px; padding: 4px;">${formatCurrency(item.sgst || 0)}</div>
+              : showCGSTSGST
+              ? `
+                <div class="table-cell table-cell-center" style="width: ${
+                  colWidths[6]
+                }px; padding: 4px;">${((item.gstRate || 0) / 2).toFixed(
+                  2,
+                )}</div>
+                <div class="table-cell" style="width: ${
+                  colWidths[7]
+                }px; padding: 4px;">${formatCurrency(item.cgst || 0)}</div>
+                <div class="table-cell table-cell-center" style="width: ${
+                  colWidths[8]
+                }px; padding: 4px;">${((item.gstRate || 0) / 2).toFixed(
+                  2,
+                )}</div>
+                <div class="table-cell" style="width: ${
+                  colWidths[9]
+                }px; padding: 4px;">${formatCurrency(item.sgst || 0)}</div>
               `
-            : ''}
+              : ''
+          }
 
-          <div class="table-cell" style="width: ${colWidths[totalColumnIndex]}px; font-weight: bold; border-right: none; padding: 4px;">
+          <div class="table-cell" style="width: ${
+            colWidths[totalColumnIndex]
+          }px; font-weight: bold; border-right: none; padding: 4px;">
             ${formatCurrency(item.total || 0)}
           </div>
         </div>
@@ -165,13 +212,16 @@ const generatePageHTML = (
   showCGSTSGST,
   title,
   startIndex = 0,
-  isLastPage = false
+  isLastPage = false,
 ) => {
   const companyName = company?.businessName || company?.companyName || '-';
   const partyAddress = getBillingAddress(party);
-  const shippingAddressString = getShippingAddress(shippingAddress, partyAddress);
+  const shippingAddressString = getShippingAddress(
+    shippingAddress,
+    partyAddress,
+  );
   const totalColumnIndex = colWidths.length - 1;
-  
+
   return `
     <div class="page">
       <!-- Header -->
@@ -183,11 +233,13 @@ const generatePageHTML = (
 
           <div class="company-name">${capitalizeWords(companyName)}</div>
 
-          ${company?.gstin
-            ? `
+          ${
+            company?.gstin
+              ? `
               <div class="gstin">GSTIN: ${company.gstin}</div>
             `
-            : ''}
+              : ''
+          }
           
           ${getAddressLines(company?.address)
             .map(
@@ -197,35 +249,45 @@ const generatePageHTML = (
             )
             .join('')}
           
-          ${company?.addressState
-            ? `
+          ${
+            company?.addressState
+              ? `
               <div class="address-text">
-                ${capitalizeWords(company.City)}, ${capitalizeWords(company.addressState)}, ${capitalizeWords(company.Country)}${company?.Pincode ? `, ${company.Pincode}` : ''}
+                ${capitalizeWords(company.City)}, ${capitalizeWords(
+                  company.addressState,
+                )}, ${capitalizeWords(company.Country)}${
+                  company?.Pincode ? `, ${company.Pincode}` : ''
+                }
               </div>
             `
-            : ''}
+              : ''
+          }
           
           <div class="address-text">
             <span class="bold-text">Phone: </span>
-            ${company?.mobileNumber
-              ? safeFormatPhoneNumber(company.mobileNumber)
-              : company?.Telephone
-              ? safeFormatPhoneNumber(company.Telephone)
-              : '-'}
+            ${
+              company?.mobileNumber
+                ? safeFormatPhoneNumber(company.mobileNumber)
+                : company?.Telephone
+                ? safeFormatPhoneNumber(company.Telephone)
+                : '-'
+            }
           </div>
         </div>
 
         <div class="right-header-block">
           <div class="original-for-recipient">ORIGINAL FOR RECIPIENT</div>
-          ${company?.logo
-            ? `
+          ${
+            company?.logo
+              ? `
               <div class="logo-container">
-                <img src="${BASE_URL}${company.logo}" />
+                <img src="${BASE_URL}${company.logo}" class="logo" />
               </div>
             `
-            : `
+              : `
               <div style="width: 80px; height: 80px; border-radius: 40px;"></div>
-            `}
+            `
+          }
         </div>
       </div>
 
@@ -253,7 +315,11 @@ const generatePageHTML = (
 
             <div style="font-size: 9px;">
               <span class="bold-text">Phone: </span>
-              <span>${party?.contactNumber ? safeFormatPhoneNumber(party.contactNumber) : '-'}</span>
+              <span>${
+                party?.contactNumber
+                  ? safeFormatPhoneNumber(party.contactNumber)
+                  : '-'
+              }</span>
             </div>
 
             <div class="address-text gray-color" style="font-size: 10px; margin-top: 3px;">
@@ -264,11 +330,15 @@ const generatePageHTML = (
             <div class="address-text gray-color" style="font-size: 9px; margin-bottom: 1px;">
               <span class="bold-text" style="font-size: 9px;">Place of Supply: </span>
               <span>
-                ${shippingAddress?.state
-                  ? `${shippingAddress.state} (${getStateCode(shippingAddress.state) || '-'})`
-                  : party?.state
-                  ? `${party.state} (${getStateCode(party.state) || '-'})`
-                  : '-'}
+                ${
+                  shippingAddress?.state
+                    ? `${shippingAddress.state} (${
+                        getStateCode(shippingAddress.state) || '-'
+                      })`
+                    : party?.state
+                    ? `${party.state} (${getStateCode(party.state) || '-'})`
+                    : '-'
+                }
               </span>
             </div>
           </div>
@@ -288,19 +358,20 @@ const generatePageHTML = (
             <div class="address-text gray-color" style="font-size: 9px;">
               <span class="bold-text" style="font-size: 9px; margin-bottom: 2px;">Country: </span>
               <span>
-                ${company?.Country || '-'
-                  }
+                ${company?.Country || '-'}
               </span>
             </div>
 
             <div style="font-size: 9px; margin-bottom: 2px;">
               <span class="bold-text">Phone: </span>
               <span>
-                ${shippingAddress?.contactNumber
-                  ? safeFormatPhoneNumber(party?.contactNumber || '')
-                  : party?.contactNumber
-                  ? safeFormatPhoneNumber(party?.contactNumber || '')
-                  : '-'}
+                ${
+                  shippingAddress?.contactNumber
+                    ? safeFormatPhoneNumber(party?.contactNumber || '')
+                    : party?.contactNumber
+                    ? safeFormatPhoneNumber(party?.contactNumber || '')
+                    : '-'
+                }
               </span>
             </div>
 
@@ -314,7 +385,9 @@ const generatePageHTML = (
               <span>
                 ${capitalizeWords(
                   shippingAddress?.state
-                    ? `${shippingAddress.state} (${getStateCode(shippingAddress.state) || '-'})`
+                    ? `${shippingAddress.state} (${
+                        getStateCode(shippingAddress.state) || '-'
+                      })`
                     : party?.state
                     ? `${party.state} (${getStateCode(party.state) || '-'})`
                     : '-',
@@ -327,11 +400,15 @@ const generatePageHTML = (
         <div style="width: 20%; text-align: right;">
           <div style="display: flex; flex-direction: row; justify-content: space-between; margin-bottom: 4px;">
             <span style="font-size: 9px; font-weight: bold;">Invoice #:</span>
-            <span style="font-size: 9px;">${transaction?.invoiceNumber?.toString() || '-'}</span>
+            <span style="font-size: 9px;">${
+              transaction?.invoiceNumber?.toString() || '-'
+            }</span>
           </div>
           <div style="display: flex; flex-direction: row; justify-content: space-between; margin-bottom: 4px;">
             <span style="font-size: 9px; font-weight: bold;">Invoice Date:</span>
-            <span style="font-size: 9px; font-weight: bold;">${formatDateSafe(transaction?.date)}</span>
+            <span style="font-size: 9px; font-weight: bold;">${formatDateSafe(
+              transaction?.date,
+            )}</span>
           </div>
           <div style="display: flex; flex-direction: row; justify-content: space-between; margin-bottom: 4px;">
             <span style="font-size: 9px;">P.O. No.:</span>
@@ -339,19 +416,27 @@ const generatePageHTML = (
           </div>
           <div style="display: flex; flex-direction: row; justify-content: space-between; margin-bottom: 4px;">
             <span style="font-size: 9px;">P.O. Date:</span>
-            <span style="font-size: 9px;">${formatDateSafe(transaction?.poDate)}</span>
+            <span style="font-size: 9px;">${formatDateSafe(
+              transaction?.poDate,
+            )}</span>
           </div>
-          ${isGSTApplicable
-            ? `
+          ${
+            isGSTApplicable
+              ? `
               <div style="display: flex; flex-direction: row; justify-content: space-between; margin-bottom: 4px;">
                 <span style="font-size: 9px;">E-Way No.:</span>
-                <span style="font-size: 9px;">${transaction?.ewayNumber || '-'}</span>
+                <span style="font-size: 9px;">${
+                  transaction?.ewayNumber || '-'
+                }</span>
               </div>
             `
-            : ''}
+              : ''
+          }
           <div style="display: flex; flex-direction: row; justify-content: space-between; margin-bottom: 4px;">
             <span style="font-size: 9px;">Due Date:</span>
-            <span style="font-size: 9px;">${formatDateSafe(transaction?.dueDate)}</span>
+            <span style="font-size: 9px;">${formatDateSafe(
+              transaction?.dueDate,
+            )}</span>
           </div>
         </div>
       </div>
@@ -360,83 +445,135 @@ const generatePageHTML = (
       <div class="table">
         <!-- Table Header -->
         <div class="table-header">
-          <div class="table-cell-header" style="width: ${colWidths[0]}px;">Sr.No</div>
-          <div class="table-cell-header" style="width: ${colWidths[1]}px; text-align: center;">Name of Product / Service</div>
-          <div class="table-cell-header" style="width: ${colWidths[2]}px;">HSN/SAC</div>
-          <div class="table-cell-header" style="width: ${colWidths[3]}px;">Qty</div>
-          <div class="table-cell-header" style="width: ${colWidths[4]}px;">Rate (Rs.)</div>
-          <div class="table-cell-header" style="width: ${colWidths[5]}px;">Taxable Value (Rs.)</div>
+          <div class="table-cell-header" style="width: ${
+            colWidths[0]
+          }px;">Sr.No</div>
+          <div class="table-cell-header" style="width: ${
+            colWidths[1]
+          }px; text-align: center;">Name of Product / Service</div>
+          <div class="table-cell-header" style="width: ${
+            colWidths[2]
+          }px;">HSN/SAC</div>
+          <div class="table-cell-header" style="width: ${
+            colWidths[3]
+          }px;">Qty</div>
+          <div class="table-cell-header" style="width: ${
+            colWidths[4]
+          }px;">Rate (Rs.)</div>
+          <div class="table-cell-header" style="width: ${
+            colWidths[5]
+          }px;">Taxable Value (Rs.)</div>
 
-          ${showIGST
-            ? `
+          ${
+            showIGST
+              ? `
               <div class="table-cell-header" style="width: ${colWidths[6]}px;">IGST%</div>
               <div class="table-cell-header" style="width: ${colWidths[7]}px;">IGST Amt (Rs.)</div>
             `
-            : showCGSTSGST
-            ? `
+              : showCGSTSGST
+              ? `
               <div class="table-cell-header" style="width: ${colWidths[6]}px;">CGST%</div>
               <div class="table-cell-header" style="width: ${colWidths[7]}px;">CGST Amt (Rs.)</div>
               <div class="table-cell-header" style="width: ${colWidths[8]}px;">SGST%</div>
               <div class="table-cell-header" style="width: ${colWidths[9]}px;">SGST Amt (Rs.)</div>
             `
-            : ''}
+              : ''
+          }
 
-          <div class="table-cell-header" style="width: ${colWidths[totalColumnIndex]}px; border-right: none;">Total (Rs.)</div>
+          <div class="table-cell-header" style="width: ${
+            colWidths[totalColumnIndex]
+          }px; border-right: none;">Total (Rs.)</div>
         </div>
 
         <!-- Table Rows -->
-        ${generateItemsTableHTML(pageData, colWidths, showIGST, showCGSTSGST, totalColumnIndex, startIndex)}
+        ${generateItemsTableHTML(
+          pageData,
+          colWidths,
+          showIGST,
+          showCGSTSGST,
+          totalColumnIndex,
+          startIndex,
+        )}
 
         <!-- Total Row -->
-        ${isLastPage ? `
+        ${
+          isLastPage
+            ? `
           <div class="table-row light-gray-bg" style="border-bottom: 1px solid ${BORDER_COLOR};">
             <!-- "Total Items / Qty" - spans first 5 columns -->
-            <div class="table-cell" style="width: ${colWidths.slice(0, 5).reduce((sum, width) => sum + width, 0)}px; font-weight: bold; padding-left: 10px; text-align: left; border-right: 0.5px solid ${BORDER_COLOR};">
+            <div class="table-cell" style="width: ${colWidths
+              .slice(0, 5)
+              .reduce(
+                (sum, width) => sum + width,
+                0,
+              )}px; font-weight: bold; padding-left: 10px; text-align: left; border-right: 0.5px solid ${BORDER_COLOR};">
               Total Items / Qty: ${totalItems} / ${totalQty}
             </div>
             
             <!-- "Taxable Total:" label in the Taxable Value column -->
-            <div class="table-cell" style="width: ${colWidths[5]}px; font-weight: bold; text-align: right; border-right: ${isGSTApplicable ? `0.5px solid ${BORDER_COLOR}` : 'none'};">
+            <div class="table-cell" style="width: ${
+              colWidths[5]
+            }px; font-weight: bold; text-align: right; border-right: ${
+                isGSTApplicable ? `0.5px solid ${BORDER_COLOR}` : 'none'
+              };">
               Taxable Total:
             </div>
             
             <!-- Empty cells for GST columns (if applicable) -->
-            ${isGSTApplicable
-              ? showIGST
-                ? `
+            ${
+              isGSTApplicable
+                ? showIGST
+                  ? `
                   <div class="table-cell" style="width: ${colWidths[6]}px; border-right: 0.5px solid ${BORDER_COLOR};"></div>
                   <div class="table-cell" style="width: ${colWidths[7]}px; border-right: 0.5px solid ${BORDER_COLOR};"></div>
                 `
-                : showCGSTSGST
-                ? `
+                  : showCGSTSGST
+                  ? `
                   <div class="table-cell" style="width: ${colWidths[6]}px; border-right: 0.5px solid ${BORDER_COLOR};"></div>
                   <div class="table-cell" style="width: ${colWidths[7]}px; border-right: 0.5px solid ${BORDER_COLOR};"></div>
                   <div class="table-cell" style="width: ${colWidths[8]}px; border-right: 0.5px solid ${BORDER_COLOR};"></div>
                   <div class="table-cell" style="width: ${colWidths[9]}px; border-right: 0.5px solid ${BORDER_COLOR};"></div>
                 `
+                  : ''
                 : ''
-              : ''}
+            }
             
             <!-- Total taxable value in the last column -->
-            <div class="table-cell" style="width: ${colWidths[totalColumnIndex]}px; font-weight: bold; border-right: none;">
+            <div class="table-cell" style="width: ${
+              colWidths[totalColumnIndex]
+            }px; font-weight: bold; border-right: none;">
               ${formatCurrency(totalTaxable)}
             </div>
           </div>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
 
-      ${isLastPage ? `
+      ${
+        isLastPage
+          ? `
         <div style="height: 1px; background-color: #d3d3d3; width: 100%;"></div>
 
         <!-- Totals and Summary -->
         <div class="grant-total-amount">
           <div style="font-weight: normal; margin-bottom: 2px;">
-            <span class="bold-text">Taxable Amount: </span>${formatCurrency(totalTaxable)}
+            <span class="bold-text">Taxable Amount: </span>${formatCurrency(
+              totalTaxable,
+            )}
           </div>
           <div style="font-weight: normal; margin-bottom: 2px;">
-            <span class="bold-text">Total GST: </span>${formatCurrency(isGSTApplicable ? showIGST ? totalIGST : totalCGST + totalSGST : 0)}
+            <span class="bold-text">Total GST: </span>${formatCurrency(
+              isGSTApplicable
+                ? showIGST
+                  ? totalIGST
+                  : totalCGST + totalSGST
+                : 0,
+            )}
           </div>
-          <div class="bold-text">Grand Total: Rs. ${formatCurrency(totalAmount)}</div>
+          <div class="bold-text">Grand Total: Rs. ${formatCurrency(
+            totalAmount,
+          )}</div>
         </div>
 
         <div class="amount-in-words">
@@ -451,90 +588,112 @@ const generatePageHTML = (
           
           <!-- Left side - Bank Details and QR Code (if available) -->
           <div style="display: flex; flex-direction: row; flex: 1;">
-            ${!shouldHideBankDetails && isBankDetailAvailable
-              ? `
+            ${
+              !shouldHideBankDetails && isBankDetailAvailable
+                ? `
                 <div class="bank-block" style="flex: 1; padding: 5px; border-right: 1px solid ${BORDER_COLOR};">
                   <div class="section-title">Bank Details:</div>
                   <div style="margin-top: 2px;">
-                    ${bankData?.bankName
-                      ? `
+                    ${
+                      bankData?.bankName
+                        ? `
                         <div class="bank-row">
                           <div class="bank-label">Name:</div>
-                          <div class="small-text">${capitalizeWords(bankData.bankName)}</div>
+                          <div class="small-text">${capitalizeWords(
+                            bankData.bankName,
+                          )}</div>
                         </div>
                       `
-                      : ''}
+                        : ''
+                    }
 
-                    ${bankData?.accountNo
-                      ? `
+                    ${
+                      bankData?.accountNo
+                        ? `
                         <div class="bank-row">
                           <div class="bank-label">Acc. No:</div>
                           <div class="small-text">${bankData.accountNo}</div>
                         </div>
                       `
-                      : ''}
+                        : ''
+                    }
 
-                    ${bankData?.ifscCode
-                      ? `
+                    ${
+                      bankData?.ifscCode
+                        ? `
                         <div class="bank-row">
                           <div class="bank-label">IFSC:</div>
                           <div class="small-text">${bankData.ifscCode}</div>
                         </div>
                       `
-                      : ''}
+                        : ''
+                    }
 
-                    ${bankData?.branchAddress
-                      ? `
+                    ${
+                      bankData?.branchAddress
+                        ? `
                         <div class="bank-row">
                           <div class="bank-label">Branch:</div>
                           <div class="small-text">${bankData.branchAddress}</div>
                         </div>
                       `
-                      : ''}
+                        : ''
+                    }
 
-                    ${bankData?.upiDetails?.upiId
-                      ? `
+                    ${
+                      bankData?.upiDetails?.upiId
+                        ? `
                         <div class="bank-row">
                           <div class="bank-label">UPI ID:</div>
                           <div class="small-text">${bankData.upiDetails.upiId}</div>
                         </div>
                       `
-                      : ''}
+                        : ''
+                    }
 
-                    ${bankData?.upiDetails?.upiName
-                      ? `
+                    ${
+                      bankData?.upiDetails?.upiName
+                        ? `
                         <div class="bank-row">
                           <div class="bank-label">UPI Name:</div>
-                          <div class="small-text">${capitalizeWords(bankData.upiDetails.upiName)}</div>
+                          <div class="small-text">${capitalizeWords(
+                            bankData.upiDetails.upiName,
+                          )}</div>
                         </div>
                       `
-                      : ''}
+                        : ''
+                    }
 
-                    ${bankData?.upiDetails?.upiMobile
-                      ? `
+                    ${
+                      bankData?.upiDetails?.upiMobile
+                        ? `
                         <div class="bank-row">
                           <div class="bank-label">UPI Mobile:</div>
                           <div class="small-text">${bankData.upiDetails.upiMobile}</div>
                         </div>
                       `
-                      : ''}
+                        : ''
+                    }
                   </div>
                 </div>
               `
-              : ''}
+                : ''
+            }
 
-            ${!shouldHideBankDetails && bankData?.qrCode
-              ? `
+            ${
+              !shouldHideBankDetails && bankData?.qrCode
+                ? `
                 <div class="qr-block" style="width: 25%; border-right: 1px solid ${BORDER_COLOR}; align-items: center; text-align: center; padding: 5px;">
                   <div style="align-items: center; justify-content: center; margin-top: 4px;">
                     <div style="font-size: 9px; font-weight: bold;">QR Code</div>
                     <div style="background-color: #fff;">
-                      <img src="${BASE_URL}${bankData.qrCode}" style="width: 80px; height: 80px; object-fit: contain;" />
+                      <img src="${BASE_URL}/${bankData.qrCode}" style="width: 80px; height: 80px; object-fit: contain;" />
                     </div>
                   </div>
                 </div>
               `
-              : ''}
+                : ''
+            }
           </div>
 
           <!-- Right side - Signature Block -->
@@ -550,16 +709,20 @@ const generatePageHTML = (
         </div>
 
         <!-- Terms and Conditions -->
-        ${transaction?.notes
-          ? `
+        ${
+          transaction?.notes
+            ? `
             <div class="terms-section">
               <div style="padding-left:10px; padding-top:5px;">
                 ${renderNotesHTML(transaction.notes)}
               </div>
             </div>
           `
-          : ''}
-      ` : ''}
+            : ''
+        }
+      `
+          : ''
+      }
 
       <!-- Page Number -->
       <div class="page-number">Page ${pageIndex + 1} of ${totalPages}</div>
@@ -720,7 +883,7 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
         showCGSTSGST,
         title,
         startIndex,
-        pageIndex === totalPages - 1 // isLastPage
+        pageIndex === totalPages - 1, // isLastPage
       );
       startIndex += pageItems.length;
       return pageHTML;
@@ -819,10 +982,12 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
     }
     
     .logo-container img {
-      width: 70px;
-      height: 70px;
-      object-fit: contain;
-      margin-left:185px;
+  position: absolute;
+            right: 25pt;
+            top: 15;
+            width: 70px;
+            height: 70px;
+         
     }
     
     .gray-color {
@@ -831,7 +996,7 @@ const Template21 = ({ transaction, company, party, shippingAddress, bank }) => {
     
     .section-header {
       font-size: 9px;
-      margin-bottom: 3px;
+     
     }
     
     .bold-text {

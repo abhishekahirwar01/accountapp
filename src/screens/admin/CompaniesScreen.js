@@ -17,8 +17,8 @@ import {
   StyleSheet,
   TextInput,
   Keyboard,
+  StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { BASE_URL } from '../../config';
@@ -140,14 +140,6 @@ export default function AdminCompaniesPage() {
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [companyToDelete, setCompanyToDelete] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const HEADER_HEIGHT = 145;
-  const diffClamp = Animated.diffClamp(scrollY, 0, HEADER_HEIGHT);
-  const headerTranslateY = diffClamp.interpolate({
-    inputRange: [0, HEADER_HEIGHT],
-    outputRange: [0, -HEADER_HEIGHT],
-  });
 
   const fetchAllData = useCallback(async () => {
     try {
@@ -284,34 +276,30 @@ export default function AdminCompaniesPage() {
     };
   };
 
-  const renderAnimatedHeader = () => (
-    <Animated.View
-      style={[
-        styles.animatedHeader,
-        { transform: [{ translateY: headerTranslateY }] },
-      ]}
-    >
-      {/* <SafeAreaView style={styles.headerSafeArea} edges={['top']}> */}
-      <View style={styles.headerInner}>
-        <View style={styles.headerLeft}>
-          {/* <View style={styles.iconContainer}>
-            <Icon name="office-building" size={24} color="#4f46e5" />
-          </View> */}
-          <View style={styles.headerTextContent}>
-            <Text style={styles.title}>Company Management</Text>
-            <Text style={styles.subtitle}>
-              Manage all companies across all clients
-            </Text>
-          </View>
-        </View>
-        <View style={styles.headerRight}>
-          <Button style={styles.button} onPress={handleAddNew} size="sm" icon="plus">
-            Create
-          </Button>
-        </View>
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <View style={styles.headerTitle}>
+        <Text style={styles.title}>Company Management</Text>
+        <Text style={styles.subtitle}>
+          Manage all companies across all clients
+        </Text>
       </View>
+      <View style={styles.headerActions}>
+        <Button
+          style={styles.createButton}
+          onPress={handleAddNew}
+          size="sm"
+          icon="plus"
+        >
+          Create
+        </Button>
+      </View>
+    </View>
+  );
 
-      <View style={styles.searchContainer}>
+  const renderSearchBar = () => (
+    <View style={styles.searchContainer}>
+      <View style={styles.searchWrapper}>
         <Icon
           name="magnify"
           size={20}
@@ -336,8 +324,7 @@ export default function AdminCompaniesPage() {
           </TouchableOpacity>
         )}
       </View>
-      {/* </SafeAreaView> */}
-    </Animated.View>
+    </View>
   );
 
   const renderEmptyState = () => {
@@ -370,18 +357,26 @@ export default function AdminCompaniesPage() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4f46e5" />
         <Text style={styles.loadingText}>Loading companies...</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right']}>
-      {renderAnimatedHeader()}
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      <Animated.FlatList
+      {/* Fixed Header */}
+      <View style={styles.fixedHeader}>
+        {renderHeader()}
+        {renderSearchBar()}
+      </View>
+
+      {/* Content */}
+      <View style={styles.content}>
+        <Animated.FlatList
           data={filteredCompanies}
           renderItem={({ item }) => (
             <CompanyCard
@@ -398,116 +393,154 @@ export default function AdminCompaniesPage() {
             filteredCompanies.length === 0
               ? styles.emptyListContent
               : styles.listContent,
-            { paddingTop: 140 }, // Adjusted for tight UI spacing
           ]}
-          onScroll={Animated.event(
-            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-            { useNativeDriver: true },
-          )}
-          scrollEventThrottle={16}
           keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={handleRefresh}
-              progressViewOffset={160}
+              tintColor="#4f46e5"
+              colors={['#4f46e5']}
             />
           }
           ListEmptyComponent={renderEmptyState}
+          showsVerticalScrollIndicator={false}
         />
+      </View>
 
-        <Dialog
-          visible={isDialogOpen}
-          onClose={() => setIsDialogOpen(false)}
-          title={selectedCompany ? 'Edit Company' : 'Create New Company'}
-          description={
-            selectedCompany
-              ? `Update details for ${selectedCompany.businessName}.`
-              : 'Fill in the form to create a new company.'
-          }
-        >
-          <AdminCompanyForm
-            company={selectedCompany || undefined}
-            clients={clients}
-            onFormSubmit={onFormSubmit}
-          />
-        </Dialog>
-
-        <AlertDialog
-          visible={isAlertOpen}
-          onClose={() => setIsAlertOpen(false)}
-          title="Are you absolutely sure?"
-          description={`This action cannot be undone. This will permanently delete ${companyToDelete?.businessName}.`}
-          onConfirm={confirmDelete}
+      <Dialog
+        visible={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
+        title={selectedCompany ? 'Edit Company' : 'Create New Company'}
+        description={
+          selectedCompany
+            ? `Update details for ${selectedCompany.businessName}.`
+            : 'Fill in the form to create a new company.'
+        }
+      >
+        <AdminCompanyForm
+          company={selectedCompany || undefined}
+          clients={clients}
+          onFormSubmit={onFormSubmit}
         />
-      </SafeAreaView>
+      </Dialog>
+
+      <AlertDialog
+        visible={isAlertOpen}
+        onClose={() => setIsAlertOpen(false)}
+        title="Are you absolutely sure?"
+        description={`This action cannot be undone. This will permanently delete ${companyToDelete?.businessName}.`}
+        onConfirm={confirmDelete}
+      />
+    </View>
   );
 }
 
 // ---------- STYLES ----------
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+  container: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  fixedHeader: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    zIndex: 10,
+    elevation: 2,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  headerTitle: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1a1a1a',
+  },
+  subtitle: {
+    fontSize: 10,
+    color: '#666',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 9,
+  },
+  createButton: {
+    backgroundColor: '#4f46e5',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    elevation: 4,
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: '#fff',
+  },
+  searchWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6', // Light gray background for the whole box
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 45,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    fontSize: 15,
+    color: '#111827',
+    paddingVertical: 0, // Android fix for vertical centering
+  },
+  clearButton: {
+    padding: 4,
+  },
+  content: {
+    flex: 1,
+  },
+  emptyListContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  listContent: {
+    paddingBottom: 20,
+    paddingHorizontal: 0,
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 0,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f8fafc',
   },
-  loadingText: { marginTop: 12, fontSize: 16, color: '#6b7280' },
-  animatedHeader: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    zIndex: 10,
-    elevation: 4,
-  },
-  headerSafeArea: { backgroundColor: '#fff' },
-  headerInner: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 8,
-  },
-  headerLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#eef2ff',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTextContent: { flex: 1 },
-  title: { fontSize: 20, fontWeight: '700', color: '#111827' },
-  subtitle: { fontSize: 12, color: '#6b7280' },
-  headerRight: { marginLeft: 8 },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-  },
-  searchIcon: { marginRight: 8 },
-  searchInput: { flex: 1, height: 40, fontSize: 14, color: '#111827' },
-  clearButton: { padding: 4 },
-  emptyListContent: { flexGrow: 1, justifyContent: 'center' },
-  listContent: { paddingBottom: 20, paddingHorizontal: 0 },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#6b7280',
   },
   button: {
     flexDirection: 'row',
@@ -516,20 +549,36 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 20,
     paddingVertical: 10,
-    padding:10
   },
-  buttonDefault: { backgroundColor: '#4f46e5' },
+  buttonDefault: {
+    backgroundColor: '#4f46e5',
+  },
   buttonOutline: {
     backgroundColor: 'transparent',
     borderWidth: 1.5,
     borderColor: '#d1d5db',
   },
-  buttonDestructive: { backgroundColor: '#ef4444' },
-  buttonSm: { paddingHorizontal: 12, paddingVertical: 6 },
-  buttonDisabled: { opacity: 0.5 },
-  buttonIcon: { marginRight: 6 },
-  buttonText: { fontSize: 14, fontWeight: '600', color: '#fff' },
-  buttonTextOutline: { color: '#374151' },
+  buttonDestructive: {
+    backgroundColor: '#ef4444',
+  },
+  buttonSm: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  buttonIcon: {
+    marginRight: 6,
+  },
+  buttonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  buttonTextOutline: {
+    color: '#374151',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -547,10 +596,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
-  dialogTitle: { fontSize: 20, fontWeight: 'bold', color: '#1f2937' },
-  dialogDescription: { fontSize: 14, color: '#6b7280', marginTop: 4 },
-  closeButton: { position: 'absolute', top: 16, right: 16 },
-  dialogBody: { flex: 1 },
+  dialogTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  dialogDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+  },
+  dialogBody: {
+    flex: 1,
+  },
   alertDialogContent: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -558,12 +621,23 @@ const styles = StyleSheet.create({
     width: '90%',
     maxWidth: 400,
   },
-  alertDialogTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
-  alertDialogDescription: { fontSize: 14, color: '#6b7280', marginBottom: 24 },
+  alertDialogTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  alertDialogDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 24,
+  },
   alertDialogActions: {
     flexDirection: 'row',
     gap: 12,
     justifyContent: 'flex-end',
+  },
+  alertDialogButton: {
+    flex: 1,
   },
   emptyStateCard: {
     alignItems: 'center',
@@ -583,5 +657,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
   },
-  emptyStateButton: { paddingHorizontal: 24 },
+  emptyStateButton: {
+    paddingHorizontal: 24,
+  },
 });

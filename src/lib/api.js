@@ -1,6 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { clearSession } from './authSession';
+import { handleAutoLogout } from './authSession';
 import { BASE_URL } from '../config';
 
 const api = axios.create({
@@ -25,10 +25,11 @@ api.interceptors.response.use(
   async error => {
     const status = error?.response?.status;
 
-    if (status === 401) {
-      await clearSession();
-      console.log('Token expired or invalid — cleared session');
-      // DO NOT navigate here. Toast will show from handleLogin
+    // Only auto-logout if token exists (i.e., user is logged in)
+    const token = await AsyncStorage.getItem('token');
+    if (status === 401 && token) {
+      await handleAutoLogout('Token expired or invalid');
+      console.log('Token expired or invalid — auto-logout triggered');
     }
 
     return Promise.reject(error);

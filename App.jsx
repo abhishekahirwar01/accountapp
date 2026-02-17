@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { jwtDecode } from 'jwt-decode';
+import { handleAutoLogout } from './src/lib/authSession';
 import { StatusBar, ActivityIndicator, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -65,6 +67,23 @@ export default function App() {
         });
         if (!mounted) return;
         if (token) {
+          // Check if token is expired
+          try {
+            const decoded = jwtDecode(token);
+            if (decoded.exp * 1000 <= Date.now()) {
+              // Token expired, auto-logout
+              await handleAutoLogout('Session expired, please login again');
+              setInitialRouteName('GettingStarted');
+              setIsReady(true);
+              return;
+            }
+          } catch (e) {
+            // Invalid token, force logout
+            await handleAutoLogout('Invalid session, please login again');
+            setInitialRouteName('GettingStarted');
+            setIsReady(true);
+            return;
+          }
           setRole(savedRole || null);
           setInitialRouteName('MainTabs');
         } else {

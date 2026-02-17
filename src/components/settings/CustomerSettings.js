@@ -14,11 +14,13 @@ import {
   Linking,
   TouchableWithoutFeedback,
   TextInput,
+  PermissionsAndroid,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { pick } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
+import FileViewer from 'react-native-file-viewer';
 import * as XLSX from 'xlsx';
 import Toast from 'react-native-toast-message';
 import {
@@ -643,7 +645,7 @@ export function CustomerSettings() {
     }
   };
 
-  const downloadTemplate = async () => {
+   const downloadTemplate = async () => {
     setIsDownloading(true);
     try {
       const headers = [
@@ -695,9 +697,31 @@ export function CustomerSettings() {
 
       const fileName = `customer_template_${Date.now()}.xlsx`;
 
-      // Determine Path Based on Platform
+      // Determine Path Based on Platform and request permission on Android < 33
       let filePath = '';
       if (Platform.OS === 'android') {
+        if (Platform.Version < 33) {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+            {
+              title: 'Storage Permission Required',
+              message:
+                'We need permission to save templates to your Downloads folder',
+              buttonNeutral: 'Ask Later',
+              buttonNegative: 'Cancel',
+              buttonPositive: 'Allow',
+            },
+          );
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            Alert.alert(
+              'Permission Denied',
+              'Storage permission is required to download templates.',
+            );
+            setIsDownloading(false);
+            return;
+          }
+        }
+
         // Path to the public Downloads folder
         filePath = `${RNFS.ExternalStorageDirectoryPath}/Download/${fileName}`;
       } else {
@@ -708,7 +732,11 @@ export function CustomerSettings() {
 
       // CRITICAL STEP: Scan file so it appears in Media/File Manager immediately
       if (Platform.OS === 'android') {
-        await RNFS.scanFile(filePath);
+        try {
+          await RNFS.scanFile(filePath);
+        } catch (scanErr) {
+          console.warn('scanFile failed', scanErr);
+        }
       }
 
       Alert.alert(
@@ -716,7 +744,18 @@ export function CustomerSettings() {
         `File saved to: ${
           Platform.OS === 'android' ? 'Downloads Folder' : 'Documents'
         }\n\nName: ${fileName}`,
-        [{ text: 'OK' }],
+        [
+          { text: 'OK' },
+          {
+            text: 'Open File',
+            onPress: () => {
+              const fileUri = Platform.OS === 'ios' ? `file://${filePath}` : filePath;
+              FileViewer.open(fileUri).catch(() => {
+                Toast.show({ type: 'info', text1: 'File saved', text2: filePath });
+              });
+            },
+          },
+        ],
       );
 
       Toast.show({
@@ -902,7 +941,9 @@ export function CustomerSettings() {
             </View>
           ) : (
             <View style={styles.contentContainer}>
-              {/* Header */}
+             <View style={styles.topSection}>
+
+               {/* Header */}
               <View style={styles.header}>
                 <View style={styles.headerText}>
                   <Text style={styles.title}>Manage Customers</Text>
@@ -917,7 +958,7 @@ export function CustomerSettings() {
                       style={styles.primaryButton}
                       onPress={() => handleOpenForm()}
                     >
-                      <PlusCircle size={20} color="#fff" />
+                      <PlusCircle size={18} color="#fff" />
                       <Text style={styles.buttonText}>Add Customer</Text>
                     </TouchableOpacity>
 
@@ -925,7 +966,7 @@ export function CustomerSettings() {
                       style={styles.outlineButton}
                       onPress={handleImportClick}
                     >
-                      <Upload size={20} color="#3b82f6" />
+                      <Upload size={18} color="#3b82f6" />
                       <Text style={styles.outlineButtonText}>
                         Import Customers
                       </Text>
@@ -939,7 +980,7 @@ export function CustomerSettings() {
                 <View style={styles.searchContainer}>
                   <View style={styles.searchInputWrapper}>
                     <Search
-                      size={18}
+                      size={16}
                       color="#94a3b8"
                       style={styles.searchIcon}
                     />
@@ -965,6 +1006,7 @@ export function CustomerSettings() {
                   </Text>
                 </View>
               )}
+             </View>
 
               {/* Main Content */}
               {isLoading ? (
@@ -1043,7 +1085,7 @@ export function CustomerSettings() {
                                     style={styles.dropdownItem}
                                     onPress={() => handleEditCustomer(customer)}
                                   >
-                                    <Edit2 size={16} color="#3b82f6" />
+                                    <Edit2 size={15} color="#3b82f6" />
                                     <Text style={styles.dropdownItemText}>
                                       Edit
                                     </Text>
@@ -1055,7 +1097,7 @@ export function CustomerSettings() {
                                       handleDeleteCustomerFromDropdown(customer)
                                     }
                                   >
-                                    <Trash2 size={16} color="#ef4444" />
+                                    <Trash2 size={15} color="#ef4444" />
                                     <Text
                                       style={[
                                         styles.dropdownItemText,
@@ -1075,7 +1117,7 @@ export function CustomerSettings() {
                             <View style={styles.contactSection}>
                               {customer.contactNumber && (
                                 <View style={styles.contactItem}>
-                                  <Phone size={16} color="#3b82f6" />
+                                  <Phone size={14} color="#3b82f6" />
                                   <Text style={styles.contactText}>
                                     {customer.contactNumber}
                                   </Text>
@@ -1083,7 +1125,7 @@ export function CustomerSettings() {
                               )}
                               {customer.email && (
                                 <View style={styles.contactItem}>
-                                  <Mail size={16} color="#8b5cf6" />
+                                  <Mail size={14} color="#8b5cf6" />
                                   <Text style={styles.contactText}>
                                     {customer.email}
                                   </Text>
@@ -1098,7 +1140,7 @@ export function CustomerSettings() {
                             customer.state ||
                             customer.pincode) && (
                             <View style={styles.addressSection}>
-                              <MapPin size={16} color="#10b981" />
+                              <MapPin size={14} color="#10b981" />
                               <View style={styles.addressTextContainer}>
                                 {customer.address && (
                                   <Text style={styles.addressText}>
@@ -1130,7 +1172,7 @@ export function CustomerSettings() {
                               </Text>
                               {customer.gstin && (
                                 <View style={styles.taxItem}>
-                                  <FileText size={16} color="#6b7280" />
+                                  <FileText size={14} color="#6b7280" />
                                   <Text style={styles.taxLabel}>GSTIN:</Text>
                                   <Text style={styles.taxValue}>
                                     {customer.gstin}
@@ -1139,7 +1181,7 @@ export function CustomerSettings() {
                               )}
                               {customer.pan && (
                                 <View style={styles.taxItem}>
-                                  <Hash size={16} color="#6b7280" />
+                                  <Hash size={14} color="#6b7280" />
                                   <Text style={styles.taxLabel}>PAN:</Text>
                                   <Text style={styles.taxValue}>
                                     {customer.pan}
@@ -1152,7 +1194,7 @@ export function CustomerSettings() {
                           {/* TDS Section */}
                           {customer.isTDSApplicable && customer.tdsSection && (
                             <View style={styles.tdsSection}>
-                              <Percent size={16} color="#10b981" />
+                              <Percent size={14} color="#10b981" />
                               <View style={styles.tdsInfo}>
                                 <Text style={styles.tdsSectionText}>
                                   Section: {customer.tdsSection}
@@ -1581,17 +1623,23 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontWeight: '500',
-    fontSize: 14,
+    fontSize: 12,
   },
   emailButtonText: {
     color: '#3b82f6',
     fontWeight: '500',
-    fontSize: 14,
+    fontSize: 12,
   },
   contentContainer: {
     flex: 1,
-    padding: 10,
+    // padding: 10,
     paddingTop: 0,
+  },
+  topSection: {
+    padding: 10,
+    paddingBottom: 0,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 12,
   },
   header: {
     marginBottom: 16,
@@ -1600,13 +1648,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   title: {
-    fontSize: 24,
+    fontSize: 16,
     fontWeight: '700',
     color: '#1f2937',
-    marginBottom: 4,
+    // marginBottom: 4,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6b7280',
     lineHeight: 20,
   },
@@ -1618,8 +1666,8 @@ const styles = StyleSheet.create({
   primaryButton: {
     flexDirection: 'row',
     backgroundColor: '#3b82f6',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1632,8 +1680,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#3b82f6',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1644,11 +1692,11 @@ const styles = StyleSheet.create({
   outlineButtonText: {
     color: '#3b82f6',
     fontWeight: '500',
-    fontSize: 14,
+    fontSize: 12,
   },
   // Search Styles
   searchContainer: {
-    marginBottom: 16,
+    marginBottom: 10,
     backgroundColor: '#fff',
     borderRadius: 10,
     padding: 12,
@@ -1666,14 +1714,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0',
     paddingHorizontal: 12,
-    height: 44,
+    height: 40,
   },
   searchIcon: {
     marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 12,
     color: '#1e293b',
     paddingVertical: 0,
   },
@@ -1733,7 +1781,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   customerList: {
-    gap: 16,
+    gap: 8,
   },
   customerCard: {
     backgroundColor: '#fff',
@@ -1756,7 +1804,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   customerName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: '#1f2937',
     marginBottom: 8,
@@ -1770,10 +1818,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#eff6ff',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   gstTagText: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#3b82f6',
     fontWeight: '500',
   },
@@ -1783,7 +1831,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   tdsApplicable: {
     backgroundColor: '#10b981',
@@ -1792,7 +1840,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ef4444',
   },
   tdsTagText: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#fff',
     fontWeight: '500',
   },
@@ -1802,7 +1850,7 @@ const styles = StyleSheet.create({
   },
   dropdown: {
     position: 'absolute',
-    top: 24,
+    top: 22,
     right: 0,
     backgroundColor: 'white',
     borderRadius: 12,
@@ -1819,12 +1867,12 @@ const styles = StyleSheet.create({
   dropdownItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     gap: 10,
   },
   dropdownItemText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#334155',
   },
@@ -1845,7 +1893,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   contactText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#4b5563',
   },
   addressSection: {
@@ -1857,12 +1905,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   addressText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#4b5563',
     marginBottom: 4,
   },
   locationText: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#6b7280',
   },
   taxSection: {

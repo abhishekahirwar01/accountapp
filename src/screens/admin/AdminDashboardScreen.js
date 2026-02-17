@@ -165,7 +165,7 @@ export default function AdminDashboardScreen({ navigation }) {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
-        {/* ✅ Dashboard Header Section */}
+       
         <View style={styles.header}>
           <View style={styles.headerTextContainer}>
             <Text
@@ -255,9 +255,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 8,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 6,
   },
   headerTextContainer: {
     flex: 1,

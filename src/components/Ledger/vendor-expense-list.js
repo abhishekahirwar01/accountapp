@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -96,7 +96,6 @@ const ListItem = React.memo(({
   const name = isVendor ? item.vendorName : item.name;
   const id = item._id;
   
-
   useEffect(() => {
     if (onItemVisible) {
       onItemVisible(id, isVendor);
@@ -248,19 +247,18 @@ export function VendorExpenseList({
     direction: 'desc'
   });
   
+ 
+  const [vendorLastTransactionDates, setVendorLastTransactionDates] = useState({});
+  const [expenseLastTransactionDates, setExpenseLastTransactionDates] = useState({});
+  
   const itemsPerPage = 10;
   const baseURL = BASE_URL;
-
 
   const loadedBalancesRef = useRef(new Set());
   const loadingQueueRef = useRef(new Set());
   
   // Track if we've loaded the global totals
   const globalTotalsLoadedRef = useRef(false);
-  
-  // Track last transaction dates for sorting
-  const vendorLastTransactionDatesRef = useRef({});
-  const expenseLastTransactionDatesRef = useRef({});
 
   const fetchGlobalTotals = useCallback(async () => {
     if (currentView !== 'vendor' || vendors.length === 0) return;
@@ -342,6 +340,7 @@ export function VendorExpenseList({
       vendorResults.forEach(result => {
         totalDebit += result.debit;
         totalCredit += result.credit;
+        // Store the last transaction date
         if (result.lastDate) {
           vendorDates[result.vendorId] = result.lastDate;
         }
@@ -353,8 +352,8 @@ export function VendorExpenseList({
         totalDebit,
       });
       
-      // Update dates ref
-      vendorLastTransactionDatesRef.current = vendorDates;
+      // Update the dates state for sorting
+      setVendorLastTransactionDates(vendorDates);
 
       globalTotalsLoadedRef.current = true;
     } catch (error) {
@@ -363,7 +362,6 @@ export function VendorExpenseList({
       setLoadingTotals(false);
     }
   }, [currentView, vendors, selectedCompanyId, baseURL, setLoadingTotals, setTransactionTotals]);
-
 
   const fetchVendorBalance = useCallback(
     async (vendorId) => {
@@ -469,8 +467,12 @@ export function VendorExpenseList({
             setExpenseTotals(prev => ({ ...prev, [expenseId]: total }));
           }
           
+          // Update dates state for sorting - THIS IS THE FIX
           if (lastDate) {
-            expenseLastTransactionDatesRef.current[expenseId] = lastDate;
+            setExpenseLastTransactionDates(prev => ({
+              ...prev,
+              [expenseId]: lastDate
+            }));
           }
           
           loadedBalancesRef.current.add(expenseId);
@@ -493,22 +495,20 @@ export function VendorExpenseList({
     }
   }, [fetchVendorBalance, fetchExpenseTotal]);
 
-
   
   const sortedItems = useMemo(() => {
     const itemsToSort = currentView === 'vendor' ? [...vendors] : [...expenses];
     
     if (itemsToSort.length === 0) return [];
     
-   
     return [...itemsToSort].sort((a, b) => {
      
       const aDate = currentView === 'vendor' 
-        ? vendorLastTransactionDatesRef.current[a._id]
-        : expenseLastTransactionDatesRef.current[a._id];
+        ? vendorLastTransactionDates[a._id]
+        : expenseLastTransactionDates[a._id];
       const bDate = currentView === 'vendor'
-        ? vendorLastTransactionDatesRef.current[b._id]
-        : expenseLastTransactionDatesRef.current[b._id];
+        ? vendorLastTransactionDates[b._id]
+        : expenseLastTransactionDates[b._id];
       
       // Handle items without dates (show them last)
       if (!aDate && !bDate) return 0;
@@ -524,7 +524,9 @@ export function VendorExpenseList({
     currentView,
     vendors,
     expenses,
-    sortConfig.direction, 
+    sortConfig.direction,
+    vendorLastTransactionDates, 
+    expenseLastTransactionDates 
   ]);
 
   // Process items with balances
@@ -533,15 +535,12 @@ export function VendorExpenseList({
       if (currentView === 'vendor') {
         let overallBalance = 0;
         if (!selectedCompanyId && item.balances) {
-          
           for (const [companyId, balance] of Object.entries(item.balances)) {
             overallBalance += Number(balance || 0);
           }
         } else if (selectedCompanyId && vendorBalances[item._id] !== undefined) {
-          
           overallBalance = vendorBalances[item._id];
         } else {
-        
           overallBalance = item.balance || 0;
         }
         return {
@@ -553,7 +552,6 @@ export function VendorExpenseList({
       }
     });
   }, [currentView, sortedItems, selectedCompanyId, vendorBalances]);
-
 
   // Fetch global totals when vendors are loaded
   useEffect(() => {
@@ -567,6 +565,8 @@ export function VendorExpenseList({
     setCurrentPage(1);
     loadedBalancesRef.current.clear();
     globalTotalsLoadedRef.current = false;
+    setVendorLastTransactionDates({});
+    setExpenseLastTransactionDates({});
   }, [currentView, selectedCompanyId]);
 
   // ==========================================================================
@@ -582,8 +582,6 @@ export function VendorExpenseList({
     return { paginatedItems, totalPages };
   }, [items, currentPage, itemsPerPage]);
 
-
-  
   const stats = useMemo(() => {
     if (currentView === 'vendor') {
       let settledVendors = 0;
@@ -616,13 +614,12 @@ export function VendorExpenseList({
     }
   }, [vendors.length, expenses.length, vendorBalances, transactionTotals, expenseTotals, currentView]);
 
-
   const onRefreshList = useCallback(async () => {
     setRefreshing(true);
     loadedBalancesRef.current.clear();
     globalTotalsLoadedRef.current = false;
-    vendorLastTransactionDatesRef.current = {};
-    expenseLastTransactionDatesRef.current = {};
+    setVendorLastTransactionDates({});
+    setExpenseLastTransactionDates({});
     
     // Re-fetch global totals
     if (currentView === 'vendor') {
@@ -673,7 +670,6 @@ export function VendorExpenseList({
         }
         showsVerticalScrollIndicator={false}
       >
-    
         {currentView === 'vendor' ? (
           <View style={styles.statsGrid}>
             <StatCard
@@ -888,7 +884,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
     color: '#111827',
     letterSpacing: -0.5,
@@ -926,7 +922,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
   },
   headerIconContainer: {
     flexDirection: 'row',
@@ -956,14 +951,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mainTitle: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '700',
     color: '#0f172a',
     letterSpacing: -0.3,
     marginBottom: 2,
   },
   headerSubtitle: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#64748b',
     lineHeight: 18,
   },
@@ -990,7 +985,7 @@ const styles = StyleSheet.create({
   },
   listItem: {
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 12,
     backgroundColor: '#ffffff',
   },
   itemContent: {
@@ -1032,10 +1027,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   itemName: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#0f172a',
-    marginBottom: 6,
+    marginBottom: 3,
     letterSpacing: -0.2,
   },
   itemBalanceInfo: {
@@ -1053,7 +1048,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 8,
-    paddingVertical: 4,
     borderRadius: 10,
     borderWidth: 1.5,
   },
@@ -1090,8 +1084,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   viewButton: {
-    width: 32,
-    height: 32,
+    width: 25,
+    height: 25,
     borderRadius: 10,
     backgroundColor: '#eff6ff',
     alignItems: 'center',
@@ -1210,4 +1204,4 @@ const styles = StyleSheet.create({
     opacity: 0.4,
     backgroundColor: '#f8fafc',
   },
-});
+});  

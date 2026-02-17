@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
@@ -39,7 +38,7 @@ const CompanyCard = React.memo(
         <View style={styles.cardHeader}>
           <View style={styles.companyInfo}>
             <View style={styles.iconContainer}>
-              <Building size={20} color="#007AFF" />
+              <Building size={18} color="#007AFF" />
             </View>
             <View style={styles.companyTextContainer}>
               <Text style={styles.businessName} numberOfLines={1}>
@@ -190,9 +189,13 @@ const CompaniesScreen = () => {
     };
   }, []);
 
-  
-  const fetchCompanies = useCallback(async (signal) => {
+  // Fetch companies with optional loader control
+  const fetchCompanies = useCallback(async (signal, showLoader = false) => {
     try {
+      if (showLoader && isMountedRef.current) {
+        setIsLoading(true);
+      }
+
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
 
@@ -202,7 +205,7 @@ const CompaniesScreen = () => {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        signal, // Add abort signal
+        signal,
       });
 
       if (!response.ok) {
@@ -226,10 +229,14 @@ const CompaniesScreen = () => {
           error.message || 'Failed to load companies. Please try again.',
         );
       }
+    } finally {
+      if (showLoader && isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
-  //  fetch clients
+  // Fetch clients
   const fetchClients = useCallback(async (signal) => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -256,22 +263,15 @@ const CompaniesScreen = () => {
     }
   }, []);
 
-  // Initial data fetch with abort controller
+  
   useEffect(() => {
     const abortController = new AbortController();
     
     const loadData = async () => {
-      setIsLoading(true);
-      try {
-        await Promise.all([
-          fetchCompanies(abortController.signal),
-          fetchClients(abortController.signal),
-        ]);
-      } finally {
-        if (isMountedRef.current) {
-          setIsLoading(false);
-        }
-      }
+      await Promise.all([
+        fetchCompanies(abortController.signal, true), 
+        fetchClients(abortController.signal),
+      ]);
     };
 
     loadData();
@@ -281,35 +281,40 @@ const CompaniesScreen = () => {
     };
   }, [fetchCompanies, fetchClients]);
 
-  // Handle refresh trigger
+ 
   useEffect(() => {
     if (refreshTrigger && refreshTrigger > 0) {
       const abortController = new AbortController();
-      fetchCompanies(abortController.signal);
+      fetchCompanies(abortController.signal, false); 
       return () => abortController.abort();
     }
   }, [refreshTrigger, fetchCompanies]);
 
-  // Orefresh handler
+  // Pull to refresh handler
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     const abortController = new AbortController();
     
     try {
       await Promise.all([
-        fetchCompanies(abortController.signal),
+        fetchCompanies(abortController.signal, false), 
         fetchClients(abortController.signal),
         triggerCompaniesRefresh?.(),
         refetch?.(),
         refetchUserPermissions?.(),
       ]);
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('Error refreshing data:', error);
+      }
     } finally {
       if (isMountedRef.current) {
         setRefreshing(false);
       }
     }
-
-    return () => abortController.abort();
+    
+   
+    setTimeout(() => abortController.abort(), 100);
   }, [
     fetchCompanies,
     fetchClients,
@@ -363,7 +368,8 @@ const CompaniesScreen = () => {
 
       // Refresh the companies list
       const abortController = new AbortController();
-      await fetchCompanies(abortController.signal);
+      await fetchCompanies(abortController.signal, false);
+      abortController.abort();
     } catch (error) {
       console.error('Error deleting company:', error);
       Alert.alert(
@@ -395,7 +401,8 @@ const CompaniesScreen = () => {
   const onFormSubmit = useCallback(() => {
     setIsDialogOpen(false);
     const abortController = new AbortController();
-    fetchCompanies(abortController.signal);
+    fetchCompanies(abortController.signal, false);
+    setTimeout(() => abortController.abort(), 100);
   }, [fetchCompanies]);
 
   const toggleMenu = useCallback((companyId) => {
@@ -533,11 +540,11 @@ const CompaniesScreen = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f8fafc',
   },
   container: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#f8fafc',
   },
   header: {
     flexDirection: 'row',
@@ -546,18 +553,20 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingTop: 4,
     paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
   headerTitle: {
     flex: 1,
   },
   title: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
     // marginBottom: 2,
     color: '#1a1a1a',
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 10,
     color: '#666',
   },
   headerActions: {
@@ -565,13 +574,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     marginTop: 9,
-  },
+  },  
   addCompanyButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#007AFF',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 10,
     gap: 8,
     elevation: 4,
@@ -583,7 +592,7 @@ const styles = StyleSheet.create({
   addCompanyButtonText: {
     color: 'white',
     fontWeight: '700',
-    fontSize: 15,
+    fontSize: 12,
   },
   content: {
     flex: 1,
@@ -599,7 +608,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   listContent: {
-    padding: 16,
+    // padding: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
   },
   cardListContent: {},
   card: {
@@ -634,13 +645,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   businessName: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '600',
     marginBottom: 2,
     color: '#1a1a1a',
   },
   businessType: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#666',
   },
   menuContainer: {
@@ -652,28 +663,28 @@ const styles = StyleSheet.create({
   },
   dropdownMenu: {
     position: 'absolute',
-    top: 35,
+    top: 22,
     right: 0,
     backgroundColor: 'white',
     borderRadius: 8,
-    paddingVertical: 8,
+    paddingVertical: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 5,
-    minWidth: 120,
+    minWidth: 80,
     zIndex: 1000,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 4,
     gap: 12,
   },
   menuItemText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#333',
   },
   deleteMenuItem: {},
@@ -706,13 +717,13 @@ const styles = StyleSheet.create({
   contactIcon: {
     padding: 4,
     borderRadius: 4,
-    width: 20,
-    height: 20,
+    width: 18,
+    height: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
   contactText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#333',
     flex: 1,
   },
@@ -725,7 +736,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   detailLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#666',
     marginBottom: 4,
   },
@@ -741,7 +752,7 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   badgeText: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#333',
     fontWeight: '500',
     flex: 1,
@@ -769,13 +780,13 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   statusDot: {
-    width: 8,
-    height: 8,
+    width: 6,
+    height: 6,
     borderRadius: 4,
     backgroundColor: '#34C759',
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#666',
   },
   emptyState: {

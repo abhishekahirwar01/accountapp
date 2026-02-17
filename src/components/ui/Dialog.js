@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     maxWidth: 640,
     width: '100%',
-    maxHeight: '100%',
+    maxHeight: '90%',
     // minHeight: '90%',
     position: 'relative',
   },
@@ -80,7 +80,9 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   dialogContent: {
-    padding: 24,
+    // padding: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
   dialogHeader: {
     marginBottom: 16,
@@ -91,8 +93,8 @@ const styles = StyleSheet.create({
     color: '#1f2937',
   },
   dialogDescription: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6b7280',
-    marginTop: 4,
+    // marginTop: 4,
   },
 });

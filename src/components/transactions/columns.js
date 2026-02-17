@@ -29,31 +29,14 @@ import {
 import Clipboard from '@react-native-clipboard/clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNFS from 'react-native-fs';
+import RNPrint from 'react-native-print';
 import Pdf from 'react-native-pdf';
 import Feather from 'react-native-vector-icons/Feather';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { Checkbox } from 'react-native-paper';
 
-// Import all PDF generation functions
-import { generatePdfForTemplate1 } from '../../lib/pdf-template1';
-import { generatePdfForTemplate11 } from '../../lib/pdf-template11';
-import { generatePdfForTemplate12 } from '../../lib/pdf-template12';
-import { generatePdfForTemplate16 } from '../../lib/pdf-template16';
-import { generatePdfForTemplateA5 } from '../../lib/pdf-templateA5';
-import { generatePdfForTemplateA5_3 } from '../../lib/pdf-templateA5-3';
-import { generatePdfForTemplateA5_4 } from '../../lib/pdf-templateA5-4';
-import { generatePdfForTemplatet3 } from '../../lib/pdf-template-t3';
-import { generatePdfForTemplate2 } from '../../lib/pdf-template2';
-import { generatePdfForTemplate17 } from '../../lib/pdf-template17';
-import { generatePdfForTemplate18 } from '../../lib/pdf-template18';
-import { generatePdfForTemplate19 } from '../../lib/pdf-template19';
-import { generatePdfForTemplate3 } from '../../lib/pdf-template3';
-import { generatePdfForTemplate4 } from '../../lib/pdf-template4';
-import { generatePdfForTemplate5 } from '../../lib/pdf-template5';
-import { generatePdfForTemplate6 } from '../../lib/pdf-template6';
-import { generatePdfForTemplate7 } from '../../lib/pdf-template7';
-import { generatePdfForTemplate8 } from '../../lib/pdf-template8';
-import { generatePdfForTemplateA5_2 } from '../../lib/pdf-templateA3-2';
+// Import PDF generation function with direct 1:1 template mapping (same as TransactionForm)
+import { generatePdfByTemplate } from './transaction-form/invoice-handler';
 
 // Import utilities
 import { useUserPermissions } from '../../contexts/user-permissions-context';
@@ -1180,107 +1163,255 @@ const TransactionActions = ({
     }
 
     try {
-      // Attempt to generate PDF using available templates (default to template1)
-      let pdfBlob;
-      const template = 'template1';
-      switch (template) {
-        case 'template1':
-          pdfBlob = await generatePdfForTemplate1(
-            transaction,
-            transaction.company || null,
-            transaction.party || null,
-            serviceNameById,
+      setIsGeneratingPdf(true);
+
+      // 1️⃣ Android Permission Check
+      if (Platform.OS === 'android' && Platform.Version < 33) {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+          {
+            title: 'Storage Permission Required',
+            message:
+              'We need permission to save invoices to your Downloads folder',
+            buttonNeutral: 'Ask Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'Allow',
+          },
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          Alert.alert(
+            'Permission Denied',
+            'Storage permission is required to download invoices.',
           );
-          break;
-        case 'template2':
-          pdfBlob = await generatePdfForTemplate2(
-            transaction,
-            transaction.company || null,
-            transaction.party || null,
-            serviceNameById,
-          );
-          break;
-        // add other templates if needed
-        default:
-          pdfBlob = await generatePdfForTemplate1(
-            transaction,
-            transaction.company || null,
-            transaction.party || null,
-            serviceNameById,
-          );
+          return;
+        }
       }
 
-      // Normalize the generator output to base64
+      // 2️⃣ Fetch backend default template (like TransactionForm)
+      let selectedTemplate = 'template1';
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (token) {
+          const templateRes = await fetch(
+            `${BASE_URL}/api/settings/default-template`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            },
+          );
+          if (templateRes.ok) {
+            const templateData = await templateRes.json();
+            selectedTemplate = templateData.defaultTemplate || 'template1';
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to fetch default template:', error.message);
+      }
+
+      // 3️⃣ Fetch party, company, bank details (like TransactionForm)
+      let partyData = transaction.party || null;
+      let companyData = transaction.company || null;
+      let bankData = null;
+      const token = await AsyncStorage.getItem('token');
+
+      if (token) {
+        try {
+          const partyId = transaction.party?._id || transaction.party;
+          if (partyId) {
+            const partyRes = await fetch(`${BASE_URL}/api/parties/${partyId}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (partyRes.ok) {
+              partyData = await partyRes.json();
+            }
+          }
+        } catch (err) {
+          console.warn('⚠️ Failed to fetch party:', err.message);
+        }
+
+        try {
+          const companyId = transaction.company?._id || transaction.company;
+          if (companyId) {
+            const companyRes = await fetch(
+              `${BASE_URL}/api/companies/${companyId}`,
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              },
+            );
+            if (companyRes.ok) {
+              companyData = await companyRes.json();
+            }
+          }
+        } catch (err) {
+          console.warn('⚠️ Failed to fetch company:', err.message);
+        }
+
+        try {
+          const bankId = transaction.bank?._id || transaction.bank;
+          if (bankId) {
+            const bankRes = await fetch(
+              `${BASE_URL}/api/bank-details/${bankId}`,
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              },
+            );
+            if (bankRes.ok) {
+              const bankResponse = await bankRes.json();
+              // Extract .data if API returns wrapper {data: {...}, success: true}
+              bankData = bankResponse.data || bankResponse;
+            } else {
+              console.warn(
+                '⚠️ Download: Bank API returned status:',
+                bankRes.status,
+              );
+              if (transaction.bank && typeof transaction.bank === 'object') {
+                bankData = transaction.bank;
+              }
+            }
+          } else {
+            if (transaction.bank && typeof transaction.bank === 'object') {
+              bankData = transaction.bank;
+            }
+          }
+        } catch (err) {
+          console.warn('⚠️ Failed to fetch bank:', err.message);
+          if (transaction.bank && typeof transaction.bank === 'object') {
+            bankData = transaction.bank;
+          }
+        }
+      }
+
+      // 4️⃣ Generate Unique Filename
+      const invoiceNumber =
+        transaction.invoiceNumber ||
+        transaction.referenceNumber ||
+        transaction._id.slice(-6);
+      const timestamp = Date.now();
+      const fname = `Invoice_${invoiceNumber}_${timestamp}.pdf`;
+
+      // 5️⃣ Convert serviceNameById to Map
+      const serviceNameMap =
+        serviceNameById instanceof Map
+          ? serviceNameById
+          : new Map(Object.entries(serviceNameById || {}));
+
+      // 6️⃣ Extract shippingAddress
+      const shippingAddress =
+        transaction?.shippingAddress &&
+        typeof transaction.shippingAddress === 'object'
+          ? transaction.shippingAddress
+          : null;
+
+      const pdfBlob = await generatePdfByTemplate(
+        selectedTemplate,
+        transaction,
+        companyData || null,
+        partyData || null,
+        serviceNameMap,
+        shippingAddress,
+        bankData,
+      );
+
+      // 8️⃣ Normalize PDF to Base64 (handles file objects/paths, base64, jsPDF, blobs)
       let pdfBase64;
-      if (typeof pdfBlob === 'string') {
-        pdfBase64 = pdfBlob;
-      } else if (
-        typeof Uint8Array !== 'undefined' &&
-        pdfBlob instanceof Uint8Array
-      ) {
-        pdfBase64 = Buffer.from(pdfBlob).toString('base64');
-      } else if (typeof Blob !== 'undefined' && pdfBlob instanceof Blob) {
-        const arrayBuffer = await new Response(pdfBlob).arrayBuffer();
-        pdfBase64 = Buffer.from(arrayBuffer).toString('base64');
-      } else if (pdfBlob && typeof pdfBlob === 'object' && pdfBlob.base64) {
-        pdfBase64 = pdfBlob.base64;
-      } else if (
+
+      // If generator returned an object with a filesystem path (react-native-html-to-pdf / generatePDF)
+      if (
         pdfBlob &&
         typeof pdfBlob === 'object' &&
-        typeof pdfBlob.output === 'function'
+        (pdfBlob.filePath || pdfBlob.path)
       ) {
+        const filePath = pdfBlob.filePath || pdfBlob.path;
         try {
-          pdfBase64 = await pdfBlob.output('base64');
-        } catch (e) {
-          // ignore and fallthrough
+          const normalizedPath = String(filePath).startsWith('file://')
+            ? String(filePath).replace('file://', '')
+            : String(filePath);
+          pdfBase64 = await RNFS.readFile(normalizedPath, 'base64');
+        } catch (err) {
+          console.warn(
+            '⚠️ Failed to read PDF filePath from generator object:',
+            err,
+          );
         }
-      } else {
-        pdfBase64 = pdfBlob;
+      }
+
+      if (!pdfBase64) {
+        if (typeof pdfBlob === 'string') {
+          // If template returned a file path string, read it
+          if (pdfBlob.includes('/') || pdfBlob.includes('\\')) {
+            try {
+              pdfBase64 = await RNFS.readFile(pdfBlob, 'base64');
+            } catch (err) {
+              console.warn(
+                '⚠️ Failed to read PDF file path, treating as base64 string:',
+                err,
+              );
+              pdfBase64 = pdfBlob;
+            }
+          } else {
+            // already base64
+            pdfBase64 = pdfBlob;
+          }
+        } else if (pdfBlob && typeof pdfBlob.output === 'function') {
+          // jsPDF instance
+          pdfBase64 = pdfBlob.output('base64');
+        } else if (
+          typeof Uint8Array !== 'undefined' &&
+          pdfBlob instanceof Uint8Array
+        ) {
+          pdfBase64 = Buffer.from(pdfBlob).toString('base64');
+        } else if (typeof Blob !== 'undefined' && pdfBlob instanceof Blob) {
+          const arrayBuffer = await new Response(pdfBlob).arrayBuffer();
+          pdfBase64 = Buffer.from(arrayBuffer).toString('base64');
+        } else {
+          pdfBase64 = pdfBlob;
+        }
       }
 
       if (!pdfBase64 || typeof pdfBase64 !== 'string') {
         throw new Error('Invalid PDF data generated');
       }
 
-      const invoiceNumber =
-        transaction.invoiceNumber ||
-        transaction.referenceNumber ||
-        transaction._id;
-      const fname = `Invoice-${invoiceNumber || Date.now()}.pdf`;
+      // 9️⃣ Setup Paths
+      const tempPath = `${RNFS.DocumentDirectoryPath}/${fname}`;
+      const downloadDir =
+        Platform.OS === 'android'
+          ? RNFS.DownloadDirectoryPath
+          : RNFS.DocumentDirectoryPath;
+      const publicPath = `${downloadDir}/${fname}`;
 
-      // Save to app's document directory
-      const appFilePath = `${RNFS.DocumentDirectoryPath}/${fname}`;
-      await RNFS.writeFile(appFilePath, pdfBase64, 'base64');
+      // 🔟 Write file
+      await RNFS.writeFile(tempPath, pdfBase64, 'base64');
 
-      let downloadsFilePath = '';
-      let copiedToDownloads = false;
-
-      // Try to copy to Downloads folder for easier access (best-effort)
+      // 1️⃣1️⃣ Copy to Downloads (Android)
       if (Platform.OS === 'android') {
+        await RNFS.copyFile(tempPath, publicPath);
         try {
-          downloadsFilePath = `${RNFS.DownloadDirectoryPath}/${fname}`;
-          await RNFS.copyFile(appFilePath, downloadsFilePath);
-          copiedToDownloads = await RNFS.exists(downloadsFilePath);
-        } catch (copyErr) {
-          console.log(
-            'Could not copy to downloads, using app storage only:',
-            copyErr,
-          );
-          copiedToDownloads = false;
+          await RNFS.scanFile(publicPath);
+        } catch (scanErr) {
+          console.warn('Media scan warning:', scanErr);
         }
+        Alert.alert('Download Successful ✅', `Saved as: ${fname}`, [
+          { text: 'OK' },
+        ]);
+      } else {
+        await Share.share({
+          url: `file://${tempPath}`,
+          type: 'application/pdf',
+          filename: fname,
+        });
       }
 
-      const finalPath = copiedToDownloads ? downloadsFilePath : appFilePath;
-      Alert.alert(
-        'File Downloaded',
-        'Your file has been downloaded successfully.',
+      await RNFS.unlink(tempPath).catch(() =>
+        console.log('Temp file cleanup skipped'),
       );
     } catch (error) {
-      console.error('🔴 Download failed:', error);
+      console.error('🔴 Download Error:', error);
       Alert.alert(
-        'Download failed',
-        error.message || 'Failed to download invoice',
+        'Download Failed',
+        error.message || 'Could not save invoice.',
       );
+    } finally {
+      setIsGeneratingPdf(false);
     }
   };
 
@@ -1293,11 +1424,208 @@ const TransactionActions = ({
       return;
     }
 
-    Alert.alert(
-      'Print Invoice',
-      'Invoice printing functionality requires integration setup.',
-      [{ text: 'OK' }],
-    );
+    try {
+      setIsGeneratingPdf(true);
+
+      // 1️⃣ Fetch backend default template (like TransactionForm)
+      let selectedTemplate = 'template1';
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (token) {
+          const templateRes = await fetch(
+            `${BASE_URL}/api/settings/default-template`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            },
+          );
+          if (templateRes.ok) {
+            const templateData = await templateRes.json();
+            selectedTemplate = templateData.defaultTemplate || 'template1';
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to fetch default template:', error.message);
+      }
+
+      // 2️⃣ Fetch party, company, bank details
+      let partyData = transaction.party || null;
+      let companyData = transaction.company || null;
+      let bankData = null;
+      const token = await AsyncStorage.getItem('token');
+
+      if (token) {
+        try {
+          const partyId = transaction.party?._id || transaction.party;
+          if (partyId) {
+            const partyRes = await fetch(`${BASE_URL}/api/parties/${partyId}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (partyRes.ok) {
+              partyData = await partyRes.json();
+            }
+          }
+        } catch (err) {
+          console.warn('⚠️ Failed to fetch party:', err.message);
+        }
+
+        try {
+          const companyId = transaction.company?._id || transaction.company;
+          if (companyId) {
+            const companyRes = await fetch(
+              `${BASE_URL}/api/companies/${companyId}`,
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              },
+            );
+            if (companyRes.ok) {
+              companyData = await companyRes.json();
+            }
+          }
+        } catch (err) {
+          console.warn('⚠️ Failed to fetch company:', err.message);
+        }
+
+        try {
+          const bankId = transaction.bank?._id || transaction.bank;
+          if (bankId) {
+            const bankRes = await fetch(
+              `${BASE_URL}/api/bank-details/${bankId}`,
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              },
+            );
+            if (bankRes.ok) {
+              const bankResponse = await bankRes.json();
+              // Extract .data if API returns wrapper {data: {...}, success: true}
+              bankData = bankResponse.data || bankResponse;
+            } else {
+              console.warn(
+                '⚠️ Print: Bank API returned status:',
+                bankRes.status,
+              );
+              if (transaction.bank && typeof transaction.bank === 'object') {
+                bankData = transaction.bank;
+              }
+            }
+          } else {
+            if (transaction.bank && typeof transaction.bank === 'object') {
+              bankData = transaction.bank;
+            }
+          }
+        } catch (err) {
+          console.warn('⚠️ Failed to fetch bank:', err.message);
+          if (transaction.bank && typeof transaction.bank === 'object') {
+            bankData = transaction.bank;
+          }
+        }
+      }
+
+      // 3️⃣ Convert serviceNameById to Map
+      const serviceNameMap =
+        serviceNameById instanceof Map
+          ? serviceNameById
+          : new Map(Object.entries(serviceNameById || {}));
+
+      // 4️⃣ Extract shippingAddress
+      const shippingAddress =
+        transaction?.shippingAddress &&
+        typeof transaction.shippingAddress === 'object'
+          ? transaction.shippingAddress
+          : null;
+
+      const pdfBlob = await generatePdfByTemplate(
+        selectedTemplate,
+        transaction,
+        companyData || null,
+        partyData || null,
+        serviceNameMap,
+        shippingAddress,
+        bankData,
+      );
+
+      // 6️⃣ Normalize PDF to Base64 (handles file objects/paths, base64, jsPDF, blobs)
+      let pdfBase64;
+
+      // If generator returned an object with a filesystem path
+      if (
+        pdfBlob &&
+        typeof pdfBlob === 'object' &&
+        (pdfBlob.filePath || pdfBlob.path)
+      ) {
+        const filePath = pdfBlob.filePath || pdfBlob.path;
+        try {
+          const normalizedPath = String(filePath).startsWith('file://')
+            ? String(filePath).replace('file://', '')
+            : String(filePath);
+          pdfBase64 = await RNFS.readFile(normalizedPath, 'base64');
+        } catch (err) {
+          console.warn(
+            '⚠️ Failed to read PDF filePath from generator object for print:',
+            err,
+          );
+        }
+      }
+
+      if (!pdfBase64) {
+        if (typeof pdfBlob === 'string') {
+          if (pdfBlob.includes('/') || pdfBlob.includes('\\')) {
+            try {
+              pdfBase64 = await RNFS.readFile(pdfBlob, 'base64');
+            } catch (err) {
+              console.warn(
+                '⚠️ Failed to read PDF file path for print, treating as base64 string:',
+                err,
+              );
+              pdfBase64 = pdfBlob;
+            }
+          } else {
+            pdfBase64 = pdfBlob;
+          }
+        } else if (pdfBlob && typeof pdfBlob.output === 'function') {
+          pdfBase64 = pdfBlob.output('base64');
+        } else if (
+          typeof Uint8Array !== 'undefined' &&
+          pdfBlob instanceof Uint8Array
+        ) {
+          pdfBase64 = Buffer.from(pdfBlob).toString('base64');
+        } else if (typeof Blob !== 'undefined' && pdfBlob instanceof Blob) {
+          const arrayBuffer = await new Response(pdfBlob).arrayBuffer();
+          pdfBase64 = Buffer.from(arrayBuffer).toString('base64');
+        } else {
+          pdfBase64 = pdfBlob;
+        }
+      }
+
+      if (!pdfBase64 || typeof pdfBase64 !== 'string') {
+        throw new Error('Invalid PDF data generated');
+      }
+
+      // 7️⃣ Save to cache and call native print
+      const fileName = `Invoice_${transaction.invoiceNumber || Date.now()}.pdf`;
+      const cachePath = `${RNFS.CachesDirectoryPath}/${fileName}`;
+
+      await RNFS.writeFile(cachePath, pdfBase64, 'base64');
+
+      // 8️⃣ Call native print dialog
+      await RNPrint.print({ filePath: cachePath })
+        .catch(err => {
+          console.error('Print error:', err);
+          Alert.alert('Print Failed', 'Could not print invoice.');
+        })
+        .finally(() => {
+          setTimeout(() => {
+            RNFS.unlink(cachePath).catch(() => {});
+          }, 2000);
+        });
+    } catch (error) {
+      console.error('🔴 Print Error:', error);
+      Alert.alert(
+        'Print Failed',
+        error.message || 'Could not prepare invoice for printing.',
+      );
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   const handleConvertToSales = () => {

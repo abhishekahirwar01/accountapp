@@ -1,4 +1,4 @@
-// BankSettings.js 
+// BankSettings.js - UPDATED UI VERSION
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
@@ -100,13 +100,10 @@ const BankDetailCard = React.memo(({ item, dropdownVisible, onToggleDropdown, on
     <View style={styles.cardHeader}>
       <View style={styles.cardTitleRow}>
         <View style={styles.bankIconContainer}>
-          <Building2 size={22} color="#3B82F6" />
+          <Building2 size={20} color="#3B82F6" />
         </View>
         <View style={styles.cardTitleContainer}>
           <Text style={styles.cardTitle}>{capitalizeWords(item.bankName)}</Text>
-          <View style={styles.accountBadge}>
-            <Text style={styles.accountBadgeText}>Account: {item.accountNo}</Text>
-          </View>
         </View>
       </View>
       <View>
@@ -132,38 +129,46 @@ const BankDetailCard = React.memo(({ item, dropdownVisible, onToggleDropdown, on
     </View>
 
     <View style={styles.cardContent}>
-      {item.branchAddress && (
-        <View style={styles.infoRow}>
-          <View style={styles.infoIconContainer}>
-            <MapPin size={16} color="#8B5CF6" />
-          </View>
-          <View style={styles.infoContent}>
-            <Text style={styles.infoLabel}>Branch Address</Text>
-            <Text style={styles.infoValue}>{item.branchAddress}</Text>
-          </View>
+      {/* Account Info Box */}
+      <View style={styles.infoBox}>
+        <View style={styles.infoBoxHeader}>
+          <CreditCard size={14} color="#3B82F6" />
+          <Text style={styles.infoBoxTitle}>Account Information</Text>
         </View>
-      )}
-
-      {item.city && (
-        <View style={styles.infoRow}>
-          <View style={styles.infoIconContainer}>
-            <Building size={16} color="#F59E0B" />
+        <View style={styles.infoBoxContent}>
+          <View style={styles.infoBoxRow}>
+            <Text style={styles.infoBoxLabel}>Account Number</Text>
+            <Text style={styles.infoBoxValue}>{item.accountNo}</Text>
           </View>
-          <View style={styles.infoContent}>
-            <Text style={styles.infoLabel}>City</Text>
-            <Text style={styles.infoValue}>{item.city}</Text>
-          </View>
+          {item.ifscCode && (
+            <View style={styles.infoBoxRow}>
+              <Text style={styles.infoBoxLabel}>IFSC Code</Text>
+              <Text style={styles.infoBoxValue}>{item.ifscCode}</Text>
+            </View>
+          )}
         </View>
-      )}
+      </View>
 
-      {item.ifscCode && (
-        <View style={styles.infoRow}>
-          <View style={styles.infoIconContainer}>
-            <CreditCard size={16} color="#EC4899" />
+      {/* Branch Info Box */}
+      {(item.branchAddress || item.city) && (
+        <View style={styles.infoBox}>
+          <View style={styles.infoBoxHeader}>
+            <MapPin size={14} color="#8B5CF6" />
+            <Text style={styles.infoBoxTitle}>Branch Details</Text>
           </View>
-          <View style={styles.infoContent}>
-            <Text style={styles.infoLabel}>IFSC Code</Text>
-            <Text style={styles.infoValue}>{item.ifscCode}</Text>
+          <View style={styles.infoBoxContent}>
+            {item.city && (
+              <View style={styles.infoBoxRow}>
+                <Text style={styles.infoBoxLabel}>City</Text>
+                <Text style={styles.infoBoxValue}>{item.city}</Text>
+              </View>
+            )}
+            {item.branchAddress && (
+              <View style={styles.infoBoxRow}>
+                <Text style={styles.infoBoxLabel}>Branch Address</Text>
+                <Text style={styles.infoBoxValue}>{item.branchAddress}</Text>
+              </View>
+            )}
           </View>
         </View>
       )}
@@ -182,8 +187,11 @@ const TableRow = React.memo(({ item, index, dropdownVisible, onToggleDropdown, o
       </View>
     </View>
     <View style={styles.tableCell}>
-      <View style={styles.accountNumberBadge}>
-        <Text style={styles.accountNumberText}>{item.accountNo}</Text>
+      <View style={styles.tableAccountInfo}>
+        <Text style={styles.tableCellText}>{item.accountNo}</Text>
+        {item.ifscCode && (
+          <Text style={styles.tableIfscText}>IFSC: {item.ifscCode}</Text>
+        )}
       </View>
     </View>
     <View style={styles.tableCell}>
@@ -233,7 +241,6 @@ const BankSettings = () => {
   // Cache for user company ID
   const userCompanyIdRef = useRef(null);
 
-  
   const getUserCompanyId = useCallback(async () => {
     if (userCompanyIdRef.current !== null) {
       return userCompanyIdRef.current;
@@ -253,7 +260,6 @@ const BankSettings = () => {
     }
   }, []);
 
-  
   const fetchBankDetails = useCallback(async () => {
     const controller = new AbortController();
     setIsLoading(true);
@@ -317,7 +323,6 @@ const BankSettings = () => {
     fetchBankDetails();
   }, [fetchBankDetails]);
 
-  
   const filteredBankDetails = useMemo(() => {
     if (searchQuery.trim() === '') {
       return bankDetails;
@@ -333,7 +338,6 @@ const BankSettings = () => {
     );
   }, [searchQuery, bankDetails]);
 
-  
   const paginationData = useMemo(() => {
     const totalPages = Math.ceil(filteredBankDetails.length / itemsPerPage);
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -345,12 +349,10 @@ const BankSettings = () => {
 
   const { totalPages, startIndex, endIndex, currentItems } = paginationData;
 
-  
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery]);
 
-  
   const handleOpenForm = useCallback((bankDetail = null) => {
     setSelectedBankDetail(bankDetail);
     setIsFormOpen(true);
@@ -430,7 +432,6 @@ const BankSettings = () => {
     }
   }, [bankDetailToDelete, fetchBankDetails]);
 
-  
   const renderBankDetailCard = useCallback(({ item }) => (
     <BankDetailCard
       item={item}
@@ -509,7 +510,7 @@ const BankSettings = () => {
             activeOpacity={0.8}
           >
             <View style={styles.addButtonIconContainer}>
-              <PlusCircle size={18} color="#FFFFFF" />
+              <PlusCircle size={16} color="#FFFFFF" />
             </View>
             <Text style={styles.addButtonText}>Add New Bank</Text>
           </TouchableOpacity>
@@ -550,7 +551,7 @@ const BankSettings = () => {
                   <Text style={styles.tableHeaderText}>BANK NAME</Text>
                 </View>
                 <View style={styles.tableHeaderCell}>
-                  <Text style={styles.tableHeaderText}>ACCOUNT NUMBER</Text>
+                  <Text style={styles.tableHeaderText}>ACCOUNT INFO</Text>
                 </View>
                 <View style={styles.tableHeaderCell}>
                   <Text style={styles.tableHeaderText}>BRANCH ADDRESS</Text>
@@ -661,7 +662,7 @@ const BankSettings = () => {
           <View style={styles.modalHeader}>
             <View style={styles.modalHeaderContent}>
               <View style={styles.modalIconContainer}>
-                <Building2 size={24} color="#3B82F6" />
+                <Building2 size={20} color="#3B82F6" />
               </View>
               <Text style={styles.modalTitle}>
                 {selectedBankDetail ? 'Edit Bank Detail' : 'Add New Bank Detail'}
@@ -675,7 +676,7 @@ const BankSettings = () => {
               }}
               activeOpacity={0.7}
             >
-              <X size={24} color="#6B7280" />
+              <X size={20} color="#6B7280" />
             </TouchableOpacity>
           </View>
           
@@ -690,7 +691,7 @@ const BankSettings = () => {
         </View>
       </Modal>
 
-      {/* Full Details Modal */}
+      {/* Full Details Modal - KEPT UNCHANGED */}
       <Modal
         visible={isDetailsModalOpen}
         animationType="slide"
@@ -701,7 +702,7 @@ const BankSettings = () => {
           <View style={styles.modalHeader}>
             <View style={styles.modalHeaderContent}>
               <View style={styles.modalIconContainer}>
-                <Eye size={24} color="#3B82F6" />
+                <Eye size={20} color="#3B82F6" />
               </View>
               <Text style={styles.modalTitle} numberOfLines={1}>
                 {selectedBankDetailForDetails ? capitalizeWords(selectedBankDetailForDetails.bankName) : ''}
@@ -712,131 +713,110 @@ const BankSettings = () => {
               onPress={() => setIsDetailsModalOpen(false)}
               activeOpacity={0.7}
             >
-              <X size={24} color="#6B7280" />
+              <X size={20} color="#6B7280" />
             </TouchableOpacity>
           </View>
           
           {selectedBankDetailForDetails && (
-            <ScrollView style={styles.detailsContent}>
-              <View style={styles.detailsSection}>
-                <Text style={styles.sectionTitle}>Basic Information</Text>
-                <View style={styles.detailsGrid}>
-                  <View style={styles.detailItemCard}>
-                    <View style={styles.detailItemHeader}>
-                      <View style={[styles.detailItemIcon, { backgroundColor: '#EFF6FF' }]}>
-                        <Building2 size={20} color="#3B82F6" />
-                      </View>
-                      <Text style={styles.detailLabel}>Bank Name</Text>
-                    </View>
-                    <Text style={styles.detailValue}>{capitalizeWords(selectedBankDetailForDetails.bankName)}</Text>
-                  </View>
-                  
-                  <View style={styles.detailItemCard}>
-                    <View style={styles.detailItemHeader}>
-                      <View style={[styles.detailItemIcon, { backgroundColor: '#FEF3C7' }]}>
-                        <CreditCard size={20} color="#F59E0B" />
-                      </View>
-                      <Text style={styles.detailLabel}>Account Number</Text>
-                    </View>
-                    <Text style={styles.detailValue}>{selectedBankDetailForDetails.accountNo}</Text>
-                  </View>
-                  
-                  <View style={styles.detailItemCard}>
-                    <View style={styles.detailItemHeader}>
-                      <View style={[styles.detailItemIcon, { backgroundColor: '#FEF2F2' }]}>
-                        <Building size={20} color="#EF4444" />
-                      </View>
-                      <Text style={styles.detailLabel}>City</Text>
-                    </View>
-                    <Text style={styles.detailValue}>{selectedBankDetailForDetails.city}</Text>
-                  </View>
-                  
-                  <View style={styles.detailItemCard}>
-                    <View style={styles.detailItemHeader}>
-                      <View style={[styles.detailItemIcon, { backgroundColor: '#F3E8FF' }]}>
-                        <FileText size={20} color="#8B5CF6" />
-                      </View>
-                      <Text style={styles.detailLabel}>IFSC Code</Text>
-                    </View>
-                    <Text style={styles.detailValue}>{selectedBankDetailForDetails.ifscCode || 'N/A'}</Text>
-                  </View>
-                  
-                  <View style={[styles.detailItemCard, styles.detailItemCardFull]}>
-                    <View style={styles.detailItemHeader}>
-                      <View style={[styles.detailItemIcon, { backgroundColor: '#ECFDF5' }]}>
-                        <MapPin size={20} color="#10B981" />
-                      </View>
-                      <Text style={styles.detailLabel}>Branch Address</Text>
-                    </View>
-                    <Text style={styles.detailValue}>{selectedBankDetailForDetails.branchAddress || 'N/A'}</Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* UPI Details Section */}
-              {selectedBankDetailForDetails.upiDetails && (
+            <>
+              <ScrollView 
+                style={styles.detailsContent} 
+                contentContainerStyle={styles.detailsContentContainer}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Basic Information Section */}
                 <View style={styles.detailsSection}>
-                  <Text style={styles.sectionTitle}>UPI Details</Text>
-                  <View style={styles.detailsGrid}>
-                    <View style={styles.detailItemCard}>
-                      <View style={styles.detailItemHeader}>
-                        <View style={[styles.detailItemIcon, { backgroundColor: '#FCE7F3' }]}>
-                          <Smartphone size={20} color="#EC4899" />
-                        </View>
-                        <Text style={styles.detailLabel}>UPI ID</Text>
-                      </View>
-                      <Text style={styles.detailValue}>{selectedBankDetailForDetails.upiDetails.upiId || 'N/A'}</Text>
+                  <Text style={styles.sectionTitle}>Basic Information</Text>
+                  
+                  <View style={styles.detailRow}>
+                    <View style={styles.detailIconWrapper}>
+                      <Building2 size={16} color="#3B82F6" />
                     </View>
-                    
-                    <View style={styles.detailItemCard}>
-                      <View style={styles.detailItemHeader}>
-                        <View style={[styles.detailItemIcon, { backgroundColor: '#DBEAFE' }]}>
-                          <User size={20} color="#3B82F6" />
-                        </View>
-                        <Text style={styles.detailLabel}>UPI Name</Text>
-                      </View>
-                      <Text style={styles.detailValue}>{selectedBankDetailForDetails.upiDetails.upiName || 'N/A'}</Text>
+                    <View style={styles.detailTextContainer}>
+                      <Text style={styles.detailLabel}>Bank Name</Text>
+                      <Text style={styles.detailValue}>{capitalizeWords(selectedBankDetailForDetails.bankName)}</Text>
                     </View>
-                    
-                    <View style={styles.detailItemCard}>
-                      <View style={styles.detailItemHeader}>
-                        <View style={[styles.detailItemIcon, { backgroundColor: '#DBEAFE' }]}>
-                          <Phone size={20} color="#0EA5E9" />
-                        </View>
-                        <Text style={styles.detailLabel}>UPI Mobile</Text>
-                      </View>
-                      <Text style={styles.detailValue}>{selectedBankDetailForDetails.upiDetails.upiMobile || 'N/A'}</Text>
+                  </View>
+                  
+                  <View style={styles.detailRow}>
+                    <View style={styles.detailIconWrapper}>
+                      <CreditCard size={16} color="#F59E0B" />
+                    </View>
+                    <View style={styles.detailTextContainer}>
+                      <Text style={styles.detailLabel}>Account Number</Text>
+                      <Text style={styles.detailValue}>{selectedBankDetailForDetails.accountNo}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <View style={styles.detailIconWrapper}>
+                      <FileText size={16} color="#8B5CF6" />
+                    </View>
+                    <View style={styles.detailTextContainer}>
+                      <Text style={styles.detailLabel}>IFSC Code</Text>
+                      <Text style={styles.detailValue}>{selectedBankDetailForDetails.ifscCode || 'N/A'}</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.detailRow}>
+                    <View style={styles.detailIconWrapper}>
+                      <Building size={16} color="#EF4444" />
+                    </View>
+                    <View style={styles.detailTextContainer}>
+                      <Text style={styles.detailLabel}>City</Text>
+                      <Text style={styles.detailValue}>{selectedBankDetailForDetails.city}</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.detailRow}>
+                    <View style={styles.detailIconWrapper}>
+                      <MapPin size={16} color="#10B981" />
+                    </View>
+                    <View style={styles.detailTextContainer}>
+                      <Text style={styles.detailLabel}>Branch Address</Text>
+                      <Text style={styles.detailValue}>{selectedBankDetailForDetails.branchAddress || 'N/A'}</Text>
                     </View>
                   </View>
                 </View>
-              )}
-              
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={[styles.modalActionButton, styles.editModalButton]}
-                  onPress={() => {
-                    setIsDetailsModalOpen(false);
-                    handleOpenForm(selectedBankDetailForDetails);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Edit size={20} color="#FFFFFF" />
-                  <Text style={styles.modalActionButtonText}>Edit Details</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[styles.modalActionButton, styles.deleteModalButton]}
-                  onPress={() => {
-                    setIsDetailsModalOpen(false);
-                    handleOpenDeleteDialog(selectedBankDetailForDetails);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Trash2 size={20} color="#FFFFFF" />
-                  <Text style={styles.modalActionButtonText}>Delete</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
+
+                {/* UPI Details Section */}
+                {selectedBankDetailForDetails.upiDetails && (
+                  <View style={styles.detailsSection}>
+                    <Text style={styles.sectionTitle}>UPI Details</Text>
+                    
+                    <View style={styles.detailRow}>
+                      <View style={styles.detailIconWrapper}>
+                        <Smartphone size={16} color="#EC4899" />
+                      </View>
+                      <View style={styles.detailTextContainer}>
+                        <Text style={styles.detailLabel}>UPI ID</Text>
+                        <Text style={styles.detailValue}>{selectedBankDetailForDetails.upiDetails.upiId || 'N/A'}</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.detailRow}>
+                      <View style={styles.detailIconWrapper}>
+                        <User size={16} color="#3B82F6" />
+                      </View>
+                      <View style={styles.detailTextContainer}>
+                        <Text style={styles.detailLabel}>UPI Name</Text>
+                        <Text style={styles.detailValue}>{selectedBankDetailForDetails.upiDetails.upiName || 'N/A'}</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.detailRow}>
+                      <View style={styles.detailIconWrapper}>
+                        <Phone size={16} color="#0EA5E9" />
+                      </View>
+                      <View style={styles.detailTextContainer}>
+                        <Text style={styles.detailLabel}>UPI Mobile</Text>
+                        <Text style={styles.detailValue}>{selectedBankDetailForDetails.upiDetails.upiMobile || 'N/A'}</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </ScrollView>
+            </>
           )}
         </View>
       </Modal>
@@ -947,8 +927,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#111827',
     letterSpacing: -0.5,
   },
@@ -977,12 +957,11 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     letterSpacing: 0.3,
   },
   searchContainer: {
-    // paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: '#F3F4F6',
   },
@@ -1022,7 +1001,6 @@ const styles = StyleSheet.create({
     display: Platform.OS === 'web' ? 'flex' : 'none',
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    // marginTop: 8,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
@@ -1101,18 +1079,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
   },
-  accountNumberBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
+  tableAccountInfo: {
+    gap: 4,
   },
-  accountNumberText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#92400E',
-    letterSpacing: 0.3,
+  tableIfscText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   tableMoreButton: {
     padding: 10,
@@ -1129,7 +1102,7 @@ const styles = StyleSheet.create({
   },
   mobileContainer: {
     display: Platform.OS === 'web' ? 'none' : 'flex',
-    // padding: 16,
+    paddingHorizontal: 10,
   },
   cardList: {
     gap: 16,
@@ -1137,7 +1110,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 18,
+    padding: 10,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     shadowColor: '#000',
@@ -1150,8 +1123,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 6,
-    paddingBottom: 16,
+    marginBottom: 10,
+    paddingBottom: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
@@ -1177,21 +1150,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 4,
     letterSpacing: -0.3,
-  },
-  accountBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-  },
-  accountBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#92400E',
-    letterSpacing: 0.2,
   },
   moreButton: {
     padding: 6,
@@ -1202,7 +1161,7 @@ const styles = StyleSheet.create({
   },
   dropdownContainer: {
     position: 'absolute',
-    top: 48,
+    top: 43,
     right: 0,
     zIndex: 1000,
   },
@@ -1216,25 +1175,25 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 16,
     elevation: 10,
-    minWidth: 200,
+    minWidth: 160,
     overflow: 'hidden',
   },
   dropdownItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
   },
   dropdownIconContainer: {
-    width: 32,
-    height: 32,
+    width: 25,
+    height: 25,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   dropdownItemText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#374151',
     flex: 1,
@@ -1249,45 +1208,50 @@ const styles = StyleSheet.create({
   cardContent: {
     gap: 12,
   },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 14,
-    backgroundColor: '#FAFAFA',
+  // NEW BOX STYLES
+  infoBox: {
+    backgroundColor: '#FAFBFC',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
   },
-  infoIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
+  infoBoxHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    paddingVertical: 5,
+    paddingHorizontal: 14,
+    backgroundColor: '#F3F4F6',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    gap: 8,
   },
-  infoContent: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: 11,
+  infoBoxTitle: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#9CA3AF',
-    marginBottom: 4,
+    color: '#374151',
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 0.5,
   },
-  infoValue: {
-    fontSize: 14,
-    color: '#111827',
+  infoBoxContent: {
+    padding: 14,
+    gap: 10,
+  },
+  infoBoxRow: {
+    gap: 4,
+  },
+  infoBoxLabel: {
+    fontSize: 12,
     fontWeight: '600',
-    lineHeight: 20,
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  infoBoxValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+    lineHeight: 22,
   },
   paginationContainer: {
     flexDirection: 'row',
@@ -1408,143 +1372,101 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
+  
+  // MODAL STYLES - KEPT UNCHANGED
   modalContainer: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
   },
   modalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
   },
   modalHeaderContent: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    marginRight: 12,
   },
   modalIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     backgroundColor: '#EFF6FF',
-    justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    justifyContent: 'center',
+    marginRight: 10,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#111827',
     flex: 1,
-    letterSpacing: -0.3,
   },
   closeButton: {
-    padding: 10,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
     backgroundColor: '#F3F4F6',
   },
   detailsContent: {
     flex: 1,
+    paddingHorizontal: 16,
+  },
+  detailsContentContainer: {
+    paddingBottom: 16,
   },
   detailsSection: {
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 12,
+    paddingTop: 20,
+    paddingBottom: 12,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 16,
-    letterSpacing: -0.3,
-  },
-  detailsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  detailItemCard: {
-    width: '48%',
-    backgroundColor: '#FAFAFA',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  detailItemCardFull: {
-    width: '100%',
-  },
-  detailItemHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
     marginBottom: 12,
   },
-  detailItemIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    justifyContent: 'center',
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  detailIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
     alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 12,
   },
-  detailLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#9CA3AF',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+  detailTextContainer: {
     flex: 1,
+  },
+  detailLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginBottom: 2,
   },
   detailValue: {
-    fontSize: 15,
+    fontSize: 14,
+    fontWeight: '500',
     color: '#111827',
-    fontWeight: '700',
-    lineHeight: 22,
   },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 12,
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    marginTop: 12,
-  },
-  modalActionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  modalActionButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  editModalButton: {
-    backgroundColor: '#10B981',
-  },
-  deleteModalButton: {
-    backgroundColor: '#EF4444',
-  },
+  
+  // ALERT STYLES
   alertOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
@@ -1628,4 +1550,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default BankSettings; 
+export default BankSettings;

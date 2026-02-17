@@ -486,7 +486,7 @@ const generatePageHTML = (
                 <div class="qr-code-container">
                   <div style="font-size: 9px; font-weight: bold; margin-bottom: 5px;">QR Code</div>
                   <div style="background-color: #fff;">
-                    <img src="${BASE_URL}${bankData.qrCode}" style="width: 80px; height: 80px; object-fit: contain;" />
+                    <img src="${BASE_URL}/${bankData.qrCode}" style="width: 80px; height: 80px; object-fit: contain;" />
                   </div>
                 </div>
               `

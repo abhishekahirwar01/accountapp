@@ -25,7 +25,6 @@ import {
 import Toast from 'react-native-toast-message';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-
 import RecentTransactions from '../../components/dashboard/RecentTransactions';
 import ProductStock from '../../components/dashboard/ProductStock';
 import { TransactionForm } from '../../components/transactions/TransactionForm';
@@ -35,6 +34,7 @@ import { useUserPermissions } from '../../contexts/user-permissions-context';
 import { usePermissions } from '../../contexts/permission-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { BASE_URL } from '../../config';
+import { red100 } from 'react-native-paper/lib/typescript/styles/themes/v2/colors';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -481,29 +481,29 @@ export default function UserDashboardScreen({ navigation, route }) {
   if (companies.length === 0) {
     return (
       <ScrollView
-          contentContainerStyle={styles.emptyContainer}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={['#0f62fe']}
-              tintColor="#0f62fe"
-            />
-          }
-        >
-          <Building size={48} color="#ccc" />
-          <Text style={styles.emptyTitle}>No Company Available</Text>
-          <Text style={styles.emptyDescription}>
-            You don't have access to any company yet. Please contact your admin.
-          </Text>
-        </ScrollView>
+        contentContainerStyle={styles.emptyContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#0f62fe']}
+            tintColor="#0f62fe"
+          />
+        }
+      >
+        <Building size={48} color="#ccc" />
+        <Text style={styles.emptyTitle}>No Company Available</Text>
+        <Text style={styles.emptyDescription}>
+          You don't have access to any company yet. Please contact your admin.
+        </Text>
+      </ScrollView>
     );
   }
 
   return (
     <>
-    <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
-      <KeyboardAwareFlatList
+      <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+        <KeyboardAwareFlatList
           data={[]}
           renderItem={null}
           ListHeaderComponent={renderHeader}
@@ -567,6 +567,8 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 14,
     flexGrow: 1,
+    paddingTop: 4,
+    backgroundColor: '#f7f7f7',
   },
   loadingContainer: {
     flex: 1,
@@ -601,16 +603,16 @@ const styles = StyleSheet.create({
     // marginBottom: 24,
   },
   headerText: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
     // marginBottom: 4,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 10,
     color: '#666',
   },
   headerActions: {
@@ -638,13 +640,13 @@ const styles = StyleSheet.create({
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 6,
     // padding: 8,
-    marginBottom: 14,
+    marginBottom: 6,
   },
   cardWrapper: {
     width: '48%',
-    minWidth: 150,
+    minWidth: 155,
   },
   kpiCard: {
     backgroundColor: '#ffffff',
@@ -656,7 +658,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   cardInner: {
-    padding: 16,
+    padding: 10,
     borderRadius: 12,
     backgroundColor: '#ffffff',
   },
@@ -667,7 +669,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   cardTitle: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
     color: '#64748b',
     textTransform: 'uppercase',
@@ -676,7 +678,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   cardValue: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#0f172a',
     marginBottom: 6,
@@ -701,6 +703,7 @@ const styles = StyleSheet.create({
   },
   contentGrid: {
     marginBottom: 24,
+    gap: 16,
   },
   modalOverlay: {
     flex: 1,

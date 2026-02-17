@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
   },
   triggerText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#111827',
     flex: 1,
   },
@@ -295,18 +295,18 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EFEFEF', // Light grey background for the input field
-    borderRadius: 20, // Rounded corners
+    backgroundColor: '#EFEFEF', 
+    borderRadius: 20, 
     height: 40,
   },
   searchIcon: {
-    marginLeft: 10, // Added margin for the Search icon
+    marginLeft: 10, 
   },
   fullScreenSearchInput: {
     flex: 1,
-    fontSize: 18,
+    fontSize: 14,
     paddingVertical: 8,
-    // Removed left padding as the icon is now providing visual spacing
+    
     paddingHorizontal: 8,
     color: '#111827',
   },
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   optionsListFullScreen: {
-    flex: 1, // Take remaining space
+    flex: 1, 
   },
   // --- Option List Styles ---
   optionItem: {

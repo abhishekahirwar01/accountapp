@@ -540,7 +540,7 @@ export default function ProductForm({
             flexDirection: 'row',
             gap: 10,
             justifyContent: 'flex-end',
-            marginBottom: 40,
+            // marginBottom: 40,
           }}
         >
           <TouchableOpacity
@@ -724,12 +724,12 @@ const styles = StyleSheet.create({
   },
   closeIconText: { fontSize: 18, color: '#666', fontWeight: 'bold' },
   field: { marginBottom: 20 },
-  label: { fontWeight: 'bold', color: '#333', marginBottom: 8, fontSize: 16 },
+  label: { fontWeight: 'bold', color: '#333', marginBottom: 8, fontSize: 14 },
   input: {
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
-    padding: 12,
+    padding: 8,
     fontSize: 16,
     backgroundColor: '#fff',
   },
@@ -738,10 +738,10 @@ const styles = StyleSheet.create({
   error: { color: '#ff3b30', fontSize: 14, marginTop: 5 },
   button: {
     backgroundColor: '#007AFF',
-    padding: 16,
+    padding: 12,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 2,
   },
   buttonDisabled: { opacity: 0.6 },
   deleteButton: {
@@ -751,12 +751,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
   },
-  buttonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
+  buttonText: { color: '#fff', fontWeight: '600', fontSize: 14 },
   dropdownButton: {
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
-    padding: 12,
+    padding: 8,
     backgroundColor: '#fff',
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -791,11 +791,11 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 18, fontWeight: 'bold' },
   closeButton: { fontSize: 20, color: '#666' },
   searchInput: {
-    margin: 16,
+    margin: 10,
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
-    padding: 10,
+    padding: 8,
   },
   unitItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' },
   unitText: { fontSize: 16 },

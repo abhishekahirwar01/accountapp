@@ -97,17 +97,17 @@ export const ProfitLossAccountSection = ({
           </Text>
         </View>
 
-        <View style={[styles.totalCard, styles.netTotalCard]}>
-          <Text style={styles.totalLabel}>Net Balance</Text>
-          <Text
-            style={[
-              styles.totalValue,
-              netBalance >= 0 ? styles.netPositive : styles.netNegative,
-            ]}
-          >
-            {formatCurrency(netBalance)}
-          </Text>
-        </View>
+          {/* <View style={[styles.totalCard, styles.netTotalCard]}>
+            <Text style={styles.totalLabel}>Net Balance</Text>
+            <Text
+              style={[
+                styles.totalValue,
+                netBalance >= 0 ? styles.netPositive : styles.netNegative,
+              ]}
+            >
+              {formatCurrency(netBalance)}
+            </Text>
+          </View> */}
       </View>
     </View>
   );
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   title: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#111827',
     marginBottom: 16,
@@ -215,17 +215,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   itemName: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#374151',
     flex: 1,
   },
   expenseAmount: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#dc2626',
   },
   incomeAmount: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#059669',
   },
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   totalValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   expenseTotal: {

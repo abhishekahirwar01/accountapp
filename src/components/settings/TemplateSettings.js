@@ -866,7 +866,7 @@ export default function TemplateSettings() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f9fafb' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scrollContent: { padding: 12, paddingBottom: 24 },
+  scrollContent: {  paddingBottom: 24 },
   card: {
     backgroundColor: '#fff',
     borderRadius: 12,

@@ -916,7 +916,7 @@ export function CompanyForm({ company, clients, onFormSubmit, onCancel }) {
             onPress={() => setStep(stepNumber)}
           >
             {step > stepNumber ? (
-              <Check size={20} color="#fff" />
+              <Check size={12} color="#fff" />
             ) : (
               <Text
                 style={[
@@ -1534,7 +1534,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    padding: 16,
+    paddingHorizontal:16,
+    paddingVertical:4,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
@@ -1543,14 +1544,14 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#1a1a1a',
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 11,
     color: '#666',
-    marginTop: 4,
+    marginTop: 2,
   },
   cancelButton: {
     padding: 4,
@@ -1569,7 +1570,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 20,
     paddingHorizontal: 20,
   },
   stepContainer: {
@@ -1577,15 +1578,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   stepCircle: {
-    width: 40,
-    height: 40,
+    width: 30,
+    height: 30,
     borderRadius: 20,
     borderWidth: 2,
     borderColor: '#d1d5db',
     backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    // marginBottom: 8,
   },
   activeStepCircle: {
     borderColor: '#3b82f6',
@@ -1596,7 +1597,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#10b981',
   },
   stepNumber: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '600',
     color: '#6b7280',
   },
@@ -1607,7 +1608,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   stepLabel: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#6b7280',
     textAlign: 'center',
     marginTop: 4,
@@ -1644,7 +1645,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     color: '#374151',
     marginBottom: 8,
@@ -1659,7 +1660,7 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
     borderRadius: 8,
     padding: 12,
-    fontSize: 16,
+    fontSize: 12,
     backgroundColor: '#fff',
   },
   textArea: {
@@ -1761,7 +1762,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
-    padding: 16,
+    // padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
   },
   actionButtons: {
     flexDirection: 'row',
@@ -1773,7 +1776,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderRadius: 8,
     minWidth: 120,
   },

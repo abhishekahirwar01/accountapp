@@ -5,17 +5,34 @@ import {
   TouchableOpacity,
   ScrollView,
   RefreshControl,
+  Animated,
 } from 'react-native';
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TrendingUp, PieChart } from 'lucide-react-native';
 import { useCompany } from '../../../contexts/company-context';
 import ProfitAndLossTab from '../../main/reports/ProfitLossScreen';
 import BalanceSheetTab from '../../main/reports/BalanceSheetScreen';
+
 export default function Reports() {
   const [activeTab, setActiveTab] = useState('profit-loss');
   const [refreshing, setRefreshing] = useState(false);
   const { triggerCompaniesRefresh } = useCompany();
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const [tabWidth, setTabWidth] = useState(0);
+
+  useEffect(() => {
+    Animated.timing(slideAnim, {
+      toValue: activeTab === 'profit-loss' ? 0 : 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [activeTab]);
+
+  const handleTabLayout = (event) => {
+    const { width } = event.nativeEvent.layout;
+    setTabWidth(width / 2);
+  };
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -30,8 +47,8 @@ export default function Reports() {
       title: 'Profit & Loss',
       icon: (
         <TrendingUp
-          size={20}
-          color={activeTab === 'profit-loss' ? '#007AFF' : '#666'}
+          size={18}
+          color={activeTab === 'profit-loss' ? '#007AFF' : '#6B7280'}
         />
       ),
       component: <ProfitAndLossTab />,
@@ -41,8 +58,8 @@ export default function Reports() {
       title: 'Balance Sheet',
       icon: (
         <PieChart
-          size={20}
-          color={activeTab === 'balance-sheet' ? '#34C759' : '#666'}
+          size={18}
+          color={activeTab === 'balance-sheet' ? '#34C759' : '#6B7280'}
         />
       ),
       component: <BalanceSheetTab />,
@@ -56,157 +73,131 @@ export default function Reports() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          colors={['#007AFF']}
+          colors={['#2563EB']}
         />
       }
     >
-      {/* Header */}
-      {/* <View style={styles.header}>
-        <Text style={styles.title}>Reports</Text>
-        <Text style={styles.subtitle}>Financial statements and analytics</Text>
-      </View> */}
-
-      {/* Tab Buttons */}
-      <View style={styles.tabsContainer}>
-        {tabs.map(tab => (
+      {/* Tab Container */}
+      <View style={styles.tabWrapper}>
+        <View 
+          style={styles.tabContainer}
+          onLayout={handleTabLayout}
+        >
           <TouchableOpacity
-            key={tab.id}
-            style={[
-              styles.tabButton,
-              activeTab === tab.id && styles.activeTabButton,
-            ]}
-            onPress={() => setActiveTab(tab.id)}
+            style={styles.tabButton}
+            onPress={() => setActiveTab('profit-loss')}
+            activeOpacity={1}
           >
             <View style={styles.tabContent}>
-              {tab.icon}
+              {tabs[0].icon}
               <Text
                 style={[
-                  styles.tabText,
-                  activeTab === tab.id && styles.activeTabText,
+                  styles.tabButtonText,
+                  activeTab === 'profit-loss' && styles.activeTabButtonText,
                 ]}
               >
-                {tab.title}
+                {tabs[0].title}
               </Text>
             </View>
-            {activeTab === tab.id && <View style={styles.activeIndicator} />}
           </TouchableOpacity>
-        ))}
+
+          <TouchableOpacity
+            style={styles.tabButton}
+            onPress={() => setActiveTab('balance-sheet')}
+            activeOpacity={1}
+          >
+            <View style={styles.tabContent}>
+              {tabs[1].icon}
+              <Text
+                style={[
+                  styles.tabButtonText,
+                  activeTab === 'balance-sheet' && styles.activeTabButtonText,
+                ]}
+              >
+                {tabs[1].title}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Animated Bottom Line Indicator */}
+          {tabWidth > 0 && (
+            <Animated.View
+              style={[
+                styles.bottomLine,
+                {
+                  width: tabWidth,
+                  transform: [
+                    {
+                      translateX: slideAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, tabWidth],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
+          )}
+        </View>
       </View>
 
       {/* Content Area */}
       <View style={styles.contentContainer}>
         {tabs.find(tab => tab.id === activeTab)?.component}
       </View>
-
-      {/* Footer Info */}
-      {/* <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            Switch between reports using the tabs above
-          </Text>
-        </View> */}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#FAFAFA',
   },
-  // header: {
-  //   backgroundColor: 'white',
-  //   paddingHorizontal: 20,
-  //   paddingTop: 2,
-  //   paddingBottom: 2,
-  //   borderBottomLeftRadius: 20,
-  //   borderBottomRightRadius: 20,
-  //   shadowColor: '#000',
-  //   shadowOffset: { width: 0, height: 2 },
-  //   shadowOpacity: 0.1,
-  //   shadowRadius: 8,
-  //   elevation: 4,
-  //   // marginBottom: 8,
-  // },
-  // title: {
-  //   fontSize: 32,
-  //   fontWeight: 'bold',
-  //   color: '#1a1a1a',
-  //   marginBottom: 8,
-  // },
-  // subtitle: {
-  //   fontSize: 16,
-  //   color: '#666',
-  // },
-  tabsContainer: {
+  tabWrapper: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  tabContainer: {
     flexDirection: 'row',
-    backgroundColor: 'white',
+    position: 'relative',
     marginHorizontal: 10,
-    marginTop: 8,
-    borderRadius: 12,
-    padding: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderRadius: 8,
-    position: 'relative',
-  },
-  activeTabButton: {
-    backgroundColor: '#f8f9fa',
+    zIndex: 1,
   },
   tabContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     gap: 8,
   },
-  tabText: {
-    fontSize: 16,
+  tabButtonText: {
+    fontSize: 15,
     fontWeight: '500',
-    color: '#666',
+    color: '#6B7280',
+    letterSpacing: -0.2,
   },
-  activeTabText: {
-    color: '#1a1a1a',
+  activeTabButtonText: {
+    color: '#111827',
     fontWeight: '600',
   },
-  activeIndicator: {
+  bottomLine: {
     position: 'absolute',
     bottom: 0,
-    left: '20%',
-    right: '20%',
-    height: 3,
-    backgroundColor: '#007AFF',
-    borderTopLeftRadius: 2,
-    borderTopRightRadius: 2,
+    left: 0,
+    height: 2.5,
+    backgroundColor: '#2563EB',
+    borderRadius: 2,
+    zIndex: 2,
   },
   contentContainer: {
     marginTop: 5,
     paddingHorizontal: 0,
     paddingBottom: 0,
   },
-  // footer: {
-  //   padding: 20,
-  //   borderTopWidth: 1,
-  //   borderTopColor: '#e9ecef',
-  //   marginTop: 20,
-  //   backgroundColor: 'white',
-  // },
-  // footerText: {
-  //   fontSize: 14,
-  //   color: '#666',
-  //   textAlign: 'center',
-  //   lineHeight: 20,
-  // },
 });

@@ -358,7 +358,7 @@ export default memo(function Header() {
               >
                 <Ionicons
                   name="person-circle-outline"
-                  size={28}
+                  size={20}
                   color="#334155"
                 />
                 {/* Formatted role label display */}
@@ -509,6 +509,7 @@ const styles = StyleSheet.create({
   },
   notificationContainer: {
     marginHorizontal: 4,
+    paddingTop: 4,
   },
   profileWrapper: {
     position: 'relative',
@@ -519,10 +520,10 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   roleText: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#64748B',
     fontWeight: '600',
-    marginTop: 2,
+    // marginTop: 2,
     textAlign: 'center',
   },
   
@@ -593,14 +594,14 @@ const styles = StyleSheet.create({
   dropdownPortal: {
     flex: 1,
     alignItems: 'flex-end',
-    paddingTop: Platform.select({ ios: 64, android: 56 }),
+    paddingTop: Platform.select({ ios: 64, android: 48 }),
     paddingRight: 12,
   },
   dropdownMenu: {
     backgroundColor: '#fff',
     borderRadius: 10,
-    paddingVertical: 8,
-    width: 180,
+    // paddingVertical: 8,
+    width: 130,
     ...Platform.select({
       android: { elevation: 12 },
       ios: {
@@ -614,12 +615,12 @@ const styles = StyleSheet.create({
   dropdownItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 8,
     paddingHorizontal: 14,
     gap: 12,
   },
   dropdownText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#1E293B',
     fontWeight: '500',
   },
