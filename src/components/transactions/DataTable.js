@@ -7,8 +7,10 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import Feather from 'react-native-vector-icons/Feather';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { getColumnLabel, getColumnValue } from './columns';
 
 export default function DataTable({
@@ -31,9 +33,6 @@ export default function DataTable({
   // Debouncing for search filter
   const [localFilter, setLocalFilter] = useState(filter);
   useEffect(() => {
-    // Only sync parent -> local when parent explicitly clears the filter.
-    // This prevents overwriting user typing mid-debounce and avoids
-    // the search box shrinking unexpectedly while the user types.
     if (filter === '' && localFilter !== '') {
       setLocalFilter('');
     }
@@ -44,7 +43,7 @@ export default function DataTable({
       if (localFilter !== filter) {
         onFilterChange(localFilter);
       }
-    }, 300); // 300ms debounce delay
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [localFilter, filter, onFilterChange]);
@@ -85,44 +84,82 @@ export default function DataTable({
     return `item-${index}`;
   };
 
-  const renderRightValue = content => (
-    <View style={styles.valueContainer}>
-      <View style={styles.rightWrap}>
-        {typeof content === 'string' || typeof content === 'number' ? (
-          <Text style={styles.valueText}>{content}</Text>
-        ) : (
-          content
-        )}
-      </View>
-    </View>
-  );
+  // Premium card-based render for each transaction
+  const renderItem = ({ item, index }) => {
+    // Find the relevant column renderers
+    const partyCol = columns.find(c => c.id === 'party');
+    const actionsCol = columns.find(c => c.id === 'actions');
+    const linesCol = columns.find(c => c.id === 'lines');
+    const amountCol = columns.find(c => c.id === 'totalAmount');
+    const dateCol = columns.find(c => c.id === 'date');
+    const paymentCol = columns.find(c => c.id === 'paymentMethod');
+    const typeCol = columns.find(c => c.id === 'type');
+    const companyCol = columns.find(c => c.id === 'company');
 
-  const renderItem = ({ item, index }) => (
-    <View key={getItemKey(item, index)} style={styles.card}>
-      {columns
-        .filter(col => col.id !== 'select')
-        .map(column => (
-          <View key={column.id} style={styles.row}>
-            <Text style={styles.label}>{getColumnLabel(column)}</Text>
-            {renderRightValue(getColumnValue(column, item))}
+    return (
+      <View key={getItemKey(item, index)} style={styles.card}>
+        {/* Top Row: Party info + Actions (three dot menu) */}
+        <View style={styles.cardTopRow}>
+          <View style={styles.cardPartySection}>
+            {partyCol && getColumnValue(partyCol, item)}
           </View>
-        ))}
-    </View>
-  );
+          <View style={styles.cardActionsSection}>
+            {actionsCol && getColumnValue(actionsCol, item)}
+          </View>
+        </View>
+
+        {/* Company name row (if column exists) */}
+        {companyCol && (
+          <View style={styles.cardCompanyRow}>
+            {getColumnValue(companyCol, item)}
+          </View>
+        )}
+
+        {/* Items + Amount row */}
+        <View style={styles.cardItemAmountRow}>
+          <View style={styles.cardItemsSection}>
+            {linesCol && getColumnValue(linesCol, item)}
+          </View>
+          <View style={styles.cardAmountSection}>
+            {amountCol && getColumnValue(amountCol, item)}
+          </View>
+        </View>
+
+        {/* Bottom Row: Date, Payment Method, Type badge */}
+        <View style={styles.cardBottomRow}>
+          <View style={styles.cardBottomChip}>
+            <Feather name="calendar" size={12} color="#6b7280" />
+            <View style={styles.cardBottomChipContent}>
+              {dateCol && getColumnValue(dateCol, item)}
+            </View>
+          </View>
+          <View style={styles.cardBottomChip}>
+            <MaterialCommunityIcons name="bank-outline" size={12} color="#6b7280" />
+            <View style={styles.cardBottomChipContent}>
+              {paymentCol && getColumnValue(paymentCol, item)}
+            </View>
+          </View>
+          <View style={styles.cardTypeBadgeWrap}>
+            {typeCol && getColumnValue(typeCol, item)}
+          </View>
+        </View>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
-      {/* Search and Filter Container */}
+      {/* Premium Search Bar */}
       <View style={styles.searchFilterWrapper}>
         <View style={styles.searchContainer}>
           <Feather
             name="search"
             size={18}
-            color="#6b7280"
+            color="#9ca3af"
             style={styles.searchIcon}
           />
           <TextInput
-            placeholder="Filter by party, product, or description..."
+            placeholder="Search"
             value={localFilter}
             onChangeText={setLocalFilter}
             style={styles.search}
@@ -133,33 +170,28 @@ export default function DataTable({
               onPress={() => setLocalFilter('')}
               style={styles.clearButton}
             >
-              <Feather name="x" size={18} color="#6b7280" />
+              <Feather name="x" size={16} color="#9ca3af" />
             </TouchableOpacity>
           )}
-        </View>
 
-        {/* Filter by Date Button */}
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            isFilterActive && styles.filterButtonActive,
-          ]}
-          onPress={onFilterButtonPress}
-        >
-          <View style={styles.filterIconAndDot}>
+          {/* Date filter inside search bar */}
+          <View style={styles.searchDivider} />
+          <TouchableOpacity
+            style={[
+              styles.dateFilterInline,
+              isFilterActive && styles.dateFilterInlineActive,
+            ]}
+            onPress={onFilterButtonPress}
+          >
             <Feather
               name="calendar"
-              size={16}
-              color={isFilterActive ? 'white' : '#374151'}
+              size={14}
+              color={isFilterActive ? '#ffffff' : '#6b7280'}
             />
-            {isFilterActive && <View style={styles.miniActiveDot} />}
-          </View>
-
-          <View style={styles.filterButtonContent}>
             <Text
               style={[
-                styles.filterButtonText,
-                isFilterActive && styles.filterButtonTextActive,
+                styles.dateFilterText,
+                isFilterActive && styles.dateFilterTextActive,
               ]}
               numberOfLines={1}
             >
@@ -174,21 +206,26 @@ export default function DataTable({
                       month: 'short',
                     },
                   )}`
-                : 'Filter By Date'}
+                : 'Date'}
             </Text>
+            <Feather
+              name="chevron-down"
+              size={12}
+              color={isFilterActive ? '#ffffff' : '#6b7280'}
+            />
             {isFilterActive && onFilterReset && (
               <TouchableOpacity
-                style={styles.filterResetIcon}
+                style={styles.dateFilterResetBtn}
                 onPress={e => {
                   e.stopPropagation();
                   onFilterReset();
                 }}
               >
-                <Feather name="x" size={12} color="white" />
+                <Feather name="x" size={10} color="#ffffff" />
               </TouchableOpacity>
             )}
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {filter.length > 0 && (
@@ -201,7 +238,9 @@ export default function DataTable({
 
       {sortedData.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Feather name="inbox" size={64} color="#d1d5db" />
+          <View style={styles.emptyIconWrap}>
+            <Feather name="inbox" size={48} color="#c7d2fe" />
+          </View>
           <Text style={styles.emptyTitle}>No transactions found</Text>
           <Text style={styles.emptySubtitle}>
             {filter.length > 0
@@ -223,18 +262,16 @@ export default function DataTable({
             sortedData.length < totalResults ? (
               <ActivityIndicator
                 size="small"
-                color="#3b82f6"
+                color="#4f46e5"
                 style={{ marginVertical: 20 }}
               />
             ) : null
           }
-          // Pull to refresh support
           refreshing={refreshing}
           onRefresh={onRefresh}
-          // Optimization props:
-          initialNumToRender={10} // Shuruat mein sirf 10 cards render karega
-          maxToRenderPerBatch={10} // Scroll karte waqt 10-10 karke naye cards banayega
-          windowSize={5} // Sirf screen ke aas-paas ke cards memory mein rakhega
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
           removeClippedSubviews={true}
         />
       )}
@@ -245,157 +282,183 @@ export default function DataTable({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#f0f0f5',
+  },
+
+  // --- Premium Search Bar ---
+  searchFilterWrapper: {
+    marginHorizontal: 12,
+    marginTop: 10,
+    marginBottom: 10,
   },
 
   searchContainer: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    height: 40,
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 46,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#6366f1',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
 
-  searchIcon: { marginRight: 8 },
+  searchIcon: { marginRight: 10 },
 
   search: {
     flex: 1,
-    paddingVertical: 10,
-    fontSize: 12,
-    color: '#111827',
+    paddingVertical: 0,
+    fontSize: 14,
+    color: '#1e1b4b',
   },
 
-  clearButton: { padding: 4 },
+  clearButton: { padding: 4, marginRight: 4 },
 
-  searchFilterWrapper: {
+  searchDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: '#e5e7eb',
+    marginHorizontal: 10,
+  },
+
+  dateFilterInline: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-    marginHorizontal: 8,
-    marginTop: 8,
-  },
-
-  filterButton: {
-    height: 40,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 10,
     paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    backgroundColor: 'white',
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexDirection: 'column',
-    minWidth: 60,
-  },
-
-  filterButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 6,
     gap: 4,
   },
 
-  filterButtonActive: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
-    minWidth: 100,
+  dateFilterInlineActive: {
+    backgroundColor: '#4f46e5',
   },
 
-  filterIconAndDot: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 2,
+  dateFilterText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
   },
 
-  miniActiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#ef4444',
+  dateFilterTextActive: {
+    color: '#ffffff',
+  },
+
+  dateFilterResetBtn: {
     marginLeft: 4,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 8,
+    padding: 2,
   },
 
-  filterButtonText: {
-    fontSize: 9,
-    color: '#374151',
-    fontWeight: '700',
-    textAlign: 'center',
-  },
+  resultsCount: { paddingHorizontal: 16, paddingBottom: 4 },
 
-  filterButtonTextActive: {
-    color: 'white',
-    fontSize: 8.5,
-  },
+  resultsText: { fontSize: 12, color: '#6b7280', fontWeight: '500' },
 
-  filterResetIcon: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 10,
-    padding: 1,
-    marginLeft: 2,
-  },
-
-  resultsCount: { paddingHorizontal: 4, paddingBottom: 8 },
-
-  resultsText: { fontSize: 12, color: '#6b7280' },
-
-  listContent: { paddingBottom: 20 },
+  // --- Premium Card ---
+  listContent: { paddingBottom: 24, paddingHorizontal: 12, paddingTop: 2 },
 
   card: {
     backgroundColor: '#ffffff',
-    borderRadius: 8,
+    borderRadius: 16,
     padding: 16,
-    paddingBottom:0,
-    marginBottom: 10,
-    marginHorizontal: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    marginBottom: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#4338ca',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
     borderWidth: 1,
-    borderColor: '#f3f4f6',
+    borderColor: 'rgba(99,102,241,0.08)',
   },
 
-  row: {
+  cardTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    marginBottom: 2,
   },
 
-  label: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#6b7280',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    minWidth: 120,
-  },
-
-  valueContainer: {
+  cardPartySection: {
     flex: 1,
+    marginRight: 8,
+  },
+
+  cardActionsSection: {
+    alignItems: 'flex-end',
+    justifyContent: 'flex-start',
+  },
+
+  cardCompanyRow: {
+    marginBottom: 10,
+    marginTop: -2,
+  },
+
+  cardItemAmountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+  },
+
+  cardItemsSection: {
+    flex: 1,
+    marginRight: 12,
+  },
+
+  cardAmountSection: {
     alignItems: 'flex-end',
   },
 
-  rightWrap: {
-    width: '100%',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+  cardBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
   },
 
-  valueText: {
-    textAlign: 'right',
-    fontSize: 14,
-    color: '#111827',
+  cardBottomChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    gap: 4,
   },
 
+  cardBottomChipContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  cardTypeBadgeWrap: {
+    marginLeft: 'auto',
+  },
+
+  // --- Empty State ---
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -404,22 +467,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
 
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#eef2ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#374151',
-    marginTop: 16,
-    marginBottom: 8,
+    fontWeight: '700',
+    color: '#1e1b4b',
+    marginBottom: 6,
   },
 
   emptySubtitle: {
     fontSize: 14,
     color: '#6b7280',
     textAlign: 'center',
-  },
-
-  emptyListContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
   },
 });
