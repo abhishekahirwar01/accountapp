@@ -69,7 +69,7 @@ const ClientsValidityManager = ({ onClientClick }) => {
       const data = await res.json();
 
       const list = Array.isArray(data) ? data : data.clients || [];
-      console.log('📦 Clients fetched:', list.length, 'clients');
+
       setClients(list);
 
       setIsValidityLoading(true);
@@ -99,7 +99,7 @@ const ClientsValidityManager = ({ onClientClick }) => {
             }
 
             const json = await vr.json();
-            console.log(`✅ Validity fetched for ${c.clientUsername}:`, json);
+
             return { id: c._id, validity: toValidity(json) };
           } catch (error) {
             console.warn(
@@ -122,9 +122,6 @@ const ClientsValidityManager = ({ onClientClick }) => {
           };
         }
       });
-
-      // Debugging: यह log देखो कि validity data सही आ रहा है या नहीं
-      console.log('✅ Validity Map Mobile:', JSON.stringify(map, null, 2));
 
       setValidityByClient(map);
       setIsValidityLoading(false);
@@ -149,7 +146,6 @@ const ClientsValidityManager = ({ onClientClick }) => {
   const filteredClients = clients.filter(c => {
     const q = lower(search.trim());
     const clientValidity = validityByClient[c?._id];
-
     const matchesSearch =
       q.length === 0 ||
       hasText(c?.clientUsername, q) ||
@@ -157,7 +153,6 @@ const ClientsValidityManager = ({ onClientClick }) => {
       hasText(c?.email, q) ||
       hasText(c?.slug, q) ||
       hasText(c?.phone, q);
-
     const matchesFilter =
       statusFilter === 'all' ||
       (statusFilter === 'active' && clientValidity?.status === 'active') ||
@@ -168,7 +163,6 @@ const ClientsValidityManager = ({ onClientClick }) => {
         clientValidity?.status === 'unlimited') ||
       (statusFilter === 'unknown' &&
         (!clientValidity || clientValidity.status === 'unknown'));
-
     return matchesSearch && matchesFilter;
   });
 
@@ -484,23 +478,16 @@ const ClientsValidityManager = ({ onClientClick }) => {
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={filteredClients}
-        renderItem={renderClientItem}
-        keyExtractor={item => item._id}
-        ListHeaderComponent={renderHeader}
-        ListEmptyComponent={renderEmptyState}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onRefresh}
-            colors={['#3b82f6']}
-            tintColor="#3b82f6"
-          />
-        }
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      <View style={styles.listContent}>
+        {renderHeader()}
+        {filteredClients.length > 0
+          ? filteredClients.map(client => (
+              <React.Fragment key={client._id}>
+                {renderClientItem({ item: client })}
+              </React.Fragment>
+            ))
+          : renderEmptyState()}
+      </View>
     </View>
   );
 };
@@ -511,7 +498,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   listContent: {
-    padding: 16,
+    padding: 0,
     paddingBottom: 32,
   },
   header: {
@@ -581,7 +568,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     paddingVertical: 12,
-    fontSize: 16,
+    fontSize: 15,
     marginLeft: 8,
     color: '#1f2937',
   },
@@ -756,4 +743,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ClientsValidityManager;
+export default React.memo(ClientsValidityManager);

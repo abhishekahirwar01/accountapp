@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   profitAmountActive: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "bold",
     color: "#059669", // green-600
   },
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     color: "#dc2626", // red-600
   },
   inactiveAmount: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "bold",
     color: "#9ca3af", // gray-400
   },

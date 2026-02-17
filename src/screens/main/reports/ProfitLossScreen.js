@@ -134,7 +134,8 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 16,
+    paddingHorizontal: 14,
+    paddingVertical:4,
     maxWidth: 1200,
     alignSelf: "center",
     width: "100%",

@@ -59,7 +59,7 @@ const KpiCard = React.memo(({ title, value, icon: Icon, description, color }) =>
               {title}
             </Text>
             <View style={[styles.iconContainer, { backgroundColor: color }]}>
-              <Icon size={18} color="#ffffff" strokeWidth={2.5} />
+              <Icon size={14} color="#ffffff" strokeWidth={2.5} />
             </View>
           </View>
           
@@ -132,7 +132,9 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   cardInner: {
-    padding: 16,
+    // padding: 12,
+    paddingHorizontal:12,
+    paddingVertical:10,
     borderRadius: 12,
     backgroundColor: '#ffffff',
   },
@@ -140,10 +142,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    // marginBottom: 6,
   },
   title: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
     color: '#64748b',
     textTransform: 'uppercase',
@@ -152,8 +154,8 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   iconContainer: {
-    width: 30,
-    height: 30,
+    width: 25,
+    height: 25,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
@@ -164,10 +166,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   value: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
     color: '#0f172a',
-    marginBottom: 6,
+    // marginBottom: 6,
     letterSpacing: -0.5,
   },
   description: {

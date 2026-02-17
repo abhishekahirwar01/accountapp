@@ -362,7 +362,6 @@ export function CustomerForm({
         }
 
         const data = await response.json();
-        console.log('Fetched companies:', data);
         setCompanies(data);
 
         // Auto-select if only one company exists
@@ -417,9 +416,6 @@ export function CustomerForm({
         formattedCompanies = [customer.company._id];
       }
 
-      console.log('Customer company data:', customer.company);
-      console.log('Formatted companies:', formattedCompanies);
-
       if (formattedCompanies.length > 0) {
         form.setValue('company', formattedCompanies);
       }
@@ -437,9 +433,6 @@ export function CustomerForm({
         : `${baseURL}/api/parties`;
 
       const method = customer ? 'PUT' : 'POST';
-
-      console.log('📤 Submitting customer data:', values);
-      console.log('📤 Company field being sent:', values.company);
 
       // Sanitize input values
       const sanitizedValues = {
@@ -476,7 +469,6 @@ export function CustomerForm({
       });
 
       const data = await res.json();
-      console.log('📥 Backend response:', data);
 
       if (!res.ok) throw new Error(data.message || 'Failed operation');
 
@@ -976,7 +968,7 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingBottom: 30,
+    // paddingBottom: 30,
   },
   header: {
     backgroundColor: '#fff',
@@ -1021,7 +1013,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 16,
@@ -1032,7 +1024,7 @@ const styles = StyleSheet.create({
   label: {
     fontWeight: '600',
     marginBottom: 8,
-    fontSize: 16,
+    fontSize: 14,
     color: '#333',
   },
   requiredStar: {

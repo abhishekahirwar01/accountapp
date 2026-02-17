@@ -117,7 +117,7 @@ export default function DataTable({
         <View style={styles.searchContainer}>
           <Feather
             name="search"
-            size={20}
+            size={18}
             color="#6b7280"
             style={styles.searchIcon}
           />
@@ -256,16 +256,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
     borderRadius: 8,
-    paddingHorizontal: 12,
-    height: 48,
+    paddingHorizontal: 8,
+    height: 40,
   },
 
   searchIcon: { marginRight: 8 },
 
   search: {
     flex: 1,
-    paddingVertical: 12,
-    fontSize: 14,
+    paddingVertical: 10,
+    fontSize: 12,
     color: '#111827',
   },
 
@@ -276,12 +276,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: 12,
-    marginHorizontal: 4,
+    marginHorizontal: 8,
     marginTop: 8,
   },
 
   filterButton: {
-    height: 48,
+    height: 40,
     paddingHorizontal: 10,
     borderWidth: 1,
     borderColor: '#e5e7eb',
@@ -349,7 +349,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 8,
     padding: 16,
-    marginBottom: 12,
+    paddingBottom:0,
+    marginBottom: 10,
     marginHorizontal: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },

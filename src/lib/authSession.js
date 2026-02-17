@@ -1,5 +1,26 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { jwtDecode } from "jwt-decode"; // ✅ named import for v4+const TOKEN_KEY = 'token';
+import { jwtDecode } from 'jwt-decode'; // ✅ named import for v4+
+import { navigationRef } from '../navigation/RootNavigation';
+// Global auto-logout handler
+export async function handleAutoLogout(reason = 'Session expired') {
+  try {
+    // Clear session data
+    await clearSession();
+    // Get last known role from AsyncStorage
+    const role = (await AsyncStorage.getItem('role')) || '';
+    // Decide login screen by role
+    let loginScreen = 'UserLoginScreen';
+    if (role === 'master') loginScreen = 'AdminLoginScreen';
+    else if (role === 'customer' || role === 'client')
+      loginScreen = 'ClientLoginScreen';
+    // Navigate if possible, pass reason as param
+    if (navigationRef && navigationRef.isReady()) {
+      navigationRef.navigate(loginScreen, { logoutReason: reason });
+    }
+  } catch (error) {
+    console.error('Failed to handle auto logout:', error);
+  }
+}
 const USER_KEY = 'user';
 const TOKEN_KEY = 'token';
 let logoutTimer = null;
@@ -49,24 +70,25 @@ export async function clearSession() {
     if (logoutTimer) clearTimeout(logoutTimer);
     logoutTimer = null;
     await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+    // Do NOT auto-navigate here. Each login screen will handle navigation after session clear.
   } catch (error) {
     console.error('Failed to clear session:', error);
     throw error;
   }
 }
 
-export async function scheduleAutoLogout(token, onLogout) {
+export async function scheduleAutoLogout(token) {
   try {
     const decoded = jwtDecode(token); // ✅ use named import
     const msLeft = decoded.exp * 1000 - Date.now();
 
     if (logoutTimer) clearTimeout(logoutTimer);
-    if (msLeft <= 0) return onLogout();
+    if (msLeft <= 0) return handleAutoLogout();
 
-    logoutTimer = setTimeout(() => onLogout(), msLeft);
+    logoutTimer = setTimeout(() => handleAutoLogout(), msLeft);
   } catch (error) {
     console.error('Failed to schedule auto logout:', error);
-    onLogout();
+    handleAutoLogout();
   }
 }
 

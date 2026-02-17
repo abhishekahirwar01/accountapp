@@ -83,7 +83,7 @@ const TransactionItem = memo(({
   const isPurchase = !item.type || item.type === 'debit';
   const bgColor = isDebit ? '#fef2f2' : '#f0fdf4';
   const borderColor = isDebit ? '#fecaca' : '#bbf7d0';
-  const textColor = isDebit ? '#dc2626' : '#10b981';
+  const textColor = isDebit ? '#d64b4b' : '#2ec995';
   
   const handlePress = useCallback(() => {
     onPress(item);
@@ -228,6 +228,7 @@ export function VendorLedgerView({
   dateRange,
   productsList = []
 }) {
+  const [activeTab, setActiveTab] = useState('debit');
   const [isItemsModalOpen, setIsItemsModalOpen] = useState(false);
   const [itemsToView, setItemsToView] = useState([]);
   const [loadingItems, setLoadingItems] = useState(false);
@@ -580,7 +581,7 @@ export function VendorLedgerView({
           <View style={styles.summaryHeader}>
             <View style={styles.vendorInfo}>
               <View style={styles.vendorIcon}>
-                <FileText size={20} color="#4b5563" />
+                <FileText size={17} color="#4b5563" />
               </View>
               <View style={styles.vendorDetails}>
                 <Text style={styles.vendorName}>
@@ -695,24 +696,75 @@ export function VendorLedgerView({
         />
       </View>
 
-      {/* Debit and Credit Sections */}
-      <View style={styles.sectionsContainer}>
-        {/* Debit Side */}
-        <Card style={styles.debitCard}>
-          <CardHeader style={styles.debitHeader}>
-            <View style={styles.sectionTitleContainer}>
-              <View style={styles.redDot} />
-              <Text style={styles.debitTitle}>Debit</Text>
+      {/* Tab Navigation */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'debit' && styles.tabActiveDebit]}
+          onPress={() => setActiveTab('debit')}
+          activeOpacity={0.8}
+        >
+          <View style={styles.tabContent}>
+            <Text style={[styles.tabText, activeTab === 'debit' && styles.tabTextActiveDebit]}>
+              Debit Side
+            </Text>
+            <View style={[styles.tabBadge, activeTab === 'debit' ? styles.tabBadgeActiveDebit : styles.tabBadgeInactive]}>
+              <Text style={[styles.tabBadgeText, activeTab === 'debit' && styles.tabBadgeTextActiveDebit]}>
+                {sortedDebitEntries.length}
+              </Text>
             </View>
-            <Badge variant="outline" style={styles.sectionTotalBadge}>
-              <Text style={styles.sectionTotalText}>Total: {formatCurrency(totals.debit)}</Text>
-            </Badge>
-          </CardHeader>
-          <CardContent style={styles.sectionContent}>
-            {(!ledgerData.debit || ledgerData.debit.length === 0) ? (
+          </View>
+          {activeTab === 'debit' && <View style={styles.tabIndicatorDebit} />}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'credit' && styles.tabActiveCredit]}
+          onPress={() => setActiveTab('credit')}
+          activeOpacity={0.8}
+        >
+          <View style={styles.tabContent}>
+            <Text style={[styles.tabText, activeTab === 'credit' && styles.tabTextActiveCredit]}>
+              Credit Side
+            </Text>
+            <View style={[styles.tabBadge, activeTab === 'credit' ? styles.tabBadgeActiveCredit : styles.tabBadgeInactive]}>
+              <Text style={[styles.tabBadgeText, activeTab === 'credit' && styles.tabBadgeTextActiveCredit]}>
+                {sortedCreditEntries.length}
+              </Text>
+            </View>
+          </View>
+          {activeTab === 'credit' && <View style={styles.tabIndicatorCredit} />}
+        </TouchableOpacity>
+      </View>
+
+      {/* Transaction List Container */}
+      <Card style={[
+        styles.transactionsCard,
+        activeTab === 'debit' ? styles.debitCard : styles.creditCard
+      ]}>
+        <CardHeader style={[
+          activeTab === 'debit' ? styles.debitHeader : styles.creditHeader
+        ]}>
+          <View style={styles.sectionTitleContainer}>
+            <View style={activeTab === 'debit' ? styles.redDot : styles.greenDot} />
+            <Text style={activeTab === 'debit' ? styles.debitTitle : styles.creditTitle}>
+              {activeTab === 'debit' ? 'Purchase Transactions' : 'Payment Transactions'}
+            </Text>
+          </View>
+          <Badge variant="outline" style={styles.sectionTotalBadge}>
+            <Text style={styles.sectionTotalText}>
+              Total: {formatCurrency(activeTab === 'debit' ? totals.debit : totals.credit)}
+            </Text>
+          </Badge>
+        </CardHeader>
+        
+        <CardContent style={styles.sectionContent}>
+          {activeTab === 'debit' ? (
+            (!ledgerData.debit || ledgerData.debit.length === 0) ? (
               <View style={styles.emptySection}>
-                <FileText size={32} color="#94a3b8" />
+                <FileText size={40} color="#94a3b8" />
                 <Text style={styles.emptySectionText}>No purchase entries found</Text>
+                <Text style={styles.emptySectionSubtext}>
+                  Purchase transactions will appear here once recorded
+                </Text>
               </View>
             ) : (
               <FlatList
@@ -725,25 +777,11 @@ export function VendorLedgerView({
                 windowSize={5}
                 initialNumToRender={10}
               />
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Credit Side */}
-        <Card style={styles.creditCard}>
-          <CardHeader style={styles.creditHeader}>
-            <View style={styles.sectionTitleContainer}>
-              <View style={styles.greenDot} />
-              <Text style={styles.creditTitle}>Credit</Text>
-            </View>
-            <Badge variant="outline" style={styles.sectionTotalBadge}>
-              <Text style={styles.sectionTotalText}>Total: {formatCurrency(totals.credit)}</Text>
-            </Badge>
-          </CardHeader>
-          <CardContent style={styles.sectionContent}>
-            {allCreditEntries.length === 0 ? (
+            )
+          ) : (
+            allCreditEntries.length === 0 ? (
               <View style={styles.emptySection}>
-                <CreditCard size={32} color="#94a3b8" />
+                <CreditCard size={40} color="#94a3b8" />
                 <Text style={styles.emptySectionText}>No payment entries found</Text>
                 <Text style={styles.emptySectionSubtext}>
                   Cash purchases and payment entries will appear here
@@ -760,15 +798,14 @@ export function VendorLedgerView({
                 windowSize={5}
                 initialNumToRender={10}
               />
-            )}
-          </CardContent>
-        </Card>
-      </View>
+            )
+          )}
+        </CardContent>
+      </Card>
     </ScrollView>
   );
 }
 
-// Styles remain the same...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -842,6 +879,9 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   cardTitle: {
     fontSize: 18,
@@ -849,9 +889,9 @@ const styles = StyleSheet.create({
     color: '#0f172a',
   },
   cardContent: {
-    padding: 16,
+    padding: 12,
   },
-  // Summary card styles
+  
   summaryCard: {
     marginBottom: 16,
   },
@@ -863,12 +903,12 @@ const styles = StyleSheet.create({
   vendorInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     flex: 1,
   },
   vendorIcon: {
-    width: 40,
-    height: 40,
+    width: 30,
+    height: 30,
     backgroundColor: '#f3f4f6',
     borderRadius: 20,
     alignItems: 'center',
@@ -878,12 +918,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   vendorName: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '600',
     color: '#111827',
   },
   vendorDate: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#6b7280',
     marginTop: 2,
   },
@@ -891,7 +931,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   balanceAmount: {
-    fontSize: 20,
+    fontSize: 14,
     fontWeight: '700',
     marginBottom: 8,
   },
@@ -911,6 +951,7 @@ const styles = StyleSheet.create({
   badgeAdvance: {
     borderColor: '#bbf7d0',
     backgroundColor: '#f0fdf4',
+    
   },
   badgeSettled: {
     borderColor: '#bfdbfe',
@@ -921,6 +962,7 @@ const styles = StyleSheet.create({
   },
   badgeTextAdvance: {
     color: '#065f46',
+    fontSize:8
   },
   badgeTextSettled: {
     color: '#1e40af',
@@ -1019,15 +1061,114 @@ const styles = StyleSheet.create({
   },
   statusTextAdvance: {
     color: '#065f46',
-    fontSize: 12,
+    fontSize: 8,
   },
   statusTextSettled: {
     color: '#1e40af',
-    fontSize: 12,
+    fontSize: 8,
   },
-  // Sections styles
-  sectionsContainer: {
-    gap: 16,
+  // Tab styles
+  tabContainer: {
+    flexDirection: 'row',
+    // marginHorizontal: 8,
+    marginBottom: 16,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 4,
+    gap: 8,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: 'transparent',
+    position: 'relative',
+  },
+  tabActiveDebit: {
+    backgroundColor: '#FFFFFF',
+    elevation: 2,
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  tabActiveCredit: {
+    backgroundColor: '#FFFFFF',
+    elevation: 2,
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  tabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  tabText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  tabTextActiveDebit: {
+    color: '#DC2626',
+    fontWeight: '700',
+  },
+  tabTextActiveCredit: {
+    color: '#16A34A',
+    fontWeight: '700',
+  },
+  tabBadge: {
+    paddingHorizontal: 4,
+    // paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabBadgeInactive: {
+    backgroundColor: '#E2E8F0',
+  },
+  tabBadgeActiveDebit: {
+    backgroundColor: '#FEE2E2',
+  },
+  tabBadgeActiveCredit: {
+    backgroundColor: '#DCFCE7',
+  },
+  tabBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  tabBadgeTextActiveDebit: {
+    color: '#DC2626',
+  },
+  tabBadgeTextActiveCredit: {
+    color: '#16A34A',
+  },
+  tabIndicatorDebit: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: '#DC2626',
+    borderRadius: 3,
+  },
+  tabIndicatorCredit: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: '#16A34A',
+    borderRadius: 3,
+  },
+  // Transaction card styles
+  transactionsCard: {
+    marginBottom: 16,
   },
   debitCard: {
     borderColor: '#fecaca',
@@ -1083,19 +1224,21 @@ const styles = StyleSheet.create({
   },
   emptySection: {
     alignItems: 'center',
-    paddingVertical: 48,
+    paddingVertical: 60,
     paddingHorizontal: 24,
   },
   emptySectionText: {
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: '600',
     color: '#64748b',
-    marginTop: 12,
-    marginBottom: 4,
+    marginTop: 16,
+    marginBottom: 8,
   },
   emptySectionSubtext: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#94a3b8',
     textAlign: 'center',
+    lineHeight: 18,
   },
   // Transaction item styles
   transactionItem: {
@@ -1111,14 +1254,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   transactionIndex: {
-    width: 32,
-    height: 32,
+    width: 25,
+    height: 25,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   transactionIndexText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: 'white',
   },
@@ -1381,4 +1524,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#10b981',
   },
-}); 
+});

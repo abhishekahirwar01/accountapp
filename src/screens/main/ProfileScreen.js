@@ -230,7 +230,7 @@ const PermissionsTab = React.memo(() => {
                   ]}
                 >
                   <View style={styles.limitItemHeader}>
-                    <item.icon size={20} color="#9ca3af" />
+                    <item.icon size={18} color="#9ca3af" />
                     <Text style={styles.limitValue}>{item.value ?? 'N/A'}</Text>
                   </View>
                   <Text style={styles.limitLabel}>{item.label}</Text>
@@ -250,7 +250,7 @@ const PermissionsTab = React.memo(() => {
                 return (
                   <View key={item.label} style={styles.featureItem}>
                     <View style={styles.featureInfo}>
-                      <item.icon size={16} color="#9ca3af" />
+                      <item.icon size={15} color="#9ca3af" />
                       <Text style={styles.featureLabel}>{item.label}</Text>
 
                       {isEmailRow && (
@@ -266,11 +266,11 @@ const PermissionsTab = React.memo(() => {
                           {loadingGmail ? (
                             <ActivityIndicator size="small" color="#3b82f6" />
                           ) : !emailPerm ? (
-                            <AlertTriangle size={16} color="#f59e0b" />
+                            <AlertTriangle size={15} color="#f59e0b" />
                           ) : gmailLinked ? (
-                            <Check size={16} color="#10b981" />
+                            <Check size={15} color="#10b981" />
                           ) : (
-                            <AlertTriangle size={16} color="#f59e0b" />
+                            <AlertTriangle size={15} color="#f59e0b" />
                           )}
                         </TouchableOpacity>
                       )}
@@ -704,7 +704,7 @@ export default function ProfilePage({ navigation, route }) {
                   activeOpacity={0.7}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <ArrowLeft size={24} color="#3b82f6" />
+                  <ArrowLeft size={22} color="#3b82f6" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Settings</Text>
               </View>
@@ -735,7 +735,7 @@ export default function ProfilePage({ navigation, route }) {
                     <View style={styles.tabRow}>
                       {tab.icon && (
                         <tab.icon
-                          size={18}
+                          size={16}
                           color={active ? '#3b82f6' : '#9ca3af'}
                           style={{ marginRight: 8 }}
                         />
@@ -779,7 +779,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    padding: 16,
+    padding: 12,
   },
   loadingContainer: {
     flex: 1,
@@ -793,12 +793,12 @@ const styles = StyleSheet.create({
     color: '#1f2937',
   },
   headerContainer: {
-    marginBottom: 24,
+    marginBottom: 14,
   },
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    // marginBottom: 8,
   },
   backButton: {
     marginRight: 12,
@@ -807,23 +807,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#1f2937',
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 12,
     color: '#6b7280',
-    lineHeight: 22,
+    // lineHeight: 22,
   },
   tabsContainer: {
-    marginBottom: 16,
+    marginBottom: 4,
   },
   tabsScrollContent: {
     paddingVertical: 4,
   },
   tabItem: {
-    paddingHorizontal: 20,
+    // paddingHorizontal: 20,
     paddingVertical: 12,
     marginHorizontal: 4,
     position: 'relative',
@@ -834,7 +834,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 2,
-    elevation: 1,
+    elevation: 2,
   },
   tabItemActive: {
     backgroundColor: '#f8fafc',
@@ -845,7 +845,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#6b7280',
     textAlign: 'center',
@@ -881,34 +881,36 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   cardContent: {
-    padding: 20,
+    padding: 10,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
+    padding:8
   },
   cardHeaderText: {
     flex: 1,
     marginLeft: 12,
+    
   },
   cardTitle: {
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: 'bold',
     color: '#1f2937',
   },
   cardDescription: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6b7280',
-    marginTop: 4,
-    lineHeight: 20,
+    // marginTop: 4,
+    // lineHeight: 20,
   },
   cardSubtitle: {
     fontSize: 14,
     color: '#6b7280',
   },
   section: {
-    marginBottom: 24,
+    // marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 12,
@@ -928,13 +930,14 @@ const styles = StyleSheet.create({
   },
   limitItem: {
     flex: 1,
-    padding: 16,
+    padding: 6,
     backgroundColor: '#f8fafc',
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#e5e7eb',
     marginBottom: 12,
   },
+  
   limitItemHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -942,7 +945,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   limitValue: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#1f2937',
     marginLeft: 8,
@@ -969,7 +972,7 @@ const styles = StyleSheet.create({
   },
   featureLabel: {
     marginLeft: 8,
-    fontSize: 14,
+    fontSize: 12,
     color: '#1f2937',
   },
   emailStatusIndicator: {

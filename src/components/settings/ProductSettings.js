@@ -33,6 +33,7 @@ import {
   Hash,
   Edit2,
   Loader2,
+  DollarSign,
 } from 'lucide-react-native';
 import axios from 'axios';
 
@@ -77,7 +78,6 @@ export default function ProductSettings() {
     refetch: refetchAccountPermissions,
   } = usePermissions();
 
-  
   const canCreateProducts =
     accountPermissions?.canCreateProducts ??
     accountPermissions?.canCreateInventory ??
@@ -91,8 +91,8 @@ export default function ProductSettings() {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(amount);
   };
 
@@ -134,7 +134,7 @@ export default function ProductSettings() {
 
       const data = response.data;
       setProducts(Array.isArray(data) ? data : data.products || []);
-      setCurrentPage(1); 
+      setCurrentPage(1);
     } catch (error) {
       Toast.show({
         type: 'error',
@@ -324,158 +324,138 @@ export default function ProductSettings() {
     }
   };
 
-  // Render product item for FlatList
+  // Render product item for FlatList - REDESIGNED COMPACT VERSION
   const renderProductItem = ({ item: product }) => {
     const role = AsyncStorage.getItem('role');
     const isSelected = selectedProducts.includes(product._id);
 
     return (
-      <View style={styles.productCard}>
-        {/* Header with checkbox and actions */}
+      <TouchableOpacity
+        style={styles.productCard}
+        onPress={() => role === 'user' ? handleOpenForm(product) : setOpenNameDialog(product.name)}
+        activeOpacity={0.7}
+      >
+        {/* Compact Header Row */}
         <View style={styles.cardHeader}>
-          {role !== 'user' && (
-            <CheckBox
-              value={isSelected}
-              onValueChange={value => handleSelectProduct(product._id, value)}
-              style={styles.checkbox}
-            />
-          )}
-
-          <View style={styles.productInfo}>
-            <View style={styles.productTitleRow}>
+          <View style={styles.leftSection}>
+            {/* {role !== 'user' && (
+              <CheckBox
+                value={isSelected}
+                onValueChange={value => handleSelectProduct(product._id, value)}
+                style={styles.checkbox}
+              />
+            )} */}
+            
+            <View style={styles.iconBadge}>
               {product.type === 'service' ? (
-                <Server size={16} color="#8b5cf6" />
+                <Server size={14} color="#8b5cf6" />
               ) : (
-                <Package size={16} color="#3b82f6" />
+                <Package size={14} color="#3b82f6" />
               )}
-              <TouchableOpacity onPress={() => setOpenNameDialog(product.name)}>
+            </View>
+
+            <View style={styles.nameSection}>
+              <View style={styles.nameRow}>
                 <Text style={styles.productName} numberOfLines={1}>
                   {product.name.charAt(0).toUpperCase() + product.name.slice(1)}
                 </Text>
-              </TouchableOpacity>
-              {product.type === 'service' && (
-                <View style={styles.serviceBadge}>
-                  <Text style={styles.serviceBadgeText}>Service</Text>
-                </View>
-              )}
+                {product.type === 'service' && (
+                  <View style={styles.serviceBadge}>
+                    <Text style={styles.serviceBadgeText}>SVC</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.companyName} numberOfLines={1}>
+                {typeof product.company === 'object' && product.company
+                  ? product.company.businessName
+                  : '-'}
+              </Text>
             </View>
-            <Text style={styles.companyName}>
-              {typeof product.company === 'object' && product.company
-                ? product.company.businessName
-                : '-'}
-            </Text>
           </View>
 
           {role !== 'user' && (
-            <View>
-              <TouchableOpacity
-                style={styles.moreButton}
-                onPress={() => {
-                  setOpenDropdownId(
-                    openDropdownId === product._id ? null : product._id,
-                  );
-                }}
-              >
-                <MoreHorizontal size={20} color="#6b7280" />
-              </TouchableOpacity>
-
-              {openDropdownId === product._id && (
-                <TouchableWithoutFeedback>
-                  <View style={styles.dropdown}>
-                    <TouchableOpacity
-                      style={styles.dropdownItem}
-                      onPress={() => handleEditProduct(product)}
-                    >
-                      <Edit2 size={16} color="#3b82f6" />
-                      <Text style={styles.dropdownItemText}>Edit</Text>
-                    </TouchableOpacity>
-                    <View style={styles.dropdownDivider} />
-                    {/* <TouchableOpacity
-                      style={styles.dropdownItem}
-                      onPress={() => handleDeleteProductFromDropdown(product)}
-                    >
-                      <Trash2 size={16} color="#ef4444" />
-                      <Text
-                        style={[
-                          styles.dropdownItemText,
-                          styles.dropdownItemTextDanger,
-                        ]}
-                      >
-                        Delete
-                      </Text>
-                    </TouchableOpacity> */}
-                  </View>
-                </TouchableWithoutFeedback>
-              )}
-            </View>
+            <TouchableOpacity
+              style={styles.moreButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                setOpenDropdownId(
+                  openDropdownId === product._id ? null : product._id,
+                );
+              }}
+            >
+              <MoreHorizontal size={18} color="#6b7280" />
+            </TouchableOpacity>
           )}
         </View>
 
-        {/* Created date */}
-        <View style={styles.createdDate}>
-          <Calendar size={14} color="#9ca3af" />
-          <Text style={styles.dateText}>
-            Created:{' '}
-            {new Intl.DateTimeFormat('en-GB').format(
-              new Date(product.createdAt),
-            )}
-          </Text>
-        </View>
+        {/* Dropdown Menu */}
+        {openDropdownId === product._id && (
+          <TouchableWithoutFeedback>
+            <View style={styles.dropdown}>
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={() => handleEditProduct(product)}
+              >
+                <Edit2 size={14} color="#3b82f6" />
+                <Text style={styles.dropdownItemText}>Edit</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableWithoutFeedback>
+        )}
 
-        {/* Stock and unit info */}
-        <View style={styles.infoGrid}>
-          <View style={styles.infoColumn}>
+        {/* Compact Info Grid */}
+        <View style={styles.infoRow}>
+          {/* Stock/Type */}
+          <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>
               {product.type === 'service' ? 'Type' : 'Stock'}
             </Text>
-            <View style={styles.infoValueContainer}>
-              {product.type === 'service' ? (
-                <Text style={styles.infoValue}>Service Item</Text>
-              ) : (
-                <>
-                  <View
-                    style={[
-                      styles.stockIndicator,
-                      {
-                        backgroundColor:
-                          (product.stocks ?? 0) > 0 ? '#10b981' : '#ef4444',
-                      },
-                    ]}
-                  />
-                  <Text
-                    style={[
-                      styles.stockText,
-                      {
-                        color:
-                          (product.stocks ?? 0) > 0 ? '#10b981' : '#ef4444',
-                      },
-                    ]}
-                  >
-                    {product.stocks ?? 0} in stock
-                  </Text>
-                </>
-              )}
-            </View>
+            {product.type === 'service' ? (
+              <Text style={styles.infoValue}>Service</Text>
+            ) : (
+              <View style={styles.stockRow}>
+                <View
+                  style={[
+                    styles.stockDot,
+                    {
+                      backgroundColor:
+                        (product.stocks ?? 0) > 0 ? '#10b981' : '#ef4444',
+                    },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.stockValue,
+                    {
+                      color: (product.stocks ?? 0) > 0 ? '#10b981' : '#ef4444',
+                    },
+                  ]}
+                >
+                  {product.stocks ?? 0}
+                </Text>
+              </View>
+            )}
           </View>
 
-          <View style={styles.infoColumn}>
+          {/* Unit */}
+          <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Unit</Text>
             <Text style={styles.infoValue}>{product.unit ?? 'Piece'}</Text>
           </View>
-        </View>
 
-        {/* Price info */}
-        <View style={styles.priceContainer}>
-          <View style={styles.priceColumn}>
-            <Text style={styles.priceLabel}>Cost Price</Text>
+          {/* Cost Price */}
+          <View style={styles.infoItem}>
+            <Text style={styles.infoLabel}>Cost</Text>
             <Text style={styles.priceValue}>
               {product.type === 'service'
                 ? '-'
                 : formatCurrency(product.costPrice || 0)}
             </Text>
           </View>
-          <View style={styles.priceColumn}>
-            <Text style={styles.priceLabel}>Selling Price</Text>
+
+          {/* Selling Price */}
+          <View style={styles.infoItem}>
+            <Text style={styles.infoLabel}>Sell</Text>
             <Text style={styles.priceValue}>
               {product.type === 'service'
                 ? '-'
@@ -484,25 +464,25 @@ export default function ProductSettings() {
           </View>
         </View>
 
-        {/* HSN Code */}
-        <View style={styles.hsnContainer}>
-          <Hash size={14} color="#9ca3af" />
-          <Text style={styles.hsnText}>
-            HSN Code: {product.hsn ? product.hsn : 'N/A'}
-          </Text>
+        {/* Footer Row */}
+        <View style={styles.footerRow}>
+          <View style={styles.hsnRow}>
+            <Hash size={10} color="#9ca3af" />
+            <Text style={styles.hsnText}>
+              {product.hsn ? product.hsn : 'N/A'}
+            </Text>
+          </View>
+          
+          <View style={styles.dateRow}>
+            <Calendar size={10} color="#9ca3af" />
+            <Text style={styles.dateText}>
+              {new Intl.DateTimeFormat('en-GB').format(
+                new Date(product.createdAt),
+              )}
+            </Text>
+          </View>
         </View>
-
-        {/* Quick actions for users */}
-        {role === 'user' && (
-          <TouchableOpacity
-            style={styles.viewButton}
-            onPress={() => handleOpenForm(product)}
-          >
-            <Eye size={14} color="#3b82f6" />
-            <Text style={styles.viewButtonText}>View</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -560,12 +540,12 @@ export default function ProductSettings() {
             }
           >
             <View style={styles.card}>
-              {/* Header */}
+              {/* Compact Header */}
               <View style={styles.header}>
-                <View>
-                  <Text style={styles.title}>Manage Products & Services</Text>
+                <View style={styles.headerLeft}>
+                  <Text style={styles.title}>Products & Services</Text>
                   <Text style={styles.description}>
-                    A list of all your products or services.
+                    {products.length} item{products.length !== 1 ? 's' : ''}
                   </Text>
                 </View>
 
@@ -623,7 +603,7 @@ export default function ProductSettings() {
                       onPress={() => handleOpenForm()}
                     >
                       <PlusCircle size={16} color="white" />
-                      <Text style={styles.addButtonText}>Add Product</Text>
+                      <Text style={styles.addButtonText}>Add</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -636,102 +616,71 @@ export default function ProductSettings() {
                 </View>
               ) : products.length > 0 ? (
                 <>
-                  {/* Bulk actions */}
-                  {/* {selectedProducts.length > 0 && (
-                    <View style={styles.bulkActions}>
-                      <Text style={styles.bulkText}>
-                        {selectedProducts.length} item(s) selected
-                      </Text>
-                      <TouchableOpacity
-                        style={styles.bulkDeleteButton}
-                        onPress={handleBulkDelete}
-                      >
-                        <Trash2 size={16} color="white" />
-                        <Text style={styles.bulkDeleteText}>
-                          Delete ({selectedProducts.length})
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  )} */}
-
                   {/* Products list */}
                   <FlatList
                     data={currentProducts}
                     renderItem={renderProductItem}
                     keyExtractor={item => item._id}
-                    scrollEnabled={false} // Since we're inside ScrollView
+                    scrollEnabled={false}
+                    contentContainerStyle={styles.listContainer}
                     ListFooterComponent={
-                      <View style={styles.pagination}>
-                        <TouchableOpacity
-                          style={[
-                            styles.paginationButton,
-                            currentPage === 1 &&
-                              styles.paginationButtonDisabled,
-                          ]}
-                          onPress={handlePrevPage}
-                          disabled={currentPage === 1}
-                        >
-                          <ChevronLeft
-                            size={16}
-                            color={currentPage === 1 ? '#9ca3af' : '#4b5563'}
-                          />
-                          <Text
+                      totalPages > 1 && (
+                        <View style={styles.pagination}>
+                          <TouchableOpacity
                             style={[
-                              styles.paginationText,
+                              styles.paginationButton,
                               currentPage === 1 &&
-                                styles.paginationTextDisabled,
+                                styles.paginationButtonDisabled,
                             ]}
+                            onPress={handlePrevPage}
+                            disabled={currentPage === 1}
                           >
-                            Previous
+                            <ChevronLeft
+                              size={16}
+                              color={currentPage === 1 ? '#9ca3af' : '#4b5563'}
+                            />
+                          </TouchableOpacity>
+
+                          <Text style={styles.pageInfo}>
+                            {currentPage} / {totalPages}
                           </Text>
-                        </TouchableOpacity>
 
-                        <Text style={styles.pageInfo}>
-                          Page {currentPage} of {totalPages}
-                        </Text>
-
-                        <TouchableOpacity
-                          style={[
-                            styles.paginationButton,
-                            currentPage === totalPages &&
-                              styles.paginationButtonDisabled,
-                          ]}
-                          onPress={handleNextPage}
-                          disabled={currentPage === totalPages}
-                        >
-                          <Text
+                          <TouchableOpacity
                             style={[
-                              styles.paginationText,
+                              styles.paginationButton,
                               currentPage === totalPages &&
-                                styles.paginationTextDisabled,
+                                styles.paginationButtonDisabled,
                             ]}
+                            onPress={handleNextPage}
+                            disabled={currentPage === totalPages}
                           >
-                            Next
-                          </Text>
-                          <ChevronRight
-                            size={16}
-                            color={
-                              currentPage === totalPages ? '#9ca3af' : '#4b5563'
-                            }
-                          />
-                        </TouchableOpacity>
-                      </View>
+                            <ChevronRight
+                              size={16}
+                              color={
+                                currentPage === totalPages
+                                  ? '#9ca3af'
+                                  : '#4b5563'
+                              }
+                            />
+                          </TouchableOpacity>
+                        </View>
+                      )
                     }
                   />
                 </>
               ) : (
                 <View style={styles.emptyState}>
-                  <Package size={48} color="#9ca3af" />
+                  <Package size={40} color="#9ca3af" />
                   <Text style={styles.emptyTitle}>No Products Found</Text>
                   <Text style={styles.emptyDescription}>
-                    Get started by adding your first product or service.
+                    Get started by adding your first product.
                   </Text>
                   {canCreateProducts && (
                     <TouchableOpacity
                       style={styles.emptyAddButton}
                       onPress={() => handleOpenForm()}
                     >
-                      <PlusCircle size={16} color="white" />
+                      <PlusCircle size={14} color="white" />
                       <Text style={styles.emptyAddButtonText}>Add Product</Text>
                     </TouchableOpacity>
                   )}
@@ -797,37 +746,11 @@ export default function ProductSettings() {
                 onOpenChange={() => setOpenNameDialog(null)}
               >
                 <View style={styles.nameDialogContent}>
-                  <View style={styles.nameDialogHeader}>
-                    <Package size={20} color="#3b82f6" />
-                    <Text style={styles.nameDialogTitle}>Product Overview</Text>
-                  </View>
-
-                  <View style={styles.nameCard}>
-                    <View style={styles.nameCardIcon}>
-                      <Package size={16} color="#3b82f6" />
-                    </View>
-                    <View>
-                      <Text style={styles.nameCardLabel}>PRODUCT NAME</Text>
-                      <Text style={styles.nameCardValue}>
-                        {openNameDialog.charAt(0).toUpperCase() +
-                          openNameDialog.slice(1)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={[styles.nameCard, styles.companyCard]}>
-                    <View style={[styles.nameCardIcon, styles.companyCardIcon]}>
-                      <Building size={16} color="#10b981" />
-                    </View>
-                    <View>
-                      <Text
-                        style={[styles.nameCardLabel, styles.companyCardLabel]}
-                      >
-                        COMPANY
-                      </Text>
-                      <Text style={styles.nameCardValue}>Company Name</Text>
-                    </View>
-                  </View>
+                  <Text style={styles.nameDialogTitle}>Product Details</Text>
+                  <Text style={styles.nameDialogValue}>
+                    {openNameDialog.charAt(0).toUpperCase() +
+                      openNameDialog.slice(1)}
+                  </Text>
                 </View>
               </Dialog>
             )}
@@ -841,7 +764,7 @@ export default function ProductSettings() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#f9fafb',
   },
   centerContainer: {
     flex: 1,
@@ -851,114 +774,105 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    margin: 0,
-    padding: 10,
+    borderRadius: 8,
+    // margin: 12,
+    padding: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
+  
+  // Compact Header
   header: {
-    marginBottom: 20,
-    paddingHorizontal: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  headerLeft: {
+    flex: 1,
   },
   title: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '600',
     color: '#111827',
-    marginBottom: 4,
-    marginTop: 8,
+    marginBottom: 2,
   },
   description: {
-    fontSize: 14,
+    fontSize: 11,
     color: '#6b7280',
-    marginBottom: 16,
   },
   headerButtons: {
     flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
     gap: 8,
   },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#3b82f6',
-    paddingHorizontal: 20, 
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 8,
-  },
-  addButtonText: {
-    color: 'white',
-    fontWeight: '500',
-    fontSize: 14,
-  },
-  bulkActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  bulkText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  bulkDeleteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ef4444',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 6,
     gap: 6,
   },
-  bulkDeleteText: {
+  addButtonText: {
     color: 'white',
-    fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+
+  // Compact Product Card
+  listContainer: {
+    gap: 8,
   },
   productCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    backgroundColor: '#fafafa',
+    borderRadius: 8,
+    padding: 10,
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
   },
+  
+  // Card Header (Name + Actions)
   cardHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 8,
   },
+  leftSection: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flex: 1,
+    gap: 8,
+  },
   checkbox: {
-    marginRight: 12,
     marginTop: 2,
   },
-  productInfo: {
+  iconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#f0f9ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  nameSection: {
     flex: 1,
   },
-  productTitleRow: {
+  nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
+    gap: 6,
+    marginBottom: 2,
   },
   productName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#111827',
     flex: 1,
@@ -967,228 +881,186 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f3ff',
     borderWidth: 1,
     borderColor: '#8b5cf6',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderRadius: 3,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
   },
   serviceBadgeText: {
-    fontSize: 10,
-    fontWeight: '500',
+    fontSize: 9,
+    fontWeight: '600',
     color: '#8b5cf6',
   },
   companyName: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6b7280',
-    marginLeft: 24,
   },
   moreButton: {
-    padding: 8,
-    borderRadius: 8,
+    padding: 4,
   },
+  
+  // Dropdown
   dropdown: {
     position: 'absolute',
-    top: 24,
+    top: 32,
     right: 0,
     backgroundColor: 'white',
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#e5e7eb',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 12,
+    shadowRadius: 8,
     elevation: 5,
-    minWidth: 100,
+    minWidth: 120,
     zIndex: 1000,
   },
   dropdownItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 8,
   },
   dropdownItemText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '500',
     color: '#334155',
   },
-  dropdownItemTextDanger: {
-    color: '#ef4444',
-  },
-  dropdownDivider: {
-    height: 1,
-    backgroundColor: '#f1f5f9',
-  },
-  createdDate: {
+
+  // Compact Info Row (4 columns)
+  infoRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 12,
-    marginLeft: 28,
-  },
-  dateText: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontWeight: '500',
-  },
-  infoGrid: {
-    flexDirection: 'row',
-    gap: 16,
-    backgroundColor: '#f9fafb',
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: 'white',
+    borderRadius: 6,
+    padding: 8,
     marginBottom: 8,
+    gap: 8,
   },
-  infoColumn: {
+  infoItem: {
     flex: 1,
+    alignItems: 'center',
   },
   infoLabel: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '500',
     color: '#6b7280',
     marginBottom: 4,
-  },
-  infoValueContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  stockIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  stockText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
   infoValue: {
-    fontSize: 14,
-    color: '#374151',
-    fontWeight: '600',
-  },
-  priceContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#f9fafb',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  priceColumn: {
-    flex: 1,
-  },
-  priceLabel: {
     fontSize: 12,
-    fontWeight: '500',
-    color: '#6b7280',
-    marginBottom: 4,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  stockRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  stockDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  stockValue: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   priceValue: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: '600',
-    color: '#374151',
+    color: '#059669',
   },
-  hsnContainer: {
+
+  // Footer Row (HSN + Date)
+  footerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  hsnRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#f9fafb',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
+    gap: 4,
   },
   hsnText: {
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 10,
     color: '#6b7280',
+    fontWeight: '500',
   },
-  viewButton: {
+  dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    paddingTop: 12,
+    gap: 4,
   },
-  viewButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#3b82f6',
+  dateText: {
+    fontSize: 10,
+    color: '#9ca3af',
   },
+
+  // Empty State
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 48,
+    paddingVertical: 40,
     borderWidth: 2,
     borderColor: '#e5e7eb',
     borderStyle: 'dashed',
-    borderRadius: 12,
-    marginTop: 20,
+    borderRadius: 8,
+    marginTop: 12,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: '#111827',
     marginTop: 12,
     marginBottom: 4,
   },
   emptyDescription: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6b7280',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   emptyAddButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#3b82f6',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 6,
+    gap: 6,
   },
   emptyAddButtonText: {
     color: 'white',
     fontWeight: '500',
-    fontSize: 14,
+    fontSize: 13,
   },
+
+  // Compact Pagination
   pagination: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    marginTop: 16,
+    gap: 16,
   },
   paginationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#f9fafb',
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    gap: 8,
+    borderColor: '#e5e7eb',
   },
   paginationButtonDisabled: {
-    opacity: 0.5,
-  },
-  paginationText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#4b5563',
-  },
-  paginationTextDisabled: {
-    color: '#9ca3af',
+    opacity: 0.4,
   },
   pageInfo: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     color: '#6b7280',
   },
+
+  // No Company Card
   noCompanyCard: {
     backgroundColor: 'white',
     borderRadius: 12,
@@ -1211,14 +1083,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   noCompanyTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '600',
     color: '#111827',
     marginBottom: 8,
     textAlign: 'center',
   },
   noCompanyDescription: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6b7280',
     textAlign: 'center',
     marginBottom: 24,
@@ -1232,7 +1104,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#3b82f6',
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderRadius: 8,
     gap: 10,
   },
@@ -1247,7 +1119,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#3b82f6',
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderRadius: 8,
     gap: 10,
   },
@@ -1256,50 +1128,23 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     fontSize: 14,
   },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    padding: 16,
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  modalDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  formContainer: {
-    padding: 20,
-  },
+
+  // Dialogs
   dialogContent: {
     backgroundColor: 'white',
     borderRadius: 12,
-    padding: 24,
+    padding: 20,
   },
   dialogTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: '#111827',
     marginBottom: 8,
   },
   dialogDescription: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6b7280',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   dialogButtons: {
     flexDirection: 'row',
@@ -1308,76 +1153,39 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: 6,
   },
   cancelButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     color: '#6b7280',
   },
   deleteButton: {
     backgroundColor: '#ef4444',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: 6,
   },
   deleteButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     color: 'white',
   },
   nameDialogContent: {
     backgroundColor: 'white',
     borderRadius: 12,
-    padding: 24,
-  },
-  nameDialogHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 20,
+    padding: 20,
   },
   nameDialogTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginBottom: 8,
+  },
+  nameDialogValue: {
     fontSize: 18,
     fontWeight: '600',
     color: '#111827',
-  },
-  nameCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#dbeafe',
-    borderWidth: 1,
-    borderColor: '#bfdbfe',
-    borderRadius: 8,
-    padding: 16,
-    gap: 12,
-    marginBottom: 12,
-  },
-  nameCardIcon: {
-    backgroundColor: '#bfdbfe',
-    padding: 8,
-    borderRadius: 6,
-  },
-  nameCardLabel: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: '#3b82f6',
-    marginBottom: 2,
-  },
-  nameCardValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  companyCard: {
-    backgroundColor: '#d1fae5',
-    borderColor: '#a7f3d0',
-  },
-  companyCardIcon: {
-    backgroundColor: '#a7f3d0',
-  },
-  companyCardLabel: {
-    color: '#10b981',
   },
 });

@@ -115,7 +115,7 @@ export default function ClientCard({
           label="Joined"
           value={formatDate(client.createdAt)}
         />
-        <View style={[styles.row, { marginBottom: 0 }]}>
+        {/* <View style={[styles.row, { marginBottom: 0 }]}>
           <View style={[styles.iconBox, { backgroundColor: '#fff7ed' }]}>
             <Globe size={16} color="#ea580c" />
           </View>
@@ -139,7 +139,7 @@ export default function ClientCard({
               <Text style={styles.notSet}>Not set</Text>
             )}
           </View>
-        </View>
+        </View> */}
       </View>
 
       {/* Action Buttons */}
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#fff',
     borderRadius: 16,
-    marginVertical: 10,
+    marginVertical: 5,
     marginHorizontal: 8,
     shadowColor: '#000',
     shadowOpacity: 0.08,

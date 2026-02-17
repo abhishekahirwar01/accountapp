@@ -1080,7 +1080,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     height: 44,
-    fontSize: 16,
+    fontSize: 15,
     color: '#1e293b',
   },
   filterContainer: {

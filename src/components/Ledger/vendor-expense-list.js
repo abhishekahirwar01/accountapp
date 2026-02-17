@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -96,7 +96,6 @@ const ListItem = React.memo(({
   const name = isVendor ? item.vendorName : item.name;
   const id = item._id;
   
-  // Trigger lazy loading when item becomes visible
   useEffect(() => {
     if (onItemVisible) {
       onItemVisible(id, isVendor);
@@ -244,30 +243,26 @@ export function VendorExpenseList({
   const [currentPage, setCurrentPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const [sortConfig, setSortConfig] = useState({
-    key: 'recent', // Default sort is 'recent'
-    direction: 'desc' // Default direction is descending (newest first)
+    key: 'recent', 
+    direction: 'desc'
   });
+  
+ 
+  const [vendorLastTransactionDates, setVendorLastTransactionDates] = useState({});
+  const [expenseLastTransactionDates, setExpenseLastTransactionDates] = useState({});
   
   const itemsPerPage = 10;
   const baseURL = BASE_URL;
 
-  // Track which items have been loaded for balances (lazy loading)
   const loadedBalancesRef = useRef(new Set());
   const loadingQueueRef = useRef(new Set());
   
   // Track if we've loaded the global totals
   const globalTotalsLoadedRef = useRef(false);
-  
-  // Track last transaction dates for sorting
-  const vendorLastTransactionDatesRef = useRef({});
-  const expenseLastTransactionDatesRef = useRef({});
 
-  // ==========================================================================
-  // GLOBAL TOTALS: Fetch for ALL vendors (for KPI cards) - ONE TIME ONLY
-  // ==========================================================================
   const fetchGlobalTotals = useCallback(async () => {
     if (currentView !== 'vendor' || vendors.length === 0) return;
-    if (globalTotalsLoadedRef.current) return; // Only load once
+    if (globalTotalsLoadedRef.current) return; 
     if (!setLoadingTotals || !setTransactionTotals) return;
 
     try {
@@ -275,97 +270,90 @@ export function VendorExpenseList({
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
 
+      // Fetch ALL vendors in PARALLEL (no batching)
+      const vendorResults = await Promise.all(
+        vendors.map(async vendor => {
+          try {
+            const params = new URLSearchParams();
+            params.append('vendorId', vendor._id);
+            if (selectedCompanyId) params.append('companyId', selectedCompanyId);
+            
+            const response = await fetch(
+              `${baseURL}/api/ledger/vendor-payables?${params.toString()}`,
+              {
+                method: 'GET',
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              },
+            );
+
+            if (response.ok) {
+              const data = await response.json();
+              const debitTotal = (data.debit || []).reduce(
+                (sum, entry) => sum + (entry.amount || 0),
+                0,
+              );
+
+              const creditPurchaseEntries = (data.debit || []).filter(
+                entry => entry.paymentMethod !== 'Credit',
+              );
+              const creditPaymentEntries = data.credit || [];
+
+              const creditTotal = [
+                ...creditPurchaseEntries,
+                ...creditPaymentEntries,
+              ].reduce((sum, entry) => sum + (entry.amount || 0), 0);
+
+              // Get last transaction date for sorting
+              const allEntries = [...(data.debit || []), ...(data.credit || [])];
+              let lastDate = null;
+              if (allEntries.length > 0) {
+                lastDate = allEntries.reduce((latest, entry) => {
+                  return new Date(entry.date) > new Date(latest) ? entry.date : latest;
+                }, allEntries[0].date);
+              }
+              
+              return {
+                debit: debitTotal,
+                credit: creditTotal,
+                lastDate,
+                vendorId: vendor._id
+              };
+            }
+            return { debit: 0, credit: 0, lastDate: null, vendorId: vendor._id };
+          } catch (error) {
+            console.error(
+              `Error fetching ledger data for vendor ${vendor._id}:`,
+              error,
+            );
+            return { debit: 0, credit: 0, lastDate: null, vendorId: vendor._id };
+          }
+        })
+      );
+
+      // Aggregate all results at once
       let totalCredit = 0;
       let totalDebit = 0;
       const vendorDates = {};
 
-      // Fetch in batches to avoid overwhelming server
-      const batchSize = 5;
-      for (let i = 0; i < vendors.length; i += batchSize) {
-        const batch = vendors.slice(i, i + batchSize);
-        
-        const vendorResults = await Promise.all(
-          batch.map(async vendor => {
-            try {
-              const params = new URLSearchParams();
-              params.append('vendorId', vendor._id);
-              if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-              
-              const response = await fetch(
-                `${baseURL}/api/ledger/vendor-payables?${params.toString()}`,
-                {
-                  method: 'GET',
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                  },
-                },
-              );
+      vendorResults.forEach(result => {
+        totalDebit += result.debit;
+        totalCredit += result.credit;
+        // Store the last transaction date
+        if (result.lastDate) {
+          vendorDates[result.vendorId] = result.lastDate;
+        }
+      });
 
-              if (response.ok) {
-                const data = await response.json();
-                const debitTotal = (data.debit || []).reduce(
-                  (sum, entry) => sum + (entry.amount || 0),
-                  0,
-                );
-
-                const creditPurchaseEntries = (data.debit || []).filter(
-                  entry => entry.paymentMethod !== 'Credit',
-                );
-                const creditPaymentEntries = data.credit || [];
-
-                const creditTotal = [
-                  ...creditPurchaseEntries,
-                  ...creditPaymentEntries,
-                ].reduce((sum, entry) => sum + (entry.amount || 0), 0);
-
-                // Get last transaction date for sorting
-                const allEntries = [...(data.debit || []), ...(data.credit || [])];
-                let lastDate = null;
-                if (allEntries.length > 0) {
-                  lastDate = allEntries.reduce((latest, entry) => {
-                    return new Date(entry.date) > new Date(latest) ? entry.date : latest;
-                  }, allEntries[0].date);
-                }
-                
-                return {
-                  debit: debitTotal,
-                  credit: creditTotal,
-                  lastDate,
-                  vendorId: vendor._id
-                };
-              }
-              return { debit: 0, credit: 0, lastDate: null, vendorId: vendor._id };
-            } catch (error) {
-              console.error(
-                `Error fetching ledger data for vendor ${vendor._id}:`,
-                error,
-              );
-              return { debit: 0, credit: 0, lastDate: null, vendorId: vendor._id };
-            }
-          })
-        );
-
-        // Accumulate totals and dates
-        vendorResults.forEach(result => {
-          totalDebit += result.debit;
-          totalCredit += result.credit;
-          if (result.lastDate) {
-            vendorDates[result.vendorId] = result.lastDate;
-          }
-        });
-
-        // Update state progressively
-        setTransactionTotals({
-          totalCredit,
-          totalDebit,
-        });
-        
-        // Update dates ref
-        vendorLastTransactionDatesRef.current = {
-          ...vendorLastTransactionDatesRef.current,
-          ...vendorDates
-        };
-      }
+      // Update state once with final totals
+      setTransactionTotals({
+        totalCredit,
+        totalDebit,
+      });
+      
+      // Update the dates state for sorting
+      setVendorLastTransactionDates(vendorDates);
 
       globalTotalsLoadedRef.current = true;
     } catch (error) {
@@ -375,9 +363,6 @@ export function VendorExpenseList({
     }
   }, [currentView, vendors, selectedCompanyId, baseURL, setLoadingTotals, setTransactionTotals]);
 
-  // ==========================================================================
-  // LAZY LOADING: Fetch balance for individual items when they become visible
-  // ==========================================================================
   const fetchVendorBalance = useCallback(
     async (vendorId) => {
       if (loadedBalancesRef.current.has(vendorId) || loadingQueueRef.current.has(vendorId)) {
@@ -482,8 +467,12 @@ export function VendorExpenseList({
             setExpenseTotals(prev => ({ ...prev, [expenseId]: total }));
           }
           
+          // Update dates state for sorting - THIS IS THE FIX
           if (lastDate) {
-            expenseLastTransactionDatesRef.current[expenseId] = lastDate;
+            setExpenseLastTransactionDates(prev => ({
+              ...prev,
+              [expenseId]: lastDate
+            }));
           }
           
           loadedBalancesRef.current.add(expenseId);
@@ -506,30 +495,25 @@ export function VendorExpenseList({
     }
   }, [fetchVendorBalance, fetchExpenseTotal]);
 
-  // ==========================================================================
-  // SORTING LOGIC - Always sorts by 'recent' by default
-  // ==========================================================================
   
-  // Sort items with memoization to avoid unnecessary re-sorting
   const sortedItems = useMemo(() => {
     const itemsToSort = currentView === 'vendor' ? [...vendors] : [...expenses];
     
     if (itemsToSort.length === 0) return [];
     
-    // Create a stable sorted array
     return [...itemsToSort].sort((a, b) => {
-      // Default sort is 'recent' - newest transactions first
+     
       const aDate = currentView === 'vendor' 
-        ? vendorLastTransactionDatesRef.current[a._id]
-        : expenseLastTransactionDatesRef.current[a._id];
+        ? vendorLastTransactionDates[a._id]
+        : expenseLastTransactionDates[a._id];
       const bDate = currentView === 'vendor'
-        ? vendorLastTransactionDatesRef.current[b._id]
-        : expenseLastTransactionDatesRef.current[b._id];
+        ? vendorLastTransactionDates[b._id]
+        : expenseLastTransactionDates[b._id];
       
       // Handle items without dates (show them last)
       if (!aDate && !bDate) return 0;
-      if (!aDate) return 1; // b comes first if a has no date
-      if (!bDate) return -1; // a comes first if b has no date
+      if (!aDate) return 1; 
+      if (!bDate) return -1; 
       
       // Sort by date (newest first by default)
       const dateA = new Date(aDate).getTime();
@@ -540,7 +524,9 @@ export function VendorExpenseList({
     currentView,
     vendors,
     expenses,
-    sortConfig.direction, // Only direction can change, key is always 'recent'
+    sortConfig.direction,
+    vendorLastTransactionDates, 
+    expenseLastTransactionDates 
   ]);
 
   // Process items with balances
@@ -549,15 +535,12 @@ export function VendorExpenseList({
       if (currentView === 'vendor') {
         let overallBalance = 0;
         if (!selectedCompanyId && item.balances) {
-          // Sum all company balances
           for (const [companyId, balance] of Object.entries(item.balances)) {
             overallBalance += Number(balance || 0);
           }
         } else if (selectedCompanyId && vendorBalances[item._id] !== undefined) {
-          // Use company-specific balance
           overallBalance = vendorBalances[item._id];
         } else {
-          // Fallback to stored balance
           overallBalance = item.balance || 0;
         }
         return {
@@ -570,22 +553,20 @@ export function VendorExpenseList({
     });
   }, [currentView, sortedItems, selectedCompanyId, vendorBalances]);
 
-  // ==========================================================================
-  // EFFECTS
-  // ==========================================================================
-  
-  // Fetch global totals when vendors are loaded (ONE TIME)
+  // Fetch global totals when vendors are loaded
   useEffect(() => {
     if (currentView === 'vendor' && vendors.length > 0 && !globalTotalsLoadedRef.current) {
       fetchGlobalTotals();
     }
   }, [currentView, vendors.length, fetchGlobalTotals]);
 
-  // Reset when view or company changes
+  
   useEffect(() => {
     setCurrentPage(1);
     loadedBalancesRef.current.clear();
     globalTotalsLoadedRef.current = false;
+    setVendorLastTransactionDates({});
+    setExpenseLastTransactionDates({});
   }, [currentView, selectedCompanyId]);
 
   // ==========================================================================
@@ -601,10 +582,6 @@ export function VendorExpenseList({
     return { paginatedItems, totalPages };
   }, [items, currentPage, itemsPerPage]);
 
-  // ==========================================================================
-  // STATS (KPI CARDS) - Always show global totals for ALL vendors
-  // ==========================================================================
-  
   const stats = useMemo(() => {
     if (currentView === 'vendor') {
       let settledVendors = 0;
@@ -637,16 +614,12 @@ export function VendorExpenseList({
     }
   }, [vendors.length, expenses.length, vendorBalances, transactionTotals, expenseTotals, currentView]);
 
-  // ==========================================================================
-  // HANDLERS
-  // ==========================================================================
-  
   const onRefreshList = useCallback(async () => {
     setRefreshing(true);
     loadedBalancesRef.current.clear();
     globalTotalsLoadedRef.current = false;
-    vendorLastTransactionDatesRef.current = {};
-    expenseLastTransactionDatesRef.current = {};
+    setVendorLastTransactionDates({});
+    setExpenseLastTransactionDates({});
     
     // Re-fetch global totals
     if (currentView === 'vendor') {
@@ -697,7 +670,6 @@ export function VendorExpenseList({
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Stats Cards - ALWAYS show totals for ALL vendors */}
         {currentView === 'vendor' ? (
           <View style={styles.statsGrid}>
             <StatCard
@@ -709,11 +681,11 @@ export function VendorExpenseList({
             />
             
             <StatCard
-              title={stats.netBalance > 0 ? 'Net Advance' : 'Net Payable'}
+              title={stats.netBalance < 0 ? 'Net Advance' : 'Net Payable'}
               value={formatCurrency(Math.abs(stats.netBalance))}
-              subtitle={stats.netBalance > 0 ? 'Total advance with vendors' : 'You owe to vendors'}
-              icon={stats.netBalance > 0 ? TrendingDown : TrendingUp}
-              textColor={stats.netBalance > 0 ? '#10B981' : '#EF4444'}
+              subtitle={stats.netBalance < 0 ? 'Total advance with vendors' : 'You owe to vendors'}
+              icon={stats.netBalance < 0 ? TrendingDown : TrendingUp}
+              textColor={stats.netBalance < 0 ? '#10B981' : '#EF4444'}
               loading={loadingTotals}
             />
             
@@ -912,7 +884,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
     color: '#111827',
     letterSpacing: -0.5,
@@ -950,7 +922,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
   },
   headerIconContainer: {
     flexDirection: 'row',
@@ -980,14 +951,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mainTitle: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '700',
     color: '#0f172a',
     letterSpacing: -0.3,
     marginBottom: 2,
   },
   headerSubtitle: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#64748b',
     lineHeight: 18,
   },
@@ -1014,7 +985,7 @@ const styles = StyleSheet.create({
   },
   listItem: {
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 12,
     backgroundColor: '#ffffff',
   },
   itemContent: {
@@ -1056,10 +1027,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   itemName: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#0f172a',
-    marginBottom: 6,
+    marginBottom: 3,
     letterSpacing: -0.2,
   },
   itemBalanceInfo: {
@@ -1077,7 +1048,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 8,
-    paddingVertical: 4,
     borderRadius: 10,
     borderWidth: 1.5,
   },
@@ -1114,8 +1084,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   viewButton: {
-    width: 32,
-    height: 32,
+    width: 25,
+    height: 25,
     borderRadius: 10,
     backgroundColor: '#eff6ff',
     alignItems: 'center',

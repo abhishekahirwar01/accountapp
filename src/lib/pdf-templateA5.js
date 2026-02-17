@@ -766,6 +766,7 @@ const generateHTMLContent = (transaction, company, party) => {
           flex: 8;
         }
         .logo {
+        margin-top: 23px;
           width: 70px;
           height: 70px;
           object-fit: contain;

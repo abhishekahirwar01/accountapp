@@ -1,4 +1,4 @@
-// UsersScreen.js - Optimized Version
+// UsersScreen.js - Optimized Version with Updated Header
 import React, {
   useEffect,
   useState,
@@ -108,23 +108,26 @@ URLCard.displayName = 'URLCard';
 
 // Memoized Empty State Component
 const EmptyState = React.memo(({ canCreateUsers, onAddUser }) => (
-  <View style={styles.emptyState}>
-    <Icon name="users" size={48} color="#999" />
-    <Text style={styles.emptyStateTitle}>No Users Found</Text>
-    {canCreateUsers ? (
-      <>
+  <View style={styles.emptyStateContainer}>
+    <View style={styles.emptyState}>
+      <Icon name="users" size={48} color="#999" />
+      <Text style={styles.emptyStateTitle}>No Users Found</Text>
+      {canCreateUsers ? (
+        <>
+          <Text style={styles.emptyStateDescription}>
+            Get started by adding your first user.
+          </Text>
+          <TouchableOpacity style={styles.emptyAddButton} onPress={onAddUser}>
+            <Icon name="plus-circle" size={16} color="white" />
+            <Text style={styles.emptyAddButtonText}>Add User</Text>
+          </TouchableOpacity>
+        </>
+      ) : (
         <Text style={styles.emptyStateDescription}>
-          Get started by adding your first user.
+          Please contact your Admin to provide permission for adding users.
         </Text>
-        <Button onPress={onAddUser} icon="plus-circle">
-          Add User
-        </Button>
-      </>
-    ) : (
-      <Text style={styles.emptyStateDescription}>
-        Please contact your Admin to provide permission for adding users.
-      </Text>
-    )}
+      )}
+    </View>
   </View>
 ));
 
@@ -169,6 +172,7 @@ export default function UsersPage() {
   const [viewMode, setViewMode] = useState('card');
   const [copied, setCopied] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   const { toast } = useToast();
   const { permissions, refetch } = usePermissions();
@@ -227,23 +231,29 @@ export default function UsersPage() {
 
   // Optimized fetch with abort support
   const fetchUsersAndCompanies = useCallback(
-    async signal => {
+    async (signal = null) => {
       try {
         const token = await AsyncStorage.getItem('token');
-        if (!token) throw new Error('Authentication token not found.');
+        if (!token) {
+          throw new Error('Authentication token not found.');
+        }
 
         const [usersRes, companiesRes] = await Promise.all([
           fetch(`${BASE_URL}/api/users`, {
             headers: { Authorization: `Bearer ${token}` },
-            signal,
+            ...(signal && { signal }),
           }),
           fetch(`${BASE_URL}/api/companies/my`, {
             headers: { Authorization: `Bearer ${token}` },
-            signal,
+            ...(signal && { signal }),
           }),
         ]);
 
         if (!usersRes.ok || !companiesRes.ok) {
+          const usersError = await usersRes.text();
+          const companiesError = await companiesRes.text();
+          console.error('Users fetch error:', usersError);
+          console.error('Companies fetch error:', companiesError);
           throw new Error('Failed to fetch data');
         }
 
@@ -267,8 +277,15 @@ export default function UsersPage() {
               : companiesData?.data || [],
           );
         }
+
+        return { usersData: filteredUsers, companiesData };
       } catch (err) {
-        if (err.name === 'AbortError') return;
+        if (err.name === 'AbortError') {
+          console.log('Fetch aborted');
+          return null;
+        }
+
+        console.error('Error fetching users and companies:', err);
 
         if (isMountedRef.current) {
           toast({
@@ -276,7 +293,12 @@ export default function UsersPage() {
             title: 'Error',
             description: err.message || 'Failed to fetch data',
           });
+
+          // Set empty arrays on error to prevent infinite loading
+          setUsers([]);
+          setCompanies([]);
         }
+        return null;
       }
     },
     [toast],
@@ -284,15 +306,25 @@ export default function UsersPage() {
 
   // Initial data fetch
   useEffect(() => {
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
+    let isActive = true;
+    let abortController = null;
 
     const loadData = async () => {
-      setIsLoading(true);
       try {
+        setIsLoading(true);
+
+        abortController = new AbortController();
+        abortControllerRef.current = abortController;
+
         await fetchUsersAndCompanies(abortController.signal);
+
+        if (isActive && isMountedRef.current) {
+          setInitialLoadComplete(true);
+        }
+      } catch (error) {
+        console.error('Error in initial load:', error);
       } finally {
-        if (isMountedRef.current) {
+        if (isActive && isMountedRef.current) {
           setIsLoading(false);
         }
       }
@@ -301,19 +333,22 @@ export default function UsersPage() {
     loadData();
 
     return () => {
-      abortController.abort();
+      isActive = false;
+      if (abortController) {
+        abortController.abort();
+      }
     };
   }, [fetchUsersAndCompanies]);
 
   // Optimized companies-only fetch
-  const fetchCompaniesOnly = useCallback(async signal => {
+  const fetchCompaniesOnly = useCallback(async (signal = null) => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
 
       const res = await fetch(`${BASE_URL}/api/companies/my`, {
         headers: { Authorization: `Bearer ${token}` },
-        signal,
+        ...(signal && { signal }),
       });
 
       if (!res.ok) return;
@@ -330,12 +365,12 @@ export default function UsersPage() {
 
   // Handle refresh trigger
   useEffect(() => {
-    if (refreshTrigger && refreshTrigger > 0) {
+    if (refreshTrigger && refreshTrigger > 0 && initialLoadComplete) {
       const abortController = new AbortController();
       fetchCompaniesOnly(abortController.signal);
       return () => abortController.abort();
     }
-  }, [refreshTrigger, fetchCompaniesOnly]);
+  }, [refreshTrigger, initialLoadComplete, fetchCompaniesOnly]);
 
   // Optimized refresh handler
   const handleRefresh = useCallback(async () => {
@@ -524,15 +559,18 @@ export default function UsersPage() {
 
   // Memoized render functions
   const renderUserContent = useMemo(() => {
-    if (isLoading) {
+    if (isLoading && !initialLoadComplete) {
       return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#666" />
+        <View style={styles.loadingCard}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.loadingText}>Loading users...</Text>
+          </View>
         </View>
       );
     }
 
-    if (users.length === 0) {
+    if (users.length === 0 && initialLoadComplete) {
       return (
         <EmptyState
           canCreateUsers={permissions?.canCreateUsers}
@@ -541,33 +579,44 @@ export default function UsersPage() {
       );
     }
 
-    return viewMode === 'list' ? (
-      <UserTable
-        users={users}
-        onEdit={handleOpenForm}
-        onDelete={openDeleteDialog}
-        companyMap={companyMap}
-      />
-    ) : (
-      <UserCard
-        users={users}
-        onEdit={handleOpenForm}
-        onDelete={openDeleteDialog}
-        companyMap={companyMap}
-      />
-    );
+    if (users.length > 0) {
+      return viewMode === 'list' ? (
+        <UserTable
+          users={users}
+          onEdit={handleOpenForm}
+          onDelete={openDeleteDialog}
+          companyMap={companyMap}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+        />
+      ) : (
+        <UserCard
+          users={users}
+          onEdit={handleOpenForm}
+          onDelete={openDeleteDialog}
+          companyMap={companyMap}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+        />
+      );
+    }
+
+    return null;
   }, [
     isLoading,
+    initialLoadComplete,
     users,
     viewMode,
     permissions?.canCreateUsers,
     handleOpenForm,
     openDeleteDialog,
     companyMap,
+    refreshing,
+    handleRefresh,
   ]);
 
-  // Loading state
-  if (isLoading && companies.length === 0) {
+  // Show loading only if initial load is not complete
+  if (isLoading && !initialLoadComplete && companies.length === 0) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.fullscreenLoader}>
@@ -579,7 +628,7 @@ export default function UsersPage() {
   }
 
   // No company state
-  if (companies.length === 0) {
+  if (companies.length === 0 && initialLoadComplete) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <ScrollView
@@ -600,107 +649,136 @@ export default function UsersPage() {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          colors={['#2563eb']}
-            tintColor="#2563eb"
-          />
-        }
-      >
-        <View style={styles.content}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <View>
-                <Text style={styles.title}>User Management</Text>
-                <View style={styles.subtitleRow}>
-                  <Text style={styles.subtitle}>Manage your users</Text>
-                </View>
-              </View>
-            </View>
-            {permissions?.canCreateUsers && (
-              <TouchableOpacity
-                style={styles.addUserButton}
-                onPress={() => handleOpenForm()}
-              >
-                <Icon name="plus" size={16} color="#fff" />
-                <Text style={styles.addUserButtonText}>Add User</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* URL Card - Uncomment if needed */}
-          {/* <URLCard
-            userLoginUrl={userLoginUrl}
-            onCopy={copyToClipboard}
-            copied={copied}
-          /> */}
-
-          <Card>
-            <CardContent
-              style={
-                viewMode === 'card' ? styles.cardContent : styles.listContent
-              }
-            >
-              {renderUserContent}
-            </CardContent>
-          </Card>
-
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogContent style={styles.dialogContent}>
-              <DialogHeader>
-                <DialogTitle>
-                  {selectedUser ? 'Edit User' : 'Add New User'}
-                </DialogTitle>
-                <DialogDescription>Fill in the form below.</DialogDescription>
-              </DialogHeader>
-              <UserForm
-                user={selectedUser}
-                allCompanies={companies}
-                onSave={handleSave}
-                onCancel={handleCloseForm}
-              />
-            </DialogContent>
-          </Dialog>
-
-          <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete the
-                  user account.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel onPress={() => setIsAlertOpen(false)}>
-                  Cancel
-                </AlertDialogCancel>
-                <AlertDialogAction onPress={handleDelete}>
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+    <View style={styles.container}>
+      {/* Header - Matching CompaniesScreen exactly */}
+      <View style={styles.header}>
+        <View style={styles.headerTitle}>
+          <Text style={styles.title}>User Management</Text>
+          <Text style={styles.subtitle}>Manage all your users</Text>
         </View>
-      </ScrollView>
+        <View style={styles.headerActions}>
+          {permissions?.canCreateUsers && (
+            <TouchableOpacity
+              style={styles.addUserButton}
+              onPress={() => handleOpenForm()}
+            >
+              <Icon name="plus-circle" size={16} color="white" />
+              <Text style={styles.addUserButtonText}>Add User</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Content with proper refresh */}
+      <View style={styles.contentWrapper}>{renderUserContent}</View>
+
+      {/* Dialogs */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent style={styles.dialogContent}>
+          <DialogHeader>
+            <DialogTitle>
+              {selectedUser ? 'Edit User' : 'Add New User'}
+            </DialogTitle>
+            <DialogDescription>Fill in the form below.</DialogDescription>
+          </DialogHeader>
+          <UserForm
+            user={selectedUser}
+            allCompanies={companies}
+            onSave={handleSave}
+            onCancel={handleCloseForm}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the
+              user account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onPress={() => setIsAlertOpen(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onPress={handleDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f8fafc',
   },
   container: {
     flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  // Header styles - Matching CompaniesScreen exactly
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: 16,
+    paddingTop: 4,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
     backgroundColor: '#ffffff',
   },
-  content: {},
+  headerTitle: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1a1a1a',
+  },
+  subtitle: {
+    fontSize: 10,
+    color: '#666',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 9,
+  },
+  addUserButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 8,
+    elevation: 4,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+  },
+  addUserButtonText: {
+    color: 'white',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  content: {
+    flex: 1,
+    paddingTop: 8,
+  },
+  contentWrapper: {
+    flex: 1,
+  },
+  mainCard: {
+    flex: 1,
+  },
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
@@ -787,57 +865,9 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontWeight: '500',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    margin: 8,
-    paddingLeft: 10,
-    paddingRight: 10,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  subtitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  addUserButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3B82F6',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    gap: 6,
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 3,
-    marginTop: 6,
-  },
-  addUserButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
   urlCardWrapper: {
-    marginLeft: 16,
-    marginRight: 16,
+    marginHorizontal: 16,
+    marginBottom: 8,
   },
   urlCard: {
     backgroundColor: '#FFFFFF',
@@ -913,12 +943,33 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   listContent: {},
+  loadingCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    margin: 16,
+    marginTop: 8,
+    minHeight: 300,
+  },
   loadingContainer: {
-    height: 256,
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 48,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#666',
+  },
+  emptyStateContainer: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    margin: 16,
+    marginTop: 8,
   },
   emptyState: {
+    flex: 1,
     padding: 48,
     alignItems: 'center',
     justifyContent: 'center',
@@ -934,6 +985,21 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginTop: 4,
     textAlign: 'center',
+    marginBottom: 24,
+  },
+  emptyAddButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 8,
+  },
+  emptyAddButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
   },
   dialogContent: {
     maxWidth: 640,

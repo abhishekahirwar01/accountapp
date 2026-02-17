@@ -323,8 +323,8 @@ const formSchema = z.object({
     .optional()
     .or(z.literal('')),
   isTDSApplicable: z.boolean().default(false),
-  tdsRate: z.coerce.number().optional(),
-  tdsSection: z.string().optional(),
+  // tdsRate: z.coerce.number().optional(),
+  // tdsSection: z.string().optional(),  
   company: z.array(z.string()).min(1, 'Select at least one company'),
 });
 
@@ -368,8 +368,8 @@ export function VendorForm({
       gstRegistrationType: vendor?.gstRegistrationType || 'Unregistered',
       pan: vendor?.pan || '',
       isTDSApplicable: vendor?.isTDSApplicable || false,
-      tdsRate: vendor?.tdsRate || 0,
-      tdsSection: vendor?.tdsSection || '',
+      // tdsRate: vendor?.tdsRate || 0,
+      // tdsSection: vendor?.tdsSection || '',
       company: [],
     },
   });
@@ -963,7 +963,7 @@ export function VendorForm({
               </View>
 
               {/* TDS Details (Conditional) */}
-              {isTDSApplicable && (
+              {/* {isTDSApplicable && (
                 <View style={styles.tdsDetailsContainer}>
                   <View style={{ flexDirection: 'row', gap: 12 }}>
                     <View style={{ flex: 1 }}>
@@ -1005,7 +1005,7 @@ export function VendorForm({
                     </View>
                   </View>
                 </View>
-              )}
+              )} */}
             </View>
 
             {/* Submit Button */}
@@ -1035,7 +1035,7 @@ export function VendorForm({
 const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
-    paddingBottom: 30,
+    // paddingBottom: 30,
   },
   headerWrapper: {
     backgroundColor: '#fff',
@@ -1073,7 +1073,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 16,
@@ -1084,7 +1084,7 @@ const styles = StyleSheet.create({
   label: {
     fontWeight: '600',
     marginBottom: 8,
-    fontSize: 16,
+    fontSize: 14,
     color: '#333',
   },
   requiredStar: {

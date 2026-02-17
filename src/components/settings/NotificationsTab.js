@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
-    margin: 16,
+    margin: 12,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
@@ -128,13 +128,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: '#111827',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   cardDescription: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6b7280',
     lineHeight: 20,
   },
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: 20,
   },
   notificationContent: {
@@ -153,13 +153,13 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   notificationTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
     color: '#374151',
     marginBottom: 4,
   },
   notificationDescription: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6b7280',
     lineHeight: 20,
   },

@@ -643,50 +643,63 @@ const generatePageHTML = (
 
         <!-- Bank Details and Signature -->
         <div style="width: ${tableWidthAdjusted}px; margin-left: auto;">
-          <div class="bank-signature-section">
-            ${
-              !shouldHideBankDetails && isBankDetailAvailable
-                ? `
-                <div class="bank-details">
-                  <div class="section-header">Bank Details:</div>
-                  ${
-                    bankData?.bankName
-                      ? `<div class="bank-row"><span class="bank-label">Name:</span> ${capitalizeWords(
-                          bankData.bankName,
-                        )}</div>`
-                      : ''
-                  }
-                  ${
-                    bankData?.ifscCode
-                      ? `<div class="bank-row"><span class="bank-label">IFSC:</span> ${bankData.ifscCode}</div>`
-                      : ''
-                  }
-                  ${
-                    bankData?.accountNo
-                      ? `<div class="bank-row"><span class="bank-label">Acc No:</span> ${bankData.accountNo}</div>`
-                      : ''
-                  }
-                  ${
-                    bankData?.branchAddress
-                      ? `<div class="bank-row"><span class="bank-label">Branch:</span> ${bankData.branchAddress}</div>`
-                      : ''
-                  }
-                  ${
-                    bankData?.upiDetails?.upiMobile
-                      ? `<div class="bank-row"><span class="bank-label">UPI Mobile:</span> ${bankData.upiDetails.upiMobile}</div>`
-                      : ''
-                  }
-                </div>
-              `
-                : ''
-            }
-            
-            <div class="signature-block">
-              <div class="signature-title">For ${companyName}</div>
-              <div class="signature-space"></div>
-              <div class="signature-label">AUTHORISED SIGNATORY</div>
-            </div>
-          </div>
+         <div class="bank-signature-section" style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+  
+  <div class="bank-details" style="flex: 1;">
+    ${
+      !shouldHideBankDetails && isBankDetailAvailable
+        ? `
+        <div class="section-header">Bank Details:</div>
+        ${
+          bankData?.bankName
+            ? `<div class="bank-row"><span class="bank-label">Name:</span> ${capitalizeWords(
+                bankData.bankName,
+              )}</div>`
+            : ''
+        }
+        ${
+          bankData?.ifscCode
+            ? `<div class="bank-row"><span class="bank-label">IFSC:</span> ${bankData.ifscCode}</div>`
+            : ''
+        }
+        ${
+          bankData?.accountNo
+            ? `<div class="bank-row"><span class="bank-label">Acc No:</span> ${bankData.accountNo}</div>`
+            : ''
+        }
+        ${
+          bankData?.branchAddress
+            ? `<div class="bank-row"><span class="bank-label">Branch:</span> ${bankData.branchAddress}</div>`
+            : ''
+        }
+        ${
+          bankData?.upiDetails?.upiMobile
+            ? `<div class="bank-row"><span class="bank-label">UPI Mobile:</span> ${bankData.upiDetails.upiMobile}</div>`
+            : ''
+        }
+      `
+        : ''
+    }
+  </div>
+
+  <div style="width: 120px; text-align: center; padding-top: 10px;">
+    ${
+      bankData?.qrCode
+        ? `
+        <div style="font-size: 8px; font-weight: bold; margin-bottom: 4px; color: ${PRIMARY_COLOR};">QR Code</div>
+        <img src="${BASE_URL}/${bankData.qrCode}" style="width: 75px; height: 75px; object-fit: contain; border: 1px solid #eee; padding: 2px;" />
+      `
+        : ''
+    }
+  </div>
+
+  <div class="signature-block" style="width: 200px; text-align: center;">
+    <div class="signature-title">For ${companyName}</div>
+    <div class="signature-space" style="height: 50px;"></div>
+    <div class="signature-label">AUTHORISED SIGNATORY</div>
+  </div>
+
+</div>
 
           ${
             transaction?.notes
@@ -964,6 +977,7 @@ const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
     }
     
     .company-logo {
+    margin-top: 14px;
       width: 64px;
       height: 64px;
       object-fit: contain;

@@ -7,6 +7,7 @@ import {
   Image,
   StyleSheet,
   useWindowDimensions,
+  RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
@@ -35,7 +36,15 @@ const getSafeUserId = u => {
 
 /* -------------------------------- Component -------------------------------- */
 
-export function UserCard({ users, onEdit, onDelete, companyMap, roleMap }) {
+export function UserCard({
+  users,
+  onEdit,
+  onDelete,
+  companyMap,
+  roleMap,
+  refreshing = false,
+  onRefresh,
+}) {
   const { width } = useWindowDimensions();
   const rMap = roleMap ?? new Map();
   const [permUser, setPermUser] = useState(null);
@@ -66,7 +75,7 @@ export function UserCard({ users, onEdit, onDelete, companyMap, roleMap }) {
     let iconName = 'account';
     let iconColor = '#3b82f6';
     let bgColor = '#dbeafe';
-    
+
     if (r === 'admin') {
       iconName = 'shield-crown';
       iconColor = '#059669';
@@ -77,7 +86,7 @@ export function UserCard({ users, onEdit, onDelete, companyMap, roleMap }) {
       iconColor = '#7c3aed';
       bgColor = '#ede9fe';
     }
-    
+
     return (
       <View style={[styles.roleIconContainer, { backgroundColor: bgColor }]}>
         <Icon name={iconName} size={12} color={iconColor} />
@@ -228,48 +237,81 @@ export function UserCard({ users, onEdit, onDelete, companyMap, roleMap }) {
 
   return (
     <View style={styles.container}>
-      {/* Tabs Section */}
-      <View style={styles.tabWrapper}>
-        <TouchableOpacity
-          onPress={() => setTab('all')}
-          style={[styles.tab, tab === 'all' && styles.activeTab]}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.tabText, tab === 'all' && styles.activeTabText]}>
-            All Users
-          </Text>
-          <View style={[styles.countBadge, tab === 'all' && styles.activeCountBadge]}>
-            <Text style={[styles.countText, tab === 'all' && styles.activeCountText]}>
-              {users.length}
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => setTab('admin')}
-          style={[styles.tab, tab === 'admin' && styles.activeTab]}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[styles.tabText, tab === 'admin' && styles.activeTabText]}
-          >
-            Admins
-          </Text>
-          <View style={[styles.countBadge, tab === 'admin' && styles.activeCountBadge]}>
-            <Text style={[styles.countText, tab === 'admin' && styles.activeCountText]}>
-              {adminCount}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-
       <ScrollView
-        contentContainerStyle={
-          isLargeScreen ? styles.gridWrapper : styles.listWrapper
-        }
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#007AFF']}
+              tintColor="#007AFF"
+            />
+          ) : undefined
+        }
       >
-        {filtered.map(renderUserItem)}
+        {/* Tabs Section */}
+        <View style={styles.tabWrapper}>
+          <TouchableOpacity
+            onPress={() => setTab('all')}
+            style={[styles.tab, tab === 'all' && styles.activeTab]}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[styles.tabText, tab === 'all' && styles.activeTabText]}
+            >
+              All Users
+            </Text>
+            <View
+              style={[
+                styles.countBadge,
+                tab === 'all' && styles.activeCountBadge,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.countText,
+                  tab === 'all' && styles.activeCountText,
+                ]}
+              >
+                {users.length}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setTab('admin')}
+            style={[styles.tab, tab === 'admin' && styles.activeTab]}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[styles.tabText, tab === 'admin' && styles.activeTabText]}
+            >
+              Admins
+            </Text>
+            <View
+              style={[
+                styles.countBadge,
+                tab === 'admin' && styles.activeCountBadge,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.countText,
+                  tab === 'admin' && styles.activeCountText,
+                ]}
+              >
+                {adminCount}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* User Cards */}
+        <View style={isLargeScreen ? styles.gridWrapper : styles.listWrapper}>
+          {filtered.map(renderUserItem)}
+        </View>
       </ScrollView>
 
       {/* Dialogs */}
@@ -293,9 +335,12 @@ export function UserCard({ users, onEdit, onDelete, companyMap, roleMap }) {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#f9fafb' 
+  container: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
 
   // Tabs
@@ -304,8 +349,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 4,
-    margin: 16,
-    marginBottom: 12,
+    margin: 4,
+    marginBottom: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -360,9 +405,9 @@ const styles = StyleSheet.create({
   },
 
   // Layout
-  listWrapper: { 
-    padding: 16, 
-    paddingTop: 8 
+  listWrapper: {
+    padding: 16,
+    paddingTop: 8,
   },
   gridWrapper: {
     flexDirection: 'row',
@@ -386,7 +431,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#f1f5f9',
   },
-  gridCard: { 
+  gridCard: {
     width: '48%',
     marginBottom: 0,
   },
@@ -420,9 +465,9 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
-  avatar: { 
-    width: '100%', 
-    height: '100%' 
+  avatar: {
+    width: '100%',
+    height: '100%',
   },
   avatarFallback: {
     width: '100%',
@@ -431,23 +476,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { 
-    color: '#3b82f6', 
-    fontWeight: '700', 
-    fontSize: 14 
+  avatarText: {
+    color: '#3b82f6',
+    fontWeight: '700',
+    fontSize: 14,
   },
-  headerInfo: { 
-    flex: 1, 
-    marginLeft: 10 
+  headerInfo: {
+    flex: 1,
+    marginLeft: 10,
   },
-  userName: { 
-    fontSize: 15, 
-    fontWeight: '700', 
+  userName: {
+    fontSize: 15,
+    fontWeight: '700',
     color: '#111827',
     marginBottom: 2,
   },
-  userId: { 
-    fontSize: 11, 
+  userId: {
+    fontSize: 11,
     color: '#9ca3af',
     fontWeight: '500',
   },
@@ -471,22 +516,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  roleText: { 
-    fontSize: 10, 
-    fontWeight: '700', 
+  roleText: {
+    fontSize: 10,
+    fontWeight: '700',
     color: '#0284c7',
     letterSpacing: 0.3,
   },
 
   // Info Section
-  infoSection: { 
-    padding: 12, 
-    gap: 8 
+  infoSection: {
+    padding: 12,
+    gap: 8,
   },
-  infoRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 8 
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   infoIconBg: {
     width: 28,
@@ -495,9 +540,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  infoText: { 
-    fontSize: 12, 
-    color: '#374151', 
+  infoText: {
+    fontSize: 12,
+    color: '#374151',
     flex: 1,
     fontWeight: '500',
   },
@@ -517,10 +562,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  badgeContainer: { 
-    flexDirection: 'row', 
-    flexWrap: 'wrap', 
-    gap: 5 
+  badgeContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
   },
   companyBadge: {
     flexDirection: 'row',
@@ -533,9 +578,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
-  companyText: { 
-    fontSize: 11, 
-    color: '#475569', 
+  companyText: {
+    fontSize: 11,
+    color: '#475569',
     fontWeight: '600',
     maxWidth: 100,
   },
@@ -550,9 +595,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
   },
-  actionGroup: { 
-    flexDirection: 'row', 
-    gap: 6 
+  actionGroup: {
+    flexDirection: 'row',
+    gap: 6,
   },
   actionBtn: {
     width: 36,

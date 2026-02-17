@@ -1578,6 +1578,7 @@ const styles = StyleSheet.create({
   },
   mobileTypeSelector: {
     marginBottom: 0,
+    marginTop: -4,
   },
   mobileSelectorLabel: {
     fontSize: 14,
@@ -1589,9 +1590,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     paddingVertical: 4,
+    // paddingHorizontal: 4,
+    // backgroundColor: '#ffffff',
+    // borderRadius: 8,
+    // marginBottom: 12,
   },
   chip: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#d9dbdf',
   },
   chipSelected: {
     backgroundColor: '#3b82f6',
@@ -1603,7 +1608,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   journalContainer: {
-    gap: 16,
+    // gap: 16,
   },
   section: {
     backgroundColor: 'white',
@@ -1647,7 +1652,7 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: '#d1d5db',
-    padding: 12,
+    padding: 8,
     borderRadius: 6,
     fontSize: 14,
     backgroundColor: 'white',
@@ -1680,7 +1685,7 @@ const styles = StyleSheet.create({
   dateInput: {
     borderWidth: 1,
     borderColor: '#d1d5db',
-    padding: 12,
+    padding: 8,
     borderRadius: 6,
     backgroundColor: 'white',
     flexDirection: 'row',

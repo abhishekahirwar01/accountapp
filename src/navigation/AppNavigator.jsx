@@ -9,14 +9,14 @@ import UserSidebar from '../components/layout/UserBottomNav';
 import { getCurrentUser } from '../lib/auth';
 
 // for devloment purposes
-import OTPVerificationScreen from '../screens/auth/otpverification/OTPVerificationScreen';
-import SendOtpScreen from '../screens/auth/otpverification/SendOtpScreen';
+// import OTPVerificationScreen from '../screens/auth/otpverification/OTPVerificationScreen';
+// import SendOtpScreen from '../screens/auth/otpverification/SendOtpScreen';
 
 import GettingStartedScreen from '../screens/auth/GettingStartedScreen';
 
 // for production purposes
-// import OTPVerificationScreen from '../screens/auth/OTPVerificationScreen';
-// import SendOtpScreen from '../screens/auth/SendOtpScreen';
+import OTPVerificationScreen from '../screens/auth/OTPVerificationScreen';
+import SendOtpScreen from '../screens/auth/SendOtpScreen';
 
 import AdminLoginScreen from '../screens/auth/AdminLoginScreen';
 import UserLoginScreen from '../screens/auth/UserLoginScreen';
@@ -52,6 +52,8 @@ const tabScreenOptions = {
   headerShown: false, // Header is now in parent Stack
   animationEnabled: false, // Disable tab switch animation to prevent flicker
   freezeOnBlur: true, // Freeze inactive screens to prevent re-renders
+    lazy: true,
+  detachInactiveScreens: true,
 };
 
 function MainTabNavigator({ route }) {

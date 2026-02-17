@@ -504,7 +504,7 @@ const generatePageHTML = (
               <div class="qr-title">QR Code</div>
               ${
                 getTransactionValue('type') !== 'proforma' && bankData?.qrCode
-                  ? `<img src="${BASE_URL}${bankData.qrCode}" class="qr-code" />`
+                  ? `<img src="${BASE_URL}/${bankData.qrCode}" class="qr-code" />`
                   : '<div class="qr-placeholder">QR Code</div>'
               }
             </div>

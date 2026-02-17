@@ -14,10 +14,12 @@ import {
   Linking,
   TouchableWithoutFeedback,
   TextInput,
+   PermissionsAndroid,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { pick } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
+import FileViewer from 'react-native-file-viewer';
 import * as XLSX from 'xlsx';
 import Toast from 'react-native-toast-message';
 import {
@@ -576,7 +578,7 @@ export function VendorSettings() {
     }
   };
 
-  const downloadTemplate = async () => {
+ const downloadTemplate = async () => {
     setIsDownloading(true);
 
     try {
@@ -704,6 +706,29 @@ export function VendorSettings() {
       // Determine Path Based On Platform
       let filePath = '';
       if (Platform.OS === 'android') {
+        // Request permission for older Android versions
+        if (Platform.Version < 33) {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+            {
+              title: 'Storage Permission Required',
+              message:
+                'We need permission to save templates to your Downloads folder',
+              buttonNeutral: 'Ask Later',
+              buttonNegative: 'Cancel',
+              buttonPositive: 'Allow',
+            },
+          );
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            Alert.alert(
+              'Permission Denied',
+              'Storage permission is required to download templates.',
+            );
+            setIsDownloading(false);
+            return;
+          }
+        }
+
         // Path to the public Downloads folder
         filePath = `${RNFS.ExternalStorageDirectoryPath}/Download/${fileName}`;
       } else {
@@ -714,7 +739,11 @@ export function VendorSettings() {
 
       // Ensure the file appears in Android file manager immediately
       if (Platform.OS === 'android') {
-        await RNFS.scanFile(filePath);
+        try {
+          await RNFS.scanFile(filePath);
+        } catch (scanErr) {
+          console.warn('scanFile failed', scanErr);
+        }
       }
 
       Alert.alert(
@@ -722,7 +751,18 @@ export function VendorSettings() {
         `File saved to: ${
           Platform.OS === 'android' ? 'Downloads Folder' : 'Documents'
         }\n\nName: ${fileName}`,
-        [{ text: 'OK' }],
+        [
+          { text: 'OK' },
+          {
+            text: 'Open File',
+            onPress: () => {
+              const fileUri = Platform.OS === 'ios' ? `file://${filePath}` : filePath;
+              FileViewer.open(fileUri).catch(() => {
+                Toast.show({ type: 'info', text1: 'File saved', text2: filePath });
+              });
+            },
+          },
+        ],
       );
 
       Toast.show({
@@ -741,7 +781,6 @@ export function VendorSettings() {
       setIsDownloading(false);
     }
   };
-
   // Render import status screen
   const renderImportStatus = () => {
     if (!importStatus) return null;
@@ -903,7 +942,7 @@ export function VendorSettings() {
                 style={styles.dropdownItem}
                 onPress={() => handleEditVendor(item)}
               >
-                <Edit2 size={16} color="#3b82f6" />
+                <Edit2 size={15} color="#3b82f6" />
                 <Text style={styles.dropdownItemText}>Edit</Text>
               </TouchableOpacity>
               <View style={styles.dropdownDivider} />
@@ -930,7 +969,7 @@ export function VendorSettings() {
         {item.contactNumber ? (
           <View style={styles.detailItem}>
             <View style={styles.iconCircle}>
-              <Phone size={14} color="#3b82f6" />
+              <Phone size={13} color="#3b82f6" />
             </View>
             <Text style={styles.detailText}>{item.contactNumber}</Text>
           </View>
@@ -939,7 +978,7 @@ export function VendorSettings() {
         {item.email ? (
           <View style={styles.detailItem}>
             <View style={styles.iconCircle}>
-              <Mail size={14} color="#8b5cf6" />
+              <Mail size={13} color="#8b5cf6" />
             </View>
             <Text style={styles.detailText}>{item.email}</Text>
           </View>
@@ -948,7 +987,7 @@ export function VendorSettings() {
         {item.address ? (
           <View style={styles.detailItem}>
             <View style={[styles.iconCircle, { backgroundColor: '#f0fdf4' }]}>
-              <MapPin size={14} color="#10b981" />
+              <MapPin size={13} color="#10b981" />
             </View>
             <View>
               <Text style={styles.detailText}>{item.address}</Text>
@@ -1103,7 +1142,7 @@ export function VendorSettings() {
               />
             }
             contentContainerStyle={{
-              paddingHorizontal: 16,
+              // paddingHorizontal: 16,
               paddingBottom: 100,
             }}
             scrollEnabled={false}
@@ -1403,20 +1442,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   header: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
     paddingVertical: 12,
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
   navTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0f172a',
   },
-  navSub: { fontSize: 13, color: '#64748b', marginTop: 4 },
+  navSub: { fontSize: 12, color: '#64748b', marginTop: 1 },
   actionRow: {
-    marginTop: 16,
+    marginTop: 14,
     gap: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1427,11 +1466,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 12,
+    padding: 10,
     borderRadius: 10,
     flex: 1,
   },
-  mainActionText: { color: 'white', fontWeight: 'bold', fontSize: 15 },
+  mainActionText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
   secondaryActionBtn: {
     backgroundColor: 'white',
     borderHorizontal: 1,
@@ -1440,18 +1479,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 12,
+    padding: 10,
     borderRadius: 10,
     flex: 1,
   },
-  secondaryActionText: { color: '#1e293b', fontWeight: '600', fontSize: 15 },
+  secondaryActionText: { color: '#1e293b', fontWeight: '600', fontSize: 12 },
   // Search Styles
   searchContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    // paddingVertical: 10,
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
+    marginBottom: 8,
   },
   searchInputWrapper: {
     flexDirection: 'row',
@@ -1495,9 +1535,9 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: 'white',
     borderRadius: 16,
-    padding: 16,
+    padding: 12,
     paddingBottom: 20,
-    marginBottom: 20,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: '#f1f5f9',
     shadowColor: '#000',
@@ -1511,7 +1551,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  vendorName: { fontSize: 18, fontWeight: '700', color: '#1e293b' },
+  vendorName: { fontSize: 16, fontWeight: '700', color: '#1e293b' },
   badgeRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   regBadge: {
     backgroundColor: '#eff6ff',
@@ -1519,12 +1559,12 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
   },
-  regBadgeText: { color: '#2563eb', fontSize: 11, fontWeight: '700' },
+  regBadgeText: { color: '#2563eb', fontSize: 10, fontWeight: '700' },
   tdsBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    // paddingVertical: 4,
     borderRadius: 8,
     gap: 4,
   },
@@ -1532,7 +1572,7 @@ const styles = StyleSheet.create({
   bgTdsOff: { backgroundColor: '#fef2f2' },
   textTdsOn: { color: '#166534' },
   textTdsOff: { color: '#991b1b' },
-  tdsBadgeText: { fontSize: 11, fontWeight: '700' },
+  tdsBadgeText: { fontSize: 10, fontWeight: '700' },
   moreBtn: {
     padding: 8,
     borderRadius: 8,
@@ -1572,18 +1612,18 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#f1f5f9',
   },
-  detailsSection: { marginTop: 16, gap: 12 },
-  detailItem: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  detailsSection: { marginTop: 16, gap: 10 },
+  detailItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconCircle: {
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
     borderRadius: 16,
     backgroundColor: '#eff6ff',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  detailText: { fontSize: 14, color: '#334155', fontWeight: '500' },
-  subDetailText: { fontSize: 12, color: '#64748b' },
+  detailText: { fontSize: 12, color: '#334155', fontWeight: '500' },
+  subDetailText: { fontSize: 10, color: '#64748b' },
   footerPagination: {
     position: 'absolute',
     bottom: 0,

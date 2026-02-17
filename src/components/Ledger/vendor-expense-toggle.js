@@ -68,11 +68,11 @@ const styles = StyleSheet.create({
   },
   button: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    // paddingVertical: 6,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 32,
+    height: 25,
     minWidth: 80,
   },
   activeButton: {

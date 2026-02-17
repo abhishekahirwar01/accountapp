@@ -101,18 +101,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
-    padding: 12,
+    // padding: 12,
+    paddingHorizontal: 10,
     backgroundColor: '#fff',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    minHeight: 50,
+    minHeight: 40,
   },
   disabled: {
     backgroundColor: '#f5f5f5',
   },
   dropdownButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#333',
     flex: 1,
   },
@@ -121,7 +122,7 @@ const styles = StyleSheet.create({
   },
   dropdownArrow: {
     color: '#666',
-    fontSize: 14,
+    fontSize: 11,
     marginLeft: 8,
   },
   

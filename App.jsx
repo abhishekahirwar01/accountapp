@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { StatusBar } from 'react-native';
+import { jwtDecode } from 'jwt-decode';
+import { handleAutoLogout } from './src/lib/authSession';
+import { StatusBar, ActivityIndicator, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import {
@@ -13,6 +16,7 @@ import { CompanyProvider } from './src/contexts/company-context';
 import { PermissionProvider } from './src/contexts/permission-context';
 import { UserPermissionsProvider } from './src/contexts/user-permissions-context';
 import { SupportProvider } from './src/contexts/support-context';
+import AppSocketWrapper from './src/components/AppSocketWrapper';
 
 const theme = {
   ...DefaultTheme,
@@ -25,6 +29,8 @@ const theme = {
 
 export default function App() {
   const [role, setRole] = useState(null);
+  const [isReady, setIsReady] = useState(false);
+  const [initialRouteName, setInitialRouteName] = useState('GettingStarted');
 
   useEffect(() => {
     const pingServer = async () => {
@@ -48,6 +54,67 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Check for persisted session before rendering navigation so user doesn't land on GettingStarted after closing app
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        const savedRole = await AsyncStorage.getItem('role');
+        console.log('Startup session check:', {
+          tokenExists: !!token,
+          savedRole,
+        });
+        if (!mounted) return;
+        if (token) {
+          // Check if token is expired
+          try {
+            const decoded = jwtDecode(token);
+            if (decoded.exp * 1000 <= Date.now()) {
+              // Token expired, auto-logout
+              await handleAutoLogout('Session expired, please login again');
+              setInitialRouteName('GettingStarted');
+              setIsReady(true);
+              return;
+            }
+          } catch (e) {
+            // Invalid token, force logout
+            await handleAutoLogout('Invalid session, please login again');
+            setInitialRouteName('GettingStarted');
+            setIsReady(true);
+            return;
+          }
+          setRole(savedRole || null);
+          setInitialRouteName('MainTabs');
+        } else {
+          setInitialRouteName('GettingStarted');
+        }
+      } catch (err) {
+        console.warn('Failed to read session on startup', err);
+      } finally {
+        if (mounted) setIsReady(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (!isReady) {
+    // Simple splash while we determine session state
+    return (
+      <PaperProvider theme={theme}>
+        <SafeAreaProvider>
+          <View
+            style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+          >
+            <ActivityIndicator size="large" />
+          </View>
+        </SafeAreaProvider>
+      </PaperProvider>
+    );
+  }
+
   return (
     <PaperProvider theme={theme}>
       <SafeAreaProvider>
@@ -55,10 +122,17 @@ export default function App() {
           <PermissionProvider>
             <UserPermissionsProvider>
               <SupportProvider>
-                <NavigationContainer ref={navigationRef}>
-                  <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-                  <AppNavigator role={role} setRole={setRole} />
-                </NavigationContainer>
+                {/* 🆕 Socket Manager - Mounts all socket listeners */}
+                <AppSocketWrapper>
+                  <NavigationContainer ref={navigationRef}>
+                    <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+                    <AppNavigator
+                      role={role}
+                      setRole={setRole}
+                      initialRouteName={initialRouteName}
+                    />
+                  </NavigationContainer>
+                </AppSocketWrapper>
               </SupportProvider>
             </UserPermissionsProvider>
           </PermissionProvider>

@@ -16,22 +16,62 @@ import axios from 'axios';
 import SocketListener from './SocketListener';
 import { BASE_URL } from '../../config';
 
+// Module-level preload for notifications to reduce badge flicker in header
+let preloadedNotifications = null;
+(async () => {
+  try {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) return;
+    const userData = await AsyncStorage.getItem('user');
+    if (!userData) return;
+    const user = JSON.parse(userData);
+    let apiUrl = '';
+    if (user.role === 'admin' || user.role === 'master') {
+      const userId = user.id || user._id || user.userId || user.userID;
+      apiUrl = `${BASE_URL}/api/notifications/user/${userId}`;
+    } else {
+      let clientId = user.clientId || user.clientID || user.client;
+      if (!clientId && user.companies && user.companies.length > 0) {
+        clientId = user.companies[0]._id;
+      }
+      if (!clientId)
+        clientId = user.id || user._id || user.userId || user.userID;
+      apiUrl = `${BASE_URL}/api/notifications/client/${clientId}`;
+    }
+    const response = await axios.get(apiUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (Array.isArray(response.data)) preloadedNotifications = response.data;
+    else if (
+      response.data.notifications &&
+      Array.isArray(response.data.notifications)
+    )
+      preloadedNotifications = response.data.notifications;
+    else if (Array.isArray(response.data.data))
+      preloadedNotifications = response.data.data;
+    else preloadedNotifications = response.data || [];
+  } catch (err) {
+    // ignore; component will fetch on mount
+    preloadedNotifications = null;
+  }
+})();
+
 const Notification = ({ socket }) => {
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState(
+    preloadedNotifications || [],
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(5); 
+  const [visibleCount, setVisibleCount] = useState(5);
 
-  
   useEffect(() => {
     if (!isModalVisible) {
       setVisibleCount(5);
     }
   }, [isModalVisible]);
 
-  
   const handleViewMore = useCallback(() => {
     setVisibleCount(prev => prev + 10);
   }, []);
@@ -156,12 +196,10 @@ const Notification = ({ socket }) => {
     setRefreshing(false);
   }, [fetchNotifications]);
 
-  
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  
   useEffect(() => {
     if (isModalVisible) {
       fetchNotifications();
@@ -211,12 +249,10 @@ const Notification = ({ socket }) => {
       const token = await AsyncStorage.getItem('token');
       const unreadNotifications = notifications.filter(n => !n.read);
 
-      
       setNotifications(prev =>
         prev.map(notification => ({ ...notification, read: true })),
       );
 
-      
       await Promise.allSettled(
         unreadNotifications.map(notification =>
           axios.patch(
@@ -300,13 +336,11 @@ const Notification = ({ socket }) => {
     [notifications],
   );
 
-  
   const visibleNotifications = useMemo(
     () => notifications.slice(0, visibleCount),
     [notifications, visibleCount],
   );
 
-  
   const hasMoreNotifications = useMemo(
     () => notifications.length > visibleCount,
     [notifications, visibleCount],
@@ -383,7 +417,12 @@ const Notification = ({ socket }) => {
       );
     }
     return null;
-  }, [hasMoreNotifications, notifications.length, visibleCount, handleViewMore]);
+  }, [
+    hasMoreNotifications,
+    notifications.length,
+    visibleCount,
+    handleViewMore,
+  ]);
 
   const keyExtractor = useCallback(item => item._id, []);
 
@@ -471,11 +510,11 @@ const Notification = ({ socket }) => {
           <Divider />
 
           <FlatList
-            data={visibleNotifications} 
+            data={visibleNotifications}
             renderItem={renderNotificationItem}
             keyExtractor={keyExtractor}
             ListEmptyComponent={ListEmptyComponent}
-            ListFooterComponent={renderFooter} 
+            ListFooterComponent={renderFooter}
             contentContainerStyle={[
               styles.notificationsList,
               notifications.length === 0 && styles.emptyListContent,
@@ -641,7 +680,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9ca3af',
   },
-  
+
   viewMoreButton: {
     backgroundColor: '#f3f4f6',
     padding: 16,

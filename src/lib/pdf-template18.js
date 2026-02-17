@@ -1086,7 +1086,9 @@ const generateHTMLReceipt = (
                 ? `
               <div class="qr-section">
                 <div style="font-weight: bold; margin-bottom: 4px;">QR Code</div>
-                <img src="${process.env.REACT_APP_BASE_URL || ''}/${
+                <img src="${BASE_URL}/${bankData.qrCode}" class="qr-image" />
+              </div>
+            /${
                     bank.qrCode
                   }" class="qr-image" />
               </div>

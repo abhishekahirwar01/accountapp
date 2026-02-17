@@ -423,7 +423,7 @@ export default function DashboardPage() {
       const updatedData = {
         ...initialData,
         users: usersData?.length || 0,
-        recentTransactions: allTransactions.slice(0, 4),
+        recentTransactions: allTransactions.slice(0, 5),
         serviceNameById: sMap,
       };
 
@@ -487,23 +487,6 @@ export default function DashboardPage() {
             </Suspense>
 
             <AnimatedTouchable
-              onPress={() => setIsProformaFormOpen(true)}
-              disabled={companies.length === 0}
-              style={[
-                styles.headerButton,
-                styles.proformaButton,
-                companies.length === 0 && styles.headerButtonDisabled,
-              ]}
-            >
-              <FileText size={14} color="#3b82f6" strokeWidth={2.5} />
-              <Text
-                style={[styles.headerButtonText, styles.proformaButtonText]}
-              >
-                Proforma
-              </Text>
-            </AnimatedTouchable>
-
-            <AnimatedTouchable
               onPress={() => setIsTransactionFormOpen(true)}
               disabled={companies.length === 0}
               style={[
@@ -517,6 +500,23 @@ export default function DashboardPage() {
                 style={[styles.headerButtonText, styles.transactionButtonText]}
               >
                 Transaction
+              </Text>
+            </AnimatedTouchable>
+
+            <AnimatedTouchable
+              onPress={() => setIsProformaFormOpen(true)}
+              disabled={companies.length === 0}
+              style={[
+                styles.headerButton,
+                styles.proformaButton,
+                companies.length === 0 && styles.headerButtonDisabled,
+              ]}
+            >
+              {/* <FileText size={14} color="#3b82f6" strokeWidth={2.5} /> */}
+              <Text
+                style={[styles.headerButtonText, styles.proformaButtonText]}
+              >
+                Proforma Invoice
               </Text>
             </AnimatedTouchable>
           </View>
@@ -680,9 +680,9 @@ const styles = StyleSheet.create({
   },
   headerFixed: {
     backgroundColor: '#ffffff',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingHorizontal: 12,
+    paddingTop: 4,
+    paddingBottom: 4,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
     zIndex: 20,
@@ -708,14 +708,14 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
     color: '#0f172a',
     // marginBottom: 2,
     letterSpacing: -0.5,
   },
   headerSubtitle: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#64748b',
     fontWeight: '400',
   },
@@ -728,7 +728,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 4,
     paddingVertical: 6,
     borderRadius: 8,
     ...Platform.select({
@@ -745,8 +745,8 @@ const styles = StyleSheet.create({
   },
   proformaButton: {
     backgroundColor: '#ffffff',
-    borderWidth: 1.5,
-    borderColor: '#3b82f6',
+    borderWidth: 1,
+    borderColor: '#e5e5ea',
   },
   transactionButton: {
     backgroundColor: '#3b82f6',
@@ -900,8 +900,9 @@ const styles = StyleSheet.create({
   },
   dataContainer: {
     gap: 12,
-    marginTop: 8,
-    margin: 8,
+    marginTop: -6,
+    // margin: 8,
+    marginHorizontal: 8,
   },
   productStockSkeleton: {
     height: 200,
@@ -925,7 +926,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
     ...Platform.select({
@@ -936,7 +937,7 @@ const styles = StyleSheet.create({
         shadowRadius: 2,
       },
       android: {
-        elevation: 2,
+        elevation: 1,
       },
     }),
   },

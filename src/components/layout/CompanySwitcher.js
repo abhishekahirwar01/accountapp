@@ -17,12 +17,17 @@ import { BASE_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const CompanySwitcher = memo(function CompanySwitcher() {
-  const [companies, setCompanies] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const { selectedCompanyId, setSelectedCompanyId, refreshTrigger } =
-    useCompany();
+  const {
+    selectedCompanyId,
+    setSelectedCompanyId,
+    refreshTrigger,
+    companies,
+    fetchCompanies,
+    isReady,
+  } = useCompany();
 
   //    const fetchCompanies = async (showLoading = false) => {
   //   if (showLoading && companies.length === 0) setIsLoading(true);
@@ -67,50 +72,18 @@ export const CompanySwitcher = memo(function CompanySwitcher() {
   //     setIsLoading(false);
   //   }
   // };
-  
-  const fetchCompanies = async (showLoading = false) => {
-    if (showLoading && companies.length === 0) setIsLoading(true);
 
-    try {
-      const token = await AsyncStorage.getItem('token');
-      const res = await fetch(`${BASE_URL}/api/companies/my`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setCompanies(data);
-
-        if (showLoading) {
-          const savedCompanyId = await AsyncStorage.getItem(
-            'selectedCompanyId',
-          );
-
-          // Agar pehle se kuch saved hai to wahi dikhao,
-          // warna hamesha 'null' (All Companies) set karo
-          if (!savedCompanyId || savedCompanyId === 'all') {
-            setSelectedCompanyId(null);
-            await AsyncStorage.setItem('selectedCompanyId', 'all');
-          } else {
-            const companyExists = data.some(c => c._id === savedCompanyId);
-            setSelectedCompanyId(companyExists ? savedCompanyId : null);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Company fetch error:', error);
-    } finally {
-      if (showLoading) setIsLoading(false); // Only hide loading for initial load
+  useEffect(() => {
+    // If provider has no companies yet, trigger provider fetch (no local loading UI)
+    if ((!companies || companies.length === 0) && fetchCompanies) {
+      fetchCompanies(false);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchCompanies]);
 
   useEffect(() => {
-    fetchCompanies(false); // Don't show loading on initial load
-  }, []);
-
-  useEffect(() => {
-    if (refreshTrigger > 0) fetchCompanies(false); // Refresh doesn't show loading
-  }, [refreshTrigger]);
+    if (refreshTrigger > 0 && fetchCompanies) fetchCompanies(false); // Refresh doesn't show loading
+  }, [refreshTrigger, fetchCompanies]);
 
   // Remove useFocusEffect to prevent loading on every screen focus
   // Companies should be cached and not refetch on every navigation
@@ -291,7 +264,7 @@ export const CompanySwitcher = memo(function CompanySwitcher() {
 });
 
 const styles = StyleSheet.create({
-  container: { width: '100%', flex: 1, maxWidth: 280 },
+  container: { width: '100%', flex: 1, maxWidth: 280 ,},
   singleCompanyContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -314,16 +287,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     borderRadius: 24,
     backgroundColor: 'white',
     elevation: 2,
     width: '100%',
+    marginTop: 4,
   },
-  triggerText: { flex: 1, fontSize: 15, color: '#1e293b', fontWeight: '500' },
+  triggerText: { flex: 1, fontSize: 13, color: '#1e293b', fontWeight: '500' },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.4)',

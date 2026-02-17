@@ -1,17 +1,31 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.INTERNET" />
-<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <application
-      android:name=".MainApplication"
-      android:label="@string/app_name"
-      android:icon="@mipmap/ic_launcher"
-      android:roundIcon="@mipmap/ic_launcher_round"
-      android:allowBackup="false"
-      android:theme="@style/AppTheme"
-      android:usesCleartextTraffic="${usesCleartextTraffic}"
-      android:supportsRtl="true">
+  <uses-permission android:name="android.permission.INTERNET" />
+  
+  <!-- Storage Permissions Strategy:
+       - Android 13+ (API 33+): Uses Scoped Storage. No special permission needed for Downloads folder.
+       - Android 12 and below: Requires WRITE_EXTERNAL_STORAGE to access Downloads folder.
+       - READ/WRITE_EXTERNAL_STORAGE is still declared for backward compatibility.
+  -->
+  <uses-permission 
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+  <uses-permission 
+        android:name="android.permission.READ_EXTERNAL_STORAGE" 
+        android:maxSdkVersion="32" />
+  
+  <!-- For Android 13+, granular media permissions (replaces READ_EXTERNAL_STORAGE) -->
+  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+  
+  <application
+    android:name=".MainApplication"
+    android:label="@string/app_name"
+    android:icon="@mipmap/ic_launcher"
+    android:roundIcon="@mipmap/ic_launcher_round"
+    android:allowBackup="false"
+    android:theme="@style/AppTheme"
+    android:usesCleartextTraffic="${usesCleartextTraffic}"
+    android:supportsRtl="true"
+    android:requestLegacyExternalStorage="true">
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"

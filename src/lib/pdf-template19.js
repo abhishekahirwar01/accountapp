@@ -1,4 +1,4 @@
-// template19.js
+// template19.js - Updated to match web UI
 import {
   formatCurrency,
   getBillingAddress as getBillingAddressUtil,
@@ -22,12 +22,34 @@ const MUTED = '#697077';
 const BORDER = '#dce0e4';
 const ITEMS_PER_PAGE = 29; // Maximum items per page
 
+// ============ UTILITY FUNCTIONS ============
+
+// Capitalize first letter of each word
+const capitalizeWords = str => {
+  if (!str) return str;
+  return str.replace(/\b\w/g, char => char.toUpperCase());
+};
+
 // Helper functions
 const handleUndefined = (value, fallback = '-') => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === 'string' && value.trim() === '') return fallback;
   if (value === 'N/A') return fallback;
   return value.toString();
+};
+
+const checkValue = value => {
+  const val = String(value);
+  if (
+    val === 'N/A' ||
+    val === 'null' ||
+    val === 'undefined' ||
+    val === '' ||
+    val.toLowerCase().includes('not available')
+  ) {
+    return '-';
+  }
+  return val;
 };
 
 const money = n => {
@@ -96,7 +118,7 @@ const safeNumberToWords = amount => {
 
 const formatAddress = address => {
   if (!address || address === 'Address not available') return address;
-  return address;
+  return capitalizeWords(address);
 };
 
 const escapeHtml = text => {
@@ -130,7 +152,7 @@ const generateItemsTableHTML = (
     .map((item, index) => {
       const baseData = [
         (startIndex + index + 1).toString(),
-        item.name || 'N/A',
+        capitalizeWords(item.name || 'N/A'),
         item.code || item.hsnSac || 'N/A',
         money(item.pricePerUnit || 0),
         item.itemType === 'service'
@@ -206,30 +228,43 @@ const generatePageHTML = (
     <div class="page">
       <!-- Repeating Header -->
       <div class="page-header">
-        <div class="title">${escapeHtml(title)}</div>
-        <div class="company-name">${escapeHtml(invoiceData.company.name)}</div>
-       <div class="company-details"><span class="label">GSTIN: </span>${escapeHtml(
-         invoiceData.company.gstin,
-       )}</div>
-        <div class="company-details">${escapeHtml(
-          invoiceData.company.address,
-        )}</div>
-         <div class="company-details">${escapeHtml(
-           invoiceData.company.city,
-         )}</div>
-        ${
-          invoiceData.company.pan !== '-'
-            ? `<div class="company-details"><span class="label">PAN: </span>${escapeHtml(
-                invoiceData.company.pan,
-              )}</div>`
-            : ''
-        }
-        <div class="company-details"><span class="label">Phone: </span>${safeFormatPhoneNumber(
-          invoiceData.company.phone,
-        )}</div>
-        <div class="company-details"><span class="label">State: </span>${escapeHtml(
-          invoiceData.company.state,
-        )}</div>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div style="flex: 1;">
+            <div class="title">${escapeHtml(title)}</div>
+            <div class="company-name">${escapeHtml(
+              capitalizeWords(invoiceData.company.name),
+            )}</div>
+            <div class="company-details"><span class="label">GSTIN: </span>${escapeHtml(
+              invoiceData.company.gstin,
+            )}</div>
+            <div class="company-details">${escapeHtml(
+              formatAddress(invoiceData.company.address),
+            )}</div>
+            <div class="company-details">${escapeHtml(
+              capitalizeWords(invoiceData.company.city),
+            )}</div>
+            ${
+              invoiceData.company.pan !== '-'
+                ? `<div class="company-details"><span class="label">PAN: </span>${escapeHtml(
+                    invoiceData.company.pan,
+                  )}</div>`
+                : ''
+            }
+            <div class="company-details"><span class="label">Phone: </span>${safeFormatPhoneNumber(
+              invoiceData.company.phone,
+            )}</div>
+            <div class="company-details"><span class="label">State: </span>${escapeHtml(
+              capitalizeWords(invoiceData.company.state),
+            )}</div>
+          </div>
+          <div style="min-width: 90px; text-align: right;">
+            ${
+              invoiceData.company.logo
+                ? `<img src="${BASE_URL}${invoiceData.company.logo}" alt="Company Logo" style="max-width: 80px; max-height: 80px; margin-top: 38px;" />`
+                : ''
+            }
+          </div>
+        </div>
         <div class="separator"></div>
         
         <!-- Customer and Meta Block -->
@@ -237,10 +272,10 @@ const generatePageHTML = (
           <div class="customer-details">
             <div class="section-title">Details of Buyer | Billed to :</div>
             <div class="customer-name">${escapeHtml(
-              invoiceData.invoiceTo.name,
+              capitalizeWords(invoiceData.invoiceTo.name),
             )}</div>
             <div class="address">${escapeHtml(
-              invoiceData.invoiceTo.billingAddress,
+              formatAddress(invoiceData.invoiceTo.billingAddress),
             )}</div>
             <div class="address"><span class="label">Phone No: </span>${safeFormatPhoneNumber(
               party?.contactNumber ||
@@ -252,18 +287,18 @@ const generatePageHTML = (
               invoiceData.invoiceTo.gstin,
             )}</div>
             <div class="address"><span class="label">PAN: </span>${escapeHtml(
-              invoiceData.invoiceTo.pan,
+              invoiceData.invoiceTo.pan || party?.pan || '-',
             )}</div>
             <div class="address"><span class="label">Place of Supply: </span>${escapeHtml(
-              placeOfSupply,
+              capitalizeWords(placeOfSupply),
             )}</div>
             
             <div class="section-title" style="margin-top: 12px;">Details of Consignee | Shipped to :</div>
             <div class="customer-name">${escapeHtml(
-              invoiceData.shippingAddress.name,
+              capitalizeWords(invoiceData.shippingAddress.name),
             )}</div>
             <div class="address">${escapeHtml(
-              invoiceData.shippingAddress.address,
+              formatAddress(invoiceData.shippingAddress.address),
             )}</div>
             <div class="address"><span class="label">Phone No: </span>${safeFormatPhoneNumber(
               shippingPhone,
@@ -272,7 +307,7 @@ const generatePageHTML = (
               shippingGSTIN,
             )}</div>
             <div class="address"><span class="label">State: </span>${escapeHtml(
-              invoiceData.shippingAddress.state,
+              capitalizeWords(invoiceData.shippingAddress.state),
             )}</div>
           </div>
           
@@ -284,22 +319,18 @@ const generatePageHTML = (
               invoiceData.date,
             )}</div>
             <div class="address"><span class="label">P.O. No : </span>${escapeHtml(
-              invoiceData.poNumber,
+              checkValue(invoiceData.poNumber),
             )}</div>
             <div class="address"><span class="label">P.O. Date : </span>${escapeHtml(
-              invoiceData.poDate,
+              checkValue(invoiceData.poDate),
             )}</div>
             <div class="address"><span class="label">E-Way No : </span>${escapeHtml(
-              invoiceData.eWayNo,
+              checkValue(invoiceData.eWayNo),
             )}</div>
           </div>
         </div>
       </div>
 
-
-
-     
-      
       <!-- Table -->
       <table class="table">
         <thead class="table-header">
@@ -323,15 +354,14 @@ const generatePageHTML = (
             startIndex,
           )}
         </tbody>
-     
       </table>
-          <!-- Summary -->
+      
+      <!-- Summary -->
       <div class="summary-text">
         Total Items / Qty : ${totalItems} / ${
     totalQty % 1 === 0 ? totalQty.toFixed(0) : totalQty.toFixed(2)
   }
       </div>
-      
 
       ${
         isLastPage
@@ -376,70 +406,86 @@ const generatePageHTML = (
 
       <!-- Footer -->
       <div class="footer clearfix">
-        <div class="bank-details">
-          <div class="bank-title">Bank Details:</div>
-          ${
-            bank
-              ? `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+          <div class="bank-details" style="flex: 0 0 35%; max-width: 35%;">
+            <div class="bank-title">Bank Details:</div>
             ${
-              bank.bankName
-                ? `<div class="bank-text">Bank Name: ${escapeHtml(
-                    bank.bankName,
-                  )}</div>`
-                : ''
-            }
-             ${
-               bank.accountNumber || bank.accountNo
-                 ? `<div class="bank-text">Acc. Number: ${escapeHtml(
-                     bank.accountNumber || bank.accountNo || '-',
-                   )}</div>`
-                 : ''
-             }
+              bank &&
+              (bank.bankName ||
+                bank.accountNumber ||
+                bank.accountNo ||
+                bank.ifscCode)
+                ? `
               ${
-                bank.ifscCode
-                  ? `<div class="bank-text">IFSC: ${escapeHtml(
-                      bank.ifscCode,
+                bank.bankName
+                  ? `<div class="bank-text">Bank Name: ${escapeHtml(
+                      capitalizeWords(bank.bankName),
                     )}</div>`
                   : ''
               }
+              ${
+                bank.branchName || bank.branchAddress
+                  ? `<div class="bank-text">Branch: ${escapeHtml(
+                      capitalizeWords(
+                        bank.branchName || bank.branchAddress || '-',
+                      ),
+                    )}</div>`
+                  : ''
+              }
+              ${
+                bank.ifscCode
+                  ? `<div class="bank-text">IFSC: ${escapeHtml(
+                      capitalizeWords(bank.ifscCode),
+                    )}</div>`
+                  : ''
+              }
+              ${
+                bank.accountNumber || bank.accountNo
+                  ? `<div class="bank-text">Acc. Number: ${escapeHtml(
+                      bank.accountNumber || bank.accountNo || '-',
+                    )}</div>`
+                  : ''
+              }
+              ${
+                bank?.upiDetails?.upiId
+                  ? `<div class="bank-text">UPI ID: ${escapeHtml(
+                      bank.upiDetails.upiId,
+                    )}</div>`
+                  : ''
+              }
+              ${
+                bank?.upiDetails?.upiName
+                  ? `<div class="bank-text">UPI Name: ${escapeHtml(
+                      capitalizeWords(bank.upiDetails.upiName),
+                    )}</div>`
+                  : ''
+              }
+              ${
+                bank?.upiDetails?.upiMobile
+                  ? `<div class="bank-text">UPI Mobile: ${escapeHtml(
+                      bank.upiDetails.upiMobile,
+                    )}</div>`
+                  : ''
+              }
+              `
+                : `<div class="bank-text">No bank details available</div>`
+            }
+          </div>
+          
+          <div style="flex: 0 0 auto; text-align: center; margin: 0 10px;">
             ${
-              bank.branchName || bank.branchAddress
-                ? `<div class="bank-text">Branch: ${escapeHtml(
-                    bank.branchName || bank.branchAddress || '-',
-                  )}</div>`
+              bank?.qrCode
+                ? `<div style="margin-bottom: 6px; font-size: 9px; font-weight: bold;">QR Code</div><img src="${BASE_URL}/${bank.qrCode}" alt="QR Code" style="max-width: 85px; max-height: 73px;" />`
                 : ''
             }
-            ${
-              bank?.upiDetails?.upiId
-                ? `<div class="bank-text">UPI ID: ${escapeHtml(
-                    bank.upiDetails.upiId,
-                  )}</div>`
-                : ''
-            }
-            ${
-              bank?.upiDetails?.upiName
-                ? `<div class="bank-text">UPI Name: ${escapeHtml(
-                    bank.upiDetails.upiName,
-                  )}</div>`
-                : ''
-            }
-            ${
-              bank?.upiDetails?.upiMobile
-                ? `<div class="bank-text">UPI Mobile: ${escapeHtml(
-                    bank.upiDetails.upiMobile,
-                  )}</div>`
-                : ''
-            }
-           
-           
-          `
-              : `<div class="bank-text">No bank details available</div>`
-          }
-        </div>
-        
-        <div class="signature">
-          <div>For ${escapeHtml(invoiceData.company.name)}</div>
-          <div class="signature-box"></div>
+          </div>
+          
+          <div style="flex: 1; display: flex; flex-direction: column; align-items: flex-end;">
+            <div style="text-align: right;">For ${escapeHtml(
+              capitalizeWords(invoiceData.company.name),
+            )}</div>
+            <div class="signature-box"></div>
+          </div>
         </div>
       </div>
 
@@ -448,7 +494,6 @@ const generatePageHTML = (
         transaction?.notes
           ? `
         <div class="terms">
-          
           <div class="terms-content">${renderNotesHTML(transaction.notes)}</div>
         </div>
       `
@@ -517,6 +562,7 @@ const Template19 = ({
         company?.businessName || company?.companyName,
         'Company Name',
       ),
+      logo: company?.logo ? company.logo : null,
       address: formatAddress(
         handleUndefined(company?.address, 'Address not available'),
       ),
@@ -529,7 +575,7 @@ const Template19 = ({
             })`
           : '-',
       ),
-      city: handleUndefined(company?.city, '-'),
+      city: handleUndefined(company?.city || company?.City, '-'),
       phone: handleUndefined(company?.mobileNumber || company?.phone, '-'),
     },
 
@@ -734,7 +780,7 @@ const Template19 = ({
     .company-name {
       font-size: 13px;
       font-weight: bold;
-      margin-bottom: 12px;
+      margin-bottom: 2px;
       text-transform: uppercase;
     }
     
@@ -876,13 +922,9 @@ const Template19 = ({
     .amount-words {
       font-size: 8px;
       line-height: 1.2;
-      // padding: 5px;
-      // border: 0.5px solid ${BORDER};
-      // background-color: #f9f9f9;
     }
     
     .footer {
-      // margin-top: 20px;
       display: flex;
       justify-content: space-between;
       page-break-inside: avoid;
@@ -913,7 +955,7 @@ const Template19 = ({
       height: 50px;
       border: 1px solid ${BORDER};
       margin-top: 10px;
-      display: inline-block;
+      display: block;
     }
     
     .terms {
@@ -922,12 +964,6 @@ const Template19 = ({
       border-top: 1px solid ${BLUE};
       padding-top: 10px;
       padding-left: 10px;
-    }
-    
-    .terms-title {
-      font-size: 9px;
-      font-weight: bold;
-      margin-bottom: 8px;
     }
     
     .terms-content {
