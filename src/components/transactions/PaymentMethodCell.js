@@ -132,14 +132,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
     borderWidth: 1,
   },
   badgeText: {
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 11,
+    fontWeight: '600',
     textAlign: 'center',
   },
   reminderButton: {

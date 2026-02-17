@@ -856,26 +856,15 @@ const LinesCell = ({ transaction, serviceNameById, onViewItems }) => {
 
   return (
     <View style={styles.itemsSection}>
-      <View style={styles.copyButtonWrapper}>
-        <TouchableOpacity style={styles.copyButton} onPress={handleCopy}>
-          <Feather name="copy" size={16} color="#666" />
-        </TouchableOpacity>
-
-        {/* {showCopied && (
-          <View style={styles.copiedMessage}>
-            <Text style={styles.copiedText}>✓ Copied!</Text>
-          </View>
-        )} */}
-      </View>
-
       <TouchableOpacity
         style={styles.itemsContainer}
         onPress={() => setShowTooltip(true)}
         onLongPress={() => onViewItems && onViewItems(transaction)}
         delayLongPress={500}
       >
+        <Text style={styles.itemLabelPrefix}>Item:</Text>
         <View style={styles.itemsAvatars}>
-          {displayLines.map((line, idx) => (
+          {displayLines.slice(0, 1).map((line, idx) => (
             <View
               key={idx}
               style={[
@@ -883,7 +872,6 @@ const LinesCell = ({ transaction, serviceNameById, onViewItems }) => {
                 line.itemType === 'product'
                   ? styles.productIcon
                   : styles.serviceIcon,
-                { marginLeft: idx > 0 ? -8 : 0 },
               ]}
             >
               {line.itemType === 'product' ? (
@@ -893,11 +881,6 @@ const LinesCell = ({ transaction, serviceNameById, onViewItems }) => {
               )}
             </View>
           ))}
-          {remainingCount > 0 && (
-            <View style={[styles.itemIcon, styles.remainingItems]}>
-              <Text style={styles.remainingText}>+{remainingCount}</Text>
-            </View>
-          )}
         </View>
 
         <View style={styles.itemsTextContainer}>
@@ -910,6 +893,10 @@ const LinesCell = ({ transaction, serviceNameById, onViewItems }) => {
             </Text>
           )}
         </View>
+
+        <TouchableOpacity style={styles.copyButton} onPress={handleCopy}>
+          <Feather name="copy" size={14} color="#9ca3af" />
+        </TouchableOpacity>
       </TouchableOpacity>
 
       <TooltipContent
@@ -1639,7 +1626,7 @@ const TransactionActions = ({
       <DropdownMenu
         trigger={
           <View style={styles.moreButton}>
-            <Feather name="more-horizontal" size={20} color="#666" />
+            <Feather name="more-horizontal" size={20} color="#4338ca" />
           </View>
         }
       >
@@ -2331,49 +2318,59 @@ export const useColumns = options => {
 
 // Styles
 const styles = StyleSheet.create({
-  // Badge
+  // Premium Badge
   badge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 6,
     alignSelf: 'flex-end',
+    borderWidth: 1,
   },
   badgeText: {
     fontSize: 10,
-    fontWeight: '500',
+    fontWeight: '700',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   typeSales: {
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
   },
   typePurchases: {
-    backgroundColor: 'rgba(249, 115, 22, 0.1)',
+    backgroundColor: '#eef2ff',
+    borderColor: '#c7d2fe',
   },
   typeProforma: {
-    backgroundColor: 'rgba(6, 182, 212, 0.1)',
+    backgroundColor: '#ecfeff',
+    borderColor: '#a5f3fc',
   },
   typeReceipt: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    backgroundColor: '#eff6ff',
+    borderColor: '#bfdbfe',
   },
   typePayment: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
   },
   typeJournal: {
-    backgroundColor: 'rgba(168, 85, 247, 0.1)',
+    backgroundColor: '#faf5ff',
+    borderColor: '#e9d5ff',
   },
 
-  // Avatar
+  // Premium Avatar
   avatar: {
-    borderRadius: 16,
-    backgroundColor: '#e9ecef',
+    borderRadius: 20,
+    backgroundColor: '#eef2ff',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
+    marginRight: 10,
+    width: 38,
+    height: 38,
   },
   avatarText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#495057',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#4338ca',
   },
 
   // Item Icon
@@ -2393,12 +2390,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fef3c7',
   },
 
-  // Party Info
+  // Premium Party Info (left-aligned like image)
   partyInfo: {
     flexDirection: 'column',
-    alignItems: 'flex-end',
-    // gap: 4,
-    marginTop: -6,
+    alignItems: 'flex-start',
   },
   partyMainContent: {
     flexDirection: 'row',
@@ -2406,57 +2401,67 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   partyText: {
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
+    flex: 1,
   },
   partyName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#212529',
-    textAlign: 'right',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1e1b4b',
+    textAlign: 'left',
   },
   description: {
     fontSize: 12,
-    color: '#6c757d',
-    paddingLeft: 36, // Avatar width (28) + gap (8)
+    color: '#6b7280',
+    marginTop: 2,
+    paddingLeft: 48,
   },
 
   // Company
   companySection: {
-    flexDirection: 'row-reverse',
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-start',
     alignItems: 'center',
+    paddingLeft: 48,
   },
   companyText: {
     fontSize: 12,
-    color: '#495057',
-    textAlign: 'right', // Text right align
-    marginRight: 4, // Left ki jagah right margin
+    color: '#6b7280',
+    textAlign: 'left',
+    marginLeft: 4,
     flex: 0,
   },
 
-  // Items
+  // Items (card-friendly, left-aligned)
   itemsSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end', // Content ko right mein rakhega
+    justifyContent: 'flex-start',
     width: '100%',
   },
 
+  itemLabelPrefix: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#6b7280',
+    marginRight: 6,
+  },
   copyButtonWrapper: {
     position: 'relative',
   },
   copyButton: {
     padding: 4,
+    marginLeft: 6,
   },
   itemsContainer: {
     flex: 1,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
   },
   itemsAvatars: {
     flexDirection: 'row',
-    marginLeft: 8,
+    marginRight: 6,
   },
   remainingItems: {
     backgroundColor: '#e5e7eb',
@@ -2467,11 +2472,13 @@ const styles = StyleSheet.create({
     color: '#4b5563',
   },
   itemsTextContainer: {
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
+    flex: 1,
   },
   itemsText: {
-    fontSize: 12,
-    color: '#495057',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1e1b4b',
   },
   remainingCountText: {
     fontSize: 11,
@@ -2708,11 +2715,11 @@ const styles = StyleSheet.create({
     color: '#10b981', // Emerald green from screenshot
   },
 
-  // Amount
+  // Premium Amount
   amountText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#212529',
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#4338ca',
     textAlign: 'right',
   },
 
@@ -2737,10 +2744,11 @@ const styles = StyleSheet.create({
     marginBottom: -2,
   },
 
-  // Date
+  // Premium Date
   dateText: {
-    fontSize: 12,
-    color: '#6c757d',
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#4b5563',
   },
 
   // Checkbox
@@ -2778,8 +2786,8 @@ const styles = StyleSheet.create({
     maxHeight: 800,
   },
   moreButton: {
-    padding: 8,
-    borderRadius: 4,
+    padding: 6,
+    borderRadius: 8,
   },
   menuItem: {
     flexDirection: 'row',
