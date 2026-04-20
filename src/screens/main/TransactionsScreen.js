@@ -996,19 +996,19 @@ const TransactionsScreen = ({ navigation }) => {
     const svcArr = Array.isArray(tx.services)
       ? tx.services
       : Array.isArray(tx.service)
-      ? tx.service
-      : tx.services
-      ? [tx.services]
-      : [];
+        ? tx.service
+        : tx.services
+          ? [tx.services]
+          : [];
 
     const svcs = svcArr.map(s => {
       const id =
         s.service && typeof s.service === 'object'
           ? s.service._id
-          : s.service ??
+          : (s.service ??
             (s.serviceName && typeof s.serviceName === 'object'
               ? s.serviceName._id
-              : s.serviceName);
+              : s.serviceName));
 
       const name =
         (id && serviceNameById.get(String(id))) ||
@@ -1580,54 +1580,34 @@ const TransactionsScreen = ({ navigation }) => {
 
     return (
       <>
-         {/* Header (top safe area provided by global Header) */}
-        <View style={[styles.header, styles.headerRow, styles.headerFixed]}>
-          <View style={styles.titleContainer}>
-            <Text
-              style={[
-                styles.title,
-                { fontSize: largeTitleFontSize, flexShrink: 1 },
-              ]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              Transactions
-            </Text>
-            <Text
-              style={[styles.subtitle, { fontSize: subtitleFontSize }]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              A list of all financial activities for the selected company
-            </Text>
-          </View>
-
-          {canCreateAny && (
-            <View style={styles.headerButtons}>
-              <TouchableOpacity
-                style={[styles.headerActionButton, styles.headerPrimaryButton]}
-                onPress={() => handleOpenForm(null)}
-              >
-                {/* <Icon name="add" size={14} color="#ffffff" /> */}
-                <PlusCircle size={14} color="#ffffff" strokeWidth={2.5} />
-                <Text style={styles.headerPrimaryButtonText}>Transaction</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
+        {/* Premium Gradient Header */}
+        <View style={styles.premiumHeader}>
+          <View style={styles.premiumHeaderGradient}>
+            <View style={styles.premiumHeaderContent}>
+              <Text
                 style={[
-                  styles.headerActionButton,
-                  styles.headerSecondaryButton,
+                  styles.premiumTitle,
+                  { fontSize: largeTitleFontSize + 4, flexShrink: 1 },
                 ]}
-                onPress={() => setIsProformaFormOpen(true)}
+                numberOfLines={1}
+                ellipsizeMode="tail"
               >
-                {/* <Feather name="file-text" size={13} color="#007AFF" /> */}
-                {/* <FileText size={14} color="#3b82f6" strokeWidth={2.5} /> */}
-                <Text style={styles.headerSecondaryButtonText}>
-                  Proforma Invoice
-                </Text>
-              </TouchableOpacity>
+                Transactions
+              </Text>
+
+              {canCreateAny && (
+                <TouchableOpacity
+                  style={styles.premiumNewButton}
+                  onPress={() => handleOpenForm(null)}
+                >
+                  <PlusCircle size={16} color="#ffffff" strokeWidth={2.5} />
+                  <Text style={styles.premiumNewButtonText}>
+                    New Transaction
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
-          )}
+          </View>
         </View>
         {/* Tabs for large screens */}
         {width > 768 && (
@@ -1640,7 +1620,48 @@ const TransactionsScreen = ({ navigation }) => {
               {canReceipt && renderTabButton(TABS.RECEIPTS, 'Receipts')}
               {canPayment && renderTabButton(TABS.PAYMENTS, 'Payments')}
               {canJournal && renderTabButton(TABS.JOURNALS, 'Journals')}
-            
+              <TouchableOpacity
+                style={[
+                  styles.tabDateChip,
+                  (dateRange.startDate ||
+                    dateRange.endDate !==
+                      new Date().toISOString().split('T')[0]) &&
+                    styles.tabDateChipActive,
+                ]}
+                onPress={() => setIsFilterModalOpen(true)}
+              >
+                <Feather
+                  name="calendar"
+                  size={14}
+                  color={
+                    dateRange.startDate ||
+                    dateRange.endDate !== new Date().toISOString().split('T')[0]
+                      ? '#ffffff'
+                      : '#4b5563'
+                  }
+                />
+                <Text
+                  style={[
+                    styles.tabDateChipText,
+                    (dateRange.startDate ||
+                      dateRange.endDate !==
+                        new Date().toISOString().split('T')[0]) &&
+                      styles.tabDateChipTextActive,
+                  ]}
+                >
+                  Date
+                </Text>
+                <Feather
+                  name="chevron-down"
+                  size={12}
+                  color={
+                    dateRange.startDate ||
+                    dateRange.endDate !== new Date().toISOString().split('T')[0]
+                      ? '#ffffff'
+                      : '#4b5563'
+                  }
+                />
+              </TouchableOpacity>
             </View>
           </ScrollView>
         )}
@@ -1669,7 +1690,48 @@ const TransactionsScreen = ({ navigation }) => {
               {canReceipt && renderTabButton(TABS.RECEIPTS, 'Receipts')}
               {canPayment && renderTabButton(TABS.PAYMENTS, 'Payments')}
               {canJournal && renderTabButton(TABS.JOURNALS, 'Journals')}
-              
+              <TouchableOpacity
+                style={[
+                  styles.tabDateChip,
+                  (dateRange.startDate ||
+                    dateRange.endDate !==
+                      new Date().toISOString().split('T')[0]) &&
+                    styles.tabDateChipActive,
+                ]}
+                onPress={() => setIsFilterModalOpen(true)}
+              >
+                <Feather
+                  name="calendar"
+                  size={14}
+                  color={
+                    dateRange.startDate ||
+                    dateRange.endDate !== new Date().toISOString().split('T')[0]
+                      ? '#ffffff'
+                      : '#4b5563'
+                  }
+                />
+                <Text
+                  style={[
+                    styles.tabDateChipText,
+                    (dateRange.startDate ||
+                      dateRange.endDate !==
+                        new Date().toISOString().split('T')[0]) &&
+                      styles.tabDateChipTextActive,
+                  ]}
+                >
+                  Date
+                </Text>
+                <Feather
+                  name="chevron-down"
+                  size={12}
+                  color={
+                    dateRange.startDate ||
+                    dateRange.endDate !== new Date().toISOString().split('T')[0]
+                      ? '#ffffff'
+                      : '#4b5563'
+                  }
+                />
+              </TouchableOpacity>
             </ScrollView>
           </View>
         )}
@@ -2330,85 +2392,46 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-   header: {
-    padding: 12,
-    paddingBottom: 8,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e6e6e6',
+  // Premium gradient header
+  premiumHeader: {
+    overflow: 'hidden',
   },
-  headerFixed: {
-    backgroundColor: 'white',
-    paddingHorizontal: 12,
-    paddingTop: 6,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e6e6e6',
-    zIndex: 20,
+  premiumHeaderGradient: {
+    backgroundColor: '#4338ca',
+    paddingTop: 16,
+    paddingBottom: 18,
+    paddingHorizontal: 16,
+    // Simulated gradient overlay with layered backgrounds
+    // Real gradient uses react-native-linear-gradient, here we use solid + overlay trick
   },
-  headerRow: {
+  premiumHeaderContent: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    width: '100%',
   },
-  titleContainer: {
-    flex: 1,
-    marginRight: 12,
-    minWidth: 0,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  subtitle: {
-    fontSize: 10,
-    color: '#6b7280',
-    // marginTop: 6,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  headerActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 4,
-    minHeight: 32,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  headerPrimaryButton: {
-    backgroundColor: '#3b82f6',
-    borderWidth: 0,
-  },
-  headerSecondaryButton: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e5e5ea',
-  },
-  headerPrimaryButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
+  premiumTitle: {
+    fontSize: 24,
+    fontWeight: '800',
     color: '#ffffff',
-    letterSpacing: -0.2,
+    letterSpacing: -0.5,
   },
-  headerSecondaryButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#007AFF',
-    letterSpacing: -0.2,
+  premiumNewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 6,
   },
-    actionButton: {
+  premiumNewButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 4,
@@ -2527,6 +2550,30 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: '#ffffff',
     fontWeight: '700',
+  },
+  tabDateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 5,
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#e0e0e8',
+    minHeight: 36,
+  },
+  tabDateChipActive: {
+    backgroundColor: '#4338ca',
+    borderColor: '#4338ca',
+  },
+  tabDateChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4b5563',
+  },
+  tabDateChipTextActive: {
+    color: '#ffffff',
   },
   dropdownContainer: {
     paddingHorizontal: 16,
