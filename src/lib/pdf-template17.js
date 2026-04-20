@@ -192,13 +192,21 @@ const generateTableHeader = (showIGST, showCGSTSGST) => {
 };
 
 // --- Main Component ---
-const Template17 = ({ transaction, company, party, shippingAddress, bank }) => {
+const Template17 = ({
+  transaction,
+  company,
+  party,
+  shippingAddress,
+  bank,
+  serviceNameById = new Map(),
+}) => {
   const actualShippingAddress = shippingAddress || transaction?.shippingAddress;
   const preparedData = prepareTemplate8Data(
     transaction,
     company,
     party,
     actualShippingAddress,
+    serviceNameById,
   );
 
   const {
@@ -1162,6 +1170,7 @@ export const generatePdfForTemplate17 = async (
       party,
       shippingAddress,
       bank,
+      serviceNameById,
     });
     const options = {
       html: htmlContent,

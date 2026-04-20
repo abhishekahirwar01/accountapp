@@ -20,17 +20,17 @@ const A4_WIDTH = 595;
 
 // Height constants for calculation
 const HEIGHTS = {
-  pageHeader: 115,    // Four-column header section (increased)
-  tableHeader: 35,    // Items table header (2 rows) (increased)
-  itemRow: 20,        // Each item row (increased)
-  totalRow: 20,       // Total row (increased)
-  wordsSection: 20,   // Total in words
-  hsnSection: 100,    // HSN summary table (increased)
+  pageHeader: 115, // Four-column header section (increased)
+  tableHeader: 35, // Items table header (2 rows) (increased)
+  itemRow: 20, // Each item row (increased)
+  totalRow: 20, // Total row (increased)
+  wordsSection: 20, // Total in words
+  hsnSection: 100, // HSN summary table (increased)
   bottomSection: 160, // Bank details + totals (increased)
-  notesSection: 40,   // Notes/terms (increased)
-  pageFooter: 20,     // Page number
-  padding: 20,        // Page padding
-  buffer: 20,         // Safety margin (increased)
+  notesSection: 40, // Notes/terms (increased)
+  pageFooter: 20, // Page number
+  padding: 20, // Page padding
+  buffer: 20, // Safety margin (increased)
 };
 
 const TemplateA5_4 = ({
@@ -40,6 +40,7 @@ const TemplateA5_4 = ({
   shippingAddress,
   bank,
   client,
+  serviceNameById = new Map(),
 }) => {
   const {
     totalTaxable,
@@ -52,7 +53,13 @@ const TemplateA5_4 = ({
     isGSTApplicable,
     showIGST,
     showCGSTSGST,
-  } = prepareTemplate8Data(transaction, company, party, shippingAddress);
+  } = prepareTemplate8Data(
+    transaction,
+    company,
+    party,
+    shippingAddress,
+    serviceNameById,
+  );
 
   const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
   const shouldHideBankDetails = transaction.type === 'proforma';
@@ -70,7 +77,19 @@ const TemplateA5_4 = ({
     if (showIGST) {
       return ['4%', '24%', '10%', '6%', '10%', '15%', '8%', '10%', '25%'];
     } else if (showCGSTSGST) {
-      return ['4%', '20%', '10%', '6%', '10%', '10%', '6%', '8%', '6%', '8%', '18%'];
+      return [
+        '4%',
+        '20%',
+        '10%',
+        '6%',
+        '10%',
+        '10%',
+        '6%',
+        '8%',
+        '6%',
+        '8%',
+        '18%',
+      ];
     } else {
       return ['10%', '25%', '10%', '10%', '10%', '15%', '20%'];
     }
@@ -127,22 +146,42 @@ const TemplateA5_4 = ({
     return `
       <div style="text-align: center; margin-bottom: 8px;">
         <h2 style="color: #0371C1; font-size: 14px; margin-bottom: 5px;">
-          ${transaction.type === 'proforma' ? 'PROFORMA INVOICE' : isGSTApplicable ? 'TAX INVOICE' : 'INVOICE'}
+          ${
+            transaction.type === 'proforma'
+              ? 'PROFORMA INVOICE'
+              : isGSTApplicable
+              ? 'TAX INVOICE'
+              : 'INVOICE'
+          }
         </h2>
       </div>
       
       <div class="four-columns">
         <div class="column">
           <div class="column-header">
-            ${capitalizeWords(company?.businessName || company?.companyName || 'Company Name')}
+            ${capitalizeWords(
+              company?.businessName || company?.companyName || 'Company Name',
+            )}
           </div>
           <div class="data-row">
             <div class="table-label">Address</div>
-            <div class="table-value">${[company?.address, company?.City, company?.addressState, company?.Country, company?.Pincode].filter(Boolean).join(', ') || 'Address Line 1'}</div>
+            <div class="table-value">${
+              [
+                company?.address,
+                company?.City,
+                company?.addressState,
+                company?.Country,
+                company?.Pincode,
+              ]
+                .filter(Boolean)
+                .join(', ') || 'Address Line 1'
+            }</div>
           </div>
           <div class="data-row">
             <div class="table-label">Phone</div>
-            <div class="table-value">${safeFormatPhoneNumber(company?.mobileNumber || company?.Telephone)}</div>
+            <div class="table-value">${safeFormatPhoneNumber(
+              company?.mobileNumber || company?.Telephone,
+            )}</div>
           </div>
           <div class="data-row">
             <div class="table-label">GSTIN</div>
@@ -156,7 +195,13 @@ const TemplateA5_4 = ({
         
         <div class="column">
           <div class="column-header">
-            ${transaction.type === 'proforma' ? 'PROFORMA INVOICE' : isGSTApplicable ? 'TAX INVOICE' : 'INVOICE'}
+            ${
+              transaction.type === 'proforma'
+                ? 'PROFORMA INVOICE'
+                : isGSTApplicable
+                ? 'TAX INVOICE'
+                : 'INVOICE'
+            }
           </div>
           <div class="data-row">
             <div class="table-label">Invoice No.</div>
@@ -168,7 +213,9 @@ const TemplateA5_4 = ({
           </div>
           <div class="data-row">
             <div class="table-label">Due Date</div>
-            <div class="table-value">${formatDateSafe(transaction.dueDate)}</div>
+            <div class="table-value">${formatDateSafe(
+              transaction.dueDate,
+            )}</div>
           </div>
         </div>
         
@@ -178,11 +225,15 @@ const TemplateA5_4 = ({
           </div>
           <div class="data-row">
             <div class="table-label">Address</div>
-            <div class="table-value">${capitalizeWords(getBillingAddress(party)) || '-'}</div>
+            <div class="table-value">${
+              capitalizeWords(getBillingAddress(party)) || '-'
+            }</div>
           </div>
           <div class="data-row">
             <div class="table-label">Phone</div>
-            <div class="table-value">${safeFormatPhoneNumber(party?.contactNumber)}</div>
+            <div class="table-value">${safeFormatPhoneNumber(
+              party?.contactNumber,
+            )}</div>
           </div>
           <div class="data-row">
             <div class="table-label">GSTIN</div>
@@ -194,17 +245,31 @@ const TemplateA5_4 = ({
           </div>
           <div class="data-row">
             <div class="table-label">Place of Supply</div>
-            <div class="table-value">${shippingAddress?.state ? `${capitalizeWords(shippingAddress.state)} (${getStateCode(shippingAddress.state) || '-'})` : party?.state ? `${capitalizeWords(party.state)} (${getStateCode(party.state) || '-'})` : '-'}</div>
+            <div class="table-value">${
+              shippingAddress?.state
+                ? `${capitalizeWords(shippingAddress.state)} (${
+                    getStateCode(shippingAddress.state) || '-'
+                  })`
+                : party?.state
+                ? `${capitalizeWords(party.state)} (${
+                    getStateCode(party.state) || '-'
+                  })`
+                : '-'
+            }</div>
           </div>
         </div>
         
         <div class="column">
           <div class="column-header">
-            Shipped To, ${capitalizeWords(shippingAddress?.label || party?.name || 'N/A')}
+            Shipped To, ${capitalizeWords(
+              shippingAddress?.label || party?.name || 'N/A',
+            )}
           </div>
           <div class="data-row">
             <div class="table-label">Address</div>
-            <div class="table-value">${capitalizeWords(getShippingAddress(shippingAddress, getBillingAddress(party)))}</div>
+            <div class="table-value">${capitalizeWords(
+              getShippingAddress(shippingAddress, getBillingAddress(party)),
+            )}</div>
           </div>
           <div class="data-row">
             <div class="table-label">Country</div>
@@ -212,7 +277,9 @@ const TemplateA5_4 = ({
           </div>
           <div class="data-row">
             <div class="table-label">Phone</div>
-            <div class="table-value">${safeFormatPhoneNumber(shippingAddress?.contactNumber || party?.contactNumber)}</div>
+            <div class="table-value">${safeFormatPhoneNumber(
+              shippingAddress?.contactNumber || party?.contactNumber,
+            )}</div>
           </div>
           <div class="data-row">
             <div class="table-label">GSTIN</div>
@@ -220,7 +287,17 @@ const TemplateA5_4 = ({
           </div>
           <div class="data-row">
             <div class="table-label">State</div>
-            <div class="table-value">${shippingAddress?.state ? `${capitalizeWords(shippingAddress.state)} (${getStateCode(shippingAddress.state) || '-'})` : party?.state ? `${capitalizeWords(party.state)} (${getStateCode(party.state) || '-'})` : '-'}</div>
+            <div class="table-value">${
+              shippingAddress?.state
+                ? `${capitalizeWords(shippingAddress.state)} (${
+                    getStateCode(shippingAddress.state) || '-'
+                  })`
+                : party?.state
+                ? `${capitalizeWords(party.state)} (${
+                    getStateCode(party.state) || '-'
+                  })`
+                : '-'
+            }</div>
           </div>
         </div>
       </div>
@@ -228,31 +305,87 @@ const TemplateA5_4 = ({
   };
 
   const generateItemRows = (itemsList, startIndex) => {
-    return itemsList.map((item, localIndex) => {
+    return itemsList
+      .map((item, localIndex) => {
         const globalIndex = startIndex + localIndex;
         let row = `
         <tr style="border-bottom: 1px solid #bfbfbf;">
-          <td style="width: ${colWidths[0]}; text-align: center; padding: 6px 2px; font-size: 7px;">${globalIndex + 1}</td>
-          <td style="width: ${colWidths[1]}; padding: 4px 2px; font-size: 7px; text-align: left;">${capitalizeWords(item.name)}</td>
-          <td style="width: ${colWidths[2]}; text-align: center; padding: 4px 2px; font-size: 7px;">${item.code || '-'}</td>
-          <td style="width: ${colWidths[3]}; text-align: center; padding: 4px 2px; font-size: 7px;">${item.itemType === 'service' ? '-' : formatQuantity(item.quantity || 0, item.unit)}</td>
-          <td style="width: ${colWidths[4]}; text-align: center; padding: 4px 2px; font-size: 7px;">${formatCurrency(item.pricePerUnit || 0)}</td>
-          <td style="width: ${colWidths[5]}; text-align: center; padding: 4px 2px; font-size: 7px; background-color: rgba(3, 113, 193, 0.1);">${formatCurrency(item.taxableValue)}</td>
+          <td style="width: ${
+            colWidths[0]
+          }; text-align: center; padding: 6px 2px; font-size: 7px;">${
+          globalIndex + 1
+        }</td>
+          <td style="width: ${
+            colWidths[1]
+          }; padding: 4px 2px; font-size: 7px; text-align: left;">${capitalizeWords(
+          item.name,
+        )}</td>
+          <td style="width: ${
+            colWidths[2]
+          }; text-align: center; padding: 4px 2px; font-size: 7px;">${
+          item.code || '-'
+        }</td>
+          <td style="width: ${
+            colWidths[3]
+          }; text-align: center; padding: 4px 2px; font-size: 7px;">${
+          item.itemType === 'service'
+            ? '-'
+            : formatQuantity(item.quantity || 0, item.unit)
+        }</td>
+          <td style="width: ${
+            colWidths[4]
+          }; text-align: center; padding: 4px 2px; font-size: 7px;">${formatCurrency(
+          item.pricePerUnit || 0,
+        )}</td>
+          <td style="width: ${
+            colWidths[5]
+          }; text-align: center; padding: 4px 2px; font-size: 7px; background-color: rgba(3, 113, 193, 0.1);">${formatCurrency(
+          item.taxableValue,
+        )}</td>
       `;
 
         if (showIGST) {
-          row += `<td style="width: ${colWidths[6]}; text-align: center; padding: 4px 2px; font-size: 7px;">${item.gstRate.toFixed(2)}</td>`;
-          row += `<td style="width: ${colWidths[7]}; text-align: center; padding: 4px 2px; font-size: 7px;">${formatCurrency(item.igst)}</td>`;
+          row += `<td style="width: ${
+            colWidths[6]
+          }; text-align: center; padding: 4px 2px; font-size: 7px;">${item.gstRate.toFixed(
+            2,
+          )}</td>`;
+          row += `<td style="width: ${
+            colWidths[7]
+          }; text-align: center; padding: 4px 2px; font-size: 7px;">${formatCurrency(
+            item.igst,
+          )}</td>`;
         } else if (showCGSTSGST) {
-          row += `<td style="width: ${colWidths[6]}; text-align: center; padding: 4px 2px; font-size: 7px;">${(item.gstRate / 2).toFixed(2)}</td>`;
-          row += `<td style="width: ${colWidths[7]}; text-align: center; padding: 4px 2px; font-size: 7px;">${formatCurrency(item.cgst)}</td>`;
-          row += `<td style="width: ${colWidths[8]}; text-align: center; padding: 4px 2px; font-size: 7px;">${(item.gstRate / 2).toFixed(2)}</td>`;
-          row += `<td style="width: ${colWidths[9]}; text-align: center; padding: 4px 2px; font-size: 7px;">${formatCurrency(item.sgst)}</td>`;
+          row += `<td style="width: ${
+            colWidths[6]
+          }; text-align: center; padding: 4px 2px; font-size: 7px;">${(
+            item.gstRate / 2
+          ).toFixed(2)}</td>`;
+          row += `<td style="width: ${
+            colWidths[7]
+          }; text-align: center; padding: 4px 2px; font-size: 7px;">${formatCurrency(
+            item.cgst,
+          )}</td>`;
+          row += `<td style="width: ${
+            colWidths[8]
+          }; text-align: center; padding: 4px 2px; font-size: 7px;">${(
+            item.gstRate / 2
+          ).toFixed(2)}</td>`;
+          row += `<td style="width: ${
+            colWidths[9]
+          }; text-align: center; padding: 4px 2px; font-size: 7px;">${formatCurrency(
+            item.sgst,
+          )}</td>`;
         }
 
-        row += `<td style="width: ${colWidths[totalColumnIndex]}; text-align: center; padding: 4px 2px; font-size: 7px; font-weight: bold; background-color: rgba(3, 113, 193, 0.1);">${formatCurrency(item.total)}</td></tr>`;
+        row += `<td style="width: ${
+          colWidths[totalColumnIndex]
+        }; text-align: center; padding: 4px 2px; font-size: 7px; font-weight: bold; background-color: rgba(3, 113, 193, 0.1);">${formatCurrency(
+          item.total,
+        )}</td></tr>`;
         return row;
-      }).join('');
+      })
+      .join('');
   };
 
   const generateTableHeader = () => {
@@ -295,25 +428,35 @@ const TemplateA5_4 = ({
         <td style="text-align: center; background-color: rgba(3, 113, 193, 0.1);">Total</td>
         <td style="text-align: center; background-color: rgba(3, 113, 193, 0.1);">${totalQty}</td>
         <td style="text-align: center;"></td>
-        <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2);">${formatCurrency(totalTaxable)}</td>
+        <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2);">${formatCurrency(
+          totalTaxable,
+        )}</td>
     `;
 
     if (showIGST) {
       totalRowHTML += `
         <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2);"></td>
-        <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2);">${formatCurrency(totalIGST)}</td>
+        <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2);">${formatCurrency(
+          totalIGST,
+        )}</td>
       `;
     } else if (showCGSTSGST) {
       totalRowHTML += `
         <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2);"></td>
-        <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2);">${formatCurrency(totalCGST)}</td>
+        <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2);">${formatCurrency(
+          totalCGST,
+        )}</td>
         <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2);"></td>
-        <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2);">${formatCurrency(totalSGST)}</td>
+        <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2);">${formatCurrency(
+          totalSGST,
+        )}</td>
       `;
     }
 
     totalRowHTML += `
-        <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2); font-weight: bold;">${formatCurrency(totalAmount)}</td>
+        <td style="text-align: center; background-color: rgba(3, 113, 193, 0.2); font-weight: bold;">${formatCurrency(
+          totalAmount,
+        )}</td>
       </tr>
     `;
 
@@ -322,30 +465,54 @@ const TemplateA5_4 = ({
 
   const generateHSNRows = () => {
     const hsnSummary = getHsnSummary(itemsWithGST, showIGST, showCGSTSGST);
-    return hsnSummary.map((hsnItem) => {
+    return hsnSummary
+      .map(hsnItem => {
         let row = `<tr style="border-bottom: 1px solid #0371C1;">
-          <td style="width: 14%; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1; text-align: center;">${hsnItem.hsnCode}</td>
-          <td style="width: 18%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${formatCurrency(hsnItem.taxableValue)}</td>`;
+          <td style="width: 14%; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1; text-align: center;">${
+            hsnItem.hsnCode
+          }</td>
+          <td style="width: 18%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${formatCurrency(
+            hsnItem.taxableValue,
+          )}</td>`;
 
         if (showIGST) {
           row += `
-            <td style="width: 10%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${hsnItem.taxRate}</td>
-            <td style="width: 15%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${formatCurrency(hsnItem.taxAmount)}</td>
-            <td style="width: 25%; text-align: center; padding: 2px; font-size: 7px; font-weight: bold; border-left: 1px solid #bfbfbf;">${formatCurrency(hsnItem.total)}</td>`;
+            <td style="width: 10%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${
+              hsnItem.taxRate
+            }</td>
+            <td style="width: 15%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${formatCurrency(
+              hsnItem.taxAmount,
+            )}</td>
+            <td style="width: 25%; text-align: center; padding: 2px; font-size: 7px; font-weight: bold; border-left: 1px solid #bfbfbf;">${formatCurrency(
+              hsnItem.total,
+            )}</td>`;
         } else if (showCGSTSGST) {
           row += `
-            <td style="width: 6%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${(hsnItem.taxRate / 2).toFixed(2)}</td>
-            <td style="width: 18%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${formatCurrency(hsnItem.cgstAmount)}</td>
-            <td style="width: 6%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${(hsnItem.taxRate / 2).toFixed(2)}</td>
-            <td style="width: 18%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${formatCurrency(hsnItem.sgstAmount)}</td>
-            <td style="width: 20%; text-align: center; padding: 2px; font-size: 7px; font-weight: bold; border-left: 1px solid #0371C1;">${formatCurrency(hsnItem.total)}</td>`;
+            <td style="width: 6%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${(
+              hsnItem.taxRate / 2
+            ).toFixed(2)}</td>
+            <td style="width: 18%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${formatCurrency(
+              hsnItem.cgstAmount,
+            )}</td>
+            <td style="width: 6%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${(
+              hsnItem.taxRate / 2
+            ).toFixed(2)}</td>
+            <td style="width: 18%; text-align: center; padding: 2px; font-size: 7px; border-right: 1px solid #0371C1;">${formatCurrency(
+              hsnItem.sgstAmount,
+            )}</td>
+            <td style="width: 20%; text-align: center; padding: 2px; font-size: 7px; font-weight: bold; border-left: 1px solid #0371C1;">${formatCurrency(
+              hsnItem.total,
+            )}</td>`;
         } else {
-          row += `<td style="width: 30%; text-align: center; padding: 2px; font-size: 7px; font-weight: bold; border-left: 1px solid #0371C1;">${formatCurrency(hsnItem.total)}</td>`;
+          row += `<td style="width: 30%; text-align: center; padding: 2px; font-size: 7px; font-weight: bold; border-left: 1px solid #0371C1;">${formatCurrency(
+            hsnItem.total,
+          )}</td>`;
         }
 
         row += `</tr>`;
         return row;
-      }).join('');
+      })
+      .join('');
   };
 
   const generateBottomSection = () => {
@@ -376,7 +543,9 @@ const TemplateA5_4 = ({
         return `
           <td class="hsn-tax-cell"></td>
           <td class="hsn-tax-cell">${formatCurrency(totalIGST)}</td>
-          <td class="hsn-tax-cell" style="border-left: 1px solid #0371C1;">${formatCurrency(totalAmount)}</td>
+          <td class="hsn-tax-cell" style="border-left: 1px solid #0371C1;">${formatCurrency(
+            totalAmount,
+          )}</td>
         `;
       } else if (showCGSTSGST) {
         return `
@@ -384,11 +553,15 @@ const TemplateA5_4 = ({
           <td class="hsn-tax-cell">${formatCurrency(totalCGST)}</td>
           <td class="hsn-tax-cell"></td>
           <td class="hsn-tax-cell">${formatCurrency(totalSGST)}</td>
-          <td class="hsn-tax-cell" style="border-left: 1px solid #0371C1;">${formatCurrency(totalAmount)}</td>
+          <td class="hsn-tax-cell" style="border-left: 1px solid #0371C1;">${formatCurrency(
+            totalAmount,
+          )}</td>
         `;
       } else {
         return `
-          <td class="hsn-tax-cell" style="border-left: 1px solid #0371C1;">${formatCurrency(totalAmount)}</td>
+          <td class="hsn-tax-cell" style="border-left: 1px solid #0371C1;">${formatCurrency(
+            totalAmount,
+          )}</td>
         `;
       }
     };
@@ -396,8 +569,12 @@ const TemplateA5_4 = ({
     return `
       <div class="bottom-section">
         <div class="left-section">
-          <div class="total-in-words">Total in words : ${safeNumberToWords(totalAmount)}</div>
-          ${isGSTApplicable ? `
+          <div class="total-in-words">Total in words : ${safeNumberToWords(
+            totalAmount,
+          )}</div>
+          ${
+            isGSTApplicable
+              ? `
             <table class="hsn-tax-table">
               <thead>
                 <tr>
@@ -415,55 +592,117 @@ const TemplateA5_4 = ({
                 </tr>
               </tbody>
             </table>
-          ` : ''}
+          `
+              : ''
+          }
         </div>
         
         <div class="right-section">
           <div style="margin-bottom: 10px;">
-            <div class="total-row"><div class="label">Taxable Amount</div><div class="value">Rs. ${formatCurrency(totalTaxable)}</div></div>
-            ${isGSTApplicable ? `<div class="total-row"><div class="label">Total Tax</div><div class="value">Rs. ${formatCurrency(showIGST ? totalIGST : totalCGST + totalSGST)}</div></div>` : ''}
-            <div class="total-row ${isGSTApplicable ? 'highlight-row' : ''}" style="padding-left: 5px; padding-right: 5px; padding-top:5px;">
-              <div class="${isGSTApplicable ? 'label-bold' : 'label'}">${isGSTApplicable ? 'Total Amount After Tax' : 'Total Amount'}</div>
-              <div class="${isGSTApplicable ? 'value-bold' : 'value'}">Rs. ${formatCurrency(totalAmount)}</div>
+            <div class="total-row"><div class="label">Taxable Amount</div><div class="value">Rs. ${formatCurrency(
+              totalTaxable,
+            )}</div></div>
+            ${
+              isGSTApplicable
+                ? `<div class="total-row"><div class="label">Total Tax</div><div class="value">Rs. ${formatCurrency(
+                    showIGST ? totalIGST : totalCGST + totalSGST,
+                  )}</div></div>`
+                : ''
+            }
+            <div class="total-row ${
+              isGSTApplicable ? 'highlight-row' : ''
+            }" style="padding-left: 5px; padding-right: 5px; padding-top:5px;">
+              <div class="${isGSTApplicable ? 'label-bold' : 'label'}">${
+      isGSTApplicable ? 'Total Amount After Tax' : 'Total Amount'
+    }</div>
+              <div class="${
+                isGSTApplicable ? 'value-bold' : 'value'
+              }">Rs. ${formatCurrency(totalAmount)}</div>
             </div>
             <div class="total-row" style="margin-top: 10px;">
-              <div class="label">For ${capitalizeWords(company?.businessName || company?.companyName || 'Company Name')}</div>
+              <div class="label">For ${capitalizeWords(
+                company?.businessName || company?.companyName || 'Company Name',
+              )}</div>
               <div class="value">(E & O.E.)</div>
             </div>
           </div>
           
-          ${transaction.type !== 'proforma' && isBankDetailAvailable && !shouldHideBankDetails ? `
+          ${
+            transaction.type !== 'proforma' &&
+            isBankDetailAvailable &&
+            !shouldHideBankDetails
+              ? `
             <div class="bank-details">
               <div class="bold mb-2">Bank Details:</div>
               <div style="flex-direction: row; display: flex;">
                 <div>
-                  ${bankData.bankName ? `<div class="bank-row"><div class="bank-label">Name:</div><div>${capitalizeWords(bankData.bankName)}</div></div>` : ''}
-                  ${bankData.branchAddress ? `<div class="bank-row"><div class="bank-label">Branch:</div><div>${bankData.branchAddress}</div></div>` : ''}
-                  ${bankData.accountNo ? `<div class="bank-row"><div class="bank-label">Acc. No:</div><div>${bankData.accountNo}</div></div>` : ''}
-                  ${bankData.ifscCode ? `<div class="bank-row"><div class="bank-label">IFSC:</div><div>${bankData.ifscCode}</div></div>` : ''}
-                  ${bankData.upiDetails?.upiId ? `<div class="bank-row"><div class="bank-label">UPI ID:</div><div>${bankData.upiDetails.upiId}</div></div>` : ''}
-                  ${bankData.upiDetails?.upiName ? `<div class="bank-row"><div class="bank-label">UPI Name:</div><div>${bankData.upiDetails.upiName}</div></div>` : ''}
-                  ${bankData.upiDetails?.upiMobile ? `<div class="bank-row"><div class="bank-label">UPI Mobile:</div><div>${bankData.upiDetails.upiMobile}</div></div>` : ''}
+                  ${
+                    bankData.bankName
+                      ? `<div class="bank-row"><div class="bank-label">Name:</div><div>${capitalizeWords(
+                          bankData.bankName,
+                        )}</div></div>`
+                      : ''
+                  }
+                  ${
+                    bankData.branchAddress
+                      ? `<div class="bank-row"><div class="bank-label">Branch:</div><div>${bankData.branchAddress}</div></div>`
+                      : ''
+                  }
+                  ${
+                    bankData.accountNo
+                      ? `<div class="bank-row"><div class="bank-label">Acc. No:</div><div>${bankData.accountNo}</div></div>`
+                      : ''
+                  }
+                  ${
+                    bankData.ifscCode
+                      ? `<div class="bank-row"><div class="bank-label">IFSC:</div><div>${bankData.ifscCode}</div></div>`
+                      : ''
+                  }
+                  ${
+                    bankData.upiDetails?.upiId
+                      ? `<div class="bank-row"><div class="bank-label">UPI ID:</div><div>${bankData.upiDetails.upiId}</div></div>`
+                      : ''
+                  }
+                  ${
+                    bankData.upiDetails?.upiName
+                      ? `<div class="bank-row"><div class="bank-label">UPI Name:</div><div>${bankData.upiDetails.upiName}</div></div>`
+                      : ''
+                  }
+                  ${
+                    bankData.upiDetails?.upiMobile
+                      ? `<div class="bank-row"><div class="bank-label">UPI Mobile:</div><div>${bankData.upiDetails.upiMobile}</div></div>`
+                      : ''
+                  }
                 </div>
                 <div style="margin-left: auto; margin-right: 5px; margin-top: -10px;">
-                  ${bankData.qrCode ? `<div style="text-align: center;"><div class="bold">QR Code</div><img src="${BASE_URL}/${bankData.qrCode}" class="qr-code" /></div>` : ''}
+                  ${
+                    bankData.qrCode
+                      ? `<div style="text-align: center;"><div class="bold">QR Code</div><img src="${BASE_URL}/${bankData.qrCode}" class="qr-code" /></div>`
+                      : ''
+                  }
                 </div>
               </div>
             </div>
-          ` : ''}
+          `
+              : ''
+          }
         </div>
       </div>
-      ${transaction?.notes ? `<div class="terms-box">${renderNotesHTML(transaction.notes)}</div>` : ''}
+      ${
+        transaction?.notes
+          ? `<div class="terms-box">${renderNotesHTML(transaction.notes)}</div>`
+          : ''
+      }
     `;
   };
 
   // Calculate items per page dynamically
-  const calculateItemsPerPage = (isLastPage) => {
+  const calculateItemsPerPage = isLastPage => {
     let availableHeight = A4_HEIGHT - HEIGHTS.padding - HEIGHTS.buffer;
     availableHeight -= HEIGHTS.pageHeader;
     availableHeight -= HEIGHTS.tableHeader;
     availableHeight -= HEIGHTS.pageFooter;
-    
+
     if (isLastPage) {
       availableHeight -= HEIGHTS.totalRow;
       availableHeight -= HEIGHTS.wordsSection;
@@ -475,7 +714,7 @@ const TemplateA5_4 = ({
         availableHeight -= HEIGHTS.notesSection;
       }
     }
-    
+
     const itemsFit = Math.floor(availableHeight / HEIGHTS.itemRow);
     return Math.max(3, itemsFit); // At least 3 items per page
   };
@@ -485,23 +724,25 @@ const TemplateA5_4 = ({
     const pages = [];
     let remainingItems = [...itemsWithGST];
     let pageNum = 1;
-    
+
     if (remainingItems.length === 0) {
-      return [{
-        items: [],
-        isLast: true,
-        pageNumber: 1,
-      }];
+      return [
+        {
+          items: [],
+          isLast: true,
+          pageNumber: 1,
+        },
+      ];
     }
-    
+
     while (remainingItems.length > 0) {
       // First, assume this is NOT the last page
       const itemsPerRegularPage = calculateItemsPerPage(false);
-      
+
       // Check if remaining items would fit on a last page
       const itemsPerLastPage = calculateItemsPerPage(true);
       const wouldFitOnLastPage = remainingItems.length <= itemsPerLastPage;
-      
+
       if (wouldFitOnLastPage) {
         // All remaining items fit on last page
         pages.push({
@@ -513,7 +754,7 @@ const TemplateA5_4 = ({
       } else {
         // Check if we should start making it a last page now
         const afterThisPage = remainingItems.length - itemsPerRegularPage;
-        
+
         if (afterThisPage > 0 && afterThisPage <= itemsPerLastPage) {
           // If after taking regular items, the remainder fits on last page
           const itemsForThisPage = remainingItems.slice(0, itemsPerRegularPage);
@@ -537,20 +778,22 @@ const TemplateA5_4 = ({
         }
       }
     }
-    
+
     return pages;
   };
 
   const generateHTML = () => {
     const pages = paginateItems();
     const totalPages = pages.length;
-    
+
     console.log(`📄 Total pages calculated: ${totalPages}`);
     console.log(`📦 Total items: ${itemsWithGST.length}`);
     pages.forEach((p, i) => {
-      console.log(`  Page ${i + 1}: ${p.items.length} items, isLast: ${p.isLast}`);
+      console.log(
+        `  Page ${i + 1}: ${p.items.length} items, isLast: ${p.isLast}`,
+      );
     });
-    
+
     const baseStyles = `
       @page { size: A4; margin: 0; }
       * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -592,13 +835,15 @@ const TemplateA5_4 = ({
 
     let allPagesHTML = '';
     let globalStartIndex = 0;
-    
+
     pages.forEach((pageData, idx) => {
       const { items, isLast, pageNumber } = pageData;
       const isActuallyLastPage = isLast || pageNumber === totalPages;
-      
-      console.log(`🔨 Generating page ${pageNumber}/${totalPages}, items: ${items.length}, isLast: ${isActuallyLastPage}`);
-      
+
+      console.log(
+        `🔨 Generating page ${pageNumber}/${totalPages}, items: ${items.length}, isLast: ${isActuallyLastPage}`,
+      );
+
       allPagesHTML += `
         <div class="page">
           ${generateHeaderHTML()}
@@ -613,7 +858,7 @@ const TemplateA5_4 = ({
           <div class="page-number">${pageNumber} / ${totalPages} page</div>
         </div>
       `;
-      
+
       globalStartIndex += items.length;
     });
 
@@ -642,6 +887,7 @@ export const generatePdfForTemplateA5_4 = async (
       shippingAddress,
       bank,
       client,
+      serviceNameById,
     });
 
     console.log('🟢 HTML Content Generated Successfully');
@@ -649,7 +895,9 @@ export const generatePdfForTemplateA5_4 = async (
 
     const options = {
       html: htmlContent,
-      fileName: `invoice_${transaction.invoiceNumber || 'document'}_templateA5_4`,
+      fileName: `invoice_${
+        transaction.invoiceNumber || 'document'
+      }_templateA5_4`,
       directory: 'Documents',
       width: 595,
       height: 842,

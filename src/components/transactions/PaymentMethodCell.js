@@ -54,7 +54,7 @@ export const PaymentMethodCell = ({ transaction }) => {
       textColor: colorScheme === 'dark' ? '#93c5fd' : '#1e40af',
       borderColor: colorScheme === 'dark' ? '#3b82f6' : '#2563eb',
     },
-    'Bank Transfer': {
+    BankTransfer: {
       backgroundColor: colorScheme === 'dark' ? '#4c1d95' : '#f3e8ff',
       textColor: colorScheme === 'dark' ? '#c4b5fd' : '#6b21a8',
       borderColor: colorScheme === 'dark' ? '#8b5cf6' : '#7c3aed',
@@ -132,14 +132,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   badge: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 10,
     paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
+    borderRadius: 12,
+    // borderWidth: 1,
   },
   badgeText: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '500',
     textAlign: 'center',
   },
   reminderButton: {

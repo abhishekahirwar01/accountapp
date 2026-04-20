@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Feather';
 import { BASE_URL } from '../../config';
 
+
 export function EmailSendingConsent() {
   const [status, setStatus] = useState({
     connected: false,
@@ -79,7 +80,7 @@ export function EmailSendingConsent() {
 
         Alert.alert('Gmail needs reconnect', message, [{ text: 'OK' }]);
       }
-    } catch (error) {}
+    } catch (error) { }
   }, []);
 
   useEffect(() => {
@@ -149,7 +150,7 @@ export function EmailSendingConsent() {
         setTimeout(() => {
           refreshStatus();
         }, 5000);
-      } catch (linkError) {}
+      } catch (linkError) { }
     } catch (error) {
       Alert.alert('Error', 'Failed to start Gmail connection');
     } finally {
@@ -260,7 +261,7 @@ export function EmailSendingConsent() {
         <View style={styles.cardContent}>
           <View style={styles.headerInfo}>
             <View style={styles.iconCircle}>
-              <Icon name="mail" size={18} color="#64748b" />
+              <Icon name="mail" size={20} color="#856fff" />
             </View>
             <View style={styles.labelContainer}>
               <Text style={styles.emailLabel}>Email account</Text>
@@ -306,9 +307,15 @@ export function EmailSendingConsent() {
                 {connecting ? (
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
-                  <Text style={styles.connectBtnText}>
-                    {status.email ? 'Reconnect Gmail' : 'Connect Gmail'}
-                  </Text>
+
+
+                  <View style={styles.rowContainer}>
+                    <Icon name="mail" size={20} color="#ffffff" style={styles.icon} />
+                    <Text style={styles.connectBtnText}>
+                      {status.email ? 'Reconnect Gmail' : 'Connect Gmail'}
+                    </Text>
+                  </View>
+
                 )}
               </TouchableOpacity>
             )}
@@ -403,13 +410,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#f8fafc',
+    width: 50,
+    height: 50,
+    borderRadius: 50,
+    backgroundColor: '#eae5ff',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    borderWidth: 2,
+    borderColor: '#f1f5f9',
+    boxShadow: "0px 2px 5px rgba(0, 0, 0, 0.2)"
   },
   labelContainer: {
     flex: 1,
@@ -483,16 +493,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  connectBtnContent: {
+    display: "flex"
+
+  },
   connectBtn: {
-    backgroundColor: '#4285F4',
+    backgroundColor: '#8c78ff',
+    width: '50%',
+    alignSelf: 'center',
     paddingVertical: 10,
     borderRadius: 8,
-    alignItems: 'center',
+
+  },
+  rowContainer: {
+    flexDirection: 'row',  // Ensures the text and icon are aligned horizontally
+    alignItems: 'center',  // Aligns them vertically in the center
+    // backgroundColor: '#040211',
+    gap: 8,
+    paddingHorizontal: 10,
   },
   connectBtnText: {
     color: '#ffffff',
     fontWeight: '600',
     fontSize: 14,
+    flexDirection: 'row',  // Ensure it's displayed in a row
+    alignItems: 'center',  // Vertically align the icon and text
+    marginLeft: 8,  // Adds space between the icon and text
+  },
+
+  connectBtnIcon: {
+    marginRight: 10,  // Adds space between the icon and text
   },
   loadingContainer: {
     flexDirection: 'row',

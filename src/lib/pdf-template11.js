@@ -157,7 +157,13 @@ export const generatePdfForTemplate11 = async (
     isGSTApplicable,
     showIGST,
     showCGSTSGST,
-  } = prepareTemplate8Data(transaction, company, party, shippingAddress);
+  } = prepareTemplate8Data(
+    transaction,
+    company,
+    party,
+    shippingAddress,
+    serviceNameById,
+  );
 
   const unifiedLines = itemsWithGST?.length
     ? itemsWithGST

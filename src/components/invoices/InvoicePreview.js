@@ -470,6 +470,10 @@ export default function InvoicePreview({
               transaction,
               company || null,
               party || null,
+              shippingAddress,
+              bankForTemplate,
+              null,
+              undefined,
               serviceNameMap,
             );
             break;
@@ -656,7 +660,7 @@ export default function InvoicePreview({
             }
           }}
         >
-          <Icon name="arrow-left" size={24} color="#000" />
+          <Icon name="arrow-left" size={24} color="#8b77ff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Invoice Preview</Text>
         <TouchableOpacity
@@ -666,7 +670,7 @@ export default function InvoicePreview({
           accessibilityLabel={`Select template, current ${selectedTemplate}`}
         >
           <Text style={styles.templateSelectorText}>{selectedTemplate}</Text>
-          <Icon name="chevron-down" size={20} color="#3b82f6" />
+          <Icon name="chevron-down" size={20} color="#8b77ff" />
         </TouchableOpacity>
       </View>
 
@@ -707,7 +711,7 @@ export default function InvoicePreview({
                         style={[
                           styles.templateItemText,
                           t === selectedTemplate && {
-                            color: '#0b69ff',
+                            color: '#8b77ff',
                             fontWeight: '700',
                           },
                         ]}
@@ -723,8 +727,12 @@ export default function InvoicePreview({
         </Modal>
         {isLoading ? (
           <View style={styles.loadingCenter}>
-            <ActivityIndicator size="large" color="#3b82f6" />
-            <Text style={{ marginTop: 8 }}>Generating PDF preview...</Text>
+            <ActivityIndicator size="large" color="#8b77ff" />
+            <Text
+              style={{ marginTop: 12, color: '#6b7280', fontWeight: '500' }}
+            >
+              Generating PDF preview...
+            </Text>
           </View>
         ) : error ? (
           <View style={styles.loadingCenter}>
@@ -1021,7 +1029,12 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   templateSelectorText: {
-    color: '#3b82f6',
+    color: '#8b77ff',
     fontWeight: '600',
+  },
+  loadingCenter: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

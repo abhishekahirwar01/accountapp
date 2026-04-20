@@ -36,6 +36,7 @@ const Template8 = ({
   bank,
   client,
   clientName,
+  serviceNameById = new Map(),
 }) => {
   const actualShippingAddress = shippingAddress || transaction?.shippingAddress;
 
@@ -57,7 +58,13 @@ const Template8 = ({
     showIGST,
     showCGSTSGST,
     showNoTax,
-  } = prepareTemplate8Data(transaction, company, party, actualShippingAddress);
+  } = prepareTemplate8Data(
+    transaction,
+    company,
+    party,
+    actualShippingAddress,
+    serviceNameById,
+  );
 
   const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
   const shouldHideBankDetails = transaction.type === 'proforma';
@@ -968,6 +975,7 @@ export const generatePdfForTemplate8 = async (
       bank,
       client,
       clientName,
+      serviceNameById,
     });
 
     const options = {

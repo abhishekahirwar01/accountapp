@@ -119,6 +119,7 @@ export default function ClientLoginScreen({ navigation }) {
       username: user.username,
       name: user.name,
       email: user.email,
+      phone: user.phone,
       id: decoded.id,
       slug: user.slug,
     });

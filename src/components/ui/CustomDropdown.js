@@ -9,6 +9,7 @@ import {
   StyleSheet,
   ScrollView,
 } from 'react-native';
+import SimpleLineIcons from 'react-native-vector-icons/SimpleLineIcons';
 
 const CustomDropdown = ({
   items,
@@ -78,7 +79,7 @@ const CustomDropdown = ({
         >
           {selectedItem ? selectedItem.label : placeholder}
         </Text>
-        <Text style={styles.dropdownArrow}>▼</Text>
+        <SimpleLineIcons name="arrow-down" color="#000" size={10} />
       </TouchableOpacity>
 
       <Modal

@@ -14,7 +14,7 @@ import {
   Linking,
   TouchableWithoutFeedback,
   TextInput,
-   PermissionsAndroid,
+  PermissionsAndroid,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { pick } from '@react-native-documents/picker';
@@ -23,7 +23,6 @@ import FileViewer from 'react-native-file-viewer';
 import * as XLSX from 'xlsx';
 import Toast from 'react-native-toast-message';
 import {
-  MoreHorizontal,
   PlusCircle,
   Building,
   User,
@@ -42,26 +41,16 @@ import {
   Info,
   Search,
 } from 'lucide-react-native';
-
-import { VendorForm } from '../vendors/VendorForm';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
 import { usePermissions } from '../../contexts/permission-context';
 import { capitalizeWords } from '../../lib/utils';
 import { BASE_URL } from '../../config';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '../../components/ui/Dialog';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 export function VendorSettings() {
   const [vendors, setVendors] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedVendor, setSelectedVendor] = useState(null);
   const [companies, setCompanies] = useState([]);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
@@ -75,6 +64,7 @@ export function VendorSettings() {
     current: 0,
     total: 0,
   });
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   // Search State
   const [searchTerm, setSearchTerm] = useState('');
@@ -88,15 +78,26 @@ export function VendorSettings() {
   const { permissions: accountPerms } = usePermissions();
   const [userRole, setUserRole] = useState(null);
 
+  const navigation = useNavigation();
+
   useEffect(() => {
     const init = async () => {
       const role = await AsyncStorage.getItem('role');
       setUserRole(role);
       await fetchCompanies();
       await fetchVendors();
+      setInitialLoadComplete(true);
     };
     init();
   }, []);
+
+  // Refresh data when coming back from VendorForm
+  useFocusEffect(
+    useCallback(() => {
+      if (!initialLoadComplete) return;
+      fetchVendors();
+    }, [initialLoadComplete]),
+  );
 
   const isCustomer = userRole === 'customer';
 
@@ -122,6 +123,7 @@ export function VendorSettings() {
       const data = await res.json();
       setCompanies(Array.isArray(data) ? data : data.companies || []);
     } catch (err) {
+      console.error('fetchCompanies error:', err);
     } finally {
       setIsLoadingCompanies(false);
     }
@@ -145,6 +147,17 @@ export function VendorSettings() {
     }
   }, []);
 
+  // Navigate to VendorForm (same pattern as UsersScreen)
+  const handleOpenForm = useCallback(
+    (vendor = null) => {
+      navigation.navigate('VendorForm', {
+        vendor: vendor || null,
+        companies,
+      });
+    },
+    [navigation, companies],
+  );
+
   // Filter vendors based on search term
   const filteredVendors = React.useMemo(() => {
     let data = vendors;
@@ -165,7 +178,7 @@ export function VendorSettings() {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  // Calculate pagination based on filtered results
+  // Calculate pagination
   const indexOfLastVendor = currentPage * vendorsPerPage;
   const indexOfFirstVendor = indexOfLastVendor - vendorsPerPage;
   const currentVendors = filteredVendors.slice(
@@ -206,26 +219,12 @@ export function VendorSettings() {
 
   const handleEditVendor = vendor => {
     setOpenDropdownId(null);
-    setSelectedVendor(vendor);
-    setIsFormOpen(true);
+    handleOpenForm(vendor);
   };
 
-  const handleFormSuccess = () => {
-    setIsFormOpen(false);
-    fetchVendors();
-    Toast.show({
-      type: 'success',
-      text1: selectedVendor
-        ? 'Vendor updated successfully'
-        : 'Vendor created successfully',
-    });
-    setSelectedVendor(null);
-  };
-
-  // Check if vendor exists by name (case insensitive)
+  // Check if vendor exists by name
   const checkVendorExistsByName = vendorName => {
     if (!vendorName || !vendors.length) return false;
-
     const normalizedVendorName = vendorName.trim().toLowerCase();
     return vendors.some(
       vendor =>
@@ -236,7 +235,6 @@ export function VendorSettings() {
   // Check if vendor exists by GSTIN
   const checkVendorExistsByGSTIN = gstin => {
     if (!gstin || !vendors.length) return false;
-
     const normalizedGSTIN = gstin.trim().toUpperCase();
     return vendors.some(
       vendor => vendor.gstin?.trim().toUpperCase() === normalizedGSTIN,
@@ -246,39 +244,26 @@ export function VendorSettings() {
   // Parse Excel/CSV file
   const parseFile = async (fileUri, fileName) => {
     try {
-      // Read file content
       const fileContent = await RNFS.readFile(fileUri, 'base64');
+      if (!fileContent) throw new Error('Failed to read file content');
 
-      if (!fileContent) {
-        throw new Error('Failed to read file content');
-      }
-
-      // Determine file type
       const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
-
       let jsonData = [];
 
       if (isExcel) {
-        // Parse Excel file
         const workbook = XLSX.read(fileContent, { type: 'base64' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         jsonData = XLSX.utils.sheet_to_json(worksheet);
       } else {
-        // Parse CSV file
         const textContent = atob(fileContent);
         const lines = textContent
           .split('\n')
           .filter(line => line.trim() !== '');
-
-        if (lines.length === 0) {
-          throw new Error('CSV file is empty');
-        }
-
+        if (lines.length === 0) throw new Error('CSV file is empty');
         const headers = lines[0]
           .split(',')
           .map(h => h.trim().replace(/"/g, ''));
-
         for (let i = 1; i < lines.length; i++) {
           const values = lines[i]
             .split(',')
@@ -290,18 +275,14 @@ export function VendorSettings() {
           jsonData.push(row);
         }
       }
-
-      console.log('Parsed data:', jsonData);
       return jsonData;
     } catch (error) {
       throw new Error(`Failed to parse file: ${error.message}`);
     }
   };
 
-  // Transform CSV/Excel data to match vendor schema
   const transformVendorData = data => {
     return data.map((row, index) => {
-      // Normalize and clean data
       const vendorName = (
         row.vendorName ||
         row['Vendor Name'] ||
@@ -318,7 +299,6 @@ export function VendorSettings() {
       const gstin = (row.gstin || row.GSTIN || row.gst || '')
         .toUpperCase()
         .trim();
-
       return {
         vendorName,
         contactNumber,
@@ -341,26 +321,19 @@ export function VendorSettings() {
           (row.isTDSApplicable || '').toString().toLowerCase() === 'y',
         tdsRate: parseFloat(row.tdsRate || row['TDS Rate'] || 0),
         tdsSection: (row.tdsSection || row['TDS Section'] || '').trim(),
-        // Add reference for tracking
-        _originalIndex: index + 2, // Excel row number (header is row 1)
+        _originalIndex: index + 2,
       };
     });
   };
 
-  // Filter out existing vendors
   const filterExistingVendors = vendorsData => {
     const newVendors = [];
     const existingVendors = [];
-
     for (const vendor of vendorsData) {
-      // Check by vendor name (case insensitive)
       const existsByName = checkVendorExistsByName(vendor.vendorName);
-
-      // Check by GSTIN if available
       const existsByGSTIN = vendor.gstin
         ? checkVendorExistsByGSTIN(vendor.gstin)
         : false;
-
       if (existsByName || existsByGSTIN) {
         existingVendors.push({
           vendor: vendor.vendorName || `Row ${vendor._originalIndex}`,
@@ -373,25 +346,17 @@ export function VendorSettings() {
         newVendors.push(vendor);
       }
     }
-
     return { newVendors, existingVendors };
   };
 
-  // Import vendors one by one
   const importVendorsSequentially = async vendorsData => {
     const token = await AsyncStorage.getItem('token');
-
-    if (!token) {
-      throw new Error('Authentication token not found');
-    }
-
+    if (!token) throw new Error('Authentication token not found');
     const failed = [];
     const endpoint = `${BASE_URL}/api/vendors`;
-
     for (let i = 0; i < vendorsData.length; i++) {
       const vendor = vendorsData[i];
       setImportProgress({ current: i + 1, total: vendorsData.length });
-
       try {
         const response = await fetch(endpoint, {
           method: 'POST',
@@ -401,20 +366,13 @@ export function VendorSettings() {
           },
           body: JSON.stringify(vendor),
         });
-
         const responseData = await response.json();
-
         if (!response.ok) {
           failed.push({
             vendor: vendor.vendorName || `Row ${vendor._originalIndex}`,
             error: responseData.message || `Status: ${response.status}`,
             type: 'failed',
           });
-        } else {
-          console.log(
-            `Successfully imported vendor ${i + 1}:`,
-            vendor.vendorName,
-          );
         }
       } catch (error) {
         failed.push({
@@ -423,11 +381,8 @@ export function VendorSettings() {
           type: 'failed',
         });
       }
-
-      // Small delay to avoid overwhelming the server
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-
     return failed;
   };
 
@@ -435,15 +390,13 @@ export function VendorSettings() {
     try {
       const result = await pick({
         type: [
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-          'application/vnd.ms-excel', // .xls
-          'text/csv', // CSV
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+          'text/csv',
         ],
         allowMultiSelection: false,
       });
-
       const file = Array.isArray(result) ? result[0] : result;
-
       if (!file || !file.uri) {
         Toast.show({
           type: 'error',
@@ -452,17 +405,13 @@ export function VendorSettings() {
         });
         return;
       }
-
-      // Process the file
       await handleFileImport(file);
     } catch (error) {
       if (
         error.code === 'DOCUMENT_PICKER_CANCELED' ||
         error.message?.includes('cancel')
-      ) {
+      )
         return;
-      }
-
       Toast.show({
         type: 'error',
         text1: 'Import Failed',
@@ -477,68 +426,34 @@ export function VendorSettings() {
     setFailedItems([]);
     setSkippedItems([]);
     setImportProgress({ current: 0, total: 0 });
-
     try {
-      // Parse the file
       const parsedData = await parseFile(file.uri, file.name);
-
-      if (parsedData.length === 0) {
-        throw new Error('No data found in file');
-      }
-
-      // Transform data
+      if (parsedData.length === 0) throw new Error('No data found in file');
       const vendorsData = transformVendorData(parsedData);
-
-      console.log('Transformed vendors data:', vendorsData);
-
-      // Step 1: Check for existing vendors locally
-      Toast.show({
-        type: 'info',
-        text1: 'Checking for duplicate vendors...',
-      });
-
+      Toast.show({ type: 'info', text1: 'Checking for duplicate vendors...' });
       const { newVendors, existingVendors } =
         filterExistingVendors(vendorsData);
-
-      // Store skipped items
       setSkippedItems(existingVendors);
-
-      // If all vendors already exist
       if (newVendors.length === 0) {
         setImportStatus('skipped');
         Toast.show({
           type: 'info',
           text1: 'No New Vendors',
-          text2: 'All vendors in the file already exist in the system.',
+          text2: 'All vendors already exist.',
         });
         setIsImporting(false);
         return;
       }
-
-      // Step 2: Import only new vendors
       setImportProgress({ current: 0, total: newVendors.length });
-
-      Toast.show({
-        type: 'info',
-        text1: 'Importing new vendors...',
-        text2: `Found ${existingVendors.length} existing, ${newVendors.length} new vendors to import`,
-      });
-
       const failed = await importVendorsSequentially(newVendors);
-
-      // Update status
       if (failed.length === 0 && newVendors.length > 0) {
         setImportStatus('success');
         Toast.show({
           type: 'success',
           text1: 'Import Successful',
-          text2: `Successfully imported ${newVendors.length} new vendors. ${existingVendors.length} vendors already existed.`,
+          text2: `Imported ${newVendors.length} vendors.`,
         });
-
-        // Refresh vendor list
         await fetchVendors();
-
-        // Close modal after delay
         setTimeout(() => {
           setIsImportModalOpen(false);
           setImportStatus(null);
@@ -546,43 +461,28 @@ export function VendorSettings() {
       } else if (newVendors.length - failed.length > 0) {
         setImportStatus('partial');
         setFailedItems(failed);
-
-        Toast.show({
-          type: 'success',
-          text1: 'Partial Success',
-          text2: `${newVendors.length - failed.length} imported, ${
-            existingVendors.length
-          } already existed, ${failed.length} failed.`,
-        });
-
-        // Refresh vendor list for successful imports
+        Toast.show({ type: 'success', text1: 'Partial Success' });
         await fetchVendors();
       } else {
         setImportStatus('failed');
         setFailedItems(failed);
-        Toast.show({
-          type: 'error',
-          text1: 'Import Failed',
-          text2: 'Failed to import any new vendors.',
-        });
+        Toast.show({ type: 'error', text1: 'Import Failed' });
       }
     } catch (error) {
       setImportStatus('failed');
       Toast.show({
         type: 'error',
         text1: 'Import Failed',
-        text2: error.message || 'Failed to import vendors.',
+        text2: error.message,
       });
     } finally {
       setIsImporting(false);
     }
   };
 
- const downloadTemplate = async () => {
+  const downloadTemplate = async () => {
     setIsDownloading(true);
-
     try {
-      // Create sample vendor data
       const headers = [
         'vendorName',
         'contactNumber',
@@ -597,56 +497,23 @@ export function VendorSettings() {
         'tdsRate',
         'tdsSection',
       ];
-
-      // Add note about duplicate prevention
       const note = [
         ['IMPORTANT NOTES:', '', '', '', '', '', '', '', '', '', '', ''],
         [
           '1. vendorName is REQUIRED and should be unique',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
+          '', '', '', '', '', '', '', '', '', '', '', '',
         ],
         [
           '2. Vendors with duplicate names will be skipped automatically',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
+          '', '', '', '', '', '', '', '', '', '', '', '',
         ],
         [
           '3. For TDS Applicable, use "Yes"/"No" or "true"/"false"',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
+          '', '', '', '', '', '', '', '', '', '', '', '',
         ],
         ['', '', '', '', '', '', '', '', '', '', '', ''],
         headers,
       ];
-
       const sampleData = [
         [
           'ABC Suppliers',
@@ -691,53 +558,28 @@ export function VendorSettings() {
           '',
         ],
       ];
-
-      // Create workbook
       const ws = XLSX.utils.aoa_to_sheet([...note, ...sampleData]);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Vendor Template');
-
-      // Generate Excel file
       const excelBuffer = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-
-      // Save to downloads (match CustomerSettings behaviour)
       const fileName = `vendor_import_template_${Date.now()}.xlsx`;
-
-      // Determine Path Based On Platform
       let filePath = '';
       if (Platform.OS === 'android') {
-        // Request permission for older Android versions
         if (Platform.Version < 33) {
           const granted = await PermissionsAndroid.request(
             PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-            {
-              title: 'Storage Permission Required',
-              message:
-                'We need permission to save templates to your Downloads folder',
-              buttonNeutral: 'Ask Later',
-              buttonNegative: 'Cancel',
-              buttonPositive: 'Allow',
-            },
           );
           if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-            Alert.alert(
-              'Permission Denied',
-              'Storage permission is required to download templates.',
-            );
+            Alert.alert('Permission Denied', 'Storage permission is required.');
             setIsDownloading(false);
             return;
           }
         }
-
-        // Path to the public Downloads folder
         filePath = `${RNFS.ExternalStorageDirectoryPath}/Download/${fileName}`;
       } else {
         filePath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
       }
-
       await RNFS.writeFile(filePath, excelBuffer, 'base64');
-
-      // Ensure the file appears in Android file manager immediately
       if (Platform.OS === 'android') {
         try {
           await RNFS.scanFile(filePath);
@@ -745,7 +587,6 @@ export function VendorSettings() {
           console.warn('scanFile failed', scanErr);
         }
       }
-
       Alert.alert(
         'Download Successful',
         `File saved to: ${
@@ -756,35 +597,37 @@ export function VendorSettings() {
           {
             text: 'Open File',
             onPress: () => {
-              const fileUri = Platform.OS === 'ios' ? `file://${filePath}` : filePath;
-              FileViewer.open(fileUri).catch(() => {
-                Toast.show({ type: 'info', text1: 'File saved', text2: filePath });
-              });
+              const fileUri =
+                Platform.OS === 'ios' ? `file://${filePath}` : filePath;
+              FileViewer.open(fileUri).catch(() =>
+                Toast.show({
+                  type: 'info',
+                  text1: 'File saved',
+                  text2: filePath,
+                }),
+              );
             },
           },
         ],
       );
-
       Toast.show({
         type: 'success',
         text1: 'Downloaded',
         text2: 'Template saved to Downloads folder',
       });
     } catch (error) {
-      console.error('Download error:', error);
       Toast.show({
         type: 'error',
         text1: 'Download Failed',
-        text2: error.message || 'Failed to download template.',
+        text2: error.message,
       });
     } finally {
       setIsDownloading(false);
     }
   };
-  // Render import status screen
+
   const renderImportStatus = () => {
     if (!importStatus) return null;
-
     const statusConfig = {
       success: {
         icon: Check,
@@ -796,7 +639,7 @@ export function VendorSettings() {
         icon: AlertCircle,
         color: '#f59e0b',
         title: 'Partial Success',
-        message: `Some vendors imported successfully.`,
+        message: 'Some vendors imported successfully.',
       },
       failed: {
         icon: X,
@@ -811,10 +654,8 @@ export function VendorSettings() {
         message: 'All vendors in the file already exist in the system.',
       },
     };
-
     const config = statusConfig[importStatus];
     const IconComponent = config.icon;
-
     return (
       <View style={styles.importStatusContainer}>
         <IconComponent size={48} color={config.color} />
@@ -822,13 +663,10 @@ export function VendorSettings() {
           {config.title}
         </Text>
         <Text style={styles.importStatusMessage}>{config.message}</Text>
-
-        {/* Show existing/skipped vendors */}
         {skippedItems.length > 0 && (
           <View style={styles.skippedItemsContainer}>
             <Text style={styles.skippedItemsTitle}>
-              <Info size={14} color="#856404" /> Skipped ({skippedItems.length}
-              ):
+              Skipped ({skippedItems.length}):
             </Text>
             <ScrollView style={styles.skippedList} nestedScrollEnabled={true}>
               {skippedItems.slice(0, 5).map((item, index) => (
@@ -844,13 +682,10 @@ export function VendorSettings() {
             </ScrollView>
           </View>
         )}
-
-        {/* Show failed items */}
         {failedItems.length > 0 && (
           <View style={styles.failedItemsContainer}>
             <Text style={styles.failedItemsTitle}>
-              <AlertCircle size={14} color="#dc3545" /> Failed (
-              {failedItems.length}):
+              Failed ({failedItems.length}):
             </Text>
             <ScrollView style={styles.failedList} nestedScrollEnabled={true}>
               {failedItems.slice(0, 5).map((item, index) => (
@@ -866,11 +701,9 @@ export function VendorSettings() {
             </ScrollView>
           </View>
         )}
-
         {importStatus === 'success' && (
           <Text style={styles.autoCloseMessage}>Closing in 3 seconds...</Text>
         )}
-
         <TouchableOpacity
           style={[styles.closeImportBtn, { backgroundColor: config.color }]}
           onPress={() => {
@@ -926,45 +759,7 @@ export function VendorSettings() {
             </View>
           </View>
         </View>
-        <View>
-          <TouchableOpacity
-            style={styles.moreBtn}
-            onPress={() => {
-              setOpenDropdownId(openDropdownId === item._id ? null : item._id);
-            }}
-          >
-            <MoreHorizontal size={20} color="#64748b" />
-          </TouchableOpacity>
-
-          {openDropdownId === item._id && (
-            <View style={styles.dropdown}>
-              <TouchableOpacity
-                style={styles.dropdownItem}
-                onPress={() => handleEditVendor(item)}
-              >
-                <Edit2 size={15} color="#3b82f6" />
-                <Text style={styles.dropdownItemText}>Edit</Text>
-              </TouchableOpacity>
-              <View style={styles.dropdownDivider} />
-              <TouchableOpacity
-                style={styles.dropdownItem}
-                onPress={() => handleDeleteVendor(item)}
-              >
-                <Trash2 size={16} color="#ef4444" />
-                <Text
-                  style={[
-                    styles.dropdownItemText,
-                    styles.dropdownItemTextDanger,
-                  ]}
-                >
-                  Delete
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
       </View>
-
       <View style={styles.detailsSection}>
         {item.contactNumber ? (
           <View style={styles.detailItem}>
@@ -974,7 +769,6 @@ export function VendorSettings() {
             <Text style={styles.detailText}>{item.contactNumber}</Text>
           </View>
         ) : null}
-
         {item.email ? (
           <View style={styles.detailItem}>
             <View style={styles.iconCircle}>
@@ -983,7 +777,6 @@ export function VendorSettings() {
             <Text style={styles.detailText}>{item.email}</Text>
           </View>
         ) : null}
-
         {item.address ? (
           <View style={styles.detailItem}>
             <View style={[styles.iconCircle, { backgroundColor: '#f0fdf4' }]}>
@@ -998,13 +791,30 @@ export function VendorSettings() {
           </View>
         ) : null}
       </View>
+      <View style={styles.cardActions}>
+        <TouchableOpacity
+          style={styles.editBtn}
+          onPress={() => handleEditVendor(item)}
+        >
+          <Edit2 size={14} color="#ffffff" />
+          <Text style={styles.editBtnText}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.deleteBtn}
+          onPress={() => handleDeleteVendor(item)}
+        >
+          <Trash2 size={14} color="#ef4444" />
+          <Text style={styles.deleteBtnText}>Delete</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
   if (isLoadingCompanies)
     return (
-      <View style={styles.centerContainer}>
+      <View style={styles.loadingWrapper}>
         <ActivityIndicator size="large" color="#3b82f6" />
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
 
@@ -1033,7 +843,6 @@ export function VendorSettings() {
     );
   }
 
-  // If user cannot show vendors AND cannot create vendors, show access restricted
   if (!canShowVendors && !canCreateVendors) {
     return (
       <View style={styles.centerContainer}>
@@ -1051,20 +860,17 @@ export function VendorSettings() {
   return (
     <TouchableWithoutFeedback onPress={() => setOpenDropdownId(null)}>
       <View style={styles.container}>
+        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.navTitle}>Manage Vendors</Text>
           <Text style={styles.navSub}>
             A list of all your vendors and suppliers.
           </Text>
-
           {canCreateVendors && (
             <View style={styles.actionRow}>
               <TouchableOpacity
                 style={styles.mainActionBtn}
-                onPress={() => {
-                  setSelectedVendor(null);
-                  setIsFormOpen(true);
-                }}
+                onPress={() => handleOpenForm()}
               >
                 <PlusCircle
                   size={18}
@@ -1141,10 +947,7 @@ export function VendorSettings() {
                 onRefresh={fetchVendors}
               />
             }
-            contentContainerStyle={{
-              // paddingHorizontal: 16,
-              paddingBottom: 100,
-            }}
+            contentContainerStyle={{ paddingBottom: 100 }}
             scrollEnabled={false}
             removeClippedSubviews={true}
             maxToRenderPerBatch={10}
@@ -1152,7 +955,7 @@ export function VendorSettings() {
             ListEmptyComponent={
               <View style={styles.emptyView}>
                 <Building size={48} color="#cbd5e1" />
-                <Text style={{ color: '#64748b', marginTop: 10 }}>
+                <Text style={styles.emptyText}>
                   {searchTerm
                     ? 'No vendors match your search'
                     : 'No vendors found'}
@@ -1197,26 +1000,6 @@ export function VendorSettings() {
           </View>
         )}
 
-        {/* Vendor Form Modal */}
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <DialogContent className="md:max-w-2xl max-w-sm grid-rows-[auto,1fr,auto] max-h-[90vh] p-0">
-            <DialogHeader className="p-6">
-              <DialogTitle>
-                {selectedVendor ? 'Edit Vendor' : 'Create New Vendor'}
-              </DialogTitle>
-              <DialogDescription>
-                {selectedVendor
-                  ? 'Update the details for this vendor.'
-                  : 'Fill in the form to add a new vendor.'}
-              </DialogDescription>
-            </DialogHeader>
-            <VendorForm
-              vendor={selectedVendor || undefined}
-              onSuccess={handleFormSuccess}
-            />
-          </DialogContent>
-        </Dialog>
-
         {/* Import Modal */}
         <Modal
           visible={isImportModalOpen}
@@ -1237,7 +1020,6 @@ export function VendorSettings() {
                   <X size={24} color="black" />
                 </TouchableOpacity>
               </View>
-
               {isImporting ? (
                 <View style={styles.importLoadingContainer}>
                   <ActivityIndicator size="large" color="#3b82f6" />
@@ -1284,14 +1066,12 @@ export function VendorSettings() {
                   <Text style={styles.importDescription}>
                     Upload a CSV or Excel file containing vendor data.
                   </Text>
-
                   <View style={styles.featureInfo}>
                     <Info size={16} color="#3b82f6" />
                     <Text style={styles.featureInfoText}>
                       Duplicate vendors (by name) will be automatically skipped
                     </Text>
                   </View>
-
                   <TouchableOpacity
                     style={styles.uploadBox}
                     onPress={pickFileForImport}
@@ -1305,7 +1085,6 @@ export function VendorSettings() {
                       Supports .xlsx, .xls, .csv files
                     </Text>
                   </TouchableOpacity>
-
                   <TouchableOpacity
                     style={styles.downloadTemplateBtn}
                     onPress={downloadTemplate}
@@ -1329,7 +1108,6 @@ export function VendorSettings() {
                   <Text style={styles.templateHint}>
                     Download the template file to ensure proper formatting.
                   </Text>
-
                   <View style={styles.requirementsContainer}>
                     <Text style={styles.requirementsTitle}>
                       Important Notes:
@@ -1357,25 +1135,37 @@ export function VendorSettings() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+  container: { flex: 1, backgroundColor: '#f1f5f9' },
+  loadingWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#64748b',
+  },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
+    backgroundColor: '#f1f5f9',
   },
   restrictedContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 40,
+    padding: 30,
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
     width: '100%',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   restrictedTitle: {
     fontSize: 18,
@@ -1399,13 +1189,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  contactButtons: {
-    width: '100%',
-  },
+  contactButtons: { marginTop: 8 },
   setupCard: {
     backgroundColor: 'white',
     padding: 24,
-    borderRadius: 12,
+    borderRadius: 16,
     alignItems: 'center',
     width: '100%',
     shadowColor: '#000',
@@ -1424,38 +1212,30 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#6b7280',
     fontSize: 14,
-    marginBottom: 24,
+    marginBottom: 20,
     lineHeight: 20,
   },
   primaryBtn: {
     backgroundColor: '#3b82f6',
     flexDirection: 'row',
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingHorizontal: 20,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  btnText: {
-    color: 'white',
-    fontWeight: '500',
-    fontSize: 14,
-  },
+  btnText: { color: 'white', fontWeight: '600', fontSize: 15 },
   header: {
-    paddingHorizontal: 10,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: '#e2e8f0',
   },
-  navTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  navSub: { fontSize: 12, color: '#64748b', marginTop: 1 },
+  navTitle: { fontSize: 22, fontWeight: '700', color: '#0f172a' },
+  navSub: { fontSize: 13, color: '#64748b', marginTop: 4 },
   actionRow: {
-    marginTop: 14,
+    marginTop: 16,
     gap: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1466,32 +1246,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 10,
+    padding: 12,
     borderRadius: 10,
     flex: 1,
   },
-  mainActionText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
+  mainActionText: { color: 'white', fontWeight: '600', fontSize: 13 },
   secondaryActionBtn: {
     backgroundColor: 'white',
-    borderHorizontal: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#cbd5e1',
     borderWidth: 1,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 10,
+    padding: 12,
     borderRadius: 10,
     flex: 1,
   },
-  secondaryActionText: { color: '#1e293b', fontWeight: '600', fontSize: 12 },
-  // Search Styles
+  secondaryActionText: { color: '#334155', fontWeight: '600', fontSize: 13 },
   searchContainer: {
-    paddingHorizontal: 14,
-    // paddingVertical: 10,
+    paddingHorizontal: 16,
     backgroundColor: 'white',
+    paddingTop: 12,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-    marginBottom: 8,
+    borderBottomColor: '#e2e8f0',
   },
   searchInputWrapper: {
     flexDirection: 'row',
@@ -1501,20 +1279,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0',
     paddingHorizontal: 12,
-    height: 44,
+    height: 42,
   },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: '#1e293b',
-    paddingVertical: 0,
-  },
-  clearSearchBtn: {
-    padding: 4,
-  },
+  searchIcon: { marginRight: 8 },
+  searchInput: { flex: 1, fontSize: 14, color: '#1e293b', paddingVertical: 0 },
+  clearSearchBtn: { padding: 4 },
   vendorCount: {
     fontSize: 12,
     color: '#64748b',
@@ -1527,23 +1296,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#3b82f6',
     borderRadius: 8,
   },
-  clearSearchEmptyText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  clearSearchEmptyText: { color: 'white', fontSize: 14, fontWeight: '600' },
   card: {
     backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 12,
-    paddingBottom: 20,
-    marginBottom: 8,
+    borderRadius: 12,
+    padding: 14,
+    marginHorizontal: 16,
+    marginTop: 10,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: '#e2e8f0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowRadius: 4,
     elevation: 2,
   },
   cardHeader: {
@@ -1551,38 +1316,34 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  vendorName: { fontSize: 16, fontWeight: '700', color: '#1e293b' },
+  vendorName: { fontSize: 16, fontWeight: '600', color: '#1e293b' },
   badgeRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   regBadge: {
     backgroundColor: '#eff6ff',
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 6,
   },
-  regBadgeText: { color: '#2563eb', fontSize: 10, fontWeight: '700' },
+  regBadgeText: { color: '#2563eb', fontSize: 10, fontWeight: '600' },
   tdsBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    // paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 8,
+    borderRadius: 6,
     gap: 4,
   },
   bgTdsOn: { backgroundColor: '#f0fdf4' },
   bgTdsOff: { backgroundColor: '#fef2f2' },
   textTdsOn: { color: '#166534' },
   textTdsOff: { color: '#991b1b' },
-  tdsBadgeText: { fontSize: 10, fontWeight: '700' },
-  moreBtn: {
-    padding: 8,
-    borderRadius: 8,
-  },
+  tdsBadgeText: { fontSize: 10, fontWeight: '600' },
+  moreBtn: { padding: 6 },
   dropdown: {
     position: 'absolute',
-    top: 22,
+    top: 24,
     right: 0,
     backgroundColor: 'white',
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     shadowColor: '#000',
@@ -1597,99 +1358,89 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     gap: 10,
   },
-  dropdownItemText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  dropdownItemTextDanger: {
-    color: '#ef4444',
-  },
-  dropdownDivider: {
-    height: 1,
-    backgroundColor: '#f1f5f9',
-  },
-  detailsSection: { marginTop: 16, gap: 10 },
+  dropdownItemText: { fontSize: 14, fontWeight: '500', color: '#334155' },
+  dropdownItemTextDanger: { color: '#ef4444' },
+  dropdownDivider: { height: 1, backgroundColor: '#f1f5f9' },
+  detailsSection: { marginTop: 14, gap: 10 },
   detailItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconCircle: {
     width: 28,
     height: 28,
-    borderRadius: 16,
+    borderRadius: 14,
     backgroundColor: '#eff6ff',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  detailText: { fontSize: 12, color: '#334155', fontWeight: '500' },
-  subDetailText: { fontSize: 10, color: '#64748b' },
+  detailText: { fontSize: 13, color: '#334155' },
+  subDetailText: { fontSize: 11, color: '#64748b' },
+  cardActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+  },
+  editBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: '#8b77ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    gap: 6,
+  },
+  editBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    gap: 6,
+  },
+  deleteBtnText: {
+    color: '#dc2626',
+    fontSize: 13,
+    fontWeight: '600',
+  },
   footerPagination: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: 'white',
-    padding: 16,
+    padding: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: '#e2e8f0',
   },
   pageNavBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#cbd5e1',
     gap: 4,
   },
   nextBtn: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
-  pageNavText: { fontWeight: '700', fontSize: 14, color: '#1e293b' },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalTitle: { fontSize: 18, fontWeight: 'bold' },
-
-  // Form Modal Styles
-  formModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  formModalContainer: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    maxHeight: '90%',
-    width: '100%',
-    overflow: 'hidden',
-  },
-  formModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  formModalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1e293b',
-  },
-  formModalContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-
-  // Import Modal Styles
+  pageNavText: { fontWeight: '600', fontSize: 13, color: '#1e293b' },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1712,15 +1463,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
-  importModalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1e293b',
-  },
-  importModalContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
+  importModalTitle: { fontSize: 18, fontWeight: '600', color: '#1e293b' },
+  importModalContent: { paddingHorizontal: 20, paddingVertical: 16 },
   importDescription: {
     fontSize: 14,
     color: '#64748b',
@@ -1736,12 +1480,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     gap: 8,
   },
-  featureInfoText: {
-    fontSize: 13,
-    color: '#1e40af',
-    flex: 1,
-    lineHeight: 18,
-  },
+  featureInfoText: { fontSize: 13, color: '#1e40af', flex: 1, lineHeight: 18 },
   uploadBox: {
     borderWidth: 2,
     borderStyle: 'dashed',
@@ -1753,21 +1492,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   uploadText: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#334155',
-    marginTop: 16,
-    marginBottom: 8,
-    fontWeight: '600',
+    marginTop: 12,
+    marginBottom: 6,
+    fontWeight: '500',
   },
-  uploadSubText: {
-    fontSize: 13,
-    color: '#64748b',
-    textAlign: 'center',
-  },
+  uploadSubText: { fontSize: 13, color: '#64748b' },
   downloadTemplateBtn: {
     borderWidth: 1,
     borderColor: '#3b82f6',
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
     flexDirection: 'row',
@@ -1784,162 +1519,130 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#94a3b8',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   requirementsContainer: {
     backgroundColor: '#f8fafc',
-    padding: 16,
+    padding: 14,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    marginBottom: 10,
   },
   requirementsTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#334155',
     marginBottom: 8,
   },
   requirementItem: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#64748b',
     marginBottom: 4,
-    marginLeft: 8,
+    marginLeft: 6,
   },
   emptyView: {
     alignItems: 'center',
     paddingVertical: 50,
+    paddingHorizontal: 20,
   },
-  blurEffect: {
-    opacity: 0.5,
+  emptyText: {
+    color: '#64748b',
+    marginTop: 12,
+    fontSize: 15,
   },
-  importLoadingContainer: {
-    alignItems: 'center',
-    padding: 40,
-  },
+  blurEffect: { opacity: 0.5 },
+  importLoadingContainer: { alignItems: 'center', padding: 30 },
   importLoadingText: {
-    fontSize: 16,
-    color: '#333',
-    marginTop: 20,
+    fontSize: 15,
+    color: '#334155',
+    marginTop: 16,
     marginBottom: 12,
     textAlign: 'center',
   },
   processingNote: {
     fontSize: 13,
     color: '#64748b',
-    marginTop: 20,
+    marginTop: 16,
     textAlign: 'center',
     fontStyle: 'italic',
   },
   progressBar: {
     width: '100%',
-    height: 8,
+    height: 6,
     backgroundColor: '#e9ecef',
-    borderRadius: 4,
+    borderRadius: 3,
     overflow: 'hidden',
-    marginTop: 10,
   },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#3b82f6',
-    borderRadius: 4,
-  },
-  progressPercentage: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 8,
-  },
-  importStatusContainer: {
-    alignItems: 'center',
-    padding: 24,
-    maxHeight: '70vh',
-  },
+  progressFill: { height: '100%', backgroundColor: '#3b82f6', borderRadius: 3 },
+  progressPercentage: { fontSize: 13, color: '#64748b', marginTop: 8 },
+  importStatusContainer: { alignItems: 'center', padding: 20 },
   importStatusTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginTop: 16,
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 12,
     marginBottom: 8,
     textAlign: 'center',
   },
   importStatusMessage: {
     fontSize: 14,
-    color: '#333',
+    color: '#475569',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
     lineHeight: 20,
   },
   skippedItemsContainer: {
-    backgroundColor: '#fff3cd',
+    backgroundColor: '#fffbeb',
     borderWidth: 1,
-    borderColor: '#ffeaa7',
+    borderColor: '#fde68a',
     borderRadius: 8,
     padding: 12,
-    marginTop: 12,
     width: '100%',
     marginBottom: 12,
   },
   skippedItemsTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#856404',
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#92400e',
+    marginBottom: 6,
   },
-  skippedList: {
-    maxHeight: 100,
-  },
+  skippedList: { maxHeight: 80 },
   skippedItem: {
     fontSize: 12,
-    color: '#856404',
-    marginBottom: 4,
-    paddingLeft: 4,
+    color: '#92400e',
+    marginBottom: 2,
   },
   failedItemsContainer: {
-    backgroundColor: '#f8d7da',
+    backgroundColor: '#fef2f2',
     borderWidth: 1,
-    borderColor: '#f5c6cb',
+    borderColor: '#fecaca',
     borderRadius: 8,
     padding: 12,
-    marginTop: 12,
     width: '100%',
     marginBottom: 12,
   },
   failedItemsTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#721c24',
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#991b1b',
+    marginBottom: 6,
   },
-  failedList: {
-    maxHeight: 100,
-  },
+  failedList: { maxHeight: 80 },
   failedItem: {
     fontSize: 12,
-    color: '#721c24',
-    marginBottom: 4,
-    paddingLeft: 4,
+    color: '#991b1b',
+    marginBottom: 2,
   },
   autoCloseMessage: {
     fontSize: 13,
-    color: '#666',
+    color: '#64748b',
     fontStyle: 'italic',
-    marginTop: 16,
+    marginTop: 12,
   },
   closeImportBtn: {
-    backgroundColor: '#3b82f6',
-    paddingHorizontal: 32,
-    paddingVertical: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
     borderRadius: 8,
-    marginTop: 24,
+    marginTop: 16,
   },
-  closeImportBtnText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 16,
-  },
+  closeImportBtnText: { color: 'white', fontWeight: '600', fontSize: 15 },
 });

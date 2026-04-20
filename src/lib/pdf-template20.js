@@ -71,35 +71,73 @@ const splitItemsIntoPages = (items, itemsPerPage = ITEMS_PER_PAGE) => {
 };
 
 // Generate items table HTML for a specific page
-const generateItemsTableHTML = (items, colWidths, showIGST, showCGSTSGST, startIndex = 0) => {
+const generateItemsTableHTML = (
+  items,
+  colWidths,
+  showIGST,
+  showCGSTSGST,
+  startIndex = 0,
+) => {
   return items
     .map((item, index) => {
       return `
         <div class="table-row">
-          <div class="table-cell table-cell-center" style="width: ${colWidths[0]}">${startIndex + index + 1}</div>
-          <div class="table-cell table-cell-left" style="width: ${colWidths[1]}">${item.name}</div>
-          <div class="table-cell table-cell-center" style="width: ${colWidths[2]}">${item.code || '-'}</div>
-          <div class="table-cell table-cell-center" style="width: ${colWidths[3]}">${formatCurrency(item.pricePerUnit || 0)}</div>
-          <div class="table-cell table-cell-center" style="width: ${colWidths[4]}">
-            ${item.itemType === 'service' ? '-' : formatQuantity(item.quantity || 0, item.unit)}
+          <div class="table-cell table-cell-center" style="width: ${
+            colWidths[0]
+          }">${startIndex + index + 1}</div>
+          <div class="table-cell table-cell-left" style="width: ${
+            colWidths[1]
+          }">${item.name}</div>
+          <div class="table-cell table-cell-center" style="width: ${
+            colWidths[2]
+          }">${item.code || '-'}</div>
+          <div class="table-cell table-cell-center" style="width: ${
+            colWidths[3]
+          }">${formatCurrency(item.pricePerUnit || 0)}</div>
+          <div class="table-cell table-cell-center" style="width: ${
+            colWidths[4]
+          }">
+            ${
+              item.itemType === 'service'
+                ? '-'
+                : formatQuantity(item.quantity || 0, item.unit)
+            }
           </div>
-          <div class="table-cell table-cell-center" style="width: ${colWidths[5]}">${formatCurrency(item.taxableValue)}</div>
+          <div class="table-cell table-cell-center" style="width: ${
+            colWidths[5]
+          }">${formatCurrency(item.taxableValue)}</div>
 
-          ${showIGST
-            ? `
-              <div class="table-cell table-cell-center" style="width: ${colWidths[6]}">${item.gstRate?.toFixed(2) || '0.00'}</div>
-              <div class="table-cell table-cell-center" style="width: ${colWidths[7]}">${formatCurrency(item.igst || 0)}</div>
+          ${
+            showIGST
+              ? `
+              <div class="table-cell table-cell-center" style="width: ${
+                colWidths[6]
+              }">${item.gstRate?.toFixed(2) || '0.00'}</div>
+              <div class="table-cell table-cell-center" style="width: ${
+                colWidths[7]
+              }">${formatCurrency(item.igst || 0)}</div>
             `
-            : showCGSTSGST
-            ? `
-              <div class="table-cell table-cell-center" style="width: ${colWidths[6]}">${(item.gstRate / 2).toFixed(2)}</div>
-              <div class="table-cell table-cell-center" style="width: ${colWidths[7]}">${formatCurrency(item.cgst || 0)}</div>
-              <div class="table-cell table-cell-center" style="width: ${colWidths[8]}">${(item.gstRate / 2).toFixed(2)}</div>
-              <div class="table-cell table-cell-center" style="width: ${colWidths[9]}">${formatCurrency(item.sgst || 0)}</div>
+              : showCGSTSGST
+              ? `
+              <div class="table-cell table-cell-center" style="width: ${
+                colWidths[6]
+              }">${(item.gstRate / 2).toFixed(2)}</div>
+              <div class="table-cell table-cell-center" style="width: ${
+                colWidths[7]
+              }">${formatCurrency(item.cgst || 0)}</div>
+              <div class="table-cell table-cell-center" style="width: ${
+                colWidths[8]
+              }">${(item.gstRate / 2).toFixed(2)}</div>
+              <div class="table-cell table-cell-center" style="width: ${
+                colWidths[9]
+              }">${formatCurrency(item.sgst || 0)}</div>
             `
-            : ''}
+              : ''
+          }
 
-          <div class="table-cell table-cell-center" style="width: ${colWidths[showIGST ? 8 : showCGSTSGST ? 10 : 6]}; border-right: none; font-weight: bold;">
+          <div class="table-cell table-cell-center" style="width: ${
+            colWidths[showIGST ? 8 : showCGSTSGST ? 10 : 6]
+          }; border-right: none; font-weight: bold;">
             ${formatCurrency(item.total || 0)}
           </div>
         </div>
@@ -136,22 +174,24 @@ const generatePageHTML = (
   showCGSTSGST,
   title,
   startIndex = 0,
-  isLastPage = false
+  isLastPage = false,
 ) => {
   const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
-  
+
   return `
     <div class="page">
       <!-- Header Section -->
       <div class="header-container">
         <div class="logo-and-name-block">
-          ${logoSrc
-            ? `
+          ${
+            logoSrc
+              ? `
               <div class="logo-container">
                 <img src="${logoSrc}" class="logo" />
               </div>
             `
-            : ''}
+              : ''
+          }
           
           <div style="flex: 1;">
             <div class="company-name">
@@ -159,25 +199,31 @@ const generatePageHTML = (
             </div>
             
             <div class="company-details-block">
-              ${company?.gstin
-                ? `
+              ${
+                company?.gstin
+                  ? `
                   <div class="gstin">
                     GSTIN: <span style="font-weight: normal;">${company.gstin}</span>
                   </div>
                 `
-                : ''}
+                  : ''
+              }
               
               <div class="address-text">${company?.address || ''}</div>
               <div class="address-text">
-                ${company?.addressState || ''}${company?.Country ? `, ${company.Country}` : ''}${company?.Pincode ? `, ${company.Pincode}` : ''}
+                ${company?.addressState || ''}${
+    company?.Country ? `, ${company.Country}` : ''
+  }${company?.Pincode ? `, ${company.Pincode}` : ''}
               </div>
               <div class="address-text">
                 <span class="bold-text">Phone:</span> 
-                ${company?.mobileNumber
-                  ? safeFormatPhoneNumber(company.mobileNumber)
-                  : company?.Telephone
-                  ? safeFormatPhoneNumber(company.Telephone)
-                  : '-'}
+                ${
+                  company?.mobileNumber
+                    ? safeFormatPhoneNumber(company.mobileNumber)
+                    : company?.Telephone
+                    ? safeFormatPhoneNumber(company.Telephone)
+                    : '-'
+                }
               </div>
             </div>
           </div>
@@ -190,11 +236,15 @@ const generatePageHTML = (
           </div>
           <div class="invoice-date-row">
             <div class="invoice-label">Invoice #:</div>
-            <div class="invoice-value">${transaction?.invoiceNumber?.toString() || ''}</div>
+            <div class="invoice-value">${
+              transaction?.invoiceNumber?.toString() || ''
+            }</div>
           </div>
           <div class="invoice-date-row">
             <div class="invoice-label">Invoice Date:</div>
-            <div class="invoice-value">${formatDateSafe(transaction?.date)}</div>
+            <div class="invoice-value">${formatDateSafe(
+              transaction?.date,
+            )}</div>
           </div>
         </div>
       </div>
@@ -208,15 +258,21 @@ const generatePageHTML = (
             <div class="party-header">Details of Buyer | Billed to :</div>
             
             <div class="address-text mb-2">
-              <span class="bold-text">Name:</span> ${capitalizeWords(party?.name || '')}
+              <span class="bold-text">Name:</span> ${capitalizeWords(
+                party?.name || '',
+              )}
             </div>
             
             <div class="address-text mb-2">
-              <span class="bold-text">Address:</span> ${capitalizeWords(getBillingAddress(party))}
+              <span class="bold-text">Address:</span> ${capitalizeWords(
+                getBillingAddress(party),
+              )}
             </div>
             
             <div class="address-text mb-2">
-              <span class="bold-text">Phone:</span> ${safeFormatPhoneNumber(buyerPhone)}
+              <span class="bold-text">Phone:</span> ${safeFormatPhoneNumber(
+                buyerPhone,
+              )}
             </div>
             
             <div class="address-text mb-2">
@@ -229,11 +285,15 @@ const generatePageHTML = (
             
             <div class="address-text">
               <span class="bold-text">Place of Supply:</span> 
-              ${shippingAddress?.state
-                ? `${shippingAddress.state} (${getStateCode(shippingAddress.state) || '-'})`
-                : party?.state
-                ? `${party.state} (${getStateCode(party.state) || '-'})`
-                : '-'}
+              ${
+                shippingAddress?.state
+                  ? `${shippingAddress.state} (${
+                      getStateCode(shippingAddress.state) || '-'
+                    })`
+                  : party?.state
+                  ? `${party.state} (${getStateCode(party.state) || '-'})`
+                  : '-'
+              }
             </div>
           </div>
 
@@ -242,40 +302,56 @@ const generatePageHTML = (
             <div class="party-header">Details of Consigned | Shipped to :</div>
             
             <div class="address-text mb-2">
-              <span class="bold-text">Name:</span> ${capitalizeWords(shippingAddress?.label || party?.name || '')}
+              <span class="bold-text">Name:</span> ${capitalizeWords(
+                shippingAddress?.label || party?.name || '',
+              )}
             </div>
             
             <div class="address-text mb-2">
-              <span class="bold-text">Address:</span> ${capitalizeWords(getShippingAddress(shippingAddress, getBillingAddress(party)))}
+              <span class="bold-text">Address:</span> ${capitalizeWords(
+                getShippingAddress(shippingAddress, getBillingAddress(party)),
+              )}
             </div>
             
-            ${company?.Country
-              ? `
+            ${
+              company?.Country
+                ? `
                 <div class="address-text mb-2">
-                  <span class="bold-text">Country:</span> ${capitalizeWords(company.Country)}
+                  <span class="bold-text">Country:</span> ${capitalizeWords(
+                    company.Country,
+                  )}
                 </div>
               `
-              : ''}
+                : ''
+            }
             
-            ${consigneePhone !== '-'
-              ? `
+            ${
+              consigneePhone !== '-'
+                ? `
                 <div class="address-text mb-2">
-                  <span class="bold-text">Phone:</span> ${safeFormatPhoneNumber(consigneePhone)}
+                  <span class="bold-text">Phone:</span> ${safeFormatPhoneNumber(
+                    consigneePhone,
+                  )}
                 </div>
               `
-              : ''}
+                : ''
+            }
             
             <div class="address-text mb-2">
               <span class="bold-text">GSTIN:</span> ${party?.gstin || '-'}
             </div>
             
-            ${shippingAddress?.state
-              ? `
+            ${
+              shippingAddress?.state
+                ? `
                 <div class="address-text">
-                  <span class="bold-text">State:</span> ${capitalizeWords(shippingAddress.state)} (${getStateCode(shippingAddress.state) || '-'})
+                  <span class="bold-text">State:</span> ${capitalizeWords(
+                    shippingAddress.state,
+                  )} (${getStateCode(shippingAddress.state) || '-'})
                 </div>
               `
-              : ''}
+                : ''
+            }
           </div>
         </div>
 
@@ -283,28 +359,38 @@ const generatePageHTML = (
         <div class="transaction-details-block">
           <div style="margin-top: 0;">
             <div class="address-text mb-3">
-              <span class="bold-text">P.O. No.:</span> ${transaction?.voucher || '-'}
+              <span class="bold-text">P.O. No.:</span> ${
+                transaction?.voucher || '-'
+              }
             </div>
             
             <div class="address-text mb-3">
-              <span class="bold-text">P.O. Date:</span> ${formatDateSafe(transaction?.poDate)}
+              <span class="bold-text">P.O. Date:</span> ${formatDateSafe(
+                transaction?.poDate,
+              )}
             </div>
             
-            ${transaction?.eway
-              ? `
+            ${
+              transaction?.eway
+                ? `
                 <div class="address-text mb-3">
                   <span class="bold-text">E-Way No.:</span> ${transaction.eway}
                 </div>
               `
-              : ''}
+                : ''
+            }
             
-            ${transaction?.dueDate
-              ? `
+            ${
+              transaction?.dueDate
+                ? `
                 <div class="address-text">
-                  <span class="bold-text">Due Date:</span> ${formatDateSafe(transaction.dueDate)}
+                  <span class="bold-text">Due Date:</span> ${formatDateSafe(
+                    transaction.dueDate,
+                  )}
                 </div>
               `
-              : ''}
+                : ''
+            }
           </div>
         </div>
       </div>
@@ -313,35 +399,59 @@ const generatePageHTML = (
       <div class="table">
         <!-- Table Header -->
         <div class="table-header">
-          <div class="table-cell-header" style="width: ${colWidths[0]}">Sr. No.</div>
-          <div class="table-cell-header table-cell-left" style="width: ${colWidths[1]}">Name of Product / Service</div>
-          <div class="table-cell-header table-cell-center" style="width: ${colWidths[2]}">HSN / SAC</div>
-          <div class="table-cell-header table-cell-center" style="width: ${colWidths[3]}">Rate (Rs.)</div>
-          <div class="table-cell-header table-cell-center" style="width: ${colWidths[4]}">Qty</div>
-          <div class="table-cell-header table-cell-center" style="width: ${colWidths[5]}">Taxable Value (Rs.)</div>
+          <div class="table-cell-header" style="width: ${
+            colWidths[0]
+          }">Sr. No.</div>
+          <div class="table-cell-header table-cell-left" style="width: ${
+            colWidths[1]
+          }">Name of Product / Service</div>
+          <div class="table-cell-header table-cell-center" style="width: ${
+            colWidths[2]
+          }">HSN / SAC</div>
+          <div class="table-cell-header table-cell-center" style="width: ${
+            colWidths[3]
+          }">Rate (Rs.)</div>
+          <div class="table-cell-header table-cell-center" style="width: ${
+            colWidths[4]
+          }">Qty</div>
+          <div class="table-cell-header table-cell-center" style="width: ${
+            colWidths[5]
+          }">Taxable Value (Rs.)</div>
 
-          ${showIGST
-            ? `
+          ${
+            showIGST
+              ? `
               <div class="table-cell-header table-cell-center" style="width: ${colWidths[6]}">IGST %</div>
               <div class="table-cell-header table-cell-center" style="width: ${colWidths[7]}">IGST Amt (Rs.)</div>
             `
-            : showCGSTSGST
-            ? `
+              : showCGSTSGST
+              ? `
               <div class="table-cell-header table-cell-center" style="width: ${colWidths[6]}">CGST %</div>
               <div class="table-cell-header table-cell-center" style="width: ${colWidths[7]}">CGST Amt (Rs.)</div>
               <div class="table-cell-header table-cell-center" style="width: ${colWidths[8]}">SGST %</div>
               <div class="table-cell-header table-cell-center" style="width: ${colWidths[9]}">SGST Amt (Rs.)</div>
             `
-            : ''}
+              : ''
+          }
 
-          <div class="table-cell-header" style="width: ${colWidths[showIGST ? 8 : showCGSTSGST ? 10 : 6]}; border-right: none;">Total (Rs.)</div>
+          <div class="table-cell-header" style="width: ${
+            colWidths[showIGST ? 8 : showCGSTSGST ? 10 : 6]
+          }; border-right: none;">Total (Rs.)</div>
         </div>
 
         <!-- Table Rows -->
-        ${generateItemsTableHTML(pageData, colWidths, showIGST, showCGSTSGST, startIndex)}
+        ${generateItemsTableHTML(
+          pageData,
+          colWidths,
+          showIGST,
+          showCGSTSGST,
+          startIndex,
+        )}
       </div>
 
-      ${isLastPage ? `
+      ${
+        isLastPage
+          ? `
         <!-- Totals Section -->
         <div class="totals-section">
           <!-- Left Section -->
@@ -365,17 +475,19 @@ const generatePageHTML = (
               <div>Rs. ${formatCurrency(totalTaxable)}</div>
             </div>
 
-            ${isGSTApplicable
-              ? `
-                ${showIGST
-                  ? `
+            ${
+              isGSTApplicable
+                ? `
+                ${
+                  showIGST
+                    ? `
                     <div class="totals-row">
                       <div class="bold-text">IGST</div>
                       <div>Rs. ${formatCurrency(totalIGST)}</div>
                     </div>
                   `
-                  : showCGSTSGST
-                  ? `
+                    : showCGSTSGST
+                    ? `
                     <div class="totals-row">
                       <div class="bold-text">CGST</div>
                       <div>Rs. ${formatCurrency(totalCGST)}</div>
@@ -385,9 +497,11 @@ const generatePageHTML = (
                       <div>Rs. ${formatCurrency(totalSGST)}</div>
                     </div>
                   `
-                  : ''}
+                    : ''
+                }
               `
-              : ''}
+                : ''
+            }
 
             <div class="total-amount-row">
               <div class="bold-text">Total Amount</div>
@@ -400,78 +514,101 @@ const generatePageHTML = (
         <div class="bank-terms-section">
           <!-- Bank Details -->
           <div class="bank-details-container">
-            ${!shouldHideBankDetails && isBankDetailAvailable
-              ? `
+            ${
+              !shouldHideBankDetails && isBankDetailAvailable
+                ? `
                 <div class="bank-details">
                   <div class="bank-header">Bank Details:</div>
                   <div style="margin-top: 5px;">
-                    ${bankData.bankName
-                      ? `
+                    ${
+                      bankData.bankName
+                        ? `
                         <div class="bank-row">
                           <div class="bank-label">Name:</div>
-                          <div class="small-text">${capitalizeWords(bankData.bankName)}</div>
+                          <div class="small-text">${capitalizeWords(
+                            bankData.bankName,
+                          )}</div>
                         </div>
                       `
-                      : ''}
+                        : ''
+                    }
                     
-                    ${bankData.ifscCode
-                      ? `
+                    ${
+                      bankData.ifscCode
+                        ? `
                         <div class="bank-row">
                           <div class="bank-label">IFSC:</div>
-                          <div class="small-text">${capitalizeWords(bankData.ifscCode)}</div>
+                          <div class="small-text">${capitalizeWords(
+                            bankData.ifscCode,
+                          )}</div>
                         </div>
                       `
-                      : ''}
+                        : ''
+                    }
                     
-                    ${bankData?.accountNo
-                      ? `
+                    ${
+                      bankData?.accountNo
+                        ? `
                         <div class="bank-row">
                           <div class="bank-label">Acc. No:</div>
                           <div class="small-text">${bankData.accountNo}</div>
                         </div>
                       `
-                      : ''}
+                        : ''
+                    }
                     
-                    ${bankData.branchAddress
-                      ? `
+                    ${
+                      bankData.branchAddress
+                        ? `
                         <div class="bank-row">
                           <div class="bank-label">Branch:</div>
-                          <div class="small-text">${capitalizeWords(bankData.branchAddress)}</div>
+                          <div class="small-text">${capitalizeWords(
+                            bankData.branchAddress,
+                          )}</div>
                         </div>
                       `
-                      : ''}
+                        : ''
+                    }
                     
-                    ${bankData?.upiDetails?.upiId
-                      ? `
+                    ${
+                      bankData?.upiDetails?.upiId
+                        ? `
                         <div class="bank-row">
                           <div class="bank-label">UPI ID:</div>
                           <div class="small-text">${bankData.upiDetails.upiId}</div>
                         </div>
                       `
-                      : ''}
+                        : ''
+                    }
                     
-                    ${bankData?.upiDetails?.upiName
-                      ? `
+                    ${
+                      bankData?.upiDetails?.upiName
+                        ? `
                         <div class="bank-row">
                           <div class="bank-label">UPI Name:</div>
-                          <div class="small-text">${capitalizeWords(bankData.upiDetails.upiName)}</div>
+                          <div class="small-text">${capitalizeWords(
+                            bankData.upiDetails.upiName,
+                          )}</div>
                         </div>
                       `
-                      : ''}
+                        : ''
+                    }
                     
-                    ${bankData?.upiDetails?.upiMobile
-                      ? `
+                    ${
+                      bankData?.upiDetails?.upiMobile
+                        ? `
                         <div class="bank-row">
                           <div class="bank-label">UPI Mobile:</div>
                           <div class="small-text">${bankData.upiDetails.upiMobile}</div>
                         </div>
                       `
-                      : ''}
+                        : ''
+                    }
                   </div>
                 </div>
               `
-              : !shouldHideBankDetails
-              ? `
+                : !shouldHideBankDetails
+                ? `
                 <div class="bank-details">
                   <div class="bank-header">Bank Details:</div>
                   <div style="font-size: 8px; margin-top: 10px; color: #666;">
@@ -479,10 +616,12 @@ const generatePageHTML = (
                   </div>
                 </div>
               `
-              : ''}
+                : ''
+            }
             
-            ${bankData?.qrCode
-              ? `
+            ${
+              bankData?.qrCode
+                ? `
                 <div class="qr-code-container">
                   <div style="font-size: 9px; font-weight: bold; margin-bottom: 5px;">QR Code</div>
                   <div style="background-color: #fff;">
@@ -490,7 +629,8 @@ const generatePageHTML = (
                   </div>
                 </div>
               `
-              : ''}
+                : ''
+            }
           </div>
 
           <!-- Signature Section -->
@@ -505,16 +645,20 @@ const generatePageHTML = (
         </div>
 
         <!-- Terms and Conditions -->
-        ${transaction?.notes
-          ? `
+        ${
+          transaction?.notes
+            ? `
             <div class="terms-container">
               <div class="terms-content">
                 ${renderNotesHTML(transaction.notes)}
               </div>
             </div>
           `
-          : ''}
-      ` : ''}
+            : ''
+        }
+      `
+          : ''
+      }
 
       <!-- Page Number -->
       <div class="page-number">Page ${pageIndex + 1} of ${totalPages}</div>
@@ -533,13 +677,21 @@ const formatDateSafe = dateString => {
 };
 
 // --- Main PDF Component ---
-const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
+const Template20 = ({
+  transaction,
+  company,
+  party,
+  shippingAddress,
+  bank,
+  serviceNameById = new Map(),
+}) => {
   const actualShippingAddress = shippingAddress || transaction?.shippingAddress;
   const preparedData = prepareTemplate8Data(
     transaction,
     company,
     party,
     actualShippingAddress,
+    serviceNameById,
   );
 
   const {
@@ -626,7 +778,7 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
   };
 
   const colWidths = getColWidths();
-  
+
   const title =
     transaction.type === 'proforma'
       ? 'PROFORMA INVOICE'
@@ -669,7 +821,7 @@ const Template20 = ({ transaction, company, party, shippingAddress, bank }) => {
         showCGSTSGST,
         title,
         startIndex,
-        pageIndex === totalPages - 1 // isLastPage
+        pageIndex === totalPages - 1, // isLastPage
       );
       startIndex += pageItems.length;
       return pageHTML;
@@ -1123,6 +1275,7 @@ export const generatePdfForTemplate20 = async (
       party,
       shippingAddress,
       bank,
+      serviceNameById,
     });
 
     const options = {

@@ -19,6 +19,7 @@ import {
   Keyboard,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { BASE_URL } from '../../config';
@@ -82,18 +83,23 @@ const Dialog = ({ visible, onClose, title, description, children }) => (
     onRequestClose={onClose}
     statusBarTranslucent={true}
   >
-    <View style={styles.modalOverlay}>
-      <View style={styles.dialogContent}>
-        <View style={styles.dialogHeader}>
+    <SafeAreaView style={styles.dialogContent}>
+      <View style={styles.dialogHeader}>
+        <TouchableOpacity
+          onPress={onClose}
+          style={styles.dialogBackBtn}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Icon name="arrow-left" size={24} color="#4F46E5" />
+        </TouchableOpacity>
+        <View style={styles.dialogHeaderCenter}>
           <Text style={styles.dialogTitle}>{title}</Text>
           <Text style={styles.dialogDescription}>{description}</Text>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Icon name="close" size={24} color="#6b7280" />
-          </TouchableOpacity>
         </View>
-        <View style={styles.dialogBody}>{children}</View>
+        <View style={styles.dialogBackBtn} />
       </View>
-    </View>
+      <View style={styles.dialogBody}>{children}</View>
+    </SafeAreaView>
   </Modal>
 );
 
@@ -422,6 +428,8 @@ export default function AdminCompaniesPage() {
           company={selectedCompany || undefined}
           clients={clients}
           onFormSubmit={onFormSubmit}
+          hideHeader={true}
+          onCancel={() => setIsDialogOpen(false)}
         />
       </Dialog>
 
@@ -453,9 +461,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    padding: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
+    // padding: 14,
+    // paddingTop: 8,
+    // paddingBottom: 8,
+    paddingHorizontal: 14,
+    paddingTop: 2,
+    paddingBottom: 6,
   },
   headerTitle: {
     flex: 1,
@@ -473,31 +484,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginTop: 9,
+    marginTop: 6,
   },
   createButton: {
-    backgroundColor: '#4f46e5',
+    backgroundColor: '#8b77ff',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderRadius: 8,
     elevation: 4,
-    shadowColor: '#4f46e5',
+    shadowColor: '#8b77ff',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
   },
   searchContainer: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingBottom: 12,
     backgroundColor: '#fff',
   },
   searchWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f3f4f6', // Light gray background for the whole box
+    backgroundColor: '#f3f4f6',
     borderRadius: 10,
     paddingHorizontal: 12,
-    height: 45,
+    height: 30,
   },
   searchIcon: {
     marginRight: 8,
@@ -505,9 +516,9 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     height: '100%',
-    fontSize: 15,
+    fontSize: 12,
     color: '#111827',
-    paddingVertical: 0, // Android fix for vertical centering
+    paddingVertical: 0,
   },
   clearButton: {
     padding: 4,
@@ -582,29 +593,42 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   dialogContent: {
+    flex: 1,
     backgroundColor: '#fff',
-    borderRadius: 12,
-    width: '95%',
-    height: '90%',
+    borderRadius: 0,
   },
   dialogHeader: {
-    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: '#E5E7EB',
+  },
+  dialogBackBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialogHeaderCenter: {
+    flex: 1,
+    alignItems: 'center',
   },
   dialogTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
   },
   dialogDescription: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6b7280',
-    marginTop: 4,
+    marginTop: 2,
+    textAlign: 'center',
   },
   closeButton: {
     position: 'absolute',

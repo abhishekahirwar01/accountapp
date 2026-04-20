@@ -954,7 +954,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
-    paddingTop: 16,
+    paddingTop: 10,
   },
   tabSectionWrapper: {
     paddingHorizontal: 16,
@@ -974,7 +974,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 10,
   },
   tabList: {
     flex: 1,
@@ -1110,22 +1110,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   modalHeader: {
-    padding: 20,
+    padding: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
     backgroundColor: '#f8f9fa',
     position: 'relative',
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 4,
+    // marginBottom: 4,
     color: '#333',
   },
   modalDescription: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   closeButton: {
     position: 'absolute',

@@ -239,14 +239,14 @@ export function UserCard({
     <View style={styles.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
         refreshControl={
           onRefresh ? (
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={['#007AFF']}
-              tintColor="#007AFF"
+              colors={['#8b77ff']}
+              tintColor="#8b77ff"
             />
           ) : undefined
         }
@@ -368,8 +368,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   activeTab: {
-    backgroundColor: '#3b82f6',
-    shadowColor: '#3b82f6',
+    backgroundColor: '#8b77ff',
+    shadowColor: '#8b77ff',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -472,12 +472,12 @@ const styles = StyleSheet.create({
   avatarFallback: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#dbeafe',
+    backgroundColor: '#f7f5ff',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    color: '#3b82f6',
+    color: '#8b77ff',
     fontWeight: '700',
     fontSize: 14,
   },

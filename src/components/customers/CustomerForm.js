@@ -8,9 +8,12 @@ import {
   Modal,
   StyleSheet,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
+  Alert,
+  StatusBar,
+  KeyboardAvoidingView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -19,7 +22,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL as baseURL } from '../../config';
 import CustomDropdown from '../../components/ui/CustomDropdown';
 import { Check, X, ChevronsUpDown } from 'lucide-react-native';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/Dialog';
+import IonIcon from 'react-native-vector-icons/Ionicons';
+import SimpleLineIcons from 'react-native-vector-icons/SimpleLineIcons';
 
 const gstRegistrationTypes = [
   'Regular',
@@ -41,10 +45,9 @@ const formSchema = z
       .refine(
         val => {
           if (!val || val.trim() === '') return true;
-          const mobileRegex = /^[6-9]\d{9}$/;
-          return mobileRegex.test(val.replace(/\D/g, ''));
+          return /^[6-9]\d{9}$/.test(val.replace(/\D/g, ''));
         },
-        { message: 'Enter valid 10-digit Indian mobile number' }
+        { message: 'Enter valid 10-digit Indian mobile number' },
       ),
     email: z
       .string()
@@ -60,7 +63,7 @@ const formSchema = z
             return false;
           }
         },
-        { message: 'Enter a valid email' }
+        { message: 'Enter a valid email' },
       ),
     address: z.string().optional(),
     city: z.string().optional(),
@@ -91,120 +94,7 @@ const formSchema = z
     }
   });
 
-// Company Selection Dialog Component
-const CompanySelectionDialog = ({
-  visible,
-  onClose,
-  companies,
-  selectedCompanies,
-  onSelectionChange,
-}) => {
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const filteredCompanies = companies.filter(company =>
-    company.businessName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const toggleCompany = (companyId) => {
-    const isSelected = selectedCompanies.includes(companyId);
-    const newSelection = isSelected
-      ? selectedCompanies.filter(id => id !== companyId)
-      : [...selectedCompanies, companyId];
-    onSelectionChange(newSelection);
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedCompanies.length === companies.length) {
-      onSelectionChange([]);
-    } else {
-      onSelectionChange(companies.map(c => c._id));
-    }
-  };
-
-  return (
-    <Dialog open={visible} onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Select Companies</DialogTitle>
-        </DialogHeader>
-
-        <View style={styles.dialogBody}>
-          {/* Search Input */}
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search companies..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoFocus={true}
-            />
-          </View>
-
-          {/* Select All Button */}
-          <View style={styles.selectAllContainer}>
-            <TouchableOpacity
-              style={styles.selectAllButton}
-              onPress={toggleSelectAll}
-            >
-              <Text style={styles.selectAllText}>
-                {selectedCompanies.length === companies.length
-                  ? 'Deselect All'
-                  : 'Select All'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Company List */}
-          <ScrollView style={styles.companyList}>
-            {filteredCompanies.length === 0 ? (
-              <Text style={styles.noResultsText}>No companies found</Text>
-            ) : (
-              filteredCompanies.map(company => {
-                const isSelected = selectedCompanies.includes(company._id);
-                return (
-                  <TouchableOpacity
-                    key={company._id}
-                    style={[
-                      styles.companyItem,
-                      isSelected && styles.companyItemSelected,
-                    ]}
-                    onPress={() => toggleCompany(company._id)}
-                  >
-                    <View style={styles.checkboxContainer}>
-                      <View
-                        style={[
-                          styles.checkbox,
-                          isSelected && styles.checkboxSelected,
-                        ]}
-                      >
-                        {isSelected && <Check size={12} color="white" />}
-                      </View>
-                    </View>
-                    <Text
-                      style={[
-                        styles.companyName,
-                        isSelected && styles.companyNameSelected,
-                      ]}
-                    >
-                      {company.businessName}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })
-            )}
-          </ScrollView>
-
-          {/* Done Button */}
-          <TouchableOpacity style={styles.doneButton} onPress={onClose}>
-            <Text style={styles.doneButtonText}>Done</Text>
-          </TouchableOpacity>
-        </View>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
-// Searchable Picker Component (for state and city)
+// ─── Searchable Picker ────────────────────────────────────────────────────────
 export const SearchablePicker = ({
   visible,
   onClose,
@@ -212,35 +102,40 @@ export const SearchablePicker = ({
   onSelect,
   title,
   searchPlaceholder = 'Search...',
-  disabled = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-
-  const filteredOptions = options.filter(option =>
-    option.label.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredOptions = options.filter(o =>
+    o.label.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false}>
-      <View style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>{title}</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Text style={styles.closeButtonText}>✕</Text>
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: '#fff' }}
+        edges={['top']}
+      >
+        <View style={styles.pickerHeader}>
+          <Text style={styles.pickerTitle}>{title}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              onClose();
+              setSearchQuery('');
+            }}
+            style={styles.pickerClose}
+          >
+            <Text style={styles.pickerCloseText}>✕</Text>
           </TouchableOpacity>
         </View>
-
-        <View style={styles.searchContainer}>
+        <View style={styles.pickerSearch}>
           <TextInput
-            style={styles.searchInput}
+            style={styles.pickerSearchInput}
             placeholder={searchPlaceholder}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            autoFocus={true}
+            autoFocus
           />
         </View>
-
-        <ScrollView style={styles.optionsContainer}>
+        <ScrollView style={{ flex: 1 }}>
           {filteredOptions.length === 0 ? (
             <Text style={styles.noResultsText}>No results found</Text>
           ) : (
@@ -250,75 +145,177 @@ export const SearchablePicker = ({
                 onPress={() => {
                   onSelect(option);
                   onClose();
+                  setSearchQuery('');
                 }}
-                style={styles.optionItem}
-                disabled={disabled}
+                style={styles.pickerOption}
               >
-                <Text style={styles.optionText}>{option.label}</Text>
+                <Text style={styles.pickerOptionText}>{option.label}</Text>
               </TouchableOpacity>
             ))
           )}
         </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+};
+
+// ─── Company Bottom Sheet ─────────────────────────────────────────────────────
+const CompanyBottomSheet = ({
+  visible,
+  onClose,
+  companies,
+  selectedCompanies,
+  onSelectionChange,
+  isLoading,
+}) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const filteredCompanies = companies.filter(c =>
+    c.businessName.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+  const allFilteredSelected =
+    filteredCompanies.length > 0 &&
+    filteredCompanies.every(c => selectedCompanies.includes(c._id));
+
+  const toggleCompany = id => {
+    onSelectionChange(
+      selectedCompanies.includes(id)
+        ? selectedCompanies.filter(x => x !== id)
+        : [...selectedCompanies, id],
+    );
+  };
+
+  const handleSelectAll = () => {
+    const ids = filteredCompanies.map(c => c._id);
+    const allSel = ids.every(id => selectedCompanies.includes(id));
+    onSelectionChange(
+      allSel
+        ? selectedCompanies.filter(id => !ids.includes(id))
+        : [...new Set([...selectedCompanies, ...ids])],
+    );
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide">
+      <View style={styles.backdrop}>
+        <View style={styles.sheet}>
+          <View style={styles.handle} />
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Choose Companies</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <Text style={styles.closeX}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <TextInput
+            style={styles.sheetSearch}
+            placeholder="Search..."
+            placeholderTextColor="#9CA3AF"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          <TouchableOpacity style={styles.selectAll} onPress={handleSelectAll}>
+            <Text
+              style={[
+                styles.selectAllText,
+                allFilteredSelected && { color: '#4F46E5' },
+              ]}
+            >
+              {allFilteredSelected ? 'Deselect All' : 'Select All'}
+            </Text>
+          </TouchableOpacity>
+          {isLoading ? (
+            <View style={styles.centerBox}>
+              <ActivityIndicator size="large" color="#4F46E5" />
+            </View>
+          ) : filteredCompanies.length === 0 ? (
+            <View style={styles.centerBox}>
+              <Text style={styles.centerText}>No companies found</Text>
+            </View>
+          ) : (
+            <ScrollView
+              style={styles.sheetList}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+            >
+              {filteredCompanies.map(c => {
+                const sel = selectedCompanies.includes(c._id);
+                return (
+                  <TouchableOpacity
+                    key={c._id}
+                    style={[styles.listItem, sel && styles.listItemSel]}
+                    onPress={() => toggleCompany(c._id)}
+                  >
+                    <View style={[styles.checkbox, sel && styles.checkboxSel]}>
+                      {sel && <Check size={12} color="white" />}
+                    </View>
+                    <Text
+                      style={[
+                        styles.listItemText,
+                        sel && styles.listItemTextSel,
+                      ]}
+                    >
+                      {c.businessName}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+          <View style={styles.sheetFooter}>
+            <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
+              <Text style={styles.doneBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
     </Modal>
   );
 };
 
-// Company Badge Component
-const CompanyBadge = ({ company, companies, onRemove }) => {
-  const companyName =
-    companies.find(c => c._id === company)?.businessName || company;
-
-  return (
-    <View style={styles.badgeContainer}>
-      <View style={styles.badge}>
-        <Text style={styles.badgeText}>{companyName}</Text>
-        <TouchableOpacity
-          onPress={() => onRemove(company)}
-          style={styles.badgeRemoveButton}
-        >
-          <X size={12} color="#666" />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
-
-export function CustomerForm({
-  customer,
+// ─── CustomerForm ─────────────────────────────────────────────────────────────
+/**
+ * Dual-mode:
+ *   1. Navigation mode → navigation.navigate('CustomerForm', { customer, companies })
+ *   2. Props mode      → <CustomerForm customer={...} onSuccess={...} /> (legacy)
+ */
+const CustomerForm = ({
+  navigation,
+  route,
+  customer: customerProp,
   initialName,
-  onSuccess,
+  onSuccess: onSuccessProp,
   onCancel,
-  hideHeader = false,
-}) {
+}) => {
+  const customer = route?.params?.customer ?? customerProp ?? null;
+  const routeCompanies = route?.params?.companies ?? null;
+  const isNavigationMode = !!navigation;
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [stateCode, setStateCode] = useState(null);
   const [showStatePicker, setShowStatePicker] = useState(false);
   const [showCityPicker, setShowCityPicker] = useState(false);
-  const [showCompanyDialog, setShowCompanyDialog] = useState(false);
-  const [companies, setCompanies] = useState([]);
-  const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
+  const [showCompanySheet, setShowCompanySheet] = useState(false);
+  const [companies, setCompanies] = useState(routeCompanies || []);
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(
+    !routeCompanies?.length,
+  );
 
   const indiaStates = useMemo(() => State.getStatesOfCountry('IN'), []);
-  const stateOptions = indiaStates
-    .map(s => ({ value: s.isoCode, label: s.name }))
-    .sort((a, b) => a.label.localeCompare(b.label));
-
+  const stateOptions = useMemo(
+    () =>
+      indiaStates
+        .map(s => ({ value: s.isoCode, label: s.name }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [indiaStates],
+  );
   const cityOptions = useMemo(() => {
     if (!stateCode) return [];
-    const list = City.getCitiesOfState('IN', stateCode);
-    return list
+    return City.getCitiesOfState('IN', stateCode)
       .map(c => ({ value: c.name, label: c.name }))
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [stateCode]);
-
   const gstTypeOptions = useMemo(
-    () =>
-      gstRegistrationTypes.map(type => ({
-        value: type,
-        label: type,
-      })),
-    []
+    () => gstRegistrationTypes.map(t => ({ value: t, label: t })),
+    [],
   );
 
   const form = useForm({
@@ -345,47 +342,42 @@ export function CustomerForm({
   const isTDSApplicable = form.watch('isTDSApplicable');
   const selectedCompanies = form.watch('company');
 
-  // Fetch companies on component mount
+  // Fetch companies if not passed via route
   useEffect(() => {
-    const loadCompanies = async () => {
+    if (routeCompanies?.length) {
+      setCompanies(routeCompanies);
+      setIsLoadingCompanies(false);
+      if (routeCompanies.length === 1 && !customer)
+        form.setValue('company', [routeCompanies[0]._id]);
+      return;
+    }
+    const load = async () => {
       setIsLoadingCompanies(true);
       try {
         const token = await AsyncStorage.getItem('token');
-        const response = await fetch(`${baseURL}/api/companies/my`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        const res = await fetch(`${baseURL}/api/companies/my`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
-
-        if (!response.ok) {
-          throw new Error('Failed to load companies');
-        }
-
-        const data = await response.json();
-        setCompanies(data);
-
-        // Auto-select if only one company exists
-        if (data.length === 1) {
-          const currentSelected = form.getValues('company') || [];
-          if (!currentSelected.includes(data[0]._id)) {
-            form.setValue('company', [data[0]._id]);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to load companies:', error);
+        if (!res.ok) throw new Error('Failed to load companies');
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : data?.data || [];
+        setCompanies(list);
+        if (list.length === 1 && !customer)
+          form.setValue('company', [list[0]._id]);
+      } catch (e) {
+        console.error('fetch companies', e);
       } finally {
         setIsLoadingCompanies(false);
       }
     };
-
-    loadCompanies();
+    load();
   }, []);
 
   useEffect(() => {
     if (regType === 'Unregistered') form.setValue('gstin', '');
   }, [regType]);
 
-  // Initialize state code from existing customer data
+  // Init stateCode
   useEffect(() => {
     const currentStateName = form.getValues('state')?.trim();
     if (!currentStateName) {
@@ -393,48 +385,45 @@ export function CustomerForm({
       return;
     }
     const found = indiaStates.find(
-      s => s.name.toLowerCase() === currentStateName.toLowerCase()
+      s => s.name.toLowerCase() === currentStateName.toLowerCase(),
     );
     setStateCode(found?.isoCode || null);
   }, [indiaStates]);
 
-  // Initialize company field from existing customer data
+  // Init company from existing customer
   useEffect(() => {
-    if (customer && customer.company) {
-      let formattedCompanies = [];
-
+    if (customer?.company) {
+      let formatted = [];
       if (Array.isArray(customer.company)) {
-        formattedCompanies = customer.company.map(c =>
-          typeof c === 'object' && c !== null ? c._id : c
+        formatted = customer.company.map(c =>
+          typeof c === 'object' && c !== null ? c._id : c,
         );
       } else if (typeof customer.company === 'string') {
-        formattedCompanies = [customer.company];
+        formatted = [customer.company];
       } else if (
         typeof customer.company === 'object' &&
         customer.company !== null
       ) {
-        formattedCompanies = [customer.company._id];
+        formatted = [customer.company._id];
       }
-
-      if (formattedCompanies.length > 0) {
-        form.setValue('company', formattedCompanies);
-      }
+      if (formatted.length > 0) form.setValue('company', formatted);
     }
   }, [customer]);
+
+  const sanitizeInput = input => {
+    if (!input) return '';
+    return input.replace(/[<>]/g, '').trim();
+  };
 
   const handleSubmit = async values => {
     setIsSubmitting(true);
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Token not found');
-
       const url = customer
         ? `${baseURL}/api/parties/${customer._id}`
         : `${baseURL}/api/parties`;
-
       const method = customer ? 'PUT' : 'POST';
-
-      // Sanitize input values
       const sanitizedValues = {
         ...values,
         name: sanitizeInput(values.name),
@@ -447,7 +436,6 @@ export function CustomerForm({
         pan: sanitizeInput(values.pan),
         tdsSection: sanitizeInput(values.tdsSection),
       };
-
       const cleanedValues = Object.fromEntries(
         Object.entries(sanitizedValues).map(([key, value]) => [
           key,
@@ -456,9 +444,8 @@ export function CustomerForm({
             : value === ''
             ? undefined
             : value,
-        ])
+        ]),
       );
-
       const res = await fetch(url, {
         method,
         headers: {
@@ -467,545 +454,560 @@ export function CustomerForm({
         },
         body: JSON.stringify(cleanedValues),
       });
-
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.message || 'Failed operation');
 
-      onSuccess(data.party);
+      if (isNavigationMode) {
+        Alert.alert(
+          'Success',
+          `Customer ${customer ? 'updated' : 'created'} successfully`,
+          [{ text: 'OK', onPress: () => navigation.goBack() }],
+        );
+      } else {
+        onSuccessProp?.(data.party);
+      }
     } catch (err) {
-      alert(err.message || 'Unknown error');
+      if (isNavigationMode) {
+        Alert.alert('Error', err.message || 'Unknown error');
+      } else {
+        alert(err.message || 'Unknown error');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Helper function to sanitize input
-  const sanitizeInput = input => {
-    if (!input) return '';
-    return input
-      .replace(/[<>]/g, '') // Remove < and > characters
-      .trim();
-  };
+  const ErrText = ({ msg }) =>
+    msg ? <Text style={styles.error}>{msg}</Text> : null;
 
-  // Handle company selection
-  const handleCompanySelection = newSelected => {
-    form.setValue('company', newSelected);
-  };
-
-  // Remove single company badge
-  const removeCompany = companyId => {
-    const current = form.getValues('company') || [];
-    form.setValue(
-      'company',
-      current.filter(id => id !== companyId)
-    );
-  };
-
-  return (
-    <View
+  const formContent = (
+    <ScrollView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContainer}
-        showsVerticalScrollIndicator={true}
-        keyboardShouldPersistTaps="handled"
-        bounces={true}
-      >
-        {/* Form Section */}
-        <View style={styles.formContainer}>
-          {/* Company Field */}
-          <Controller
-            control={form.control}
-            name="company"
-            render={({ field, fieldState }) => (
-              <View style={styles.field}>
-                <Text style={styles.label}>
-                  Company <Text style={styles.requiredStar}>*</Text>
+      {/* Company */}
+      <Controller
+        control={form.control}
+        name="company"
+        render={({ field, fieldState }) => (
+          <View style={styles.field}>
+            <Text style={styles.label}>
+              Company <Text style={styles.requiredStar}>*</Text>
+            </Text>
+            <TouchableOpacity
+              style={[styles.inputRow, fieldState.error && styles.inputError]}
+              onPress={() => setShowCompanySheet(true)}
+              activeOpacity={0.7}
+            >
+              {isLoadingCompanies ? (
+                <ActivityIndicator size="small" color="#9CA3AF" />
+              ) : selectedCompanies?.length > 0 ? (
+                <Text style={styles.inputText}>
+                  {selectedCompanies.length} compan
+                  {selectedCompanies.length > 1 ? 'ies' : 'y'} selected
                 </Text>
-                <TouchableOpacity
-                  style={[
-                    styles.companyDropdown,
-                    fieldState.error && styles.inputError,
-                  ]}
-                  onPress={() => setShowCompanyDialog(true)}
-                >
-                  {selectedCompanies && selectedCompanies.length > 0 ? (
-                    <View style={styles.selectedCompaniesContainer}>
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                      >
-                        <View style={styles.badgesContainer}>
-                          {selectedCompanies.map(companyId => (
-                            <CompanyBadge
-                              key={companyId}
-                              company={companyId}
-                              companies={companies}
-                              onRemove={removeCompany}
-                            />
-                          ))}
-                        </View>
-                      </ScrollView>
-                      <ChevronsUpDown
-                        size={16}
-                        color="#666"
-                        style={styles.dropdownIcon}
-                      />
-                    </View>
-                  ) : (
-                    <View style={styles.companyDropdownPlaceholder}>
-                      <Text style={styles.placeholderText}>
-                        {isLoadingCompanies
-                          ? 'Loading companies...'
-                          : 'Select companies'}
-                      </Text>
-                      <ChevronsUpDown
-                        size={16}
-                        color="#999"
-                        style={styles.dropdownIcon}
-                      />
-                    </View>
-                  )}
-                </TouchableOpacity>
-                {fieldState.error && (
-                  <Text style={styles.error}>{fieldState.error.message}</Text>
-                )}
-
-                <CompanySelectionDialog
-                  visible={showCompanyDialog}
-                  onClose={() => setShowCompanyDialog(false)}
-                  companies={companies}
-                  selectedCompanies={selectedCompanies || []}
-                  onSelectionChange={handleCompanySelection}
-                />
-              </View>
-            )}
-          />
-
-          {/* Name Field */}
-          <Controller
-            control={form.control}
-            name="name"
-            render={({ field, fieldState }) => (
-              <View style={styles.field}>
-                <Text style={styles.label}>Customer Name *</Text>
-                <TextInput
-                  style={[styles.input, fieldState.error && styles.inputError]}
-                  placeholder="e.g. John Doe"
-                  value={field.value}
-                  onChangeText={field.onChange}
-                />
-                {fieldState.error && (
-                  <Text style={styles.error}>{fieldState.error.message}</Text>
-                )}
-              </View>
-            )}
-          />
-
-          {/* Contact Number */}
-          <Controller
-            control={form.control}
-            name="contactNumber"
-            render={({ field, fieldState }) => (
-              <View style={styles.field}>
-                <Text style={styles.label}>Mobile Number</Text>
-                <TextInput
-                  style={[styles.input, fieldState.error && styles.inputError]}
-                  placeholder="9876543210"
-                  keyboardType="phone-pad"
-                  value={field.value}
-                  maxLength={10}
-                  onChangeText={text => field.onChange(text.replace(/\D/g, ''))}
-                />
-                {fieldState.error && (
-                  <Text style={styles.error}>{fieldState.error.message}</Text>
-                )}
-              </View>
-            )}
-          />
-
-          {/* Email */}
-          <Controller
-            control={form.control}
-            name="email"
-            render={({ field, fieldState }) => (
-              <View style={styles.field}>
-                <Text style={styles.label}>Email</Text>
-                <TextInput
-                  style={[styles.input, fieldState.error && styles.inputError]}
-                  placeholder="john.doe@example.com"
-                  value={field.value}
-                  onChangeText={field.onChange}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-                {fieldState.error && (
-                  <Text style={styles.error}>{fieldState.error.message}</Text>
-                )}
-              </View>
-            )}
-          />
-
-          {/* Address */}
-          <Controller
-            control={form.control}
-            name="address"
-            render={({ field }) => (
-              <View style={styles.field}>
-                <Text style={styles.label}>
-                  Address Line (Street/Building)
-                </Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="456 Park Avenue"
-                  value={field.value}
-                  onChangeText={field.onChange}
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                />
-              </View>
-            )}
-          />
-
-          {/* STATE Picker with Search */}
-          <Controller
-            control={form.control}
-            name="state"
-            render={({ field }) => (
-              <View style={styles.field}>
-                <Text style={styles.label}>State</Text>
-                <TouchableOpacity
-                  style={styles.dropdown}
-                  onPress={() => setShowStatePicker(true)}
-                >
-                  <Text
-                    style={
-                      field.value
-                        ? styles.dropdownTextSelected
-                        : styles.dropdownText
-                    }
-                  >
-                    {field.value || 'Select state'}
-                  </Text>
-                  <Text style={styles.dropdownArrow}>▼</Text>
-                </TouchableOpacity>
-
-                <SearchablePicker
-                  visible={showStatePicker}
-                  onClose={() => setShowStatePicker(false)}
-                  options={stateOptions}
-                  onSelect={selectedState => {
-                    setStateCode(selectedState.value);
-                    field.onChange(selectedState.label);
-                    form.setValue('city', '');
-                  }}
-                  title="Select State"
-                  searchPlaceholder="Search state..."
-                />
-              </View>
-            )}
-          />
-
-          {/* CITY Picker with Search */}
-          <Controller
-            control={form.control}
-            name="city"
-            render={({ field }) => (
-              <View style={styles.field}>
-                <Text style={styles.label}>City</Text>
-                <TouchableOpacity
-                  style={[
-                    styles.dropdown,
-                    !stateCode && styles.dropdownDisabled,
-                  ]}
-                  onPress={() => stateCode && setShowCityPicker(true)}
-                  disabled={!stateCode}
-                >
-                  <Text
-                    style={
-                      field.value
-                        ? styles.dropdownTextSelected
-                        : styles.dropdownText
-                    }
-                  >
-                    {field.value ||
-                      (stateCode ? 'Select city' : 'Select state first')}
-                  </Text>
-                  <Text style={styles.dropdownArrow}>▼</Text>
-                </TouchableOpacity>
-
-                <SearchablePicker
-                  visible={showCityPicker}
-                  onClose={() => setShowCityPicker(false)}
-                  options={cityOptions}
-                  onSelect={selectedCity => {
-                    field.onChange(selectedCity.label);
-                  }}
-                  title="Select City"
-                  searchPlaceholder="Search city..."
-                  disabled={!stateCode}
-                />
-              </View>
-            )}
-          />
-
-          {/* Pincode */}
-          <Controller
-            control={form.control}
-            name="pincode"
-            render={({ field }) => (
-              <View style={styles.field}>
-                <Text style={styles.label}>Pincode</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="400001"
-                  keyboardType="numeric"
-                  value={field.value}
-                  onChangeText={field.onChange}
-                  maxLength={6}
-                />
-              </View>
-            )}
-          />
-
-          {/* GST Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>GST Details</Text>
-
-            {/* GST Registration Type Dropdown */}
-            <Controller
-              control={form.control}
-              name="gstRegistrationType"
-              render={({ field }) => (
-                <View style={styles.field}>
-                  <Text style={styles.label}>GST Registration Type *</Text>
-                  <CustomDropdown
-                    items={gstTypeOptions}
-                    value={field.value}
-                    onChange={field.onChange}
-                    placeholder="Select GST Registration Type"
-                    style={styles.customDropdown}
-                  />
-                </View>
+              ) : (
+                <Text style={styles.placeholderText}>Select companies</Text>
               )}
-            />
-
-            {/* PAN */}
-            <Controller
-              control={form.control}
-              name="pan"
-              render={({ field, fieldState }) => (
-                <View style={styles.field}>
-                  <Text style={styles.label}>PAN</Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      fieldState.error && styles.inputError,
-                    ]}
-                    placeholder="10-digit PAN"
-                    value={field.value}
-                    onChangeText={text => field.onChange(text.toUpperCase())}
-                    maxLength={10}
-                    autoCapitalize="characters"
-                  />
-                  {fieldState.error && (
-                    <Text style={styles.error}>{fieldState.error.message}</Text>
-                  )}
-                </View>
-              )}
-            />
-
-            {/* GSTIN (Conditional) */}
-            {regType !== 'Unregistered' && (
-              <Controller
-                control={form.control}
-                name="gstin"
-                render={({ field, fieldState }) => (
-                  <View style={styles.field}>
-                    <Text style={styles.label}>GSTIN</Text>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        fieldState.error && styles.inputError,
-                      ]}
-                      placeholder="15-digit GSTIN"
-                      value={field.value}
-                      onChangeText={text => field.onChange(text.toUpperCase())}
-                      maxLength={15}
-                      autoCapitalize="characters"
-                    />
-                    {fieldState.error && (
-                      <Text style={styles.error}>
-                        {fieldState.error.message}
+              <ChevronsUpDown size={16} color="#6B7280" />
+            </TouchableOpacity>
+            {selectedCompanies?.length > 0 && (
+              <View style={styles.badges}>
+                {selectedCompanies.map(id => {
+                  const comp = companies.find(c => c._id === id);
+                  return comp ? (
+                    <View key={id} style={styles.badge}>
+                      <Text style={styles.badgeText} numberOfLines={1}>
+                        {comp.businessName}
                       </Text>
-                    )}
-                  </View>
-                )}
-              />
-            )}
-          </View>
-
-          {/* TDS Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>TDS Details</Text>
-
-            {/* TDS Applicable */}
-            <Controller
-              control={form.control}
-              name="isTDSApplicable"
-              render={({ field }) => (
-                <View style={styles.field}>
-                  <Text style={styles.label}>TDS Applicable?</Text>
-                  <View style={styles.switchContainer}>
-                    <TouchableOpacity
-                      onPress={() => field.onChange(true)}
-                      style={[
-                        styles.switchButton,
-                        field.value === true && styles.switchActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.switchButtonText,
-                          field.value === true && styles.switchActiveText,
-                        ]}
-                      >
-                        Yes
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => field.onChange(false)}
-                      style={[
-                        styles.switchButton,
-                        field.value === false && styles.switchInactive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.switchButtonText,
-                          field.value === false && styles.switchInactiveText,
-                        ]}
-                      >
-                        No
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-            />
-
-            {/* TDS Details (Conditional) */}
-            {isTDSApplicable && (
-              <View style={styles.tdsContainer}>
-                <Controller
-                  control={form.control}
-                  name="tdsRate"
-                  render={({ field }) => (
-                    <View style={styles.field}>
-                      <Text style={styles.label}>TDS Rate (%)</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="10"
-                        keyboardType="numeric"
-                        value={String(field.value || '')}
-                        onChangeText={val =>
-                          field.onChange(val ? Number(val) : '')
+                      <TouchableOpacity
+                        onPress={() =>
+                          form.setValue(
+                            'company',
+                            selectedCompanies.filter(c => c !== id),
+                          )
                         }
-                      />
+                      >
+                        <X
+                          size={12}
+                          color="#4F46E5"
+                          style={{ marginLeft: 5 }}
+                        />
+                      </TouchableOpacity>
                     </View>
-                  )}
-                />
-                <Controller
-                  control={form.control}
-                  name="tdsSection"
-                  render={({ field }) => (
-                    <View style={styles.field}>
-                      <Text style={styles.label}>TDS Section</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="194J"
-                        value={field.value}
-                        onChangeText={field.onChange}
-                      />
-                    </View>
-                  )}
-                />
+                  ) : null;
+                })}
               </View>
             )}
+            <ErrText msg={fieldState.error?.message} />
           </View>
+        )}
+      />
 
-          {/* Submit Button */}
-          <TouchableOpacity
-            onPress={form.handleSubmit(handleSubmit)}
-            disabled={isSubmitting}
-            style={[
-              styles.submitButton,
-              isSubmitting && styles.submitButtonDisabled,
-            ]}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.submitButtonText}>
-                {customer ? 'Save Changes' : 'Create Customer'}
+      {/* Name */}
+      <Controller
+        control={form.control}
+        name="name"
+        render={({ field, fieldState }) => (
+          <View style={styles.field}>
+            <Text style={styles.label}>
+              Customer Name <Text style={styles.requiredStar}>*</Text>
+            </Text>
+            <TextInput
+              style={[styles.input, fieldState.error && styles.inputError]}
+              placeholder="e.g. John Doe"
+              placeholderTextColor="#9CA3AF"
+              value={field.value}
+              onChangeText={field.onChange}
+            />
+            <ErrText msg={fieldState.error?.message} />
+          </View>
+        )}
+      />
+
+      {/* Contact & Email row */}
+      <View style={styles.row}>
+        <Controller
+          control={form.control}
+          name="contactNumber"
+          render={({ field, fieldState }) => (
+            <View style={[styles.field, { flex: 1 }]}>
+              <Text style={styles.label}>Mobile Number</Text>
+              <TextInput
+                style={[styles.input, fieldState.error && styles.inputError]}
+                placeholder="9876543210"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="phone-pad"
+                maxLength={10}
+                value={field.value}
+                onChangeText={t => field.onChange(t.replace(/\D/g, ''))}
+              />
+              <ErrText msg={fieldState.error?.message} />
+            </View>
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="email"
+          render={({ field, fieldState }) => (
+            <View style={[styles.field, { flex: 1 }]}>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                style={[styles.input, fieldState.error && styles.inputError]}
+                placeholder="john.doe@example.com"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={field.value}
+                onChangeText={field.onChange}
+              />
+              <ErrText msg={fieldState.error?.message} />
+            </View>
+          )}
+        />
+      </View>
+
+      {/* Address */}
+      <Controller
+        control={form.control}
+        name="address"
+        render={({ field }) => (
+          <View style={styles.field}>
+            <Text style={styles.label}>Address Line (Street/Building)</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="456 Park Avenue"
+              placeholderTextColor="#9CA3AF"
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+              value={field.value}
+              onChangeText={field.onChange}
+            />
+          </View>
+        )}
+      />
+
+      {/* State */}
+      <Controller
+        control={form.control}
+        name="state"
+        render={({ field }) => (
+          <View style={styles.field}>
+            <Text style={styles.label}>State</Text>
+            <TouchableOpacity
+              style={styles.inputRow}
+              onPress={() => setShowStatePicker(true)}
+            >
+              <Text
+                style={field.value ? styles.inputText : styles.placeholderText}
+              >
+                {field.value || 'Select state'}
               </Text>
+              <SimpleLineIcons name="arrow-down" color="#000" size={10} />
+            </TouchableOpacity>
+            <SearchablePicker
+              visible={showStatePicker}
+              onClose={() => setShowStatePicker(false)}
+              options={stateOptions}
+              onSelect={s => {
+                setStateCode(s.value);
+                field.onChange(s.label);
+                form.setValue('city', '');
+              }}
+              title="Select State"
+              searchPlaceholder="Search state..."
+            />
+          </View>
+        )}
+      />
+
+      {/* City */}
+      <Controller
+        control={form.control}
+        name="city"
+        render={({ field }) => (
+          <View style={styles.field}>
+            <Text style={styles.label}>City</Text>
+            <TouchableOpacity
+              style={[styles.inputRow, !stateCode && styles.inputDisabled]}
+              onPress={() => stateCode && setShowCityPicker(true)}
+              disabled={!stateCode}
+            >
+              <Text
+                style={field.value ? styles.inputText : styles.placeholderText}
+              >
+                {field.value ||
+                  (stateCode ? 'Select city' : 'Select state first')}
+              </Text>
+              <SimpleLineIcons name="arrow-down" color="#000" size={10} />
+            </TouchableOpacity>
+            <SearchablePicker
+              visible={showCityPicker}
+              onClose={() => setShowCityPicker(false)}
+              options={cityOptions}
+              onSelect={c => field.onChange(c.label)}
+              title="Select City"
+              searchPlaceholder="Search city..."
+            />
+          </View>
+        )}
+      />
+
+      {/* Pincode */}
+      <Controller
+        control={form.control}
+        name="pincode"
+        render={({ field }) => (
+          <View style={styles.field}>
+            <Text style={styles.label}>Pincode</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="400001"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="numeric"
+              maxLength={6}
+              value={field.value}
+              onChangeText={field.onChange}
+            />
+          </View>
+        )}
+      />
+
+      {/* GST Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>GST Details</Text>
+
+        <Controller
+          control={form.control}
+          name="gstRegistrationType"
+          render={({ field }) => (
+            <View style={styles.field}>
+              <Text style={styles.label}>
+                GST Registration Type <Text style={styles.requiredStar}>*</Text>
+              </Text>
+              <CustomDropdown
+                items={gstTypeOptions}
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Select GST Registration Type"
+              />
+            </View>
+          )}
+        />
+
+        <Controller
+          control={form.control}
+          name="pan"
+          render={({ field, fieldState }) => (
+            <View style={styles.field}>
+              <Text style={styles.label}>PAN</Text>
+              <TextInput
+                style={[styles.input, fieldState.error && styles.inputError]}
+                placeholder="10-digit PAN"
+                placeholderTextColor="#9CA3AF"
+                maxLength={10}
+                autoCapitalize="characters"
+                value={field.value}
+                onChangeText={t => field.onChange(t.toUpperCase())}
+              />
+              <ErrText msg={fieldState.error?.message} />
+            </View>
+          )}
+        />
+
+        {regType !== 'Unregistered' && (
+          <Controller
+            control={form.control}
+            name="gstin"
+            render={({ field, fieldState }) => (
+              <View style={styles.field}>
+                <Text style={styles.label}>GSTIN</Text>
+                <TextInput
+                  style={[styles.input, fieldState.error && styles.inputError]}
+                  placeholder="15-digit GSTIN"
+                  placeholderTextColor="#9CA3AF"
+                  maxLength={15}
+                  autoCapitalize="characters"
+                  value={field.value}
+                  onChangeText={t => field.onChange(t.toUpperCase())}
+                />
+                <ErrText msg={fieldState.error?.message} />
+              </View>
             )}
+          />
+        )}
+      </View>
+
+      {/* TDS Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>TDS Details</Text>
+        <Controller
+          control={form.control}
+          name="isTDSApplicable"
+          render={({ field }) => (
+            <View style={styles.field}>
+              <Text style={styles.label}>TDS Applicable?</Text>
+              <View style={styles.switchContainer}>
+                <TouchableOpacity
+                  onPress={() => field.onChange(true)}
+                  style={[
+                    styles.switchButton,
+                    field.value === true && styles.switchActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.switchButtonText,
+                      field.value === true && styles.switchActiveText,
+                    ]}
+                  >
+                    Yes
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => field.onChange(false)}
+                  style={[
+                    styles.switchButton,
+                    field.value === false && styles.switchInactive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.switchButtonText,
+                      field.value === false && styles.switchInactiveText,
+                    ]}
+                  >
+                    No
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        />
+        {isTDSApplicable && (
+          <View style={styles.tdsContainer}>
+            <Controller
+              control={form.control}
+              name="tdsRate"
+              render={({ field }) => (
+                <View style={styles.field}>
+                  <Text style={styles.label}>TDS Rate (%)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="10"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="numeric"
+                    value={String(field.value || '')}
+                    onChangeText={val => field.onChange(val ? Number(val) : '')}
+                  />
+                </View>
+              )}
+            />
+            <Controller
+              control={form.control}
+              name="tdsSection"
+              render={({ field }) => (
+                <View style={styles.field}>
+                  <Text style={styles.label}>TDS Section</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="194J"
+                    placeholderTextColor="#9CA3AF"
+                    value={field.value}
+                    onChangeText={field.onChange}
+                  />
+                </View>
+              )}
+            />
+          </View>
+        )}
+      </View>
+
+      <View style={{ height: 16 }} />
+    </ScrollView>
+  );
+
+  // ── Navigation Mode ───────────────────────────────────────────────────────
+  if (isNavigationMode) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.navHeader}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <IonIcon name="arrow-back" size={22} color="#4F46E5" />
           </TouchableOpacity>
+          <Text style={styles.navHeaderTitle}>
+            {customer ? 'Edit Customer' : 'Create New Customer'}
+          </Text>
+          <View style={styles.backBtn} />
         </View>
-      </ScrollView>
+
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          {formContent}
+          <View style={styles.navFooter}>
+            <TouchableOpacity
+              style={[styles.submitBtn, isSubmitting && { opacity: 0.6 }]}
+              onPress={form.handleSubmit(handleSubmit)}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitBtnText}>
+                  {customer ? 'Update Customer' : 'Create Customer'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+
+        <CompanyBottomSheet
+          visible={showCompanySheet}
+          onClose={() => setShowCompanySheet(false)}
+          companies={companies}
+          selectedCompanies={selectedCompanies || []}
+          onSelectionChange={val => form.setValue('company', val)}
+          isLoading={isLoadingCompanies}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  // ── Props Mode (legacy embedded) ─────────────────────────────────────────
+  return (
+    <View style={{ flex: 1 }}>
+      {formContent}
+      <TouchableOpacity
+        onPress={form.handleSubmit(handleSubmit)}
+        disabled={isSubmitting}
+        style={[styles.submitBtnProps, isSubmitting && { opacity: 0.6 }]}
+      >
+        {isSubmitting ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.submitBtnText}>
+            {customer ? 'Save Changes' : 'Create Customer'}
+          </Text>
+        )}
+      </TouchableOpacity>
+      <CompanyBottomSheet
+        visible={showCompanySheet}
+        onClose={() => setShowCompanySheet(false)}
+        companies={companies}
+        selectedCompanies={selectedCompanies || []}
+        onSelectionChange={val => form.setValue('company', val)}
+        isLoading={isLoadingCompanies}
+      />
     </View>
   );
-}
+};
+
+export { CustomerForm };
+export default CustomerForm;
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const SCREEN_H = require('react-native').Dimensions.get('window').height;
 
 const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    // paddingBottom: 30,
-  },
-  header: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+  safe: { flex: 1, backgroundColor: '#fff' },
+  navHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#fff',
+    height: 52,
   },
-  headerLeft: {
-    flex: 1,
-  },
-  headerCloseButton: {
-    padding: 4,
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
     justifyContent: 'center',
+  },
+  navHeaderTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
+  },
+  navFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 10 : 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#fff',
+  },
+  submitBtn: {
+    backgroundColor: '#4F46E5',
+    borderRadius: 10,
+    paddingVertical: 16,
     alignItems: 'center',
   },
-  headerCloseButtonText: {
-    fontSize: 22,
-    color: '#374151',
-    fontWeight: '300',
+  submitBtnProps: {
+    backgroundColor: '#007AFF',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    margin: 16,
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#666',
-  },
-  // formContainer: {
-  //   padding: 20,
-  // },
+  submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
+  scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 12 },
+  field: { marginBottom: 20 },
+  row: { flexDirection: 'row', gap: 12 },
   section: {
     marginBottom: 25,
     padding: 16,
@@ -1018,68 +1020,50 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 16,
   },
-  field: {
-    marginBottom: 20,
-  },
-  label: {
-    fontWeight: '600',
-    marginBottom: 8,
-    fontSize: 14,
-    color: '#333',
-  },
-  requiredStar: {
-    color: '#ff3b30',
-  },
+  label: { fontWeight: '600', marginBottom: 8, fontSize: 14, color: '#333' },
+  requiredStar: { color: '#ff3b30' },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#D1D5DB',
     borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
     backgroundColor: '#fff',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#111827',
   },
-  textArea: {
-    minHeight: 80,
-  },
-  inputError: {
-    borderColor: '#ff3b30',
-  },
-  dropdown: {
+  inputRow: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#D1D5DB',
     borderRadius: 8,
-    padding: 12,
     backgroundColor: '#fff',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  dropdownDisabled: {
-    backgroundColor: '#f5f5f5',
-    borderColor: '#eee',
+  inputError: { borderColor: '#EF4444' },
+  inputDisabled: { backgroundColor: '#F9FAFB' },
+  textArea: { minHeight: 70, textAlignVertical: 'top' },
+  inputText: { fontSize: 15, color: '#111827', flex: 1 },
+  placeholderText: { fontSize: 15, color: '#9CA3AF', flex: 1 },
+  chevron: { fontSize: 12, color: '#6B7280' },
+  error: { fontSize: 12, color: '#EF4444', marginTop: 5, fontWeight: '500' },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
   },
-  dropdownText: {
-    fontSize: 16,
-    color: '#999',
-    flex: 1,
-  },
-  dropdownTextSelected: {
-    fontSize: 16,
-    color: '#333',
-    flex: 1,
-  },
-  dropdownArrow: {
-    color: '#666',
+  badgeText: {
     fontSize: 12,
-    marginLeft: 8,
-  },
-  customDropdown: {
-    marginBottom: 0,
-  },
-  error: {
-    color: '#ff3b30',
-    fontSize: 14,
-    marginTop: 5,
+    color: '#4F46E5',
+    fontWeight: '600',
+    maxWidth: 150,
   },
   switchContainer: {
     flexDirection: 'row',
@@ -1094,23 +1078,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f5f5f5',
   },
-  switchActive: {
-    backgroundColor: '#007AFF',
-  },
-  switchInactive: {
-    backgroundColor: '#dc2626',
-  },
-  switchButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#666',
-  },
-  switchActiveText: {
-    color: '#fff',
-  },
-  switchInactiveText: {
-    color: '#fff',
-  },
+  switchActive: { backgroundColor: '#007AFF' },
+  switchInactive: { backgroundColor: '#dc2626' },
+  switchButtonText: { fontSize: 14, fontWeight: '500', color: '#666' },
+  switchActiveText: { color: '#fff' },
+  switchInactiveText: { color: '#fff' },
   tdsContainer: {
     borderWidth: 1,
     borderColor: '#eee',
@@ -1119,180 +1091,139 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     marginTop: 10,
   },
-  submitButton: {
-    backgroundColor: '#007AFF',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#ccc',
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
 
-  // Company Field Styles
-  companyDropdown: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    minHeight: 50,
-    justifyContent: 'center',
-  },
-  selectedCompaniesContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  badgesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  // Company bottom sheet
+  backdrop: {
     flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
   },
-  badgeContainer: {
-    marginRight: 6,
-    marginBottom: 4,
+  sheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    height: SCREEN_H * 0.75,
+    overflow: 'hidden',
   },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  handle: {
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D1D5DB',
+    alignSelf: 'center',
+    marginTop: 10,
   },
-  badgeText: {
-    fontSize: 14,
-    color: '#333',
-    marginRight: 4,
-  },
-  badgeRemoveButton: {
-    padding: 2,
-  },
-  companyDropdownPlaceholder: {
+  sheetHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  placeholderText: {
-    fontSize: 16,
-    color: '#999',
-  },
-  dropdownIcon: {
-    marginLeft: 8,
-  },
-
-  // Dialog-specific styles
-  dialogBody: {
-    paddingTop: 16,
-  },
-  selectAllContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#F0F0F0',
   },
-  selectAllButton: {
-    padding: 8,
+  sheetTitle: { fontSize: 16, fontWeight: '600', color: '#1F2937' },
+  closeBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F3F4F6',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  selectAllText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#007AFF',
+  closeX: { fontSize: 13, color: '#6B7280', fontWeight: '600' },
+  sheetSearch: {
+    margin: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    fontSize: 15,
+    color: '#111827',
+    backgroundColor: '#F9FAFB',
   },
-  companyList: {
-    maxHeight: 400,
-  },
-  companyItem: {
+  selectAll: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    gap: 8,
+    marginHorizontal: 12,
+    marginBottom: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  selectAllText: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
+  sheetList: { height: SCREEN_H * 0.33 },
+  centerBox: {
+    height: SCREEN_H * 0.2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  centerText: { fontSize: 14, color: '#9CA3AF', marginTop: 8 },
+  listItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#F3F4F6',
   },
-  companyItemSelected: {
-    backgroundColor: '#f0f8ff',
-  },
-  checkboxContainer: {
-    marginRight: 12,
-  },
+  listItemSel: { backgroundColor: '#F5F3FF' },
   checkbox: {
     width: 20,
     height: 20,
     borderRadius: 4,
     borderWidth: 2,
-    borderColor: '#ddd',
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
     justifyContent: 'center',
+  },
+  checkboxSel: { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
+  listItemText: { fontSize: 15, color: '#374151', flex: 1 },
+  listItemTextSel: { color: '#4F46E5', fontWeight: '600' },
+  sheetFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  doneBtn: {
+    backgroundColor: '#4F46E5',
+    borderRadius: 10,
+    paddingVertical: 15,
     alignItems: 'center',
   },
-  checkboxSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
-  companyName: {
-    fontSize: 16,
-    color: '#333',
-    flex: 1,
-  },
-  companyNameSelected: {
-    color: '#007AFF',
-    fontWeight: '500',
-  },
-  doneButton: {
-    margin: 16,
-    padding: 16,
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  doneButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  doneBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
-  // Searchable Picker Styles (for state and city)
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  modalHeader: {
+  // Searchable picker
+  pickerHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
-    marginTop: Platform.OS === 'ios' ? 40 : 0,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+  pickerTitle: { fontSize: 18, fontWeight: '600', color: '#333' },
+  pickerClose: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  closeButton: {
-    padding: 4,
-  },
-  closeButtonText: {
-    fontSize: 20,
-    color: '#666',
-  },
-  searchContainer: {
+  pickerCloseText: { fontSize: 18, color: '#666' },
+  pickerSearch: {
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  searchInput: {
+  pickerSearchInput: {
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
@@ -1300,18 +1231,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#f9f9f9',
   },
-  optionsContainer: {
-    flex: 1,
-  },
-  optionItem: {
+  pickerOption: {
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
-  optionText: {
-    fontSize: 16,
-    color: '#333',
-  },
+  pickerOptionText: { fontSize: 16, color: '#333' },
   noResultsText: {
     textAlign: 'center',
     padding: 20,

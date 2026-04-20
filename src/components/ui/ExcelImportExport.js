@@ -442,7 +442,7 @@ const ExcelImportExport = ({
           style={styles.circularImportButton}
           onPress={() => setIsDialogOpen(true)}
         >
-          <Icon name="upload" size={16} color="#007AFF" />
+          <Icon name="upload" size={16} color="#75bbd4" />
         </TouchableOpacity>
       </View>
       {/* Import Dialog */}
@@ -545,11 +545,14 @@ const ExcelImportExport = ({
 
                 {/* Download Section */}
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>📥 Download Template</Text>
+                  <View style={styles.sectionHeader}>
+                  <Icon name="file-download" size={20} color="#21A366" />
+                  <Text style={styles.sectionTitle}> Download Template</Text>
+                  </View>
                   <Button
                     mode="contained"
                     onPress={handleDownloadTemplate}
-                    style={styles.actionButton}
+                    style={[{ backgroundColor: '#54a7d6' }, styles.actionButton]}
                     icon="download"
                   >
                     Download Template
@@ -563,12 +566,16 @@ const ExcelImportExport = ({
 
                 {/* Import Section */}
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>📤 Import Data</Text>
+                  <View style={styles.sectionHeader}>
+                    <Icon name="file-upload" size={20} color="#21A366" />
+                    <Text style={styles.sectionTitle}>Import Data</Text>
+                  </View>
                   <Button
                     mode="outlined"
                     onPress={handleImportFile}
-                    style={styles.actionButton}
+                    style={[{ borderColor: '#54a7d6' , color:"#54a7d6" }, styles.actionButton]}
                     icon="file-upload"
+                    textColor="#54a7d6"
                   >
                     Choose Excel File
                   </Button>
@@ -638,15 +645,14 @@ const styles = StyleSheet.create({
     height: 35,
   },
   circularImportButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1.2,
-    borderColor: '#007AFF',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    color: '#75bbd4',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
-    marginBottom: 4,
+    borderColor:"#75bbd4",
+    borderWidth:1,
   },
   subheadingText: {
     color: '#64748b',
@@ -694,15 +700,22 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 20,
   },
+  sectionHeader:{
+  display:'flex',
+  flexDirection:'row',
+  alignItems:'center',
+   gap:6,
+   marginBottom:10
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 12,
   },
   actionButton: {
-    width: '100%',
+    width: '80%',
     marginVertical: 4,
+    alignSelf: 'center',
   },
   downloadHelper: {
     fontSize: 12,

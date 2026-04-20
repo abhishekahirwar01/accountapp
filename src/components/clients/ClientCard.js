@@ -147,25 +147,30 @@ export default function ClientCard({
         <TouchableOpacity
           style={[styles.actionButton, styles.viewButton]}
           onPress={handleViewAnalytics}
+          activeOpacity={0.85}
         >
-          <Eye size={18} color="#fff" />
-          <Text style={styles.actionText}>View</Text>
+          <Eye size={16} color="#0369a1" />
+          <Text style={[styles.actionText, styles.viewButtonText]}>View</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.actionButton, styles.editButton]}
           onPress={onEdit}
+          activeOpacity={0.85}
         >
-          <Edit size={18} color="#fff" />
-          <Text style={styles.actionText}>Edit</Text>
+          <Edit size={16} color="#7e22ce" />
+          <Text style={[styles.actionText, styles.editButtonText]}>Edit</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.actionButton, styles.deleteButton]}
           onPress={handleDelete}
+          activeOpacity={0.85}
         >
-          <Trash2 size={18} color="#fff" />
-          <Text style={styles.actionText}>Delete</Text>
+          <Trash2 size={16} color="#b91c1c" />
+          <Text style={[styles.actionText, styles.deleteButtonText]}>
+            Delete
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -190,27 +195,23 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginVertical: 5,
     marginHorizontal: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+  boxShadow:"0px 2px 5px rgba(0,0,0,0.1)",
     overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#f8f6ff',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#e3deff',
   },
   avatarContainer: { marginRight: 12 },
   avatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#0284c7',
+    backgroundColor: '#8b77ff',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -284,9 +285,9 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#fff',
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: '#f1f5f9',
     paddingVertical: 12,
     paddingHorizontal: 12,
   },
@@ -295,23 +296,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 8,
+    borderRadius: 10,
+    borderWidth: 1,
     marginHorizontal: 4,
     paddingVertical: 10,
     gap: 6,
   },
   actionText: {
-    color: '#fff',
     fontWeight: '600',
     fontSize: 14,
   },
   viewButton: {
-    backgroundColor: '#0284c7',
+    backgroundColor: '#e0f2fe',
+    borderColor: '#bae6fd',
+  },
+  viewButtonText: {
+    color: '#0369a1',
   },
   editButton: {
-    backgroundColor: '#9333ea',
+    backgroundColor: '#f3e8ff',
+    borderColor: '#e9d5ff',
+  },
+  editButtonText: {
+    color: '#7e22ce',
   },
   deleteButton: {
-    backgroundColor: '#ef4444',
+    backgroundColor: '#fee2e2',
+    borderColor: '#fecaca',
+  },
+  deleteButtonText: {
+    color: '#b91c1c',
   },
 });

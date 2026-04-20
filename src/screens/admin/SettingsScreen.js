@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,8 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
-  FlatList,
+  ScrollView,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // Replaced react-native-paper Card/Button with native components
@@ -24,6 +25,7 @@ import { useNavigation } from '@react-navigation/native';
 export default function SettingsPage() {
   const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
+  const [selectedTab, setSelectedTab] = useState('profile');
   const [formData, setFormData] = useState({
     fullName: 'Master Administrator',
     email: 'admin@accountech.com',
@@ -55,14 +57,14 @@ export default function SettingsPage() {
     try {
       const userJson = await AsyncStorage.getItem('userData');
       if (userJson) {
-        const userData = JSON.parse(userJson);
-        setUserData(userData);
+        const parsedUserData = JSON.parse(userJson);
+        setUserData(parsedUserData);
         // Pre-fill form with user data if available
         setFormData(prev => ({
           ...prev,
-          fullName: userData.fullName || prev.fullName,
-          email: userData.email || prev.email,
-          phone: userData.phone || prev.phone,
+          fullName: parsedUserData.fullName || prev.fullName,
+          email: parsedUserData.email || prev.email,
+          phone: parsedUserData.phone || prev.phone,
         }));
       }
     } catch (error) {
@@ -79,12 +81,12 @@ export default function SettingsPage() {
     try {
       setLoading(true);
 
-      // Get auth token from AsyncStorage
+      
       const token = await AsyncStorage.getItem('authToken');
 
       let response;
       if (selectedClient) {
-        // Update existing client - /api/ जोड़ा गया
+       
         response = await fetch(`${BASE_URL}/api/clients/${selectedClient.id}`, {
           method: 'PUT',
           headers: {
@@ -94,7 +96,7 @@ export default function SettingsPage() {
           body: JSON.stringify(clientData),
         });
       } else {
-        // Create new client - /api/ जोड़ा गया
+        
         response = await fetch(`${BASE_URL}/api/clients`, {
           method: 'POST',
           headers: {
@@ -113,8 +115,6 @@ export default function SettingsPage() {
         setIsClientDialogOpen(false);
         setSelectedClient(null);
 
-        // Refresh clients list in ClientsValidityManager
-        // You might want to use a callback or context to refresh the list
       } else {
         throw new Error('Failed to save client');
       }
@@ -131,7 +131,7 @@ export default function SettingsPage() {
       setLoading(true);
 
       const token = await AsyncStorage.getItem('authToken');
-      // /api/ जोड़ा गया
+      
       const response = await fetch(`${BASE_URL}/api/profile`, {
         method: 'PUT',
         headers: {
@@ -171,8 +171,9 @@ export default function SettingsPage() {
 
   const handleSaveNotificationSettings = async () => {
     try {
+      setLoading(true);
       const token = await AsyncStorage.getItem('authToken');
-      // /api/ जोड़ा गया
+      
       const response = await fetch(`${BASE_URL}/api/notification-settings`, {
         method: 'PUT',
         headers: {
@@ -197,6 +198,8 @@ export default function SettingsPage() {
         'Error',
         'Failed to save notification settings. Please try again.',
       );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -217,13 +220,20 @@ export default function SettingsPage() {
     <View style={styles.card}>
       <View style={styles.cardContent}>
         <View style={styles.cardHeader}>
-          <Icon name="account-circle" size={24} color="#666" />
+          <View style={styles.cardIconWrap}>
+            <Icon name="account-circle" size={20} color="#8b77ff" />
+          </View>
           <View style={styles.cardHeaderText}>
             <Text style={styles.cardTitle}>Profile Settings</Text>
             <Text style={styles.cardDescription}>
               Update your personal information
             </Text>
           </View>
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>PROFILE DETAILS</Text>
+          <View style={styles.horizontalLine} />
         </View>
 
         <View style={styles.formGrid}>
@@ -281,7 +291,7 @@ export default function SettingsPage() {
       <View style={styles.cardActions}>
         <TouchableOpacity
           onPress={handleSaveProfile}
-          style={[styles.saveButton, loading && { opacity: 0.6 }]}
+          style={[styles.saveButton, loading && styles.disabledButton]}
           disabled={loading}
         >
           <Icon
@@ -290,7 +300,7 @@ export default function SettingsPage() {
             color="white"
             style={styles.buttonIcon}
           />
-          <Text style={{ color: '#ffffff', marginLeft: 8 }}>Save Profile</Text>
+          <Text style={styles.saveButtonText}>Save Profile</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -300,7 +310,9 @@ export default function SettingsPage() {
     <View style={styles.card}>
       <View style={styles.cardContent}>
         <View style={styles.cardHeader}>
-          <Icon name="bell" size={24} color="#666" />
+          <View style={styles.cardIconWrap}>
+            <Icon name="bell" size={20} color="#8b77ff" />
+          </View>
           <View style={styles.cardHeaderText}>
             <Text style={styles.cardTitle}>Notification Settings</Text>
             <Text style={styles.cardDescription}>
@@ -309,128 +321,159 @@ export default function SettingsPage() {
           </View>
         </View>
 
-        <View style={styles.notificationItem}>
-          <View style={styles.notificationText}>
-            <Text style={styles.notificationLabel}>Invoice Emails</Text>
-            <Text style={styles.notificationDescription}>
-              Receive email notifications for new invoices and payments.
-            </Text>
-          </View>
-          <Switch
-            value={formData.invoiceEmails}
-            onValueChange={value => handleInputChange('invoiceEmails', value)}
-          />
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>ALERT PREFERENCES</Text>
+          <View style={styles.horizontalLine} />
         </View>
 
-        <View style={styles.separator} />
-
-        <View style={styles.notificationItem}>
-          <View style={styles.notificationText}>
-            <Text style={styles.notificationLabel}>Monthly Reports</Text>
-            <Text style={styles.notificationDescription}>
-              Receive monthly financial summary reports via email.
-            </Text>
-          </View>
-          <Switch
-            value={formData.reportEmails}
-            onValueChange={value => handleInputChange('reportEmails', value)}
-          />
+        <View style={styles.notificationList}>
+          {[
+            {
+              key: 'invoiceEmails',
+              label: 'Invoice Emails',
+              description:
+                'Receive email notifications for new invoices and payments.',
+            },
+            {
+              key: 'reportEmails',
+              label: 'Monthly Reports',
+              description:
+                'Receive monthly financial summary reports via email.',
+            },
+            {
+              key: 'securityAlerts',
+              label: 'Security Alerts',
+              description:
+                'Receive email notifications for security-related events.',
+            },
+          ].map(item => (
+            <View key={item.key} style={styles.notificationItem}>
+              <View style={styles.notificationText}>
+                <Text style={styles.notificationLabel}>{item.label}</Text>
+                <Text style={styles.notificationDescription}>
+                  {item.description}
+                </Text>
+              </View>
+              <Switch
+                value={formData[item.key]}
+                onValueChange={value => handleInputChange(item.key, value)}
+                trackColor={{ false: '#d1d5db', true: '#c5bcff' }}
+                thumbColor={formData[item.key] ? '#8b77ff' : '#f8fafc'}
+                ios_backgroundColor="#d1d5db"
+              />
+            </View>
+          ))}
         </View>
+      </View>
 
-        <View style={styles.separator} />
-
-        <View style={styles.notificationItem}>
-          <View style={styles.notificationText}>
-            <Text style={styles.notificationLabel}>Security Alerts</Text>
-            <Text style={styles.notificationDescription}>
-              Receive email notifications for security-related events.
-            </Text>
-          </View>
-          <Switch
-            value={formData.securityAlerts}
-            onValueChange={value => handleInputChange('securityAlerts', value)}
+      <View style={styles.cardActions}>
+        <TouchableOpacity
+          onPress={handleSaveNotificationSettings}
+          style={[styles.saveButton, loading && styles.disabledButton]}
+          disabled={loading}
+        >
+          <Icon
+            name="content-save"
+            size={18}
+            color="#ffffff"
+            style={styles.buttonIcon}
           />
-        </View>
+          <Text style={styles.saveButtonText}>Save Notifications</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
 
-  // Data for FlatList sections
-  const settingsSections = [
-    {
-      id: 'header',
-      type: 'header',
-    },
-    {
-      id: 'profile',
-      type: 'profile',
-    },
-    {
-      id: 'clients',
-      type: 'clients',
-    },
-    {
-      id: 'notifications',
-      type: 'notifications',
-    },
-  ];
-
-  const renderItem = useCallback(
-    ({ item }) => {
-      switch (item.type) {
-        case 'header':
-          return (
-            <View style={styles.headerRow}>
-              <View style={styles.headerTextWrap}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <TouchableOpacity
-                    onPress={handleBack}
-                    style={styles.backButton}
-                  >
-                    <Icon name="arrow-left" size={20} color="#666" />
-                  </TouchableOpacity>
-                  <Text style={styles.title}>Settings</Text>
-                </View>
-                <Text style={styles.subtitle}>
-                  Manage your account and system preferences
-                </Text>
-              </View>
-            </View>
-          );
-        case 'profile':
-          return renderProfileSection();
-        case 'clients':
-          return (
-            <ClientsValidityManager
-              onClientClick={handleClientClick}
-              baseUrl={BASE_URL}
-            />
-          );
-        case 'notifications':
-          return renderNotificationSection();
-        default:
-          return null;
-      }
-    },
-    [formData, loading, userData, isClientDialogOpen],
-  );
-
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f7f9ff" />
       <View style={styles.container}>
         {loading && (
           <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#0000ff" />
+            <ActivityIndicator size="large" color="#8b77ff" />
           </View>
         )}
 
-        <FlatList
-          data={settingsSections}
-          renderItem={renderItem}
-          keyExtractor={item => item.id}
+        <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
-        />
+        >
+          <View style={styles.headerContainer}>
+            <View style={styles.headerTitleRow}>
+              <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                <Icon name="arrow-left" size={22} color="#8b77ff" />
+              </TouchableOpacity>
+              <Text style={styles.title}>Settings</Text>
+            </View>
+            <Text style={styles.subtitle}>
+              Manage your account and system preferences
+            </Text>
+          </View>
+
+          <View style={styles.tabsContainer}>
+            <ScrollView
+              horizontal
+              contentContainerStyle={styles.tabsScrollContent}
+              showsHorizontalScrollIndicator={false}
+            >
+              {[
+                {
+                  value: 'profile',
+                  label: 'Profile',
+                  icon: 'account-circle',
+                },
+                {
+                  value: 'client-validity',
+                  label: 'Client Validity',
+                  icon: 'account-group',
+                },
+                {
+                  value: 'notifications',
+                  label: 'Notifications',
+                  icon: 'bell',
+                },
+              ].map(tab => {
+                const active = selectedTab === tab.value;
+
+                return (
+                  <TouchableOpacity
+                    key={tab.value}
+                    style={[styles.tabItem, active && styles.tabItemActive]}
+                    onPress={() => setSelectedTab(tab.value)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.tabRow}>
+                      <Icon
+                        name={tab.icon}
+                        size={16}
+                        color={active ? '#8b77ff' : '#565b63'}
+                        style={styles.tabIcon}
+                      />
+                      <Text style={[styles.tabText, active && styles.tabTextActive]}>
+                        {tab.label}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+
+          <View style={styles.tabContentWrapper}>
+            {selectedTab === 'profile' && renderProfileSection()}
+
+            {selectedTab === 'client-validity' && (
+              <View style={styles.clientsSection}>
+                <ClientsValidityManager
+                  onClientClick={handleClientClick}
+                  baseUrl={BASE_URL}
+                />
+              </View>
+            )}
+
+            {selectedTab === 'notifications' && renderNotificationSection()}
+          </View>
+        </ScrollView>
 
         {/* Client Dialog Modal */}
         <Modal
@@ -480,61 +523,96 @@ export default function SettingsPage() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f7f9ff',
   },
   modalSafeArea: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f7f9ff',
   },
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f7f9ff',
   },
   listContent: {
-    padding: 16,
+    padding: 12,
+    paddingBottom: 24,
   },
-  header: {
-    marginBottom: 24,
+  headerContainer: {
+    marginBottom: 4,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    // marginBottom: 2,
+    color: '#1f2937',
   },
   subtitle: {
     fontSize: 12,
-    color: '#666',
-  },
-  headerRow: {
-    marginBottom: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerTextWrap: {
-    flex: 1,
+    color: '#6b7280',
+    marginTop: 4,
   },
   backButton: {
-    marginRight: 10,
-
+    marginRight: 12,
+    padding: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 40,
-    minWidth: 10,
+  },
+  tabsContainer: {
+    marginBottom: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    backgroundColor: '#f7f9ff',
+    position: 'relative',
+  },
+  tabsScrollContent: {
+    paddingVertical: 0,
+    paddingHorizontal: 8,
+  },
+  tabItem: {
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    minWidth: 110,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabItemActive: {
+    borderBottomColor: '#8b77ff',
+  },
+  tabRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabIcon: {
+    marginRight: 6,
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4a4e55',
+    textAlign: 'center',
+  },
+  tabTextActive: {
+    color: '#8b77ff',
+  },
+  tabContentWrapper: {
+    flex: 1,
+    marginTop: 10,
   },
   card: {
     marginBottom: 16,
     backgroundColor: '#ffffff',
     borderRadius: 12,
-    padding: 0,
     borderWidth: 1,
-    borderColor: '#eef2f7',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
+    borderColor: '#e6eeff',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+  
     alignSelf: 'stretch',
+    overflow: 'hidden',
   },
   cardContent: {
     padding: 12,
@@ -542,120 +620,170 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
+    paddingVertical: 8,
+  },
+  cardIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#efebff',
   },
   cardHeaderText: {
+    flex: 1,
     marginLeft: 12,
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 4,
+    color: '#1f2937',
   },
   cardDescription: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sectionTitle: {
     fontSize: 12,
-    color: '#666',
+    fontWeight: '800',
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  horizontalLine: {
+    height: 1,
+    backgroundColor: '#e6eeff',
+    width: '56%',
   },
   formGrid: {
-    gap: 16,
+    marginTop: 2,
   },
   inputGroup: {
-    gap: 8,
+    marginBottom: 12,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#333',
+    color: '#374151',
+    marginBottom: 6,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderColor: '#dce3f5',
+    borderRadius: 10,
     padding: 12,
     fontSize: 14,
-    backgroundColor: 'white',
+    color: '#1f2937',
+    backgroundColor: '#ffffff',
   },
   pickerContainer: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    backgroundColor: 'white',
+    borderColor: '#dce3f5',
+    borderRadius: 10,
+    backgroundColor: '#ffffff',
     overflow: 'hidden',
   },
   picker: {
     height: 50,
+    color: '#1f2937',
   },
   cardActions: {
     borderTopWidth: 1,
-    borderTopColor: '#eee',
-    // paddingTop: 16,
+    borderTopColor: '#e6eeff',
     justifyContent: 'flex-end',
   },
   saveButton: {
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#6e81ee',
+    backgroundColor: '#8b77ff',
     paddingVertical: 10,
     paddingHorizontal: 16,
     flexDirection: 'row',
     margin: 12,
   },
+  saveButtonText: {
+    color: '#ffffff',
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
   buttonIcon: {
-    marginRight: 8,
+    marginRight: 2,
+  },
+  clientsSection: {
+    marginBottom: 16,
+  },
+  notificationList: {
+    marginTop: 2,
   },
   notificationItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#f8faff',
+    borderWidth: 1,
+    borderColor: '#e3e9fa',
+    marginBottom: 10,
   },
   notificationText: {
     flex: 1,
-    marginRight: 16,
+    marginRight: 12,
   },
   notificationLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 2,
+    color: '#1f2937',
   },
   notificationDescription: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 12,
+    color: '#6b7280',
     lineHeight: 18,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: '#eee',
-    marginVertical: 8,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#f7f9ff',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    backgroundColor: 'white',
+    borderBottomColor: '#e6eeff',
+    backgroundColor: '#f7f9ff',
   },
   modalHeaderText: {
     flex: 1,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
+    color: '#1f2937',
     marginBottom: 4,
   },
   modalDescription: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 13,
+    color: '#6b7280',
   },
   closeButton: {
-    padding: 4,
+    padding: 6,
+    borderRadius: 18,
+    backgroundColor: '#efebff',
   },
   modalContent: {
     flex: 1,
@@ -666,7 +794,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    backgroundColor: 'rgba(247, 249, 255, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,

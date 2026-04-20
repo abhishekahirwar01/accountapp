@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -49,22 +50,13 @@ import {
   Loader2,
 } from 'lucide-react-native';
 import { BASE_URL } from '../../config';
-import ServiceForm from '../services/ServiceForm';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '../../components/ui/Dialog';
 
 const { width } = Dimensions.get('window');
 const ITEMS_PER_PAGE = 10;
 
-const ServiceSettings = () => {
+const ServiceSettings = ({ navigation }) => {
   const [services, setServices] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isFormOpen, setIsFormOpen] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [selectedService, setSelectedService] = useState(null);
   const [serviceToDelete, setServiceToDelete] = useState(null);
@@ -182,14 +174,21 @@ const ServiceSettings = () => {
     fetchServices();
   }, [fetchServices]);
 
+  useFocusEffect(
+    useCallback(() => {
+      fetchServices();
+    }, [fetchServices]),
+  );
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchServices();
   }, [fetchServices]);
 
   const handleOpenForm = (service = null) => {
-    setSelectedService(service);
-    setIsFormOpen(true);
+    navigation.navigate('ServiceForm', {
+      service,
+    });
   };
 
   const handleOpenDeleteDialog = service => {
@@ -197,25 +196,9 @@ const ServiceSettings = () => {
     setIsAlertOpen(true);
   };
 
-  const handleFormSuccess = newService => {
-    setIsFormOpen(false);
-    const action = selectedService ? 'updated' : 'created';
-
-    if (selectedService) {
-      setServices(prev =>
-        prev.map(s => (s._id === newService._id ? newService : s)),
-      );
-    } else {
-      setServices(prev => [...prev, newService]);
-    }
-
-    Toast.show({
-      type: 'success',
-      text1: `Service ${action} successfully`,
-      text2: `The service details have been ${action}.`,
-    });
+  const handleFormSuccess = useCallback(() => {
     setSelectedService(null);
-  };
+  }, []);
 
   const handleDeleteService = async () => {
     if (!serviceToDelete) return;
@@ -525,7 +508,7 @@ const ServiceSettings = () => {
                   style={styles.dropdownItem}
                   onPress={() => handleEditService(item)}
                 >
-                  <Edit2 size={16} color="#3b82f6" />
+                  <Edit2 size={16} color="#8b77ff" />
                   <Text style={styles.dropdownItemText}>Edit</Text>
                 </TouchableOpacity>
                 <View style={styles.dropdownDivider} />
@@ -583,7 +566,7 @@ const ServiceSettings = () => {
             style={styles.viewButton}
             onPress={() => handleOpenForm(item)}
           >
-            <Eye size={14} color="#3b82f6" />
+            <Eye size={14} color="#8b77ff" />
             <Text style={styles.viewButtonText}>View Details</Text>
           </TouchableOpacity>
         </View>
@@ -594,7 +577,7 @@ const ServiceSettings = () => {
   if (isLoadingCompanies) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3b82f6" />
+        <ActivityIndicator size="large" color="#8b77ff" />
       </View>
     );
   }
@@ -605,7 +588,7 @@ const ServiceSettings = () => {
         <ScrollView contentContainerStyle={styles.scrollContainer}>
           <View style={styles.noCompanyCard}>
             <View style={styles.iconContainer}>
-              <Building size={32} color="#3b82f6" />
+              <Building size={32} color="#8b77ff" />
             </View>
             <Text style={styles.noCompanyTitle}>Company Setup Required</Text>
             <Text style={styles.noCompanyDescription}>
@@ -622,7 +605,7 @@ const ServiceSettings = () => {
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.emailButton} onPress={sendEmail}>
-                <Mail size={20} color="#3b82f6" />
+                <Mail size={20} color="#8b77ff" />
                 <Text style={styles.emailButtonText}>Email Us</Text>
               </TouchableOpacity>
             </View>
@@ -644,33 +627,32 @@ const ServiceSettings = () => {
           <View style={styles.mainCard}>
             <View style={styles.header}>
               <View style={styles.headerLeft}>
-                <Text style={styles.title}>Manage Services</Text>
+                <Text style={styles.title}>Services</Text>
                 <Text style={styles.subtitle}>
-                  A list of all your available services with their pricing.
+                  {services.length} item{services.length !== 1 ? 's' : ''}
                 </Text>
               </View>
               <View style={styles.headerButtons}>
                 <TouchableOpacity
-                  style={styles.addButton}
-                  onPress={() => handleOpenForm()}
-                >
-                  <PlusCircle size={20} color="white" />
-                  <Text style={styles.addButtonText}>Add Service</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
                   style={styles.importButton}
                   onPress={handleImportClick}
                 >
-                  <Upload size={20} color="#3b82f6" />
-                  <Text style={styles.importButtonText}>Import Services</Text>
+                  <Upload size={16} color="#8b77ff" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => handleOpenForm()}
+                >
+                  <PlusCircle size={16} color="white" />
+                  <Text style={styles.addButtonText}>Add</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             {isLoading ? (
               <View style={styles.loadingContent}>
-                <ActivityIndicator size="large" color="#3b82f6" />
+                <ActivityIndicator size="large" color="#8b77ff" />
               </View>
             ) : services.length > 0 ? (
               <>
@@ -752,59 +734,7 @@ const ServiceSettings = () => {
           </View>
         </ScrollView>
 
-        {/* Service Form Modal */}
-        {/* <Modal
-        visible={isFormOpen}
-        animationType="slide"
-        onRequestClose={() => {
-          setSelectedService(null);
-          setIsFormOpen(false);
-        }}
-      >
-        <ServiceForm
-          service={selectedService || undefined}
-          onSuccess={handleFormSuccess}
-          onCancel={() => {
-            setSelectedService(null);
-            setIsFormOpen(false);
-          }}
-        />
-      </Modal> */}
 
-        <Dialog
-          open={isFormOpen}
-          onOpenChange={isOpen => {
-            if (!isOpen) {
-              setSelectedService(null);
-              setIsFormOpen(false);
-            }
-          }}
-        >
-          <DialogContent>
-            <View>
-              <DialogHeader>
-                <DialogTitle>
-                  {selectedService ? 'Edit Service' : 'Create New Service'}
-                </DialogTitle>
-                <DialogDescription>
-                  {selectedService
-                    ? 'Update the service details.'
-                    : 'Fill in the form to add a new service.'}
-                </DialogDescription>
-              </DialogHeader>
-              <ScrollView>
-                <ServiceForm
-                  service={selectedService || undefined}
-                  onSuccess={handleFormSuccess}
-                  onCancel={() => {
-                    setSelectedService(null);
-                    setIsFormOpen(false);
-                  }}
-                />
-              </ScrollView>
-            </View>
-          </DialogContent>
-        </Dialog>
 
         {/* Delete Confirmation Modal */}
         <Modal
@@ -887,7 +817,7 @@ const ServiceSettings = () => {
                 style={styles.downloadTemplateButton}
                 onPress={downloadTemplate}
               >
-                <Download size={20} color="#3b82f6" />
+                <Download size={20} color="#8b77ff" />
                 <Text style={styles.downloadTemplateButtonText}>
                   Download Template
                 </Text>
@@ -917,10 +847,11 @@ const ServiceSettings = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+     backgroundColor: '#f7f9ff',
   },
   container: {
     flex: 1,
+     backgroundColor: '#f7f9ff',
   },
   scrollContainer: {
     flexGrow: 1,
@@ -932,7 +863,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   noCompanyCard: {
-    backgroundColor: 'white',
+     backgroundColor: '#f7f9ff',
     borderRadius: 12,
     padding: 24,
     alignItems: 'center',
@@ -946,7 +877,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#dbeafe',
+     backgroundColor: '#f7f9ff',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -971,7 +902,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   phoneButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#8b77ff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -987,7 +918,7 @@ const styles = StyleSheet.create({
   },
   emailButton: {
     borderWidth: 1,
-    borderColor: '#3b82f6',
+    borderColor: '#8b77ff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -997,12 +928,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emailButtonText: {
-    color: '#3b82f6',
+    color: '#8b77ff',
     fontWeight: '600',
     fontSize: 14,
   },
   mainCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#f7f9ff',
     borderRadius: 12,
     padding: 8,
     margin: 0,
@@ -1013,60 +944,63 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   header: {
-    flexDirection: 'column',
-    gap: 16,
-    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
   },
   headerLeft: {
     flex: 1,
+    marginRight: 12,
   },
   title: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    // marginBottom: 4,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 2,
   },
   subtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6b7280',
-    lineHeight: 20,
   },
   headerButtons: {
     flexDirection: 'row',
-    gap: 12,
+    alignItems: 'center',
+    gap: 8,
   },
   addButton: {
-    backgroundColor: '#3b82f6',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: '#8b77ff',
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    gap: 8,
-    flex: 1,
+    borderRadius: 6,
+    gap: 6,
   },
   addButtonText: {
     color: 'white',
     fontWeight: '600',
-    fontSize: 12,
+    fontSize: 13,
   },
   importButton: {
-    borderWidth: 1,
-    borderColor: '#3b82f6',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#8b77ff',
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    gap: 8,
-    flex: 1,
+    borderRadius: 50,
+    gap: 6,
+    width: 40,
+    height: 40,
   },
   importButtonText: {
-    color: '#3b82f6',
+    color: '#8b77ff',
     fontWeight: '600',
-    fontSize: 12,
+    fontSize: 13,
   },
   loadingContent: {
     padding: 40,
@@ -1077,11 +1011,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   serviceCard: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#ffffff',
     borderRadius: 8,
     padding: 14,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    // borderWidth: 1,
+    // borderColor: '#e5e7eb',
   },
   serviceCardHeader: {
     flexDirection: 'row',
@@ -1101,7 +1035,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   serviceName: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: '#111827',
     flex: 1,
@@ -1134,7 +1068,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   dropdownItemText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     color: '#334155',
   },
@@ -1146,7 +1080,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f5f9',
   },
   serviceDetails: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#faf8ff',
     borderRadius: 6,
     padding: 12,
     gap: 8,
@@ -1162,12 +1096,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   detailLabelText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '500',
     color: '#6b7280',
   },
   detailValue: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#374151',
   },
   userActions: {
@@ -1183,12 +1117,12 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: '#3b82f6',
+    borderColor: '#8b77ff',
     borderRadius: 6,
   },
   viewButtonText: {
     fontSize: 12,
-    color: '#3b82f6',
+    color: '#8b77ff',
     fontWeight: '500',
   },
   noServicesContainer: {
@@ -1209,7 +1143,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   addServiceButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#8b77ff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1256,7 +1190,7 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
   },
   nextButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#8b77ff',
     borderColor: '#2563eb',
   },
   nextButtonText: {
@@ -1376,7 +1310,7 @@ const styles = StyleSheet.create({
   },
   downloadTemplateButton: {
     borderWidth: 1,
-    borderColor: '#3b82f6',
+    borderColor: '#8b77ff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1388,7 +1322,7 @@ const styles = StyleSheet.create({
   },
   downloadTemplateButtonText: {
     fontSize: 14,
-    color: '#3b82f6',
+    color: '#8b77ff',
     fontWeight: '500',
   },
   templateNote: {

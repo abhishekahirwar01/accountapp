@@ -55,17 +55,19 @@ export function Combobox({
   }, [searchValue, options]);
 
   // Focus input when modal opens
+  // Focus input and RESET search when modal opens
   useEffect(() => {
     if (open) {
-      // Set the search value to the current selection label, or empty string
-      setSearchValue(selectedOption?.label || '');
+      // 1. Search value ko khali rakhein taki saari list dikhe
+      setSearchValue('');
+
+      // 2. Filtered list ko wapas saari options par reset karein
+      setFilteredOptions(options);
+
       // Focus input after a short delay
       setTimeout(() => inputRef.current?.focus(), 100);
-    } else {
-      // Reset search value on close to ensure the trigger text is correct
-      setSearchValue('');
     }
-  }, [open, selectedOption]);
+  }, [open]); // Hatayein 'selectedOption' dependencies se
 
   // Create new option
   const handleCreate = async () => {
@@ -111,8 +113,8 @@ export function Combobox({
   const showCreateOption =
     creatable &&
     searchValue.trim() &&
-    !options.some(opt => 
-      opt.label.toLowerCase().includes(searchValue.trim().toLowerCase())
+    !options.some(opt =>
+      opt.label.toLowerCase().includes(searchValue.trim().toLowerCase()),
     );
 
   const handleTriggerPress = () => {
@@ -295,18 +297,18 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EFEFEF', 
-    borderRadius: 20, 
+    backgroundColor: '#EFEFEF',
+    borderRadius: 20,
     height: 40,
   },
   searchIcon: {
-    marginLeft: 10, 
+    marginLeft: 10,
   },
   fullScreenSearchInput: {
     flex: 1,
     fontSize: 14,
     paddingVertical: 8,
-    
+
     paddingHorizontal: 8,
     color: '#111827',
   },
@@ -316,7 +318,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   optionsListFullScreen: {
-    flex: 1, 
+    flex: 1,
   },
   // --- Option List Styles ---
   optionItem: {

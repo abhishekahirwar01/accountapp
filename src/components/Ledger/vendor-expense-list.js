@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useRef,
+  useCallback,
+} from 'react';
 import {
   View,
   Text,
@@ -21,205 +27,282 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   Minus,
-  CreditCard
+  CreditCard,
 } from 'lucide-react-native';
 
-import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
-import { Button } from '../ui/Button';
 import { BASE_URL } from '../../config';
 
+// ─────────────────────────────────────────────
+// Badge
+// ─────────────────────────────────────────────
 const Badge = React.memo(({ children, variant = 'default', style }) => {
   const badgeStyles = [
     styles.badge,
     variant === 'secondary' && styles.badgeSecondary,
     variant === 'destructive' && styles.badgeDestructive,
-    style
+    style,
   ];
-  
   return (
     <View style={badgeStyles}>
-      {typeof children === 'string' ? <Text style={styles.badgeText}>{children}</Text> : children}
+      {typeof children === 'string' ? (
+        <Text style={styles.badgeText}>{children}</Text>
+      ) : (
+        children
+      )}
     </View>
   );
 });
 
-const StatCard = React.memo(({ title, value, subtitle, icon: IconComponent, loading, textColor }) => {
-  const iconConfig = useMemo(() => {
-    const configs = {
-      'Total Vendors': { color: '#3B82F6', bg: '#EFF6FF' },
-      'Net Payable': { color: '#EF4444', bg: '#FEF2F2' },
-      'Net Advance': { color: '#10B981', bg: '#F0FDF4' },
-      'Total Credit': { color: '#8B5CF6', bg: '#F5F3FF' },
-      'Total Debit': { color: '#F59E0B', bg: '#FFFBEB' },
-      'Expense Categories': { color: '#3B82F6', bg: '#EFF6FF' },
-      'Total Expenses': { color: '#3B82F6', bg: '#EFF6FF' }
-    };
-    return configs[title] || { color: '#3B82F6', bg: '#EFF6FF' };
-  }, [title]);
+// ─────────────────────────────────────────────
+// StatCard
+// ─────────────────────────────────────────────
+const StatCard = React.memo(
+  ({ title, value, subtitle, icon: IconComponent, textColor }) => {
+    const iconConfig = useMemo(() => {
+      const configs = {
+        'Total Vendors': { color: '#3B82F6', bg: '#EFF6FF' },
+        'Net Payable': { color: '#EF4444', bg: '#FEF2F2' },
+        'Net Advance': { color: '#10B981', bg: '#F0FDF4' },
+        'Total Credit': { color: '#8B5CF6', bg: '#F5F3FF' },
+        'Total Debit': { color: '#F59E0B', bg: '#FFFBEB' },
+        'Expense Categories': { color: '#3B82F6', bg: '#EFF6FF' },
+        'Total Expenses': { color: '#3B82F6', bg: '#EFF6FF' },
+      };
+      return configs[title] || { color: '#3B82F6', bg: '#EFF6FF' };
+    }, [title]);
 
-  return (
-    <View style={styles.statCard}>
-      <View style={styles.statCardContent}>
-        <View style={styles.statTopRow}>
-          <Text style={styles.statLabel}>{title}</Text>
-          <View style={[styles.statIconBg, { backgroundColor: iconConfig.bg }]}>
-            <IconComponent size={14} color={iconConfig.color} strokeWidth={2.5} />
+    return (
+      <View style={styles.statCard}>
+        <View style={styles.statCardContent}>
+          <View style={styles.statTopRow}>
+            <Text style={styles.statLabel}>{title}</Text>
+            <View
+              style={[styles.statIconBg, { backgroundColor: iconConfig.bg }]}
+            >
+              <IconComponent
+                size={14}
+                color={iconConfig.color}
+                strokeWidth={2.5}
+              />
+            </View>
           </View>
-        </View>
-
-        {loading ? (
-          <ActivityIndicator size="small" color={iconConfig.color} style={styles.statLoader} />
-        ) : (
-          <Text style={[styles.statValue, textColor && { color: textColor }]} numberOfLines={1}>
+          <Text
+            style={[styles.statValue, textColor && { color: textColor }]}
+            numberOfLines={1}
+          >
             {value}
           </Text>
-        )}
-
-        <Text style={styles.statSubtext} numberOfLines={2}>{subtitle}</Text>
+          <Text style={styles.statSubtext} numberOfLines={2}>
+            {subtitle}
+          </Text>
+        </View>
       </View>
-    </View>
-  );
-});
+    );
+  },
+);
 
-const ListItem = React.memo(({ 
-  item, 
-  currentView, 
-  selectedCompanyId, 
-  vendorBalances, 
-  expenseTotals, 
-  loadingBalances,
-  formatCurrency,
-  onSelect,
-  onItemVisible
-}) => {
-  const isVendor = currentView === 'vendor';
-  const name = isVendor ? item.vendorName : item.name;
-  const id = item._id;
-  
-  useEffect(() => {
-    if (onItemVisible) {
-      onItemVisible(id, isVendor);
-    }
-  }, [id, isVendor, onItemVisible]);
-  
-  const total = useMemo(() => {
-    if (isVendor) {
-      if (selectedCompanyId && vendorBalances[id] !== undefined) {
-        return vendorBalances[id];
-      }
-      return item.balance || 0;
-    }
-    return expenseTotals[id] || 0;
-  }, [isVendor, selectedCompanyId, vendorBalances, id, item.balance, expenseTotals]);
+// ─────────────────────────────────────────────
+// Skeleton shimmer
+// ─────────────────────────────────────────────
+const SkeletonBox = ({ width, height, style }) => (
+  <View style={[styles.skeleton, { width, height }, style]} />
+);
 
-  const isLoading = loadingBalances && loadingBalances[id];
-  
-  const { balanceColor, iconBg, iconColor, badgeBg, balanceText } = useMemo(() => {
-    if (isVendor) {
-      if (total < 0) return {
-        balanceColor: '#ef4444',
-        iconBg: styles.iconRed,
-        iconColor: '#ef4444',
-        badgeBg: styles.badgeRed,
-        balanceText: 'You Owe'
-      };
-      if (total > 0) return {
-        balanceColor: '#10b981',
-        iconBg: styles.iconGreen,
-        iconColor: '#10b981',
-        badgeBg: styles.badgeGreen,
-        balanceText: 'Advance'
-      };
-      return {
-        balanceColor: '#64748b',
-        iconBg: styles.iconGray,
-        iconColor: '#64748b',
-        badgeBg: styles.badgeGray,
-        balanceText: 'Settled'
-      };
-    }
-    return {
-      balanceColor: '#3b82f6',
-      iconBg: styles.iconBlue,
-      iconColor: '#3b82f6',
-      badgeBg: styles.expenseBadge,
-      balanceText: ''
-    };
-  }, [isVendor, total]);
-
-  const BalanceIcon = useMemo(() => {
-    if (total < 0) return <ArrowUpRight size={12} color="#ef4444" strokeWidth={2.5} />;
-    if (total > 0) return <ArrowDownLeft size={12} color="#10b981" strokeWidth={2.5} />;
-    return <Minus size={12} color="#64748b" strokeWidth={2.5} />;
-  }, [total]);
-
-  const handlePress = useCallback(() => {
-    onSelect(id);
-  }, [onSelect, id]);
-
-  return (
-    <TouchableOpacity
-      style={styles.listItem}
-      onPress={handlePress}
-      activeOpacity={0.7}
-    >
-      <View style={styles.itemContent}>
-        <View style={styles.itemHeader}>
-          <View style={[styles.itemIcon, iconBg]}>
-            {isVendor ? (
-              <Users size={16} color={iconColor} strokeWidth={2} />
-            ) : (
-              <FileText size={16} color="#3b82f6" strokeWidth={2} />
-            )}
-          </View>
-          <View style={styles.itemInfo}>
-            <Text style={styles.itemName} numberOfLines={1}>{name}</Text>
-            {isVendor && (
-              <View style={styles.itemBalanceInfo}>
-                {isLoading ? (
-                  <ActivityIndicator size="small" color="#3b82f6" />
-                ) : (
-                  <>
-                    <Text style={[styles.balanceText, { color: balanceColor }]}>
-                      {balanceText}
-                    </Text>
-                    {total !== 0 && (
-                      <View style={[styles.balanceBadge, badgeBg]}>
-                        {BalanceIcon}
-                        <Text style={[styles.balanceBadgeText, { color: balanceColor }]}>
-                          {formatCurrency(Math.abs(total))}
-                        </Text>
-                      </View>
-                    )}
-                  </>
-                )}
-              </View>
-            )}
+const ListSkeleton = () => (
+  <View>
+    {/* Stat cards skeleton */}
+    <View style={styles.statsGrid}>
+      {[1, 2, 3, 4].map(i => (
+        <View key={i} style={styles.statCard}>
+          <View style={styles.statCardContent}>
+            <View style={styles.statTopRow}>
+              <SkeletonBox width={80} height={10} />
+              <SkeletonBox width={24} height={24} style={{ borderRadius: 6 }} />
+            </View>
+            <SkeletonBox width={90} height={20} style={{ marginTop: 4 }} />
+            <SkeletonBox width={110} height={10} style={{ marginTop: 6 }} />
           </View>
         </View>
-        
-        <View style={styles.itemActions}>
-          {!isVendor && (
-            <View style={[styles.balanceBadge, styles.expenseBadge]}>
-              {isLoading ? (
-                <ActivityIndicator size="small" color="#3b82f6" />
+      ))}
+    </View>
+
+    {/* List card skeleton */}
+    <View style={styles.mainCard}>
+      <View
+        style={[
+          styles.mainHeader,
+          { borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+        ]}
+      >
+        <View style={styles.headerContent}>
+          <View style={styles.headerIconContainer}>
+            <SkeletonBox width={40} height={40} style={{ borderRadius: 14 }} />
+            <View style={{ flex: 1, gap: 6 }}>
+              <SkeletonBox width={80} height={14} />
+              <SkeletonBox width={160} height={10} />
+            </View>
+          </View>
+          <SkeletonBox width={32} height={28} style={{ borderRadius: 12 }} />
+        </View>
+      </View>
+      {[1, 2, 3, 4, 5, 6, 7].map(i => (
+        <View key={i}>
+          <View style={styles.skeletonRow}>
+            <SkeletonBox width={40} height={40} style={{ borderRadius: 12 }} />
+            <View style={{ flex: 1, gap: 8 }}>
+              <SkeletonBox width={130} height={12} />
+              <SkeletonBox width={85} height={10} />
+            </View>
+            <SkeletonBox width={70} height={26} style={{ borderRadius: 10 }} />
+          </View>
+          {i < 7 && <View style={styles.separator} />}
+        </View>
+      ))}
+    </View>
+  </View>
+);
+
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
+const formatName = str => {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+};
+
+// ─────────────────────────────────────────────
+// ListItem — no loaders, values are ready when rendered
+// ─────────────────────────────────────────────
+const ListItem = React.memo(
+  ({ item, currentView, formatCurrency, onSelect }) => {
+    const isVendor = currentView === 'vendor';
+    const name = formatName(isVendor ? item.vendorName : item.name);
+    const total = item._resolvedBalance ?? 0;
+
+    const { balanceColor, iconBg, iconColor, badgeBg, balanceText } =
+      useMemo(() => {
+        if (isVendor) {
+          // positive = debit > credit = aap ne purchase kiya, vendor ko dena hai = You Owe
+          // negative = credit > debit = aapne zyada pay kiya = Advance
+          if (total > 0)
+            return {
+              balanceColor: '#ef4444',
+              iconBg: styles.iconRed,
+              iconColor: '#ef4444',
+              badgeBg: styles.badgeRed,
+              balanceText: 'You Owe',
+            };
+          if (total < 0)
+            return {
+              balanceColor: '#10b981',
+              iconBg: styles.iconGreen,
+              iconColor: '#10b981',
+              badgeBg: styles.badgeGreen,
+              balanceText: 'Advance',
+            };
+          return {
+            balanceColor: '#64748b',
+            iconBg: styles.iconGray,
+            iconColor: '#64748b',
+            badgeBg: styles.badgeGray,
+            balanceText: 'Settled',
+          };
+        }
+        return {
+          balanceColor: '#3b82f6',
+          iconBg: styles.iconBlue,
+          iconColor: '#3b82f6',
+          badgeBg: styles.expenseBadge,
+          balanceText: '',
+        };
+      }, [isVendor, total]);
+
+    const BalanceIcon = useMemo(() => {
+      if (total > 0)
+        return <ArrowUpRight size={12} color="#ef4444" strokeWidth={2.5} />;
+      if (total < 0)
+        return <ArrowDownLeft size={12} color="#10b981" strokeWidth={2.5} />;
+      return <Minus size={12} color="#64748b" strokeWidth={2.5} />;
+    }, [total]);
+
+    const handlePress = useCallback(
+      () => onSelect(item._id),
+      [onSelect, item._id],
+    );
+
+    return (
+      <TouchableOpacity
+        style={styles.listItem}
+        onPress={handlePress}
+        activeOpacity={0.7}
+      >
+        <View style={styles.itemContent}>
+          <View style={styles.itemHeader}>
+            <View style={[styles.itemIcon, iconBg]}>
+              {isVendor ? (
+                <Users size={16} color={iconColor} strokeWidth={2} />
               ) : (
-                <>
-                  <IndianRupee size={12} color="#3b82f6" strokeWidth={2.5} />
-                  <Text style={styles.expenseBadgeText}>{formatCurrency(total)}</Text>
-                </>
+                <FileText size={16} color="#3b82f6" strokeWidth={2} />
               )}
             </View>
-          )}
-          <View style={styles.viewButton}>
-            <ChevronRight size={18} color="#3b82f6" strokeWidth={2.5} />
+            <View style={styles.itemInfo}>
+              <Text style={styles.itemName} numberOfLines={1}>
+                {name}
+              </Text>
+              {isVendor && (
+                <View style={styles.itemBalanceInfo}>
+                  <Text style={[styles.balanceText, { color: balanceColor }]}>
+                    {balanceText}
+                  </Text>
+                  {total !== 0 && (
+                    <View style={[styles.balanceBadge, badgeBg]}>
+                      {BalanceIcon}
+                      <Text
+                        style={[
+                          styles.balanceBadgeText,
+                          { color: balanceColor },
+                        ]}
+                      >
+                        {formatCurrency(Math.abs(total))}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.itemActions}>
+            {!isVendor && (
+              <View style={[styles.balanceBadge, styles.expenseBadge]}>
+                <IndianRupee size={12} color="#3b82f6" strokeWidth={2.5} />
+                <Text style={styles.expenseBadgeText}>
+                  {formatCurrency(total)}
+                </Text>
+              </View>
+            )}
+            <View style={styles.viewButton}>
+              <ChevronRight size={18} color="#3b82f6" strokeWidth={2.5} />
+            </View>
           </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
-});
+      </TouchableOpacity>
+    );
+  },
+  (prev, next) =>
+    prev.item._resolvedBalance === next.item._resolvedBalance &&
+    prev.formatCurrency === next.formatCurrency &&
+    prev.onSelect === next.onSelect,
+);
 
+// ─────────────────────────────────────────────
+// Main Component
+// ─────────────────────────────────────────────
 export function VendorExpenseList({
   currentView,
   vendors,
@@ -233,7 +316,6 @@ export function VendorExpenseList({
   selectedCompanyId,
   dateRange,
   formatCurrency,
-  // State setters for updating parent
   setVendorBalances,
   setLoadingBalances,
   setTransactionTotals,
@@ -242,427 +324,371 @@ export function VendorExpenseList({
 }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
-  const [sortConfig, setSortConfig] = useState({
-    key: 'recent', 
-    direction: 'desc'
-  });
-  
- 
-  const [vendorLastTransactionDates, setVendorLastTransactionDates] = useState({});
-  const [expenseLastTransactionDates, setExpenseLastTransactionDates] = useState({});
-  
-  const itemsPerPage = 10;
+
+  // ── Core state: processed & sorted items ready to display ─────────────────
+  // null  = still loading
+  // []    = loaded but empty
+  // [...] = loaded with data
+  const [readyItems, setReadyItems] = useState(null);
+  const [readyStats, setReadyStats] = useState(null);
+
   const baseURL = BASE_URL;
+  const loadingRef = useRef(false);
+  const abortRef = useRef(null); // AbortController for cancellation
 
-  const loadedBalancesRef = useRef(new Set());
-  const loadingQueueRef = useRef(new Set());
-  
-  // Track if we've loaded the global totals
-  const globalTotalsLoadedRef = useRef(false);
+  // ── Master fetch: loads ALL data, computes sort, sets state ONCE ──────────
+  const loadAllData = useCallback(async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
 
-  const fetchGlobalTotals = useCallback(async () => {
-    if (currentView !== 'vendor' || vendors.length === 0) return;
-    if (globalTotalsLoadedRef.current) return; 
-    if (!setLoadingTotals || !setTransactionTotals) return;
+    // Cancel previous in-flight request if any
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const signal = controller.signal;
+
+    // Show skeleton
+    setReadyItems(null);
+    setReadyStats(null);
 
     try {
-      setLoadingTotals(true);
       const token = await AsyncStorage.getItem('token');
-      if (!token) return;
+      if (!token || signal.aborted) return;
 
-      // Fetch ALL vendors in PARALLEL (no batching)
-      const vendorResults = await Promise.all(
-        vendors.map(async vendor => {
-          try {
-            const params = new URLSearchParams();
-            params.append('vendorId', vendor._id);
-            if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-            
-            const response = await fetch(
-              `${baseURL}/api/ledger/vendor-payables?${params.toString()}`,
-              {
-                method: 'GET',
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              },
-            );
+      // ── VENDOR VIEW ───────────────────────────────────────────────────────
+      if (currentView === 'vendor') {
+        if (!vendors.length) {
+          setReadyItems([]);
+          setReadyStats({
+            totalVendors: 0,
+            settledVendors: 0,
+            netBalance: 0,
+            totalCredit: 0,
+            totalDebit: 0,
+          });
+          return;
+        }
 
-            if (response.ok) {
-              const data = await response.json();
-              const debitTotal = (data.debit || []).reduce(
-                (sum, entry) => sum + (entry.amount || 0),
-                0,
+        const headers = { Authorization: `Bearer ${token}` };
+
+        // Fetch balance + ledger for every vendor in parallel
+        const results = await Promise.all(
+          vendors.map(async vendor => {
+            try {
+              const p = new URLSearchParams({ vendorId: vendor._id });
+              if (selectedCompanyId) p.append('companyId', selectedCompanyId);
+
+              // 1. Ledger (for debit/credit totals + last transaction date)
+              const ledgerRes = await fetch(
+                `${baseURL}/api/ledger/vendor-payables?${p}`,
+                { headers, signal },
               );
 
-              const creditPurchaseEntries = (data.debit || []).filter(
-                entry => entry.paymentMethod !== 'Credit',
-              );
-              const creditPaymentEntries = data.credit || [];
-
-              const creditTotal = [
-                ...creditPurchaseEntries,
-                ...creditPaymentEntries,
-              ].reduce((sum, entry) => sum + (entry.amount || 0), 0);
-
-              // Get last transaction date for sorting
-              const allEntries = [...(data.debit || []), ...(data.credit || [])];
+              let debitTotal = 0;
+              let creditTotal = 0;
               let lastDate = null;
-              if (allEntries.length > 0) {
-                lastDate = allEntries.reduce((latest, entry) => {
-                  return new Date(entry.date) > new Date(latest) ? entry.date : latest;
-                }, allEntries[0].date);
+              let balance = vendor.balance || 0;
+
+              if (ledgerRes.ok) {
+                const data = await ledgerRes.json();
+                debitTotal = (data.debit || []).reduce(
+                  (s, e) => s + (e.amount || 0),
+                  0,
+                );
+                creditTotal = [
+                  ...(data.debit || []).filter(
+                    e => e.paymentMethod !== 'Credit',
+                  ),
+                  ...(data.credit || []),
+                ].reduce((s, e) => s + (e.amount || 0), 0);
+
+                // Last transaction date for sorting
+                const allEntries = [
+                  ...(data.debit || []),
+                  ...(data.credit || []),
+                ];
+                if (allEntries.length) {
+                  lastDate = allEntries.reduce(
+                    (latest, e) =>
+                      new Date(e.date) > new Date(latest) ? e.date : latest,
+                    allEntries[0].date,
+                  );
+                }
+
+                // Compute balance from ledger (debit - credit = payable)
+                balance = debitTotal - creditTotal;
               }
-              
+
               return {
-                debit: debitTotal,
-                credit: creditTotal,
+                vendorId: vendor._id,
+                debitTotal,
+                creditTotal,
+                balance,
                 lastDate,
-                vendorId: vendor._id
+              };
+            } catch (err) {
+              if (err.name === 'AbortError') throw err;
+              return {
+                vendorId: vendor._id,
+                debitTotal: 0,
+                creditTotal: 0,
+                balance: vendor.balance || 0,
+                lastDate: null,
               };
             }
-            return { debit: 0, credit: 0, lastDate: null, vendorId: vendor._id };
-          } catch (error) {
-            console.error(
-              `Error fetching ledger data for vendor ${vendor._id}:`,
-              error,
-            );
-            return { debit: 0, credit: 0, lastDate: null, vendorId: vendor._id };
-          }
-        })
+          }),
+        );
+
+        if (signal.aborted) return;
+
+        // Aggregate stats
+        let totalDebit = 0;
+        let totalCredit = 0;
+        const balanceMap = {};
+        const dateMap = {};
+
+        results.forEach(r => {
+          totalDebit += r.debitTotal;
+          totalCredit += r.creditTotal;
+          balanceMap[r.vendorId] = r.balance;
+          if (r.lastDate) dateMap[r.vendorId] = r.lastDate;
+        });
+
+        // Update parent state for vendorBalances (so detail view works)
+        if (setVendorBalances) setVendorBalances(balanceMap);
+        if (setTransactionTotals)
+          setTransactionTotals({ totalCredit, totalDebit });
+
+        const netBalance = totalDebit - totalCredit;
+        const settledVendors = results.filter(r => r.balance === 0).length;
+
+        // Sort: by last transaction date descending (most recent first)
+        // Vendors with no transactions go to end
+        const sortedVendors = [...vendors].sort((a, b) => {
+          const da = dateMap[a._id];
+          const db = dateMap[b._id];
+          if (!da && !db) return 0;
+          if (!da) return 1;
+          if (!db) return -1;
+          return new Date(db) - new Date(da);
+        });
+
+        // Attach resolved balance to each item
+        const itemsWithBalance = sortedVendors.map(v => ({
+          ...v,
+          _resolvedBalance: balanceMap[v._id] ?? v.balance ?? 0,
+        }));
+
+        setReadyItems(itemsWithBalance);
+        setReadyStats({
+          totalVendors: vendors.length,
+          settledVendors,
+          netBalance,
+          totalCredit,
+          totalDebit,
+        });
+
+        // ── EXPENSE VIEW ──────────────────────────────────────────────────────
+      } else {
+        if (!expenses.length) {
+          setReadyItems([]);
+          setReadyStats({ totalExpenses: 0, totalExpenseAmount: 0 });
+          return;
+        }
+
+        const headers = { Authorization: `Bearer ${token}` };
+
+        const results = await Promise.all(
+          expenses.map(async expense => {
+            try {
+              const p = new URLSearchParams({ expenseId: expense._id });
+              if (dateRange?.from) p.append('fromDate', dateRange.from);
+              if (dateRange?.to) p.append('toDate', dateRange.to);
+              if (selectedCompanyId) p.append('companyId', selectedCompanyId);
+
+              const res = await fetch(
+                `${baseURL}/api/ledger/expense-payables?${p}`,
+                { headers, signal },
+              );
+
+              let total = 0;
+              let lastDate = null;
+
+              if (res.ok) {
+                const data = await res.json();
+                total =
+                  (data.debit || [])
+                    .filter(e => e.paymentMethod !== 'Credit')
+                    .reduce((s, e) => s + Number(e.amount || 0), 0) +
+                  (data.credit || []).reduce(
+                    (s, e) => s + Number(e.amount || 0),
+                    0,
+                  );
+
+                const allEntries = [
+                  ...(data.debit || []),
+                  ...(data.credit || []),
+                ];
+                if (allEntries.length) {
+                  lastDate = allEntries.reduce(
+                    (latest, e) =>
+                      new Date(e.date) > new Date(latest) ? e.date : latest,
+                    allEntries[0].date,
+                  );
+                }
+              }
+
+              return { expenseId: expense._id, total, lastDate };
+            } catch (err) {
+              if (err.name === 'AbortError') throw err;
+              return { expenseId: expense._id, total: 0, lastDate: null };
+            }
+          }),
+        );
+
+        if (signal.aborted) return;
+
+        const totalsMap = {};
+        const dateMap = {};
+        let totalExpenseAmount = 0;
+
+        results.forEach(r => {
+          totalsMap[r.expenseId] = r.total;
+          totalExpenseAmount += r.total;
+          if (r.lastDate) dateMap[r.expenseId] = r.lastDate;
+        });
+
+        if (setExpenseTotals) setExpenseTotals(totalsMap);
+
+        const sortedExpenses = [...expenses].sort((a, b) => {
+          const da = dateMap[a._id];
+          const db = dateMap[b._id];
+          if (!da && !db) return 0;
+          if (!da) return 1;
+          if (!db) return -1;
+          return new Date(db) - new Date(da);
+        });
+
+        const itemsWithTotal = sortedExpenses.map(e => ({
+          ...e,
+          _resolvedBalance: totalsMap[e._id] ?? 0,
+        }));
+
+        setReadyItems(itemsWithTotal);
+        setReadyStats({ totalExpenses: expenses.length, totalExpenseAmount });
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') return; // silently cancelled
+      console.error('loadAllData error', err);
+      // Show empty on error rather than infinite skeleton
+      setReadyItems([]);
+      setReadyStats(
+        currentView === 'vendor'
+          ? {
+              totalVendors: vendors.length,
+              settledVendors: 0,
+              netBalance: 0,
+              totalCredit: 0,
+              totalDebit: 0,
+            }
+          : { totalExpenses: expenses.length, totalExpenseAmount: 0 },
       );
-
-      // Aggregate all results at once
-      let totalCredit = 0;
-      let totalDebit = 0;
-      const vendorDates = {};
-
-      vendorResults.forEach(result => {
-        totalDebit += result.debit;
-        totalCredit += result.credit;
-        // Store the last transaction date
-        if (result.lastDate) {
-          vendorDates[result.vendorId] = result.lastDate;
-        }
-      });
-
-      // Update state once with final totals
-      setTransactionTotals({
-        totalCredit,
-        totalDebit,
-      });
-      
-      // Update the dates state for sorting
-      setVendorLastTransactionDates(vendorDates);
-
-      globalTotalsLoadedRef.current = true;
-    } catch (error) {
-      console.error('Error fetching global totals:', error);
     } finally {
-      setLoadingTotals(false);
+      loadingRef.current = false;
     }
-  }, [currentView, vendors, selectedCompanyId, baseURL, setLoadingTotals, setTransactionTotals]);
-
-  const fetchVendorBalance = useCallback(
-    async (vendorId) => {
-      if (loadedBalancesRef.current.has(vendorId) || loadingQueueRef.current.has(vendorId)) {
-        return;
-      }
-
-      loadingQueueRef.current.add(vendorId);
-      
-      if (setLoadingBalances) {
-        setLoadingBalances(prev => ({ ...prev, [vendorId]: true }));
-      }
-
-      try {
-        const token = await AsyncStorage.getItem('token');
-        if (!token) return;
-
-        const params = new URLSearchParams();
-        if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-        
-        const response = await fetch(
-          `${baseURL}/api/vendors/${vendorId}/balance?${params.toString()}`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          },
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          if (setVendorBalances) {
-            setVendorBalances(prev => ({
-              ...prev,
-              [vendorId]: data.balance || 0,
-            }));
-          }
-          loadedBalancesRef.current.add(vendorId);
-        }
-      } catch (error) {
-        console.error(`Error fetching balance for vendor ${vendorId}:`, error);
-      } finally {
-        loadingQueueRef.current.delete(vendorId);
-        if (setLoadingBalances) {
-          setLoadingBalances(prev => ({ ...prev, [vendorId]: false }));
-        }
-      }
-    },
-    [selectedCompanyId, baseURL, setVendorBalances, setLoadingBalances],
-  );
-
-  const fetchExpenseTotal = useCallback(
-    async (expenseId) => {
-      if (loadedBalancesRef.current.has(expenseId) || loadingQueueRef.current.has(expenseId)) {
-        return;
-      }
-
-      loadingQueueRef.current.add(expenseId);
-
-      try {
-        const token = await AsyncStorage.getItem('token');
-        if (!token) return;
-
-        const params = new URLSearchParams();
-        params.append('expenseId', expenseId);
-        if (dateRange?.from) params.append('fromDate', dateRange.from);
-        if (dateRange?.to) params.append('toDate', dateRange.to);
-        if (selectedCompanyId) params.append('companyId', selectedCompanyId);
-
-        const response = await fetch(
-          `${baseURL}/api/ledger/expense-payables?${params.toString()}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          },
-        );
-        
-        if (response.ok) {
-          const data = await response.json();
-          const cashExpenses = (data.debit || [])
-            .filter(e => e.paymentMethod !== 'Credit')
-            .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-
-          const payments = (data.credit || []).reduce(
-            (sum, e) => sum + Number(e.amount || 0),
-            0,
-          );
-
-          const total = cashExpenses + payments;
-          
-          // Get last transaction date for sorting
-          const allEntries = [...(data.debit || []), ...(data.credit || [])];
-          let lastDate = null;
-          if (allEntries.length > 0) {
-            lastDate = allEntries.reduce((latest, entry) => {
-              return new Date(entry.date) > new Date(latest) ? entry.date : latest;
-            }, allEntries[0].date);
-          }
-          
-          if (setExpenseTotals) {
-            setExpenseTotals(prev => ({ ...prev, [expenseId]: total }));
-          }
-          
-          // Update dates state for sorting - THIS IS THE FIX
-          if (lastDate) {
-            setExpenseLastTransactionDates(prev => ({
-              ...prev,
-              [expenseId]: lastDate
-            }));
-          }
-          
-          loadedBalancesRef.current.add(expenseId);
-        }
-      } catch (error) {
-        console.error(`Error fetching total for expense ${expenseId}:`, error);
-      } finally {
-        loadingQueueRef.current.delete(expenseId);
-      }
-    },
-    [baseURL, selectedCompanyId, dateRange, setExpenseTotals],
-  );
-
-  // Handle item visibility for lazy loading
-  const handleItemVisible = useCallback((itemId, isVendor) => {
-    if (isVendor) {
-      fetchVendorBalance(itemId);
-    } else {
-      fetchExpenseTotal(itemId);
-    }
-  }, [fetchVendorBalance, fetchExpenseTotal]);
-
-  
-  const sortedItems = useMemo(() => {
-    const itemsToSort = currentView === 'vendor' ? [...vendors] : [...expenses];
-    
-    if (itemsToSort.length === 0) return [];
-    
-    return [...itemsToSort].sort((a, b) => {
-     
-      const aDate = currentView === 'vendor' 
-        ? vendorLastTransactionDates[a._id]
-        : expenseLastTransactionDates[a._id];
-      const bDate = currentView === 'vendor'
-        ? vendorLastTransactionDates[b._id]
-        : expenseLastTransactionDates[b._id];
-      
-      // Handle items without dates (show them last)
-      if (!aDate && !bDate) return 0;
-      if (!aDate) return 1; 
-      if (!bDate) return -1; 
-      
-      // Sort by date (newest first by default)
-      const dateA = new Date(aDate).getTime();
-      const dateB = new Date(bDate).getTime();
-      return sortConfig.direction === 'desc' ? dateB - dateA : dateA - dateB;
-    });
   }, [
     currentView,
     vendors,
     expenses,
-    sortConfig.direction,
-    vendorLastTransactionDates, 
-    expenseLastTransactionDates 
+    selectedCompanyId,
+    dateRange,
+    baseURL,
+    setVendorBalances,
+    setTransactionTotals,
+    setExpenseTotals,
   ]);
 
-  // Process items with balances
-  const items = useMemo(() => {
-    return sortedItems.map(item => {
-      if (currentView === 'vendor') {
-        let overallBalance = 0;
-        if (!selectedCompanyId && item.balances) {
-          for (const [companyId, balance] of Object.entries(item.balances)) {
-            overallBalance += Number(balance || 0);
-          }
-        } else if (selectedCompanyId && vendorBalances[item._id] !== undefined) {
-          overallBalance = vendorBalances[item._id];
-        } else {
-          overallBalance = item.balance || 0;
-        }
-        return {
-          ...item,
-          balance: overallBalance
-        };
-      } else {
-        return item;
-      }
-    });
-  }, [currentView, sortedItems, selectedCompanyId, vendorBalances]);
-
-  // Fetch global totals when vendors are loaded
-  useEffect(() => {
-    if (currentView === 'vendor' && vendors.length > 0 && !globalTotalsLoadedRef.current) {
-      fetchGlobalTotals();
-    }
-  }, [currentView, vendors.length, fetchGlobalTotals]);
-
-  
+  // ── Trigger load when key dependencies change ──────────────────────────────
   useEffect(() => {
     setCurrentPage(1);
-    loadedBalancesRef.current.clear();
-    globalTotalsLoadedRef.current = false;
-    setVendorLastTransactionDates({});
-    setExpenseLastTransactionDates({});
-  }, [currentView, selectedCompanyId]);
+    loadAllData();
+    // Cleanup: abort if deps change before fetch completes
+    return () => {
+      if (abortRef.current) abortRef.current.abort();
+      loadingRef.current = false;
+    };
+  }, [loadAllData]);
 
-  // ==========================================================================
-  // PAGINATION
-  // ==========================================================================
-  
+  // ── Pagination ─────────────────────────────────────────────────────────────
+  const itemsPerPage = 10;
   const { paginatedItems, totalPages } = useMemo(() => {
-    const totalPages = Math.ceil(items.length / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const paginatedItems = items.slice(startIndex, endIndex);
-    
-    return { paginatedItems, totalPages };
-  }, [items, currentPage, itemsPerPage]);
+    if (!readyItems) return { paginatedItems: [], totalPages: 0 };
+    const total = Math.ceil(readyItems.length / itemsPerPage);
+    const start = (currentPage - 1) * itemsPerPage;
+    return {
+      paginatedItems: readyItems.slice(start, start + itemsPerPage),
+      totalPages: total,
+    };
+  }, [readyItems, currentPage]);
 
-  const stats = useMemo(() => {
-    if (currentView === 'vendor') {
-      let settledVendors = 0;
-      for (const v of vendors) {
-        const balance = vendorBalances[v._id];
-        if (balance !== undefined && balance === 0) {
-          settledVendors++;
-        }
-      }
-
-      const netBalance = transactionTotals.totalDebit - transactionTotals.totalCredit;
-
-      return {
-        totalVendors: vendors.length,
-        netBalance,
-        settledVendors,
-        totalCredit: transactionTotals.totalCredit,
-        totalDebit: transactionTotals.totalDebit,
-      };
-    } else {
-      const totalExpenseAmount = Object.values(expenseTotals).reduce(
-        (sum, amount) => sum + amount,
-        0,
-      );
-
-      return {
-        totalExpenses: expenses.length,
-        totalExpenseAmount,
-      };
-    }
-  }, [vendors.length, expenses.length, vendorBalances, transactionTotals, expenseTotals, currentView]);
-
+  // ── Refresh ────────────────────────────────────────────────────────────────
   const onRefreshList = useCallback(async () => {
     setRefreshing(true);
-    loadedBalancesRef.current.clear();
-    globalTotalsLoadedRef.current = false;
-    setVendorLastTransactionDates({});
-    setExpenseLastTransactionDates({});
-    
-    // Re-fetch global totals
-    if (currentView === 'vendor') {
-      await fetchGlobalTotals();
-      // Re-fetch balances for visible items
-      await Promise.all(paginatedItems.map(item => fetchVendorBalance(item._id)));
-    } else {
-      await Promise.all(paginatedItems.map(item => fetchExpenseTotal(item._id)));
-    }
-    
+    setCurrentPage(1);
+    if (abortRef.current) abortRef.current.abort();
+    loadingRef.current = false;
+    await loadAllData();
     setRefreshing(false);
-  }, [currentView, paginatedItems, fetchVendorBalance, fetchExpenseTotal, fetchGlobalTotals]);
+  }, [loadAllData]);
 
-  // ==========================================================================
-  // RENDER FUNCTIONS
-  // ==========================================================================
-  
-  const renderItem = useCallback(({ item }) => (
-    <ListItem
-      item={item}
-      currentView={currentView}
-      selectedCompanyId={selectedCompanyId}
-      vendorBalances={vendorBalances}
-      expenseTotals={expenseTotals}
-      loadingBalances={loadingBalances}
-      formatCurrency={formatCurrency}
-      onSelect={onSelect}
-      onItemVisible={handleItemVisible}
-    />
-  ), [currentView, selectedCompanyId, vendorBalances, expenseTotals, loadingBalances, formatCurrency, onSelect, handleItemVisible]);
+  // ── Render helpers ─────────────────────────────────────────────────────────
+  const renderItem = useCallback(
+    ({ item }) => (
+      <ListItem
+        item={item}
+        currentView={currentView}
+        formatCurrency={formatCurrency}
+        onSelect={onSelect}
+      />
+    ),
+    [currentView, formatCurrency, onSelect],
+  );
 
-  const keyExtractor = useCallback((item) => item._id, []);
-
+  const keyExtractor = useCallback(item => item._id, []);
   const HeaderIcon = currentView === 'vendor' ? Users : FileText;
   const headerIconColor = currentView === 'vendor' ? '#059669' : '#3b82f6';
-  const headerIconBg = currentView === 'vendor' ? styles.headerIconGreen : styles.headerIconBlue;
+  const headerIconBg =
+    currentView === 'vendor' ? styles.headerIconGreen : styles.headerIconBlue;
+
+  const DASH = '—';
+
+  // ── Stats display ──────────────────────────────────────────────────────────
+  const statsReady = readyStats !== null;
+  const s = readyStats || {};
+
+  // positive = vendor ko dena hai = Net Payable; negative = advance diya = Net Advance
+  const netIsPayable = (s.netBalance ?? 0) >= 0;
+  const netLabel = netIsPayable ? 'Net Payable' : 'Net Advance';
+  const netIcon = netIsPayable ? TrendingUp : TrendingDown;
+  const netColor = netIsPayable ? '#EF4444' : '#10B981';
+
+  // ── Show skeleton until data is fully ready ────────────────────────────────
+  if (readyItems === null && !refreshing) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <ListSkeleton />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={onRefreshList}
             tintColor="#3b82f6"
             colors={['#3b82f6']}
@@ -670,40 +696,39 @@ export function VendorExpenseList({
         }
         showsVerticalScrollIndicator={false}
       >
+        {/* ── Stats ─────────────────────────────────────────────────────── */}
         {currentView === 'vendor' ? (
           <View style={styles.statsGrid}>
             <StatCard
               title="Total Vendors"
-              value={stats.totalVendors.toString()}
-              subtitle={`${stats.settledVendors} settled`}
+              value={statsReady ? String(s.totalVendors) : DASH}
+              subtitle={statsReady ? `${s.settledVendors} settled` : ''}
               icon={Users}
               textColor="#111827"
             />
-            
             <StatCard
-              title={stats.netBalance < 0 ? 'Net Advance' : 'Net Payable'}
-              value={formatCurrency(Math.abs(stats.netBalance))}
-              subtitle={stats.netBalance < 0 ? 'Total advance with vendors' : 'You owe to vendors'}
-              icon={stats.netBalance < 0 ? TrendingDown : TrendingUp}
-              textColor={stats.netBalance < 0 ? '#10B981' : '#EF4444'}
-              loading={loadingTotals}
+              title={netLabel}
+              value={statsReady ? formatCurrency(Math.abs(s.netBalance)) : DASH}
+              subtitle={
+                netIsPayable
+                  ? 'You owe to vendors'
+                  : 'Total advance with vendors'
+              }
+              icon={netIcon}
+              textColor={netColor}
             />
-            
             <StatCard
               title="Total Credit"
-              value={formatCurrency(stats.totalCredit)}
+              value={statsReady ? formatCurrency(s.totalCredit) : DASH}
               subtitle="Payments made to vendors"
               icon={CreditCard}
-              loading={loadingTotals}
               textColor="#111827"
             />
-            
             <StatCard
               title="Total Debit"
-              value={formatCurrency(stats.totalDebit)}
+              value={statsReady ? formatCurrency(s.totalDebit) : DASH}
               subtitle="All-time purchases made"
               icon={IndianRupee}
-              loading={loadingTotals}
               textColor="#111827"
             />
           </View>
@@ -711,14 +736,14 @@ export function VendorExpenseList({
           <View style={[styles.statsGrid, styles.expenseStatsGrid]}>
             <StatCard
               title="Expense Categories"
-              value={stats.totalExpenses.toString()}
+              value={statsReady ? String(s.totalExpenses) : DASH}
               subtitle="Total categories"
               icon={FileText}
               textColor="#111827"
             />
             <StatCard
               title="Total Expenses"
-              value={formatCurrency(stats.totalExpenseAmount)}
+              value={statsReady ? formatCurrency(s.totalExpenseAmount) : DASH}
               subtitle="Total amount spent"
               icon={TrendingUp}
               textColor="#111827"
@@ -726,17 +751,28 @@ export function VendorExpenseList({
           </View>
         )}
 
-        {/* Main List Card - Paginated */}
+        {/* ── Vendor / Expense list ──────────────────────────────────────── */}
         <View style={styles.mainCard}>
-          <View style={styles.mainHeader}>
+          <View
+            style={[
+              styles.mainHeader,
+              { borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+            ]}
+          >
             <View style={styles.headerContent}>
               <View style={styles.headerIconContainer}>
                 <View style={[styles.headerIcon, headerIconBg]}>
-                  <HeaderIcon size={20} color={headerIconColor} strokeWidth={2} />
+                  <HeaderIcon
+                    size={20}
+                    color={headerIconColor}
+                    strokeWidth={2}
+                  />
                 </View>
                 <View style={styles.headerText}>
                   <Text style={styles.mainTitle}>
-                    {currentView === 'vendor' ? 'Vendors' : 'Expense Categories'}
+                    {currentView === 'vendor'
+                      ? 'Vendors'
+                      : 'Expense Categories'}
                   </Text>
                   <Text style={styles.headerSubtitle}>
                     {currentView === 'vendor'
@@ -748,7 +784,7 @@ export function VendorExpenseList({
               <View style={styles.headerRight}>
                 <Badge variant="secondary" style={styles.headerBadge}>
                   <Text style={styles.headerBadgeText}>
-                    {items.length}
+                    {readyItems?.length ?? 0}
                   </Text>
                 </Badge>
               </View>
@@ -756,13 +792,15 @@ export function VendorExpenseList({
           </View>
 
           <View style={styles.mainContent}>
-            {items.length === 0 ? (
+            {!readyItems || readyItems.length === 0 ? (
               <View style={styles.emptyState}>
                 <View style={styles.emptyIcon}>
                   <HeaderIcon size={36} color="#cbd5e1" strokeWidth={1.5} />
                 </View>
                 <Text style={styles.emptyText}>
-                  No {currentView === 'vendor' ? 'vendors' : 'expense categories'} found
+                  No{' '}
+                  {currentView === 'vendor' ? 'vendors' : 'expense categories'}{' '}
+                  found
                 </Text>
                 <Text style={styles.emptySubtext}>
                   {currentView === 'vendor'
@@ -781,40 +819,59 @@ export function VendorExpenseList({
                   maxToRenderPerBatch={10}
                   windowSize={5}
                   initialNumToRender={10}
-                  updateCellsBatchingPeriod={50}
-                  ItemSeparatorComponent={() => <View style={styles.separator} />}
+                  ItemSeparatorComponent={() => (
+                    <View style={styles.separator} />
+                  )}
                 />
 
-                {/* Pagination */}
-                {items.length > itemsPerPage && (
+                {readyItems.length > itemsPerPage && (
                   <View style={styles.pagination}>
                     <Text style={styles.paginationText}>
-                      Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, items.length)} of {items.length}
+                      Showing {(currentPage - 1) * itemsPerPage + 1}–
+                      {Math.min(currentPage * itemsPerPage, readyItems.length)}{' '}
+                      of {readyItems.length}
                     </Text>
                     <View style={styles.paginationControls}>
                       <TouchableOpacity
-                        onPress={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        onPress={() => setCurrentPage(p => Math.max(1, p - 1))}
                         disabled={currentPage === 1}
-                        style={[styles.paginationButton, currentPage === 1 && styles.buttonDisabled]}
+                        style={[
+                          styles.paginationButton,
+                          currentPage === 1 && styles.buttonDisabled,
+                        ]}
                         activeOpacity={0.7}
                       >
-                        <Text style={[styles.paginationButtonText, currentPage === 1 && styles.buttonTextDisabled]}>
+                        <Text
+                          style={[
+                            styles.paginationButtonText,
+                            currentPage === 1 && styles.buttonTextDisabled,
+                          ]}
+                        >
                           Previous
                         </Text>
                       </TouchableOpacity>
                       <View style={styles.pageNumberContainer}>
-                        <Text style={styles.pageNumber}>
-                          {currentPage}
-                        </Text>
+                        <Text style={styles.pageNumber}>{currentPage}</Text>
                         <Text style={styles.pageTotal}>of {totalPages}</Text>
                       </View>
                       <TouchableOpacity
-                        onPress={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        onPress={() =>
+                          setCurrentPage(p => Math.min(totalPages, p + 1))
+                        }
                         disabled={currentPage === totalPages}
-                        style={[styles.paginationButton, currentPage === totalPages && styles.buttonDisabled]}
+                        style={[
+                          styles.paginationButton,
+                          currentPage === totalPages && styles.buttonDisabled,
+                        ]}
                         activeOpacity={0.7}
                       >
-                        <Text style={[styles.paginationButtonText, currentPage === totalPages && styles.buttonTextDisabled]}>
+                        <Text
+                          style={[
+                            styles.paginationButtonText,
+                            currentPage === totalPages &&
+                              styles.buttonTextDisabled,
+                          ]}
+                        >
                           Next
                         </Text>
                       </TouchableOpacity>
@@ -830,22 +887,34 @@ export function VendorExpenseList({
   );
 }
 
+// ─────────────────────────────────────────────
+// Styles
+// ─────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
-    paddingTop: -50
+    paddingTop: -50,
+  },
+  skeleton: {
+    backgroundColor: '#E8EDF2',
+    borderRadius: 6,
+  },
+  skeletonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#fff',
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    padding: 0,
     paddingBottom: 12,
   },
-  expenseStatsGrid: {
-    justifyContent: 'space-between',
-  },
+  expenseStatsGrid: { justifyContent: 'space-between' },
   statCard: {
     width: '48.5%',
     backgroundColor: '#FFFFFF',
@@ -858,10 +927,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
-  statCardContent: {
-    padding: 12,
-    gap: 6,
-  },
+  statCardContent: { padding: 12, gap: 6 },
   statTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -896,14 +962,9 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     lineHeight: 12,
   },
-  statLoader: {
-    height: 24,
-    justifyContent: 'center',
-  },
   mainCard: {
     backgroundColor: '#ffffff',
     borderRadius: 20,
-    marginHorizontal: 0,
     marginBottom: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
@@ -935,21 +996,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
     elevation: 3,
   },
-  headerIconGreen: {
-    backgroundColor: '#ecfdf5',
-  },
-  headerIconBlue: {
-    backgroundColor: '#eff6ff',
-  },
-  headerText: {
-    flex: 1,
-  },
+  headerIconGreen: { backgroundColor: '#ecfdf5' },
+  headerIconBlue: { backgroundColor: '#eff6ff' },
+  headerText: { flex: 1 },
   mainTitle: {
     fontSize: 15,
     fontWeight: '700',
@@ -957,15 +1008,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
     marginBottom: 2,
   },
-  headerSubtitle: {
-    fontSize: 10,
-    color: '#64748b',
-    lineHeight: 18,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  headerSubtitle: { fontSize: 10, color: '#64748b', lineHeight: 18 },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
   headerBadge: {
     backgroundColor: '#f1f5f9',
     paddingHorizontal: 12,
@@ -980,9 +1024,7 @@ const styles = StyleSheet.create({
     color: '#475569',
     letterSpacing: 0.2,
   },
-  mainContent: {
-    backgroundColor: '#ffffff',
-  },
+  mainContent: { backgroundColor: '#ffffff' },
   listItem: {
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -993,12 +1035,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  itemHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    flex: 1,
-  },
+  itemHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
   itemIcon: {
     width: 40,
     height: 40,
@@ -1007,25 +1044,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1.5,
   },
-  iconRed: {
-    backgroundColor: '#fef2f2',
-    borderColor: '#fecaca',
-  },
-  iconGreen: {
-    backgroundColor: '#f0fdf4',
-    borderColor: '#bbf7d0',
-  },
-  iconGray: {
-    backgroundColor: '#f8fafc',
-    borderColor: '#e2e8f0',
-  },
-  iconBlue: {
-    backgroundColor: '#eff6ff',
-    borderColor: '#bfdbfe',
-  },
-  itemInfo: {
-    flex: 1,
-  },
+  iconRed: { backgroundColor: '#fef2f2', borderColor: '#fecaca' },
+  iconGreen: { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' },
+  iconGray: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0' },
+  iconBlue: { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' },
+  itemInfo: { flex: 1 },
   itemName: {
     fontSize: 12,
     fontWeight: '600',
@@ -1033,56 +1056,29 @@ const styles = StyleSheet.create({
     marginBottom: 3,
     letterSpacing: -0.2,
   },
-  itemBalanceInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  balanceText: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
+  itemBalanceInfo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  balanceText: { fontSize: 12, fontWeight: '600', letterSpacing: 0.2 },
   balanceBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: 10,
     borderWidth: 1.5,
   },
-  badgeRed: {
-    backgroundColor: '#fef2f2',
-    borderColor: '#fecaca',
-  },
-  badgeGreen: {
-    backgroundColor: '#f0fdf4',
-    borderColor: '#bbf7d0',
-  },
-  badgeGray: {
-    backgroundColor: '#f8fafc',
-    borderColor: '#e2e8f0',
-  },
-  expenseBadge: {
-    backgroundColor: '#eff6ff',
-    borderColor: '#bfdbfe',
-  },
-  balanceBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
+  badgeRed: { backgroundColor: '#fef2f2', borderColor: '#fecaca' },
+  badgeGreen: { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' },
+  badgeGray: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0' },
+  expenseBadge: { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' },
+  balanceBadgeText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
   expenseBadgeText: {
     fontSize: 11,
     fontWeight: '700',
     color: '#1e40af',
     letterSpacing: 0.2,
   },
-  itemActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
+  itemActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   viewButton: {
     width: 25,
     height: 25,
@@ -1093,11 +1089,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#bfdbfe',
   },
-  separator: {
-    height: 1,
-    backgroundColor: '#f1f5f9',
-    marginHorizontal: 20,
-  },
+  separator: { height: 1, backgroundColor: '#f1f5f9', marginHorizontal: 20 },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
@@ -1120,7 +1112,6 @@ const styles = StyleSheet.create({
     color: '#475569',
     marginBottom: 8,
     textAlign: 'center',
-    letterSpacing: -0.2,
   },
   emptySubtext: {
     fontSize: 13,
@@ -1164,44 +1155,28 @@ const styles = StyleSheet.create({
     color: '#3b82f6',
     letterSpacing: 0.2,
   },
-  buttonTextDisabled: {
-    color: '#cbd5e1',
-  },
-  pageNumberContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
+  buttonTextDisabled: { color: '#cbd5e1' },
+  buttonDisabled: { opacity: 0.4, backgroundColor: '#f8fafc' },
+  pageNumberContainer: { alignItems: 'center', paddingHorizontal: 16 },
   pageNumber: {
     fontSize: 18,
     fontWeight: '700',
     color: '#0f172a',
     letterSpacing: -0.3,
   },
-  pageTotal: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginTop: 2,
-  },
+  pageTotal: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
   badge: {
     backgroundColor: '#3b82f6',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
   },
-  badgeSecondary: {
-    backgroundColor: '#f1f5f9',
-  },
-  badgeDestructive: {
-    backgroundColor: '#ef4444',
-  },
+  badgeSecondary: { backgroundColor: '#f1f5f9' },
+  badgeDestructive: { backgroundColor: '#ef4444' },
   badgeText: {
     color: 'white',
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.3,
   },
-  buttonDisabled: {
-    opacity: 0.4,
-    backgroundColor: '#f8fafc',
-  },
-});  
+});

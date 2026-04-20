@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback, memo } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,10 @@ import {
   StyleSheet,
   ActivityIndicator,
   Animated,
+  Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { getCurrentUser } from '../../lib/auth';
 import { usePermissions } from '../../contexts/permission-context';
@@ -17,357 +18,552 @@ import {
   usePermissionSocket,
   useUserPermissionSocket,
 } from '../../components/hooks/useSocket';
-// ----- Animated Menu Button for Mobile -----
-const AnimatedMenuButton = ({ icon, title, isActive, onPress }) => {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const indicatorAnim = useRef(new Animated.Value(isActive ? 1 : 0)).current;
+import FabMenuDashboard from '../ui/FabMenuDashboard';
 
-  useEffect(() => {
-    Animated.spring(indicatorAnim, {
-      toValue: isActive ? 1 : 0,
-      friction: 8,
-      tension: 40,
-      useNativeDriver: false,
-    }).start();
-  }, [isActive]);
+const { width: W } = Dimensions.get('window');
 
-  const handlePress = () => {
+// ─── Tokens ────
+const PURPLE = '#7C6FF7';
+const IDLE_COLOR = '#707070';
+const WHITE = '#FFFFFF';
+const BAR_H = 90;
+const FAB_SIZE = 56;
+const NOTCH_D = 32;
+const NOTCH_W = 78;
+
+const cx = W / 2;
+const BAR_PATH = `
+  M 0 0
+  L ${cx - NOTCH_W} 0
+  C ${cx - NOTCH_W + 58} 0, ${cx - 34} ${NOTCH_D}, ${cx} ${NOTCH_D}
+  C ${cx + 34} ${NOTCH_D}, ${cx + NOTCH_W - 58} 0, ${cx + NOTCH_W} 0
+  L ${W} 0
+  L ${W} 9999
+  L 0 9999
+  Z
+`;
+const CAP_PATH = `
+  M ${cx - NOTCH_W} 0
+  C ${cx - NOTCH_W + 28} 0, ${cx - 24} ${NOTCH_D}, ${cx} ${NOTCH_D}
+  C ${cx + 24} ${NOTCH_D}, ${cx + NOTCH_W - 28} 0, ${cx + NOTCH_W} 0
+  L ${cx + NOTCH_W} -80
+  L ${cx - NOTCH_W} -80
+  Z
+`;
+const SHADOW_PATH = `M 0 0 L ${cx - NOTCH_W} 0 C ${cx - NOTCH_W + 58} 0, ${
+  cx - 34
+} ${NOTCH_D}, ${cx} ${NOTCH_D} C ${cx + 34} ${NOTCH_D}, ${
+  cx + NOTCH_W - 58
+} 0, ${cx + NOTCH_W} 0 L ${W} 0`;
+
+// ─── SVG Notched Bar ───
+const NotchedBg = memo(({ bottomPad }) => {
+  const H = BAR_H + bottomPad;
+
+  return (
+    <Svg
+      width={W}
+      height={H + 80}
+      style={[StyleSheet.absoluteFill, { top: -80 }]}
+      pointerEvents="none"
+    >
+      <Path
+        d={SHADOW_PATH}
+        stroke="rgba(0,0,0,0.005)"
+        strokeWidth={20}
+        fill="none"
+        transform="translate(0, 80)"
+      />
+      <Path
+        d={SHADOW_PATH}
+        stroke="rgba(0,0,0,0.01)"
+        strokeWidth={14}
+        fill="none"
+        transform="translate(0, 80)"
+      />
+      <Path
+        d={SHADOW_PATH}
+        stroke="rgba(0,0,0,0.02)"
+        strokeWidth={10}
+        fill="none"
+        transform="translate(0, 80)"
+      />
+      <Path
+        d={SHADOW_PATH}
+        stroke="rgba(0,0,0,0.03)"
+        strokeWidth={7}
+        fill="none"
+        transform="translate(0, 80)"
+      />
+      <Path
+        d={SHADOW_PATH}
+        stroke="rgba(0,0,0,0.04)"
+        strokeWidth={4}
+        fill="none"
+        transform="translate(0, 80)"
+      />
+
+      <Path d={BAR_PATH} fill="#fff" transform="translate(0, 80)" />
+
+      {/* Cap — hides shadow that bleeds into the notch area */}
+      <Path d={CAP_PATH} fill="transparent" transform="translate(0, 80)" />
+    </Svg>
+  );
+});
+
+// ─── Tab Button ────
+const TabButton = memo(({ icon, title, isActive, onPress }) => {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePress = useCallback(() => {
     Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.85,
-        duration: 100,
+      Animated.timing(scale, {
+        toValue: 0.88,
+        duration: 80,
         useNativeDriver: true,
       }),
-      Animated.timing(scaleAnim, {
+      Animated.spring(scale, {
         toValue: 1,
-        duration: 100,
+        friction: 5,
+        tension: 120,
         useNativeDriver: true,
       }),
-    ]).start(onPress);
-  };
-
-  const indicatorWidth = indicatorAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '70%'],
-  });
+    ]).start(() => onPress?.());
+  }, [onPress]);
 
   return (
     <TouchableOpacity
       activeOpacity={1}
       onPress={handlePress}
-      style={styles.bottomNavButton}
+      style={styles.tab}
     >
-      <Animated.View
-        style={[
-          styles.topIndicator,
-          {
-            width: indicatorWidth,
-            opacity: indicatorAnim,
-          },
-        ]}
-      />
-      <Animated.View
-        style={[
-          styles.bottomNavButtonContent,
-          {
-            transform: [{ scale: scaleAnim }],
-          },
-        ]}
-      >
+      <Animated.View style={[styles.tabInner, { transform: [{ scale }] }]}>
         <Ionicons
           name={icon}
-          size={21}
-          color={isActive ? '#3b82f6' : '#94a3b8'}
+          size={22}
+          color={isActive ? PURPLE : IDLE_COLOR}
+          style={isActive ? styles.iconActive : styles.iconInactive}
         />
-        <Text
-          style={[styles.bottomNavText, isActive && styles.bottomNavTextActive]}
-          numberOfLines={1}
-        >
+        <Text style={[styles.label, isActive && styles.labelActive]}>
           {title}
         </Text>
+        {/* {isActive && <View style={styles.dot} />} */}
       </Animated.View>
     </TouchableOpacity>
   );
-};
+});
 
-// ----- Main Sidebar Component -----
-export function AppSidebar(props) {
-  const navigation = props.navigation; // Use props.navigation instead of useNavigation
-  const route = useRoute();
-  const [currentUser, setCurrentUser] = useState(null);
-  const {
-    permissions: clientPermissions,
-    isLoading: permissionsLoading,
-    refetch: refetchPermissions,
-  } = usePermissions();
-  const {
-    permissions: userCaps,
-    isLoading: userPermissionsLoading,
-    refetch: refetchUserPermissions,
-  } = useUserPermissions();
+// ─── FAB Button ───
+const FabButton = memo(({ onPress }) => {
+  const scale = useRef(new Animated.Value(1)).current;
 
-  // Socket listeners for real-time permission updates
-  usePermissionSocket(() => {
-    console.log('🔔 AppBottomNav: Permission update received, refetching...');
-    refetchPermissions();
-  });
+  const handlePress = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(scale, {
+        toValue: 0.86,
+        duration: 80,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 4,
+        tension: 120,
+        useNativeDriver: true,
+      }),
+    ]).start(() => onPress?.());
+  }, [onPress]);
 
-  useUserPermissionSocket(() => {
-    console.log(
-      '🔔 AppBottomNav: User permission update received, refetching...',
+  return (
+    <TouchableOpacity
+      activeOpacity={1}
+      onPress={handlePress}
+      style={styles.fabSlot}
+    >
+      <Animated.View style={[styles.fab, { transform: [{ scale }] }]}>
+        <Ionicons name="add" size={30} color={WHITE} />
+      </Animated.View>
+    </TouchableOpacity>
+  );
+});
+
+// ─── Admin Nav ──
+const AdminNav = memo(
+  ({
+    isActive,
+    navigate,
+    navigation,
+    moreButtonRef,
+    handleMorePress,
+    fabAnchor,
+    moreVisible,
+    handleCloseMore,
+  }) => {
+    const adminActions = [
+      {
+        label: 'Companies',
+        icon: 'briefcase-outline',
+        onPress: () => {
+          handleCloseMore();
+          navigate('AdminCompanies');
+        },
+      },
+      {
+        label: 'Settings',
+        icon: 'settings-outline',
+        onPress: () => {
+          handleCloseMore();
+          navigation.navigate('AdminSettings');
+        },
+      },
+    ];
+
+    return (
+      <>
+        <TabButton
+          icon="grid-outline"
+          title="Dashboard"
+          isActive={isActive('AdminDashboard')}
+          onPress={() => navigate('AdminDashboard')}
+        />
+        <TabButton
+          icon="people-outline"
+          title="Clients"
+          isActive={isActive('AdminClientManagement')}
+          onPress={() => navigate('AdminClientManagement')}
+        />
+        <FabButton onPress={() => navigation.navigate('ClientForm')} />
+        <TabButton
+          icon="bar-chart-outline"
+          title="Analytics"
+          isActive={isActive('AdminAnalytics')}
+          onPress={() => navigate('AdminAnalytics')}
+        />
+
+        {/* More button with ref for FabMenu anchoring */}
+        <View ref={moreButtonRef} collapsable={false} style={styles.tab}>
+          <TabButton
+            icon="menu"
+            title="More"
+            isActive={false}
+            onPress={handleMorePress}
+          />
+        </View>
+
+        {/* FabMenu for admin more options */}
+        <FabMenuDashboard
+          visible={moreVisible}
+          onClose={handleCloseMore}
+          anchor={fabAnchor}
+          actions={adminActions}
+        />
+      </>
     );
-    refetchUserPermissions();
-  });
+  },
+);
+
+// ─── Customer Nav ───
+const CustomerNav = memo(
+  ({
+    isActive,
+    navigate,
+    navigation,
+    canSeeCompanies,
+    canSeeInventory,
+    currentRole,
+    isReportsActive,
+    isLedgerActive,
+    moreButtonRef,
+    handleMorePress,
+    fabAnchor,
+    moreVisible,
+    handleCloseMore,
+  }) => {
+    const customerActions = [
+      ...(canSeeCompanies && currentRole !== 'admin'
+        ? [
+            {
+              label: 'Companies',
+              icon: 'briefcase-outline',
+              onPress: () => {
+                handleCloseMore();
+                navigate('Companies');
+              },
+            },
+          ]
+        : []),
+      {
+        label: 'Users',
+        icon: 'people-outline',
+        onPress: () => {
+          handleCloseMore();
+          navigate('Users');
+        },
+      },
+      {
+        label: 'Reports',
+        icon: 'document-text-outline',
+        onPress: () => {
+          handleCloseMore();
+          navigate('Reports');
+        },
+      },
+      {
+        label: 'Ledger',
+        icon: 'document-outline',
+        onPress: () => {
+          handleCloseMore();
+          navigate('Ledger');
+        },
+      },
+    ];
+
+    return (
+      <>
+        <TabButton
+          icon="home-outline"
+          title="Home"
+          isActive={isActive('CustomerDashboard') || isActive('UserDashboard')}
+          onPress={() => navigate('CustomerDashboard')}
+        />
+        <TabButton
+          icon="shield-checkmark-outline"
+          title="Transactions"
+          isActive={isActive('Transactions')}
+          onPress={() => navigate('Transactions')}
+        />
+        <FabButton
+          onPress={() => {
+            handleCloseMore();
+            navigation.navigate('TransactionForm');
+          }}
+        />
+
+        {canSeeInventory && (
+          <TabButton
+            icon="cube-outline"
+            title="Inventory"
+            isActive={isActive('Inventory')}
+            onPress={() => navigate('Inventory')}
+          />
+        )}
+
+        {/* More button with ref for FabMenu anchoring */}
+        <View ref={moreButtonRef} collapsable={false} style={styles.tab}>
+          <TabButton
+            icon="ellipsis-vertical"
+            title="More"
+            isActive={false}
+            onPress={handleMorePress}
+          />
+        </View>
+
+        {/* FabMenu for customer more options */}
+        <FabMenuDashboard
+          visible={moreVisible}
+          onClose={handleCloseMore}
+          anchor={fabAnchor}
+          actions={customerActions}
+        />
+      </>
+    );
+  },
+);
+
+// MAIN COMPONENT
+export function AppSidebar(props) {
+  const navigation = props.navigation;
+  const insets = useSafeAreaInsets();
+  const bottomPad = insets.bottom;
+
+  const [currentUser, setCurrentUser] = useState(null);
+  const [moreVisible, setMoreVisible] = useState(false);
+  const [fabAnchor, setFabAnchor] = useState(null);
+
+  const moreButtonRef = useRef(null);
+
+  const { permissions: clientPermissions, refetch: refetchPermissions } =
+    usePermissions();
+  const { permissions: userCaps, refetch: refetchUserPermissions } =
+    useUserPermissions();
+
+  const handlePermissionChange = useCallback(
+    () => refetchPermissions(),
+    [refetchPermissions],
+  );
+  const handleUserPermissionChange = useCallback(
+    () => refetchUserPermissions(),
+    [refetchUserPermissions],
+  );
+
+  usePermissionSocket(handlePermissionChange);
+  useUserPermissionSocket(handleUserPermissionChange);
 
   useEffect(() => {
-    const fetchUser = async () => {
-      const user = await getCurrentUser();
-      setCurrentUser(user);
-    };
-    fetchUser();
+    (async () => setCurrentUser(await getCurrentUser()))();
   }, []);
+
+  // Handle FabMenu anchor calculation when more button is pressed
+  const handleMorePress = useCallback(() => {
+    if (moreButtonRef.current) {
+      moreButtonRef.current.measureInWindow((x, y, width, height) => {
+        setFabAnchor({ x, y, width, height });
+        setMoreVisible(true);
+      });
+    }
+  }, []);
+
+  // Handle closing the FabMenu
+  const handleCloseMore = useCallback(() => {
+    setMoreVisible(false);
+    // Clear the anchor after a short delay to allow animation to complete
+    setTimeout(() => {
+      setFabAnchor(null);
+    }, 200);
+  }, []);
+
+  const navigate = useCallback(
+    screen => {
+      handleCloseMore();
+      navigation.navigate('MainTabs', { screen });
+    },
+    [navigation, handleCloseMore],
+  );
+
+  const activeScreen = props.state?.routes?.[props.state.index]?.name ?? null;
+  const isActive = useCallback(n => activeScreen === n, [activeScreen]);
+  const isReportsActive = activeScreen?.startsWith('Reports');
+  const isLedgerActive = activeScreen?.startsWith('Ledger');
+
+  if (!currentUser) {
+    return (
+      <View style={[styles.loading, { paddingBottom: bottomPad }]}>
+        <ActivityIndicator size="small" color={PURPLE} />
+      </View>
+    );
+  }
 
   const currentRole = currentUser?.role;
   const isAdmin = currentRole === 'master';
-
-  // Consistent permission logic with original code
   const canSeeInventory =
     currentRole === 'admin' ||
-    (!!userCaps && userCaps.canCreateInventory) ||
+    !!userCaps?.canCreateInventory ||
     currentRole === 'customer';
-
   const canSeeCompanies =
     clientPermissions?.canCreateCompanies ||
     clientPermissions?.canUpdateCompanies;
 
-  const canSeeUsers =
-    currentRole === 'admin' ||
-    (!!clientPermissions && clientPermissions.canCreateUsers);
-
-  // Get active screen from tab navigator state passed in props
-  const getActiveScreen = () => {
-    if (props.state && props.state.routes) {
-      return props.state.routes[props.state.index]?.name;
-    }
-    return null;
-  };
-
-  const activeScreen = getActiveScreen();
-
-  // Check if screen is active
-  const isActive = screenName => activeScreen === screenName;
-  const isReportsActive = activeScreen?.startsWith('Reports');
-  const isLedgerActive = activeScreen?.startsWith('Ledger');
-
-  // ----- Admin Menu -----
-  const AdminMenu = () => (
-    <>
-      <AnimatedMenuButton
-        icon="grid"
-        title="Dashboard"
-        isActive={isActive('AdminDashboard')}
-        onPress={() =>
-          navigation.navigate('MainTabs', { screen: 'AdminDashboard' })
-        }
-      />
-      <AnimatedMenuButton
-        icon="people"
-        title="Clients"
-        isActive={isActive('AdminClientManagement')}
-        onPress={() =>
-          navigation.navigate('MainTabs', {
-            screen: 'AdminClientManagement',
-          })
-        }
-      />
-      <AnimatedMenuButton
-        icon="briefcase"
-        title="Companies"
-        isActive={isActive('AdminCompanies')}
-        onPress={() =>
-          navigation.navigate('MainTabs', { screen: 'AdminCompanies' })
-        }
-      />
-      <AnimatedMenuButton
-        icon="bar-chart"
-        title="Analytics"
-        isActive={isActive('AdminAnalytics')}
-        onPress={() =>
-          navigation.navigate('MainTabs', { screen: 'AdminAnalytics' })
-        }
-      />
-      <AnimatedMenuButton
-        icon="settings"
-        title="Settings"
-        isActive={isActive('AdminSettings')}
-        onPress={() => navigation.navigate('AdminSettings')}
-      />
-    </>
-  );
-
-  // ----- Customer Menu -----
-  const CustomerMenu = () => (
-    <>
-      {/* Dashboard */}
-      <AnimatedMenuButton
-        icon="grid"
-        title="Dashboard"
-        isActive={isActive('UserDashboard') || isActive('CustomerDashboard')}
-        onPress={() =>
-          navigation.navigate('MainTabs', { screen: 'CustomerDashboard' })
-        }
-      />
-
-      {/* Transactions */}
-      <AnimatedMenuButton
-        icon="swap-horizontal"
-        title="Transactions"
-        isActive={isActive('Transactions')}
-        onPress={() =>
-          navigation.navigate('MainTabs', { screen: 'Transactions' })
-        }
-      />
-
-      {/* Inventory */}
-      {canSeeInventory && (
-        <AnimatedMenuButton
-          icon="cube"
-          title="Inventory"
-          isActive={isActive('Inventory')}
-          onPress={() =>
-            navigation.navigate('MainTabs', { screen: 'Inventory' })
-          }
-        />
-      )}
-
-      {/* Companies */}
-      {canSeeCompanies && currentRole !== 'admin' && (
-        <AnimatedMenuButton
-          icon="briefcase"
-          title="Companies"
-          isActive={isActive('Companies')}
-          onPress={() =>
-            navigation.navigate('MainTabs', { screen: 'Companies' })
-          }
-        />
-      )}
-
-      {/* Users */}
-      <AnimatedMenuButton
-        icon="people"
-        title="Users"
-        isActive={isActive('Users')}
-        onPress={() => navigation.navigate('MainTabs', { screen: 'Users' })}
-      />
-
-      {/* Reports */}
-      <AnimatedMenuButton
-        icon="document-text"
-        title="Reports"
-        isActive={isReportsActive}
-        onPress={() => navigation.navigate('MainTabs', { screen: 'Reports' })}
-      />
-
-      {/* Ledger */}
-      <AnimatedMenuButton
-        icon="document"
-        title="Ledger"
-        isActive={isLedgerActive}
-        onPress={() => navigation.navigate('MainTabs', { screen: 'Ledger' })}
-      />
-    </>
-  );
-
-  // ----- Loading State -----
-  if (!currentUser) {
-    return (
-      <SafeAreaView edges={['bottom']} style={styles.bottomNavLoading}>
-        <ActivityIndicator size="small" color="#3b82f6" />
-      </SafeAreaView>
-    );
-  }
-
-  // ----- Mobile Bottom Nav -----
   return (
-    <SafeAreaView edges={['bottom']} style={styles.bottomNavWrapper}>
-      <View style={styles.bottomNav}>
-        {isAdmin ? <AdminMenu /> : <CustomerMenu />}
+    <View style={styles.root}>
+      <NotchedBg bottomPad={bottomPad} />
+      <View style={[styles.bar, { paddingBottom: bottomPad + 6 }]}>
+        {isAdmin ? (
+          <AdminNav
+            isActive={isActive}
+            navigate={navigate}
+            navigation={navigation}
+            moreButtonRef={moreButtonRef}
+            handleMorePress={handleMorePress}
+            handleCloseMore={handleCloseMore}
+            fabAnchor={fabAnchor}
+            moreVisible={moreVisible}
+          />
+        ) : (
+          <CustomerNav
+            isActive={isActive}
+            navigate={navigate}
+            navigation={navigation}
+            canSeeCompanies={canSeeCompanies}
+            canSeeInventory={canSeeInventory}
+            currentRole={currentRole}
+            isReportsActive={isReportsActive}
+            isLedgerActive={isLedgerActive}
+            moreButtonRef={moreButtonRef}
+            handleMorePress={handleMorePress}
+            handleCloseMore={handleCloseMore}
+            fabAnchor={fabAnchor}
+            moreVisible={moreVisible}
+          />
+        )}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
-// ----- Styles -----
+// ─── Styles ────
 const styles = StyleSheet.create({
-  // Mobile Bottom Nav
-  bottomNavWrapper: {
-    backgroundColor: '#ffffff',
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -4,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 12,
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-start',
-    height: 58,
-    paddingHorizontal: 4,
-    // paddingTop: 6,
-    backgroundColor: '#ffffff',
-  },
-  bottomNavLoading: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: 64,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-  },
-  bottomNavButton: {
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    flex: 1,
-    position: 'relative',
-    paddingTop: 4,
-  },
-  topIndicator: {
+  root: {
     position: 'absolute',
-    top: 0,
-    height: 3,
-    backgroundColor: '#3b82f6',
-    borderRadius: 2,
-    shadowColor: '#3b82f6',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 4,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    backgroundColor: 'transparent',
   },
-  bottomNavButtonContent: {
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-around',
+    height: BAR_H,
+    backgroundColor: 'transparent',
+    zIndex: 2,
+  },
+  loading: {
+    height: BAR_H,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: WHITE,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E0E3EE',
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    height: '100%',
+  },
+  tabInner: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingTop: 0,
+  },
+  label: {
+    fontSize: 10,
+    marginTop: 3,
+    color: IDLE_COLOR,
+    fontWeight: '500',
+  },
+  labelActive: {
+    color: PURPLE,
+    fontWeight: '600',
+  },
+  dot: {
+    marginTop: 4,
+    width: 18,
+    height: 2.5,
+    borderRadius: 2,
+    backgroundColor: PURPLE,
+  },
+  iconActive: {
+    backgroundColor: '#7C6FF7',
+    padding: 6,
+    borderRadius: 16,
+    color: WHITE,
+  },
+  fabSlot: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    height: '100%',
+    zIndex: 10,
+  },
+  fab: {
+    width: FAB_SIZE,
+    height: FAB_SIZE,
+    borderRadius: FAB_SIZE / 2,
+    backgroundColor: PURPLE,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 4,
-  },
-  bottomNavText: {
-    fontSize: 9,
-    color: '#94a3b8',
-    marginTop: 4,
-    textAlign: 'center',
-    fontWeight: '500',
-    letterSpacing: 0.2,
-  },
-  bottomNavTextActive: {
-    color: '#3b82f6',
-    fontWeight: '600',
+    marginBottom: NOTCH_D + 6,
   },
 });
 

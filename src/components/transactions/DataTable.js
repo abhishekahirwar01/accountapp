@@ -11,7 +11,9 @@ import {
 } from 'react-native';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import LinearGradient from 'react-native-linear-gradient';
 import { getColumnLabel, getColumnValue } from './columns';
+import { getUnifiedLines } from '../../lib/utils';
 
 export default function DataTable({
   columns,
@@ -86,6 +88,16 @@ export default function DataTable({
 
   // Premium card-based render for each transaction
   const renderItem = ({ item, index }) => {
+    // compute unified lines count for items display
+    const unifiedLines = getUnifiedLines(item, null);
+    // determine whether there are any real lines (products/services arrays)
+    const hasRealLines =
+      (Array.isArray(item.products) && item.products.length > 0) ||
+      (Array.isArray(item.services) && item.services.length > 0) ||
+      (Array.isArray(item.service) && item.service.length > 0) ||
+      (Array.isArray(item.lines) && item.lines.length > 0);
+    const itemCount = hasRealLines ? unifiedLines.length : 0;
+
     // Find the relevant column renderers
     const partyCol = columns.find(c => c.id === 'party');
     const actionsCol = columns.find(c => c.id === 'actions');
@@ -98,51 +110,86 @@ export default function DataTable({
 
     return (
       <View key={getItemKey(item, index)} style={styles.card}>
-        {/* Top Row: Party info + Actions (three dot menu) */}
+        {/* Top row: party/company on left, amount+type on right */}
         <View style={styles.cardTopRow}>
           <View style={styles.cardPartySection}>
             {partyCol && getColumnValue(partyCol, item)}
+            {companyCol && (
+              <View style={styles.cardCompanyRowInline}>
+                {getColumnValue(companyCol, item)}
+              </View>
+            )}
           </View>
-          <View style={styles.cardActionsSection}>
-            {actionsCol && getColumnValue(actionsCol, item)}
+          <View style={styles.cardAmountTypeSection}>
+            {amountCol && (
+              <Text style={styles.amountLarge}>
+                {getColumnValue(amountCol, item)}
+              </Text>
+            )}
+            {typeCol && <View style={styles.typeBadgeSection}>{getColumnValue(typeCol, item)}</View>}
           </View>
         </View>
 
-        {/* Company name row (if column exists) */}
-        {companyCol && (
-          <View style={styles.cardCompanyRow}>
-            {getColumnValue(companyCol, item)}
+        {/* Details row: items on left, payment/date chips on right */}
+        <View style={styles.cardDetailsRow}>
+          <View style={styles.cardItemsSection}>
+            {itemCount > 0 && linesCol ? (
+              getColumnValue(linesCol, item, { compact: true })
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, fontWeight: '500', color: '#6b7280', marginRight: 6 }}>Item:</Text>
+                <Text style={{ fontSize: 13, color: '#9ca3af', fontStyle: 'italic' }}>—</Text>
+              </View>
+            )}
+          </View>
+          <LinearGradient
+            colors={[
+              // '#b9a6da', 
+              // '#eeeaf7', 
+              // '#9771ff', 
+              // '#f0eef7',
+               '#8f86eb',
+              '#f6f4ff',
+               
+                
+            ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.chipsGradient}
+          >
+              {/* payment info directly on gradient with white text/icon */}
+            <View style={styles.paymentInfo}>
+              <MaterialCommunityIcons
+                name="bank-outline"
+                size={16}
+                color="#ffffff"
+              />
+              <View
+                style={styles.paymentText}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {paymentCol && getColumnValue(paymentCol, item)}
+              </View>
+            </View>
+            {/* vertical white divider */}
+            <View style={styles.verticalDivider} />
+            {/* date remains a separate white pill */}
+            <View style={styles.dateChip}>
+              <Feather name="calendar" size={14} color="#4b5563" />
+              <Text style={styles.dateChipText}>
+                {dateCol && getColumnValue(dateCol, item)}
+              </Text>
+            </View>
+          </LinearGradient>
+        </View>
+
+        {/* Action bar */}
+        {actionsCol && (
+          <View style={styles.cardActionBar}>
+            {getColumnValue(actionsCol, item)}
           </View>
         )}
-
-        {/* Items + Amount row */}
-        <View style={styles.cardItemAmountRow}>
-          <View style={styles.cardItemsSection}>
-            {linesCol && getColumnValue(linesCol, item)}
-          </View>
-          <View style={styles.cardAmountSection}>
-            {amountCol && getColumnValue(amountCol, item)}
-          </View>
-        </View>
-
-        {/* Bottom Row: Date, Payment Method, Type badge */}
-        <View style={styles.cardBottomRow}>
-          <View style={styles.cardBottomChip}>
-            <Feather name="calendar" size={12} color="#6b7280" />
-            <View style={styles.cardBottomChipContent}>
-              {dateCol && getColumnValue(dateCol, item)}
-            </View>
-          </View>
-          <View style={styles.cardBottomChip}>
-            <MaterialCommunityIcons name="bank-outline" size={12} color="#6b7280" />
-            <View style={styles.cardBottomChipContent}>
-              {paymentCol && getColumnValue(paymentCol, item)}
-            </View>
-          </View>
-          <View style={styles.cardTypeBadgeWrap}>
-            {typeCol && getColumnValue(typeCol, item)}
-          </View>
-        </View>
       </View>
     );
   };
@@ -159,7 +206,7 @@ export default function DataTable({
             style={styles.searchIcon}
           />
           <TextInput
-            placeholder="Search"
+            placeholder="Search by party name or product"
             value={localFilter}
             onChangeText={setLocalFilter}
             style={styles.search}
@@ -282,14 +329,15 @@ export default function DataTable({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f0f5',
+    backgroundColor: '#ffffff',
   },
 
   // --- Premium Search Bar ---
   searchFilterWrapper: {
     marginHorizontal: 12,
-    marginTop: 10,
+    marginTop: 4,
     marginBottom: 10,
+    backgroundColor: '#ffffff',
   },
 
   searchContainer: {
@@ -307,7 +355,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
       },
       android: {
-        elevation: 3,
+        elevation: 0.5,
       },
     }),
   },
@@ -381,18 +429,59 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
       },
       android: {
-        elevation: 3,
+        elevation: 0.5,
       },
     }),
     borderWidth: 1,
-    borderColor: 'rgba(99,102,241,0.08)',
+    borderColor: '#f3f4f6',
   },
 
   cardTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 2,
+    marginBottom: 8,
+  },
+
+  cardAmountTypeSection: {
+    alignItems: 'flex-end',
+  },
+  amountLarge: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#074897',
+  },
+  typeBadgeSection: {
+    marginTop: 4,
+  },
+
+  cardDetailsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  cardChipsSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  chipsGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    // paddingVertical: 6,
+    borderRadius: 15,
+    // ensure it doesn't grow too wide
+    alignSelf: 'flex-start',
+  },
+
+  cardActionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
   },
 
   cardPartySection: {
@@ -408,6 +497,9 @@ const styles = StyleSheet.create({
   cardCompanyRow: {
     marginBottom: 10,
     marginTop: -2,
+  },
+  cardCompanyRowInline: {
+    marginTop: 2,
   },
 
   cardItemAmountRow: {
@@ -442,7 +534,7 @@ const styles = StyleSheet.create({
   cardBottomChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fff',
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 5,
@@ -452,6 +544,40 @@ const styles = StyleSheet.create({
   cardBottomChipContent: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  paymentInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  paymentText: {
+    fontSize: 12,
+    color: '#ffffff',
+    marginLeft: 4,
+    flexShrink: 1,
+  },
+  dateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    // backgroundColor: '#ffffff',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  dateChipText: {
+    fontSize: 12,
+    color: '#4b5563',
+    marginLeft: 4,
+  },
+  verticalDivider: {
+    width: 1,
+    backgroundColor: '#ffffff',
+    marginHorizontal: 6,
+    marginVertical: 4,
+   
+    alignSelf: 'center',
+    height: 16,
   },
 
   cardTypeBadgeWrap: {

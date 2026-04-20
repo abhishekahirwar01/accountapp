@@ -7,7 +7,6 @@ import {
   Alert,
   Modal,
   StyleSheet,
-  Dimensions,
   ActivityIndicator,
   RefreshControl,
   Platform,
@@ -46,25 +45,16 @@ import {
   Info,
   Search,
 } from 'lucide-react-native';
-import { CustomerForm } from '../customers/CustomerForm';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
 import { usePermissions } from '../../contexts/permission-context';
 import { capitalizeWords } from '../../lib/utils';
 import { BASE_URL } from '../../config';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '../../components/ui/Dialog';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 export function CustomerSettings() {
   const [customers, setCustomers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isFormOpen, setIsFormOpen] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [companies, setCompanies] = useState([]);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
   const [customerToDelete, setCustomerToDelete] = useState(null);
@@ -72,6 +62,7 @@ export function CustomerSettings() {
   const [isImporting, setIsImporting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   // Import states
   const [importStatus, setImportStatus] = useState(null);
@@ -95,22 +86,33 @@ export function CustomerSettings() {
   const { permissions: accountPerms } = usePermissions();
   const [role, setRole] = useState(null);
 
+  const navigation = useNavigation();
+
   useEffect(() => {
-    // Get role from AsyncStorage
-    const getRole = async () => {
+    const init = async () => {
       try {
         const storedRole = await AsyncStorage.getItem('role');
         setRole(storedRole);
       } catch (error) {
         console.error('Error getting role:', error);
       }
+      await fetchCompanies();
+      await fetchCustomers();
+      setInitialLoadComplete(true);
     };
-    getRole();
+    init();
   }, []);
+
+  // Refresh when coming back from CustomerForm
+  useFocusEffect(
+    useCallback(() => {
+      if (!initialLoadComplete) return;
+      fetchCustomers();
+    }, [initialLoadComplete]),
+  );
 
   const isCustomer = role === 'customer';
 
-  // Logic matched to VendorSettings - combine account and user permissions
   const accountAllowsShow = accountPerms?.canShowCustomers !== false;
   const accountAllowsCreate = accountPerms?.canCreateCustomers !== false;
   const userAllowsShow = isAllowed
@@ -128,7 +130,6 @@ export function CustomerSettings() {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
-
       const res = await fetch(`${BASE_URL}/api/companies/my`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -147,20 +148,14 @@ export function CustomerSettings() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchCompanies();
-  }, [fetchCompanies]);
-
   const fetchCustomers = useCallback(async () => {
     setIsLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
-
       const res = await fetch(`${BASE_URL}/api/parties`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!res.ok) throw new Error('Failed to fetch customers.');
       const data = await res.json();
       setCustomers(Array.isArray(data) ? data : data.parties || []);
@@ -173,20 +168,27 @@ export function CustomerSettings() {
       });
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
   }, []);
-
-  useEffect(() => {
-    fetchCustomers();
-  }, [fetchCustomers]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchCustomers();
-    setRefreshing(false);
   }, [fetchCustomers]);
 
-  // Filter customers based on search term
+  // Navigate to CustomerForm (same pattern as VendorSettings/UsersScreen)
+  const handleOpenForm = useCallback(
+    (customer = null) => {
+      navigation.navigate('CustomerForm', {
+        customer: customer || null,
+        companies,
+      });
+    },
+    [navigation, companies],
+  );
+
+  // Filter customers
   const filteredCustomers = React.useMemo(() => {
     let data = customers;
     if (searchTerm) {
@@ -202,12 +204,10 @@ export function CustomerSettings() {
     return data;
   }, [customers, searchTerm]);
 
-  // Reset to page 1 when search term changes
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  // Calculate pagination based on filtered results
   const indexOfLastCustomer = currentPage * customersPerPage;
   const indexOfFirstCustomer = indexOfLastCustomer - customersPerPage;
   const currentCustomers = filteredCustomers.slice(
@@ -216,25 +216,9 @@ export function CustomerSettings() {
   );
   const totalPages = Math.ceil(filteredCustomers.length / customersPerPage);
 
-  const handleOpenForm = (customer = null) => {
-    setSelectedCustomer(customer);
-    setIsFormOpen(true);
-  };
-
   const handleOpenDeleteDialog = customer => {
     setCustomerToDelete(customer);
     setIsAlertOpen(true);
-  };
-
-  const handleFormSuccess = customer => {
-    setIsFormOpen(false);
-    fetchCustomers();
-    const action = selectedCustomer ? 'updated' : 'created';
-    Toast.show({
-      type: 'success',
-      text1: `Customer ${action} successfully`,
-      text2: `${customer.name}'s details have been ${action}.`,
-    });
   };
 
   const handleDeleteCustomer = async () => {
@@ -242,7 +226,6 @@ export function CustomerSettings() {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
-
       const res = await fetch(
         `${BASE_URL}/api/parties/${customerToDelete._id}`,
         {
@@ -250,15 +233,12 @@ export function CustomerSettings() {
           headers: { Authorization: `Bearer ${token}` },
         },
       );
-
       if (!res.ok) throw new Error('Failed to delete customer.');
-
       Toast.show({
         type: 'success',
         text1: 'Customer Deleted',
-        text2: 'The customer has been successfully removed.',
+        text2: 'Customer removed successfully.',
       });
-
       fetchCustomers();
     } catch (error) {
       Toast.show({
@@ -282,25 +262,19 @@ export function CustomerSettings() {
     handleOpenDeleteDialog(customer);
   };
 
-  // ==================== IMPORT FUNCTIONS ====================
-
-  const handleImportClick = () => {
-    setIsImportDialogOpen(true);
-  };
+  // ── Import Functions ──────────────────────────────────────────────────────
 
   const pickFileForImport = async () => {
     try {
       const result = await pick({
         type: [
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-          'application/vnd.ms-excel', // .xls
-          'text/csv', // CSV
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+          'text/csv',
         ],
         allowMultiSelection: false,
       });
-
       const file = Array.isArray(result) ? result[0] : result;
-
       if (!file || !file.uri) {
         Toast.show({
           type: 'error',
@@ -309,8 +283,6 @@ export function CustomerSettings() {
         });
         return;
       }
-
-      // Check file size (10MB limit)
       if (file.size && file.size > 10 * 1024 * 1024) {
         Toast.show({
           type: 'error',
@@ -319,17 +291,13 @@ export function CustomerSettings() {
         });
         return;
       }
-
-      // Process the file
       await handleFileImport(file);
     } catch (error) {
       if (
         error.code === 'DOCUMENT_PICKER_CANCELED' ||
         error.message?.includes('cancel')
-      ) {
+      )
         return;
-      }
-      console.error('Picker Error:', error);
       Toast.show({
         type: 'error',
         text1: 'Import Failed',
@@ -338,42 +306,26 @@ export function CustomerSettings() {
     }
   };
 
-  // Parse Excel/CSV file
   const parseFile = async (fileUri, fileName) => {
     try {
-      // Read file content
       const fileContent = await RNFS.readFile(fileUri, 'base64');
-
-      if (!fileContent) {
-        throw new Error('Failed to read file content');
-      }
-
-      // Determine file type
+      if (!fileContent) throw new Error('Failed to read file content');
       const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
-
       let jsonData = [];
-
       if (isExcel) {
-        // Parse Excel file
         const workbook = XLSX.read(fileContent, { type: 'base64' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         jsonData = XLSX.utils.sheet_to_json(worksheet);
       } else {
-        // Parse CSV file
         const textContent = atob(fileContent);
         const lines = textContent
           .split('\n')
           .filter(line => line.trim() !== '');
-
-        if (lines.length === 0) {
-          throw new Error('CSV file is empty');
-        }
-
+        if (lines.length === 0) throw new Error('CSV file is empty');
         const headers = lines[0]
           .split(',')
           .map(h => h.trim().replace(/"/g, ''));
-
         for (let i = 1; i < lines.length; i++) {
           const values = lines[i]
             .split(',')
@@ -385,21 +337,14 @@ export function CustomerSettings() {
           jsonData.push(row);
         }
       }
-
-      console.log('Parsed data:', jsonData);
       return jsonData;
     } catch (error) {
-      console.error('Parse error:', error);
       throw new Error(`Failed to parse file: ${error.message}`);
     }
   };
 
-  // Transform CSV/Excel data to match customer schema
-
   const transformCustomerData = data => {
     return data.map((row, index) => {
-      // Normalize and clean data
-      // Convert to string first before calling trim
       const name = String(
         row.name || row['Customer Name'] || row['customer name'] || '',
       ).trim();
@@ -413,7 +358,6 @@ export function CustomerSettings() {
       const gstin = String(row.gstin || row.GSTIN || row.gst || '')
         .toUpperCase()
         .trim();
-
       return {
         name,
         contactNumber,
@@ -439,33 +383,22 @@ export function CustomerSettings() {
           String(row.isTDSApplicable || '').toLowerCase() === 'y',
         tdsRate: parseFloat(row.tdsRate || row['TDS Rate'] || 0),
         tdsSection: String(row.tdsSection || row['TDS Section'] || '').trim(),
-        // Add reference for tracking
-        _originalIndex: index + 2, // Excel row number (header is row 1)
+        _originalIndex: index + 2,
       };
     });
   };
 
-  // Check if customer exists by name (case insensitive)
   const checkCustomerExistsByName = customerName => {
     if (!customerName || !customers.length) return false;
-
-    const normalizedCustomerName = customerName.trim().toLowerCase();
-    return customers.some(
-      customer =>
-        customer.name?.trim().toLowerCase() === normalizedCustomerName,
-    );
+    const normalized = customerName.trim().toLowerCase();
+    return customers.some(c => c.name?.trim().toLowerCase() === normalized);
   };
 
-  // Filter out existing customers
   const filterExistingCustomers = customersData => {
     const newCustomers = [];
     const existingCustomers = [];
-
     for (const customer of customersData) {
-      // Check by customer name (case insensitive)
-      const existsByName = checkCustomerExistsByName(customer.name);
-
-      if (existsByName) {
+      if (checkCustomerExistsByName(customer.name)) {
         existingCustomers.push({
           customer: customer.name || `Row ${customer._originalIndex}`,
           reason: 'Customer name already exists',
@@ -475,27 +408,18 @@ export function CustomerSettings() {
         newCustomers.push(customer);
       }
     }
-
     return { newCustomers, existingCustomers };
   };
 
-  // Import customers one by one
   const importCustomersSequentially = async customersData => {
     const token = await AsyncStorage.getItem('token');
-
-    if (!token) {
-      throw new Error('Authentication token not found');
-    }
-
+    if (!token) throw new Error('Authentication token not found');
     const failed = [];
-    const endpoint = `${BASE_URL}/api/parties`;
-
     for (let i = 0; i < customersData.length; i++) {
       const customer = customersData[i];
       setImportProgress({ current: i + 1, total: customersData.length });
-
       try {
-        const response = await fetch(endpoint, {
+        const response = await fetch(`${BASE_URL}/api/parties`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -503,21 +427,13 @@ export function CustomerSettings() {
           },
           body: JSON.stringify(customer),
         });
-
         const responseData = await response.json();
-
         if (!response.ok) {
           failed.push({
             customer: customer.name || `Row ${customer._originalIndex}`,
             error: responseData.message || `Status: ${response.status}`,
             type: 'failed',
           });
-          console.error(`Failed to import customer ${i + 1}:`, responseData);
-        } else {
-          console.log(
-            `Successfully imported customer ${i + 1}:`,
-            customer.name,
-          );
         }
       } catch (error) {
         failed.push({
@@ -525,13 +441,9 @@ export function CustomerSettings() {
           error: error.message,
           type: 'failed',
         });
-        console.error(`Error importing customer ${i + 1}:`, error);
       }
-
-      // Small delay to avoid overwhelming the server
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-
     return failed;
   };
 
@@ -541,70 +453,37 @@ export function CustomerSettings() {
     setFailedItems([]);
     setSkippedItems([]);
     setImportProgress({ current: 0, total: 0 });
-
     try {
-      console.log('Processing file:', file.name);
-
-      // Parse the file
       const parsedData = await parseFile(file.uri, file.name);
-
-      if (parsedData.length === 0) {
-        throw new Error('No data found in file');
-      }
-
-      // Transform data
+      if (parsedData.length === 0) throw new Error('No data found in file');
       const customersData = transformCustomerData(parsedData);
-
-      console.log('Transformed customers data:', customersData);
-
-      // Step 1: Check for existing customers locally
       Toast.show({
         type: 'info',
         text1: 'Checking for duplicate customers...',
       });
-
       const { newCustomers, existingCustomers } =
         filterExistingCustomers(customersData);
-
-      // Store skipped items
       setSkippedItems(existingCustomers);
-
-      // If all customers already exist
       if (newCustomers.length === 0) {
         setImportStatus('skipped');
         Toast.show({
           type: 'info',
           text1: 'No New Customers',
-          text2: 'All customers in the file already exist in the system.',
+          text2: 'All customers already exist.',
         });
         setIsImporting(false);
         return;
       }
-
-      // Step 2: Import only new customers
       setImportProgress({ current: 0, total: newCustomers.length });
-
-      Toast.show({
-        type: 'info',
-        text1: 'Importing new customers...',
-        text2: `Found ${existingCustomers.length} existing, ${newCustomers.length} new customers to import`,
-      });
-
       const failed = await importCustomersSequentially(newCustomers);
-
-      // Update status
       if (failed.length === 0 && newCustomers.length > 0) {
         setImportStatus('success');
         Toast.show({
           type: 'success',
           text1: 'Import Successful',
-          text2: `Successfully imported ${newCustomers.length} new customers. ${existingCustomers.length} customers already existed.`,
+          text2: `Imported ${newCustomers.length} customers.`,
         });
-
-        // Refresh customer list
         await fetchCustomers();
-
-        // Close modal after delay
         setTimeout(() => {
           setIsImportDialogOpen(false);
           setImportStatus(null);
@@ -612,40 +491,26 @@ export function CustomerSettings() {
       } else if (newCustomers.length - failed.length > 0) {
         setImportStatus('partial');
         setFailedItems(failed);
-
-        Toast.show({
-          type: 'success',
-          text1: 'Partial Success',
-          text2: `${newCustomers.length - failed.length} imported, ${
-            existingCustomers.length
-          } already existed, ${failed.length} failed.`,
-        });
-
-        // Refresh customer list for successful imports
+        Toast.show({ type: 'success', text1: 'Partial Success' });
         await fetchCustomers();
       } else {
         setImportStatus('failed');
         setFailedItems(failed);
-        Toast.show({
-          type: 'error',
-          text1: 'Import Failed',
-          text2: 'Failed to import any new customers.',
-        });
+        Toast.show({ type: 'error', text1: 'Import Failed' });
       }
     } catch (error) {
-      console.error('Import error:', error);
       setImportStatus('failed');
       Toast.show({
         type: 'error',
         text1: 'Import Failed',
-        text2: error.message || 'Failed to import customers.',
+        text2: error.message,
       });
     } finally {
       setIsImporting(false);
     }
   };
 
-   const downloadTemplate = async () => {
+  const downloadTemplate = async () => {
     setIsDownloading(true);
     try {
       const headers = [
@@ -671,7 +536,6 @@ export function CustomerSettings() {
         ['', '', '', '', '', '', '', '', '', '', '', '', ''],
         headers,
       ];
-
       const sampleData = [
         [
           'ABC Enterprises',
@@ -689,48 +553,28 @@ export function CustomerSettings() {
           '',
         ],
       ];
-
       const ws = XLSX.utils.aoa_to_sheet([...note, ...sampleData]);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Customer Template');
       const excelBuffer = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-
       const fileName = `customer_template_${Date.now()}.xlsx`;
-
-      // Determine Path Based on Platform and request permission on Android < 33
       let filePath = '';
       if (Platform.OS === 'android') {
         if (Platform.Version < 33) {
           const granted = await PermissionsAndroid.request(
             PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-            {
-              title: 'Storage Permission Required',
-              message:
-                'We need permission to save templates to your Downloads folder',
-              buttonNeutral: 'Ask Later',
-              buttonNegative: 'Cancel',
-              buttonPositive: 'Allow',
-            },
           );
           if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-            Alert.alert(
-              'Permission Denied',
-              'Storage permission is required to download templates.',
-            );
+            Alert.alert('Permission Denied', 'Storage permission is required.');
             setIsDownloading(false);
             return;
           }
         }
-
-        // Path to the public Downloads folder
         filePath = `${RNFS.ExternalStorageDirectoryPath}/Download/${fileName}`;
       } else {
         filePath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
       }
-
       await RNFS.writeFile(filePath, excelBuffer, 'base64');
-
-      // CRITICAL STEP: Scan file so it appears in Media/File Manager immediately
       if (Platform.OS === 'android') {
         try {
           await RNFS.scanFile(filePath);
@@ -738,7 +582,6 @@ export function CustomerSettings() {
           console.warn('scanFile failed', scanErr);
         }
       }
-
       Alert.alert(
         'Download Successful',
         `File saved to: ${
@@ -749,22 +592,25 @@ export function CustomerSettings() {
           {
             text: 'Open File',
             onPress: () => {
-              const fileUri = Platform.OS === 'ios' ? `file://${filePath}` : filePath;
-              FileViewer.open(fileUri).catch(() => {
-                Toast.show({ type: 'info', text1: 'File saved', text2: filePath });
-              });
+              const fileUri =
+                Platform.OS === 'ios' ? `file://${filePath}` : filePath;
+              FileViewer.open(fileUri).catch(() =>
+                Toast.show({
+                  type: 'info',
+                  text1: 'File saved',
+                  text2: filePath,
+                }),
+              );
             },
           },
         ],
       );
-
       Toast.show({
         type: 'success',
         text1: 'Downloaded',
         text2: 'Template saved to Downloads folder',
       });
     } catch (error) {
-      console.error('Download error:', error);
       Alert.alert(
         'Error',
         'Could not save file. Please check storage permissions.',
@@ -774,10 +620,8 @@ export function CustomerSettings() {
     }
   };
 
-  // Render import status screen
   const renderImportStatus = () => {
     if (!importStatus) return null;
-
     const statusConfig = {
       success: {
         icon: Check,
@@ -789,7 +633,7 @@ export function CustomerSettings() {
         icon: AlertCircle,
         color: '#f59e0b',
         title: 'Partial Success',
-        message: `Some customers imported successfully.`,
+        message: 'Some customers imported successfully.',
       },
       failed: {
         icon: X,
@@ -801,13 +645,11 @@ export function CustomerSettings() {
         icon: Info,
         color: '#3b82f6',
         title: 'No New Customers',
-        message: 'All customers in the file already exist in the system.',
+        message: 'All customers in the file already exist.',
       },
     };
-
     const config = statusConfig[importStatus];
     const IconComponent = config.icon;
-
     return (
       <View style={styles.importStatusContainer}>
         <IconComponent size={48} color={config.color} />
@@ -815,13 +657,10 @@ export function CustomerSettings() {
           {config.title}
         </Text>
         <Text style={styles.importStatusMessage}>{config.message}</Text>
-
-        {/* Show existing/skipped customers */}
         {skippedItems.length > 0 && (
           <View style={styles.skippedItemsContainer}>
             <Text style={styles.skippedItemsTitle}>
-              <Info size={14} color="#856404" /> Skipped ({skippedItems.length}
-              ):
+              Skipped ({skippedItems.length}):
             </Text>
             <ScrollView style={styles.skippedList} nestedScrollEnabled={true}>
               {skippedItems.slice(0, 5).map((item, index) => (
@@ -837,13 +676,10 @@ export function CustomerSettings() {
             </ScrollView>
           </View>
         )}
-
-        {/* Show failed items */}
         {failedItems.length > 0 && (
           <View style={styles.failedItemsContainer}>
             <Text style={styles.failedItemsTitle}>
-              <AlertCircle size={14} color="#dc3545" /> Failed (
-              {failedItems.length}):
+              Failed ({failedItems.length}):
             </Text>
             <ScrollView style={styles.failedList} nestedScrollEnabled={true}>
               {failedItems.slice(0, 5).map((item, index) => (
@@ -859,11 +695,9 @@ export function CustomerSettings() {
             </ScrollView>
           </View>
         )}
-
         {importStatus === 'success' && (
           <Text style={styles.autoCloseMessage}>Closing in 3 seconds...</Text>
         )}
-
         <TouchableOpacity
           style={[styles.closeImportBtn, { backgroundColor: config.color }]}
           onPress={() => {
@@ -881,9 +715,6 @@ export function CustomerSettings() {
     );
   };
 
-  // ==================== END IMPORT FUNCTIONS ====================
-
-  // Loading state
   if (isLoadingCompanies) {
     return (
       <SafeAreaView style={styles.container}>
@@ -941,72 +772,69 @@ export function CustomerSettings() {
             </View>
           ) : (
             <View style={styles.contentContainer}>
-             <View style={styles.topSection}>
-
-               {/* Header */}
-              <View style={styles.header}>
-                <View style={styles.headerText}>
-                  <Text style={styles.title}>Manage Customers</Text>
-                  <Text style={styles.subtitle}>
-                    A list of all your customers.
-                  </Text>
+              <View style={styles.topSection}>
+                {/* Header */}
+                <View style={styles.header}>
+                  <View style={styles.headerText}>
+                    <Text style={styles.title}>Manage Customers</Text>
+                    <Text style={styles.subtitle}>
+                      A list of all your customers.
+                    </Text>
+                  </View>
+                  {canCreateCustomers && (
+                    <View style={styles.headerButtons}>
+                      <TouchableOpacity
+                        style={styles.primaryButton}
+                        onPress={() => handleOpenForm()}
+                      >
+                        <PlusCircle size={18} color="#fff" />
+                        <Text style={styles.buttonText}>Add Customer</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.outlineButton}
+                        onPress={() => setIsImportDialogOpen(true)}
+                      >
+                        <Upload size={18} color="#3b82f6" />
+                        <Text style={styles.outlineButtonText}>
+                          Import Customers
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
 
-                {canCreateCustomers && (
-                  <View style={styles.headerButtons}>
-                    <TouchableOpacity
-                      style={styles.primaryButton}
-                      onPress={() => handleOpenForm()}
-                    >
-                      <PlusCircle size={18} color="#fff" />
-                      <Text style={styles.buttonText}>Add Customer</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.outlineButton}
-                      onPress={handleImportClick}
-                    >
-                      <Upload size={18} color="#3b82f6" />
-                      <Text style={styles.outlineButtonText}>
-                        Import Customers
-                      </Text>
-                    </TouchableOpacity>
+                {/* Search Bar */}
+                {canShowCustomers && customers.length > 0 && (
+                  <View style={styles.searchContainer}>
+                    <View style={styles.searchInputWrapper}>
+                      <Search
+                        size={16}
+                        color="#94a3b8"
+                        style={styles.searchIcon}
+                      />
+                      <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search by name, phone, email, or GSTIN..."
+                        placeholderTextColor="#94a3b8"
+                        value={searchTerm}
+                        onChangeText={setSearchTerm}
+                      />
+                      {searchTerm.length > 0 && (
+                        <TouchableOpacity
+                          style={styles.clearSearchBtn}
+                          onPress={() => setSearchTerm('')}
+                        >
+                          <X size={18} color="#64748b" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    <Text style={styles.customerCount}>
+                      Showing {filteredCustomers.length} customer
+                      {filteredCustomers.length !== 1 ? 's' : ''}
+                    </Text>
                   </View>
                 )}
               </View>
-
-              {/* Search Bar */}
-              {canShowCustomers && customers.length > 0 && (
-                <View style={styles.searchContainer}>
-                  <View style={styles.searchInputWrapper}>
-                    <Search
-                      size={16}
-                      color="#94a3b8"
-                      style={styles.searchIcon}
-                    />
-                    <TextInput
-                      style={styles.searchInput}
-                      placeholder="Search by name, phone, email, or GSTIN..."
-                      placeholderTextColor="#94a3b8"
-                      value={searchTerm}
-                      onChangeText={setSearchTerm}
-                    />
-                    {searchTerm.length > 0 && (
-                      <TouchableOpacity
-                        style={styles.clearSearchBtn}
-                        onPress={() => setSearchTerm('')}
-                      >
-                        <X size={18} color="#64748b" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                  <Text style={styles.customerCount}>
-                    Showing {filteredCustomers.length} customer
-                    {filteredCustomers.length !== 1 ? 's' : ''}
-                  </Text>
-                </View>
-              )}
-             </View>
 
               {/* Main Content */}
               {isLoading ? (
@@ -1024,12 +852,10 @@ export function CustomerSettings() {
                 </View>
               ) : customers.length > 0 && canShowCustomers ? (
                 <>
-                  {/* Customer List */}
                   <View style={styles.customerList}>
                     {currentCustomers.length > 0 ? (
                       currentCustomers.map(customer => (
                         <View key={customer._id} style={styles.customerCard}>
-                          {/* Customer Header */}
                           <View style={styles.customerHeader}>
                             <View style={styles.customerInfo}>
                               <Text style={styles.customerName}>
@@ -1063,22 +889,19 @@ export function CustomerSettings() {
                                 </View>
                               </View>
                             </View>
-
-                            {/* Actions Menu */}
                             <View>
                               <TouchableOpacity
                                 style={styles.menuButton}
-                                onPress={() => {
+                                onPress={() =>
                                   setOpenDropdownId(
                                     openDropdownId === customer._id
                                       ? null
                                       : customer._id,
-                                  );
-                                }}
+                                  )
+                                }
                               >
                                 <MoreHorizontal size={20} color="#6b7280" />
                               </TouchableOpacity>
-
                               {openDropdownId === customer._id && (
                                 <View style={styles.dropdown}>
                                   <TouchableOpacity
@@ -1112,7 +935,6 @@ export function CustomerSettings() {
                             </View>
                           </View>
 
-                          {/* Contact Info */}
                           {(customer.contactNumber || customer.email) && (
                             <View style={styles.contactSection}>
                               {customer.contactNumber && (
@@ -1134,7 +956,6 @@ export function CustomerSettings() {
                             </View>
                           )}
 
-                          {/* Address */}
                           {(customer.address ||
                             customer.city ||
                             customer.state ||
@@ -1164,7 +985,6 @@ export function CustomerSettings() {
                             </View>
                           )}
 
-                          {/* Tax Information */}
                           {(customer.gstin || customer.pan) && (
                             <View style={styles.taxSection}>
                               <Text style={styles.sectionTitle}>
@@ -1191,7 +1011,6 @@ export function CustomerSettings() {
                             </View>
                           )}
 
-                          {/* TDS Section */}
                           {customer.isTDSApplicable && customer.tdsSection && (
                             <View style={styles.tdsSection}>
                               <Percent size={14} color="#10b981" />
@@ -1227,7 +1046,6 @@ export function CustomerSettings() {
                     )}
                   </View>
 
-                  {/* Pagination */}
                   {totalPages > 1 && filteredCustomers.length > 0 && (
                     <View style={styles.pagination}>
                       <TouchableOpacity
@@ -1253,11 +1071,9 @@ export function CustomerSettings() {
                           Previous
                         </Text>
                       </TouchableOpacity>
-
                       <Text style={styles.pageInfo}>
                         Page {currentPage} of {totalPages}
                       </Text>
-
                       <TouchableOpacity
                         style={[
                           styles.pageButton,
@@ -1297,8 +1113,8 @@ export function CustomerSettings() {
                     Customer Management
                   </Text>
                   <Text style={styles.restrictedText}>
-                    You can create customers, but viewing existing customer
-                    details requires additional permissions.
+                    You can create customers, but viewing requires additional
+                    permissions.
                   </Text>
                 </View>
               ) : (
@@ -1328,7 +1144,7 @@ export function CustomerSettings() {
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.outlineButton}
-                        onPress={handleImportClick}
+                        onPress={() => setIsImportDialogOpen(true)}
                       >
                         <Upload size={20} color="#3b82f6" />
                         <Text style={styles.outlineButtonText}>
@@ -1343,27 +1159,7 @@ export function CustomerSettings() {
           )}
         </ScrollView>
 
-        {/* Customer Form Modal */}
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <DialogContent className="md:max-w-2xl max-w-sm grid-rows-[auto,1fr,auto] max-h-[90vh] p-0">
-            <DialogHeader className="p-6">
-              <DialogTitle>
-                {selectedCustomer ? 'Edit Customer' : 'Create New Customer'}
-              </DialogTitle>
-              <DialogDescription>
-                {selectedCustomer
-                  ? 'Update the details for this customer.'
-                  : 'Fill in the form to add a new customer.'}
-              </DialogDescription>
-            </DialogHeader>
-            <CustomerForm
-              customer={selectedCustomer || undefined}
-              onSuccess={handleFormSuccess}
-            />
-          </DialogContent>
-        </Dialog>
-
-        {/* Import Dialog Modal */}
+        {/* Import Modal */}
         <Modal
           visible={isImportDialogOpen}
           animationType="fade"
@@ -1383,7 +1179,6 @@ export function CustomerSettings() {
                   <X size={24} color="black" />
                 </TouchableOpacity>
               </View>
-
               {isImporting ? (
                 <View style={styles.importLoadingContainer}>
                   <ActivityIndicator size="large" color="#3b82f6" />
@@ -1430,7 +1225,6 @@ export function CustomerSettings() {
                   <Text style={styles.importDescription}>
                     Upload a CSV or Excel file containing customer data.
                   </Text>
-
                   <View style={styles.featureInfo}>
                     <Info size={16} color="#3b82f6" />
                     <Text style={styles.featureInfoText}>
@@ -1438,7 +1232,6 @@ export function CustomerSettings() {
                       skipped
                     </Text>
                   </View>
-
                   <TouchableOpacity
                     style={styles.uploadBox}
                     onPress={pickFileForImport}
@@ -1452,7 +1245,6 @@ export function CustomerSettings() {
                       Supports .xlsx, .xls, .csv files
                     </Text>
                   </TouchableOpacity>
-
                   <TouchableOpacity
                     style={styles.downloadTemplateBtn}
                     onPress={downloadTemplate}
@@ -1476,7 +1268,6 @@ export function CustomerSettings() {
                   <Text style={styles.templateHint}>
                     Download the template file to ensure proper formatting.
                   </Text>
-
                   <View style={styles.requirementsContainer}>
                     <Text style={styles.requirementsTitle}>
                       Important Notes:
@@ -1497,7 +1288,7 @@ export function CustomerSettings() {
           </View>
         </Modal>
 
-        {/* Delete Confirmation Alert */}
+        {/* Delete Confirmation */}
         <Modal visible={isAlertOpen} animationType="fade" transparent={true}>
           <View style={styles.modalOverlay}>
             <View style={styles.alertModalContainer}>
@@ -1523,30 +1314,23 @@ export function CustomerSettings() {
             </View>
           </View>
         </Modal>
+
+        <Toast />
       </View>
     </TouchableWithoutFeedback>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  scrollView: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: '#f8fafc' },
+  scrollView: { flex: 1 },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#6b7280',
-  },
+  loadingText: { marginTop: 12, fontSize: 16, color: '#6b7280' },
   noCompanyContainer: {
     flex: 1,
     padding: 16,
@@ -1565,9 +1349,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
-  cardContent: {
-    alignItems: 'center',
-  },
+  cardContent: { alignItems: 'center' },
   companyIconContainer: {
     width: 80,
     height: 80,
@@ -1591,11 +1373,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     lineHeight: 20,
   },
-  contactButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-  },
+  contactButtons: { flexDirection: 'row', gap: 12, width: '100%' },
   phoneButton: {
     flex: 1,
     flexDirection: 'row',
@@ -1620,49 +1398,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '500',
-    fontSize: 12,
-  },
-  emailButtonText: {
-    color: '#3b82f6',
-    fontWeight: '500',
-    fontSize: 12,
-  },
-  contentContainer: {
-    flex: 1,
-    // padding: 10,
-    paddingTop: 0,
-  },
+  buttonText: { color: '#fff', fontWeight: '500', fontSize: 12 },
+  emailButtonText: { color: '#3b82f6', fontWeight: '500', fontSize: 12 },
+  contentContainer: { flex: 1, paddingTop: 0 },
   topSection: {
     padding: 10,
     paddingBottom: 0,
     backgroundColor: '#FFFFFF',
     marginBottom: 12,
   },
-  header: {
-    marginBottom: 16,
-  },
-  headerText: {
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1f2937',
-    // marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 12,
-    color: '#6b7280',
-    lineHeight: 20,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
+  header: { marginBottom: 16 },
+  headerText: { marginBottom: 16 },
+  title: { fontSize: 16, fontWeight: '700', color: '#1f2937' },
+  subtitle: { fontSize: 12, color: '#6b7280', lineHeight: 20 },
+  headerButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   primaryButton: {
     flexDirection: 'row',
     backgroundColor: '#3b82f6',
@@ -1689,12 +1438,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 140,
   },
-  outlineButtonText: {
-    color: '#3b82f6',
-    fontWeight: '500',
-    fontSize: 12,
-  },
-  // Search Styles
+  outlineButtonText: { color: '#3b82f6', fontWeight: '500', fontSize: 12 },
   searchContainer: {
     marginBottom: 10,
     backgroundColor: '#fff',
@@ -1716,23 +1460,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     height: 40,
   },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 12,
-    color: '#1e293b',
-    paddingVertical: 0,
-  },
-  clearSearchBtn: {
-    padding: 4,
-  },
-  customerCount: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 8,
-  },
+  searchIcon: { marginRight: 8 },
+  searchInput: { flex: 1, fontSize: 12, color: '#1e293b', paddingVertical: 0 },
+  clearSearchBtn: { padding: 4 },
+  customerCount: { fontSize: 12, color: '#64748b', marginTop: 8 },
   clearSearchEmptyBtn: {
     marginTop: 12,
     paddingVertical: 8,
@@ -1740,11 +1471,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#3b82f6',
     borderRadius: 8,
   },
-  clearSearchEmptyText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  clearSearchEmptyText: { color: 'white', fontSize: 14, fontWeight: '600' },
   emptySearchContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1780,9 +1507,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  customerList: {
-    gap: 8,
-  },
+  customerList: { gap: 8 },
   customerCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -1800,31 +1525,21 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 16,
   },
-  customerInfo: {
-    flex: 1,
-  },
+  customerInfo: { flex: 1 },
   customerName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1f2937',
     marginBottom: 8,
   },
-  customerTags: {
-    flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
+  customerTags: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   gstTag: {
     backgroundColor: '#eff6ff',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
-  gstTagText: {
-    fontSize: 10,
-    color: '#3b82f6',
-    fontWeight: '500',
-  },
+  gstTagText: { fontSize: 10, color: '#3b82f6', fontWeight: '500' },
   tdsTag: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1833,21 +1548,10 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 6,
   },
-  tdsApplicable: {
-    backgroundColor: '#10b981',
-  },
-  tdsNotApplicable: {
-    backgroundColor: '#ef4444',
-  },
-  tdsTagText: {
-    fontSize: 10,
-    color: '#fff',
-    fontWeight: '500',
-  },
-  menuButton: {
-    padding: 8,
-    borderRadius: 8,
-  },
+  tdsApplicable: { backgroundColor: '#10b981' },
+  tdsNotApplicable: { backgroundColor: '#ef4444' },
+  tdsTagText: { fontSize: 10, color: '#fff', fontWeight: '500' },
+  menuButton: { padding: 8, borderRadius: 8 },
   dropdown: {
     position: 'absolute',
     top: 22,
@@ -1871,51 +1575,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     gap: 10,
   },
-  dropdownItemText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  dropdownItemTextDanger: {
-    color: '#ef4444',
-  },
-  dropdownDivider: {
-    height: 1,
-    backgroundColor: '#f1f5f9',
-  },
-  contactSection: {
-    gap: 8,
-    marginBottom: 12,
-  },
-  contactItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  contactText: {
-    fontSize: 12,
-    color: '#4b5563',
-  },
-  addressSection: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  addressTextContainer: {
-    flex: 1,
-  },
-  addressText: {
-    fontSize: 12,
-    color: '#4b5563',
-    marginBottom: 4,
-  },
-  locationText: {
-    fontSize: 10,
-    color: '#6b7280',
-  },
-  taxSection: {
-    marginBottom: 12,
-  },
+  dropdownItemText: { fontSize: 12, fontWeight: '600', color: '#334155' },
+  dropdownItemTextDanger: { color: '#ef4444' },
+  dropdownDivider: { height: 1, backgroundColor: '#f1f5f9' },
+  contactSection: { gap: 8, marginBottom: 12 },
+  contactItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  contactText: { fontSize: 12, color: '#4b5563' },
+  addressSection: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  addressTextContainer: { flex: 1 },
+  addressText: { fontSize: 12, color: '#4b5563', marginBottom: 4 },
+  locationText: { fontSize: 10, color: '#6b7280' },
+  taxSection: { marginBottom: 12 },
   sectionTitle: {
     fontSize: 12,
     fontWeight: '600',
@@ -1929,11 +1599,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 4,
   },
-  taxLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    minWidth: 40,
-  },
+  taxLabel: { fontSize: 12, color: '#6b7280', minWidth: 40 },
   taxValue: {
     fontSize: 12,
     color: '#4b5563',
@@ -1947,20 +1613,9 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 6,
   },
-  tdsInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  tdsSectionText: {
-    fontSize: 12,
-    color: '#065f46',
-    fontWeight: '500',
-  },
-  tdsRateText: {
-    fontSize: 12,
-    color: '#065f46',
-  },
+  tdsInfo: { flex: 1, flexDirection: 'row', justifyContent: 'space-between' },
+  tdsSectionText: { fontSize: 12, color: '#065f46', fontWeight: '500' },
+  tdsRateText: { fontSize: 12, color: '#065f46' },
   pagination: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1979,21 +1634,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d1d5db',
   },
-  pageButtonDisabled: {
-    opacity: 0.5,
-  },
-  pageButtonText: {
-    fontSize: 14,
-    color: '#3b82f6',
-    fontWeight: '500',
-  },
-  pageButtonTextDisabled: {
-    color: '#9ca3af',
-  },
-  pageInfo: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
+  pageButtonDisabled: { opacity: 0.5 },
+  pageButtonText: { fontSize: 14, color: '#3b82f6', fontWeight: '500' },
+  pageButtonTextDisabled: { color: '#9ca3af' },
+  pageInfo: { fontSize: 14, color: '#6b7280' },
   blurredContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -2050,15 +1694,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
-  importModalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1e293b',
-  },
-  importLoadingContainer: {
-    alignItems: 'center',
-    padding: 40,
-  },
+  importModalTitle: { fontSize: 18, fontWeight: '700', color: '#1e293b' },
+  importLoadingContainer: { alignItems: 'center', padding: 40 },
   importLoadingText: {
     fontSize: 16,
     color: '#333',
@@ -2081,20 +1718,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginTop: 10,
   },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#3b82f6',
-    borderRadius: 4,
-  },
-  progressPercentage: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 8,
-  },
-  importModalContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
+  progressFill: { height: '100%', backgroundColor: '#3b82f6', borderRadius: 4 },
+  progressPercentage: { fontSize: 14, color: '#666', marginTop: 8 },
+  importModalContent: { paddingHorizontal: 20, paddingVertical: 16 },
   importDescription: {
     fontSize: 14,
     color: '#64748b',
@@ -2110,12 +1736,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     gap: 8,
   },
-  featureInfoText: {
-    fontSize: 13,
-    color: '#1e40af',
-    flex: 1,
-    lineHeight: 18,
-  },
+  featureInfoText: { fontSize: 13, color: '#1e40af', flex: 1, lineHeight: 18 },
   uploadBox: {
     borderWidth: 2,
     borderStyle: 'dashed',
@@ -2133,11 +1754,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontWeight: '600',
   },
-  uploadSubText: {
-    fontSize: 13,
-    color: '#64748b',
-    textAlign: 'center',
-  },
+  uploadSubText: { fontSize: 13, color: '#64748b', textAlign: 'center' },
   downloadTemplateBtn: {
     borderWidth: 1,
     borderColor: '#3b82f6',
@@ -2180,11 +1797,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     marginLeft: 8,
   },
-  importStatusContainer: {
-    alignItems: 'center',
-    padding: 24,
-    maxHeight: '70vh',
-  },
+  importStatusContainer: { alignItems: 'center', padding: 24 },
   importStatusTitle: {
     fontSize: 20,
     fontWeight: 'bold',
@@ -2214,13 +1827,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#856404',
     marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
   },
-  skippedList: {
-    maxHeight: 100,
-  },
+  skippedList: { maxHeight: 100 },
   skippedItem: {
     fontSize: 12,
     color: '#856404',
@@ -2242,13 +1850,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#721c24',
     marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
   },
-  failedList: {
-    maxHeight: 100,
-  },
+  failedList: { maxHeight: 100 },
   failedItem: {
     fontSize: 12,
     color: '#721c24',
@@ -2262,17 +1865,12 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   closeImportBtn: {
-    backgroundColor: '#3b82f6',
     paddingHorizontal: 32,
     paddingVertical: 12,
     borderRadius: 8,
     marginTop: 24,
   },
-  closeImportBtnText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 16,
-  },
+  closeImportBtnText: { color: 'white', fontWeight: '600', fontSize: 16 },
   alertModalContainer: {
     width: '90%',
     maxWidth: 400,
@@ -2292,10 +1890,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     lineHeight: 20,
   },
-  alertModalButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
+  alertModalButtons: { flexDirection: 'row', gap: 12 },
   alertCancelButton: {
     flex: 1,
     paddingVertical: 12,
@@ -2303,11 +1898,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  alertCancelButtonText: {
-    fontSize: 14,
-    color: '#4b5563',
-    fontWeight: '500',
-  },
+  alertCancelButtonText: { fontSize: 14, color: '#4b5563', fontWeight: '500' },
   alertDeleteButton: {
     flex: 1,
     paddingVertical: 12,
@@ -2315,9 +1906,5 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  alertDeleteButtonText: {
-    fontSize: 14,
-    color: '#fff',
-    fontWeight: '500',
-  },
+  alertDeleteButtonText: { fontSize: 14, color: '#fff', fontWeight: '500' },
 });

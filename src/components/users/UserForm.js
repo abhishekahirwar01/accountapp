@@ -1,3 +1,4 @@
+// UserForm.js
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -10,12 +11,20 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  Platform,
+  StatusBar,
+  KeyboardAvoidingView,
+  Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from '../../config';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import IonIcon from 'react-native-vector-icons/Ionicons';
+import { useCompany } from '../../contexts/company-context';
 
-/* ----------------------------- Helpers ---------------------------- */
+const { height: SCREEN_H } = Dimensions.get('window');
+
 const isObjectId = s => typeof s === 'string' && /^[a-f0-9]{24}$/i.test(s);
 
 const mapExistingRoleToForm = (r, roles) => {
@@ -33,49 +42,54 @@ const DEFAULT_ROLES = [
   { _id: 'user', name: 'user' },
 ];
 
-export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
+const UserForm = ({ navigation, route }) => {
+  const user = route?.params?.user ?? null;
+  const { triggerCompaniesRefresh } = useCompany();
+
   const [roles] = useState(DEFAULT_ROLES);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [allCompanies, setAllCompanies] = useState([]);
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
   const [showCompanyModal, setShowCompanyModal] = useState(false);
   const [companySearch, setCompanySearch] = useState('');
-  
- 
   const [tempSelectedCompanies, setTempSelectedCompanies] = useState([]);
 
   const [formData, setFormData] = useState({
-    userName: '',
-    userId: '',
-    password: '',
-    email: '',
-    contactNumber: '',
-    address: '',
-    companies: [],
-    roleId: '',
+    userName: '', userId: '', password: '', email: '',
+    contactNumber: '', address: '', companies: [], roleId: '',
+  });
+  const [errors, setErrors] = useState({
+    userName: '', userId: '', password: '', email: '', contactNumber: '', roleId: '',
   });
 
-  
-  const [errors, setErrors] = useState({
-    userName: '',
-    userId: '',
-    password: '',
-    email: '',
-    contactNumber: '',
-    roleId: '',
-  });
+  useEffect(() => {
+    const fetch_ = async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) return;
+        const res = await fetch(`${BASE_URL}/api/companies/my`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setAllCompanies(Array.isArray(data) ? data : data?.data || []);
+      } catch (e) {
+        console.error('fetch companies', e);
+      } finally {
+        setIsLoadingCompanies(false);
+      }
+    };
+    fetch_();
+  }, []);
 
   useEffect(() => {
     if (user) {
       setFormData({
-        userName: user.userName || '',
-        userId: user.userId || '',
-        password: '',
-        contactNumber: user.contactNumber || '',
-        email: user.email || '',
+        userName: user.userName || '', userId: user.userId || '', password: '',
+        contactNumber: user.contactNumber || '', email: user.email || '',
         address: user.address || '',
         companies: Array.isArray(user.companies)
-          ? user.companies
-              .map(c => (typeof c === 'string' ? c : c?._id))
-              .filter(Boolean)
+          ? user.companies.map(c => (typeof c === 'string' ? c : c?._id)).filter(Boolean)
           : [],
         roleId: '',
       });
@@ -85,686 +99,428 @@ export const UserForm = ({ user, allCompanies, onSave, onCancel }) => {
   useEffect(() => {
     if (!user) {
       const def = roles.find(r => r.name === 'user') || roles[0];
-      setFormData(prev => ({ ...prev, roleId: def?._id }));
+      setFormData(p => ({ ...p, roleId: def?._id }));
     } else {
-      const coerced = mapExistingRoleToForm(user.role, roles);
-      const match = roles.find(r => r.name === coerced);
-      if (match) setFormData(prev => ({ ...prev, roleId: match._id }));
+      const match = roles.find(r => r.name === mapExistingRoleToForm(user.role, roles));
+      if (match) setFormData(p => ({ ...p, roleId: match._id }));
     }
   }, [roles, user]);
 
-  //  Open modal and initialize temp selection
   const handleOpenModal = () => {
     setTempSelectedCompanies([...formData.companies]);
     setShowCompanyModal(true);
   };
+  const handleToggleCompany = id =>
+    setTempSelectedCompanies(p => p.includes(id) ? p.filter(c => c !== id) : [...p, id]);
 
-  //  Toggle company in temporary selection
-  const handleToggleCompany = id => {
-    setTempSelectedCompanies(prev =>
-      prev.includes(id)
-        ? prev.filter(c => c !== id)
-        : [...prev, id]
-    );
+  const filteredCompanies = allCompanies.filter(c =>
+    c.businessName.toLowerCase().includes(companySearch.toLowerCase()));
+  const allFilteredSelected =
+    filteredCompanies.length > 0 && filteredCompanies.every(c => tempSelectedCompanies.includes(c._id));
+
+  const handleSelectAll = () => {
+    const ids = filteredCompanies.map(c => c._id);
+    const all = ids.every(id => tempSelectedCompanies.includes(id));
+    setTempSelectedCompanies(p => all ? p.filter(id => !ids.includes(id)) : [...new Set([...p, ...ids])]);
   };
-
-  //  Handle Select All / Deselect All (works on temp selection)
-  const handleSelectAllCompanies = () => {
-    const filteredIds = filteredCompanies.map(c => c._id);
-    const allSelected = filteredIds.every(id => tempSelectedCompanies.includes(id));
-    
-    if (allSelected) {
-      // Deselect all filtered companies
-      setTempSelectedCompanies(prev => prev.filter(id => !filteredIds.includes(id)));
-    } else {
-      // Select all filtered companies
-      const uniqueCompanies = [...new Set([...tempSelectedCompanies, ...filteredIds])];
-      setTempSelectedCompanies(uniqueCompanies);
-    }
-  };
-
-  //  Apply temp selection to formData when Done is clicked
-  const handleDoneSelection = () => {
-    setFormData(prev => ({
-      ...prev,
-      companies: [...tempSelectedCompanies],
-    }));
+  const handleDone = () => {
+    setFormData(p => ({ ...p, companies: [...tempSelectedCompanies] }));
     setShowCompanyModal(false);
     setCompanySearch('');
   };
-
-  //  Cancel and revert to original selection
-  const handleCancelSelection = () => {
+  const handleCancelModal = () => {
     setTempSelectedCompanies([...formData.companies]);
     setShowCompanyModal(false);
     setCompanySearch('');
   };
 
-  //  Validation Functions
-  const validateEmail = email => {
-    if (!email || email.trim() === '') {
-      return 'Email is required';
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      return 'Please enter a valid email address';
-    }
-    return '';
-  };
-
-  const validateContactNumber = number => {
-    if (!number || number.trim() === '') {
-      return 'Contact number is required';
-    }
-    const phoneRegex = /^[0-9]{10}$/;
-    if (!phoneRegex.test(number.trim())) {
-      return 'Contact number must be exactly 10 digits';
-    }
-    return '';
-  };
-
   const validateForm = () => {
-    const newErrors = {
-      userName: '',
-      userId: '',
-      password: '',
-      email: '',
-      contactNumber: '',
-      roleId: '',
-    };
-
-    let isValid = true;
-
-    // User Name validation
-    if (!formData.userName.trim()) {
-      newErrors.userName = 'User name is required';
-      isValid = false;
-    }
-
-    // User ID validation (only for new users)
-    if (!user && !formData.userId.trim()) {
-      newErrors.userId = 'User ID is required';
-      isValid = false;
-    }
-
-    // Password validation (only for new users)
-    if (!user && !formData.password.trim()) {
-      newErrors.password = 'Password is required';
-      isValid = false;
-    } else if (!user && formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-      isValid = false;
-    }
-
-    // Email validation (REQUIRED)
-    const emailError = validateEmail(formData.email);
-    if (emailError) {
-      newErrors.email = emailError;
-      isValid = false;
-    }
-
-    // Contact Number validation (REQUIRED)
-    const contactError = validateContactNumber(formData.contactNumber);
-    if (contactError) {
-      newErrors.contactNumber = contactError;
-      isValid = false;
-    }
-
-    // Role validation
-    if (!formData.roleId) {
-      newErrors.roleId = 'Role is required';
-      isValid = false;
-    }
-
-    setErrors(newErrors);
-    return isValid;
+    const e = { userName: '', userId: '', password: '', email: '', contactNumber: '', roleId: '' };
+    let ok = true;
+    if (!formData.userName.trim()) { e.userName = 'User name is required'; ok = false; }
+    if (!user && !formData.userId.trim()) { e.userId = 'User ID is required'; ok = false; }
+    if (!user && !formData.password.trim()) { e.password = 'Password is required'; ok = false; }
+    else if (!user && formData.password.length < 6) { e.password = 'Min 6 characters'; ok = false; }
+    if (!formData.email?.trim()) { e.email = 'Email is required'; ok = false; }
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) { e.email = 'Invalid email'; ok = false; }
+    if (!formData.contactNumber?.trim()) { e.contactNumber = 'Contact is required'; ok = false; }
+    else if (!/^[0-9]{10}$/.test(formData.contactNumber.trim())) { e.contactNumber = 'Must be 10 digits'; ok = false; }
+    if (!formData.roleId) { e.roleId = 'Role is required'; ok = false; }
+    setErrors(e);
+    return ok;
   };
 
-  //  Clear error when user starts typing
   const handleInputChange = (field, value) => {
-    setFormData({ ...formData, [field]: value });
-    // Clear error for this field
-    if (errors[field]) {
-      setErrors({ ...errors, [field]: '' });
-    }
+    setFormData(p => ({ ...p, [field]: value }));
+    if (errors[field]) setErrors(p => ({ ...p, [field]: '' }));
   };
 
-  //  Clear role error when a role is selected
-  const handleRoleSelect = (roleId) => {
-    setFormData({ ...formData, roleId });
-    if (errors.roleId) {
-      setErrors({ ...errors, roleId: '' });
-    }
-  };
-
-  const handleSubmit = () => {
-    // Validate form
-    if (!validateForm()) {
-      Alert.alert('Validation Error', 'Please fill all required fields before submitting');
-      return;
-    }
-
+  const handleSubmit = async () => {
+    if (!validateForm()) { Alert.alert('Validation Error', 'Please fill all required fields'); return; }
     const selectedRole = roles.find(r => r._id === formData.roleId);
     const payload = {
-      userName: formData.userName.trim(),
-      contactNumber: formData.contactNumber.trim(),
-      email: formData.email.trim(),
-      address: formData.address.trim(),
-      companies: formData.companies,
+      userName: formData.userName.trim(), contactNumber: formData.contactNumber.trim(),
+      email: formData.email.trim(), address: formData.address.trim(), companies: formData.companies,
       roleId: isObjectId(selectedRole?._id) ? selectedRole._id : undefined,
-      roleName: !isObjectId(selectedRole?._id)
-        ? selectedRole?.name
-        : undefined,
+      roleName: !isObjectId(selectedRole?._id) ? selectedRole?.name : undefined,
     };
-
     if (!user) payload.userId = formData.userId.trim();
     if (formData.password) payload.password = formData.password;
-
     setIsSubmitting(true);
-    onSave(payload)
-      .catch((error) => {
-        Alert.alert('Error', error.message || 'Failed to save user');
-      })
-      .finally(() => {
-        setIsSubmitting(false);
-      });
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) { Alert.alert('Error', 'Token not found'); return; }
+      const res = await fetch(
+        user ? `${BASE_URL}/api/users/${user._id}` : `${BASE_URL}/api/users`,
+        {
+          method: user ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(payload),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) { Alert.alert('Failed', data.message || 'Error'); return; }
+      if (payload.companies?.length) triggerCompaniesRefresh?.();
+      Alert.alert('Success', `User ${user ? 'updated' : 'created'}`, [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    } catch (e) {
+      Alert.alert('Error', e.message || 'Something went wrong');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const filteredCompanies = allCompanies.filter(c =>
-    c.businessName.toLowerCase().includes(companySearch.toLowerCase()),
-  );
-
-  //  Check if all filtered companies are selected (in temp selection)
-  const allFilteredSelected = filteredCompanies.length > 0 && 
-    filteredCompanies.every(c => tempSelectedCompanies.includes(c._id));
+  const ErrRow = ({ msg }) => msg ? (
+    <View style={styles.errorRow}>
+      <Icon name="alert-circle" size={13} color="#EF4444" />
+      <Text style={styles.error}>{msg}</Text>
+    </View>
+  ) : null;
 
   return (
-    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
-      <View style={styles.form}>
-        {/* User Name Field */}
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>
-            User Name <Text style={styles.required}>*</Text>
-          </Text>
-          <TextInput
-            style={[styles.input, errors.userName && styles.inputError]}
-            value={formData.userName}
-            onChangeText={t => handleInputChange('userName', t)}
-            placeholder="e.g. John Doe"
-          />
-          {errors.userName ? (
-            <View style={styles.errorContainer}>
-              <Icon name="alert-circle" size={14} color="#dc2626" />
-              <Text style={styles.errorText}>{errors.userName}</Text>
-            </View>
-          ) : null}
-        </View>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-        {/* User ID Field */}
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>
-            User ID {!user && <Text style={styles.required}>*</Text>}
-          </Text>
-          <TextInput
-            style={[
-              styles.input,
-              user && styles.disabledInput,
-              errors.userId && styles.inputError,
-            ]}
-            value={formData.userId}
-            editable={!user}
-            onChangeText={t => handleInputChange('userId', t)}
-            placeholder="Unique User ID"
-          />
-          {errors.userId ? (
-            <View style={styles.errorContainer}>
-              <Icon name="alert-circle" size={14} color="#dc2626" />
-              <Text style={styles.errorText}>{errors.userId}</Text>
-            </View>
-          ) : null}
-        </View>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <IonIcon name="arrow-back" size={22} color="#4F46E5" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{user ? 'Edit User' : 'Create New User'}</Text>
+        <View style={styles.backBtn} />
+      </View>
 
-        {/* Password Field (only for new users) */}
-        {!user && (
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>
-              Password <Text style={styles.required}>*</Text>
-            </Text>
-            <TextInput
-              style={[styles.input, errors.password && styles.inputError]}
-              secureTextEntry
-              value={formData.password}
-              onChangeText={t => handleInputChange('password', t)}
-              placeholder="Enter Password (min 6 characters)"
-            />
-            {errors.password ? (
-              <View style={styles.errorContainer}>
-                <Icon name="alert-circle" size={14} color="#dc2626" />
-                <Text style={styles.errorText}>{errors.password}</Text>
-              </View>
-            ) : null}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>User Name <Text style={styles.req}>*</Text></Text>
+            <TextInput style={[styles.input, errors.userName && styles.inputErr]}
+              placeholder="e.g. John Doe" placeholderTextColor="#9CA3AF"
+              value={formData.userName} onChangeText={t => handleInputChange('userName', t)} />
+            <ErrRow msg={errors.userName} />
           </View>
-        )}
 
-        {/* Contact Number Field */}
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>
-            Contact Number <Text style={styles.required}>*</Text>
-          </Text>
-          <TextInput
-            style={[styles.input, errors.contactNumber && styles.inputError]}
-            keyboardType="phone-pad"
-            value={formData.contactNumber}
-            onChangeText={t => handleInputChange('contactNumber', t)}
-            placeholder="9876543210"
-            maxLength={10}
-          />
-          {errors.contactNumber ? (
-            <View style={styles.errorContainer}>
-              <Icon name="alert-circle" size={14} color="#dc2626" />
-              <Text style={styles.errorText}>{errors.contactNumber}</Text>
-            </View>
-          ) : null}
-        </View>
-
-        {/* Email Field */}
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>
-            Email <Text style={styles.required}>*</Text>
-          </Text>
-          <TextInput
-            style={[styles.input, errors.email && styles.inputError]}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={formData.email}
-            onChangeText={t => handleInputChange('email', t)}
-            placeholder="user@example.com"
-          />
-          {errors.email ? (
-            <View style={styles.errorContainer}>
-              <Icon name="alert-circle" size={14} color="#dc2626" />
-              <Text style={styles.errorText}>{errors.email}</Text>
-            </View>
-          ) : null}
-        </View>
-
-        {/* Address Field */}
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Address</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            multiline
-            numberOfLines={2}
-            value={formData.address}
-            onChangeText={t => setFormData({ ...formData, address: t })}
-            placeholder="Full Address"
-          />
-        </View>
-
-        {/* Role Selection */}
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>
-            Role <Text style={styles.required}>*</Text>
-          </Text>
-          <View style={styles.radioGroup}>
-            {roles.map(r => (
-              <TouchableOpacity
-                key={r._id}
-                style={styles.roleItem}
-                onPress={() => handleRoleSelect(r._id)}
-              >
-                <View
-                  style={[
-                    styles.radioCircle,
-                    formData.roleId === r._id && styles.radioSelected,
-                  ]}
-                >
-                  {formData.roleId === r._id && (
-                    <View style={styles.radioInner} />
-                  )}
-                </View>
-                <Text style={styles.radioText}>{r.name}</Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.field}>
+            <Text style={styles.label}>User ID {!user && <Text style={styles.req}>*</Text>}</Text>
+            <TextInput style={[styles.input, user && styles.inputDisabled, errors.userId && styles.inputErr]}
+              placeholder="Unique User ID" placeholderTextColor="#9CA3AF"
+              value={formData.userId} editable={!user} onChangeText={t => handleInputChange('userId', t)} />
+            <ErrRow msg={errors.userId} />
           </View>
-          {errors.roleId ? (
-            <View style={styles.errorContainer}>
-              <Icon name="alert-circle" size={14} color="#dc2626" />
-              <Text style={styles.errorText}>{errors.roleId}</Text>
+
+          {!user && (
+            <View style={styles.field}>
+              <Text style={styles.label}>Password <Text style={styles.req}>*</Text></Text>
+              <TextInput style={[styles.input, errors.password && styles.inputErr]}
+                secureTextEntry placeholder="Min 6 characters" placeholderTextColor="#9CA3AF"
+                value={formData.password} onChangeText={t => handleInputChange('password', t)} />
+              <ErrRow msg={errors.password} />
             </View>
-          ) : null}
-        </View>
+          )}
 
-        {/* Companies Dropdown */}
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Companies Access</Text>
-          <TouchableOpacity
-            style={styles.dropdownTrigger}
-            onPress={handleOpenModal}
-          >
-            <Text style={styles.triggerText}>Select companies...</Text>
-            <Icon name="chevron-down" size={20} color="#15803d" />
-          </TouchableOpacity>
+          <View style={styles.row}>
+            <View style={[styles.field, { flex: 1 }]}>
+              <Text style={styles.label}>Contact No. <Text style={styles.req}>*</Text></Text>
+              <TextInput style={[styles.input, errors.contactNumber && styles.inputErr]}
+                keyboardType="phone-pad" placeholder="9876543210" placeholderTextColor="#9CA3AF"
+                value={formData.contactNumber} maxLength={10}
+                onChangeText={t => handleInputChange('contactNumber', t)} />
+              <ErrRow msg={errors.contactNumber} />
+            </View>
+            <View style={[styles.field, { flex: 1 }]}>
+              <Text style={styles.label}>Email <Text style={styles.req}>*</Text></Text>
+              <TextInput style={[styles.input, errors.email && styles.inputErr]}
+                autoCapitalize="none" keyboardType="email-address"
+                placeholder="user@example.com" placeholderTextColor="#9CA3AF"
+                value={formData.email} onChangeText={t => handleInputChange('email', t)} />
+              <ErrRow msg={errors.email} />
+            </View>
+          </View>
 
-          {/* Badges UI - shows actual selected companies */}
-          <View style={styles.badgeContainer}>
-            {formData.companies.map(id => {
-              const comp = allCompanies.find(c => c._id === id);
-              return comp ? (
-                <View key={id} style={styles.badge}>
-                  <Text style={styles.badgeText} numberOfLines={1}>
-                    {comp.businessName}
+          <View style={styles.field}>
+            <Text style={styles.label}>Address</Text>
+            <TextInput style={[styles.input, styles.textArea]} multiline numberOfLines={2}
+              placeholder="Full Address" placeholderTextColor="#9CA3AF"
+              value={formData.address} onChangeText={t => setFormData(p => ({ ...p, address: t }))} />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Role <Text style={styles.req}>*</Text></Text>
+            <View style={styles.roleRow}>
+              {roles.map(r => (
+                <TouchableOpacity key={r._id}
+                  style={[styles.roleChip, formData.roleId === r._id && styles.roleChipActive]}
+                  onPress={() => { setFormData(p => ({ ...p, roleId: r._id })); setErrors(p => ({ ...p, roleId: '' })); }}
+                  activeOpacity={0.75}>
+                  <View style={[styles.radio, formData.roleId === r._id && styles.radioOn]}>
+                    {formData.roleId === r._id && <View style={styles.radioDot} />}
+                  </View>
+                  <Text style={[styles.roleText, formData.roleId === r._id && styles.roleTextOn]}>
+                    {r.name.charAt(0).toUpperCase() + r.name.slice(1)}
                   </Text>
-                  <TouchableOpacity onPress={() => {
-                    setFormData(prev => ({
-                      ...prev,
-                      companies: prev.companies.filter(c => c !== id)
-                    }));
-                  }}>
-                    <Icon
-                      name="close-circle"
-                      size={16}
-                      color="#1d4ed8"
-                      style={{ marginLeft: 5 }}
-                    />
-                  </TouchableOpacity>
-                </View>
-              ) : null;
-            })}
-          </View>
-        </View>
-
-        {/* Overlay Modal for Companies */}
-        <Modal visible={showCompanyModal} transparent animationType="fade">
-          <Pressable
-            style={styles.modalOverlay}
-            onPress={handleCancelSelection}
-          >
-            <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Choose Companies</Text>
-                <TouchableOpacity onPress={handleCancelSelection}>
-                  <Icon name="close" size={24} color="#666" />
                 </TouchableOpacity>
-              </View>
-              
-              <View style={styles.searchContainer}>
-                <Icon name="magnify" size={20} color="#94a3b8" />
-                <TextInput
-                  placeholder="Search..."
-                  style={styles.searchBar}
-                  value={companySearch}
-                  onChangeText={setCompanySearch}
-                />
-              </View>
+              ))}
+            </View>
+            <ErrRow msg={errors.roleId} />
+          </View>
 
-              {/*  Select All Button with new icon */}
-              <TouchableOpacity
-                style={styles.selectAllBtn}
-                onPress={handleSelectAllCompanies}
-              >
-                <Icon 
-                  name={allFilteredSelected ? "check-all" : "checkbox-blank-outline"} 
-                  size={22} 
-                  color={allFilteredSelected ? "#2563eb" : "#64748b"} 
-                />
-                <Text style={[
-                  styles.selectAllText,
-                  allFilteredSelected && styles.selectAllTextActive
-                ]}>
-                  {allFilteredSelected ? 'Deselect All' : 'Select All'}
-                </Text>
+          <View style={styles.field}>
+            <Text style={styles.label}>Companies Access <Text style={styles.req}>*</Text></Text>
+            <TouchableOpacity style={styles.input} onPress={handleOpenModal} activeOpacity={0.7}>
+              {isLoadingCompanies
+                ? <ActivityIndicator size="small" color="#9CA3AF" />
+                : <Text style={[styles.inputText, !formData.companies.length && styles.placeholder]}>
+                    {formData.companies.length
+                      ? `${formData.companies.length} compan${formData.companies.length > 1 ? 'ies' : 'y'} selected`
+                      : 'Select companies...'}
+                  </Text>}
+              <Text style={styles.chevron}>⌄</Text>
+            </TouchableOpacity>
+            {formData.companies.length > 0 && (
+              <View style={styles.badges}>
+                {formData.companies.map(id => {
+                  const comp = allCompanies.find(c => c._id === id);
+                  return comp ? (
+                    <View key={id} style={styles.badge}>
+                      <Text style={styles.badgeText} numberOfLines={1}>{comp.businessName}</Text>
+                      <TouchableOpacity onPress={() => setFormData(p => ({ ...p, companies: p.companies.filter(c => c !== id) }))}>
+                        <Icon name="close-circle" size={16} color="#4F46E5" style={{ marginLeft: 5 }} />
+                      </TouchableOpacity>
+                    </View>
+                  ) : null;
+                })}
+              </View>
+            )}
+          </View>
+
+          <View style={{ height: 16 }} />
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <TouchableOpacity style={[styles.saveBtn, isSubmitting && { opacity: 0.6 }]}
+            onPress={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.saveBtnText}>{user ? 'Update User' : 'Create User'}</Text>}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+
+      
+      <Modal visible={showCompanyModal} transparent animationType="slide">
+        <Pressable style={styles.backdrop} onPress={handleCancelModal}>
+          <Pressable
+            style={styles.sheet}
+            onPress={e => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <View style={styles.handle} />
+
+            {/* Header */}
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Choose Companies</Text>
+              <TouchableOpacity onPress={handleCancelModal} style={styles.closeBtn}>
+                <Text style={styles.closeX}>✕</Text>
               </TouchableOpacity>
+            </View>
 
+            
+            <TextInput style={styles.search} placeholder="Search..."
+              placeholderTextColor="#9CA3AF" value={companySearch} onChangeText={setCompanySearch} />
+
+            
+            <TouchableOpacity style={styles.selectAll} onPress={handleSelectAll}>
+              <Icon name={allFilteredSelected ? 'check-all' : 'checkbox-blank-outline'}
+                size={20} color={allFilteredSelected ? '#4F46E5' : '#6B7280'} />
+              <Text style={[styles.selectAllText, allFilteredSelected && { color: '#4F46E5' }]}>
+                {allFilteredSelected ? 'Deselect All' : 'Select All'}
+              </Text>
+            </TouchableOpacity>
+
+            
+            {isLoadingCompanies ? (
+              <View style={styles.centerBox}>
+                <ActivityIndicator size="large" color="#4F46E5" />
+                <Text style={styles.centerText}>Loading...</Text>
+              </View>
+            ) : filteredCompanies.length === 0 ? (
+              <View style={styles.centerBox}>
+                <Text style={styles.centerText}>No companies found</Text>
+              </View>
+            ) : (
               <ScrollView
-                style={{ maxHeight: 300 }}
+                style={styles.list}
                 keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled={true}
               >
                 {filteredCompanies.map(c => {
-                  const isSelected = tempSelectedCompanies.includes(c._id);
+                  const sel = tempSelectedCompanies.includes(c._id);
                   return (
-                    <TouchableOpacity
-                      key={c._id}
-                      style={[
-                        styles.option,
-                        isSelected && styles.optionSelected,
-                      ]}
-                      onPress={() => handleToggleCompany(c._id)}
-                    >
-                      <Icon
-                        name={
-                          isSelected
-                            ? 'checkbox-marked-circle'
-                            : 'circle-outline'
-                        }
-                        size={22}
-                        color={isSelected ? '#22c55e' : '#cbd5e1'}
-                      />
-                      <Text
-                        style={[
-                          styles.optionText,
-                          isSelected && styles.optionTextActive,
-                        ]}
-                      >
+                    <TouchableOpacity key={c._id}
+                      style={[styles.listItem, sel && styles.listItemSel]}
+                      onPress={() => handleToggleCompany(c._id)}>
+                      <Icon name={sel ? 'checkbox-marked-circle' : 'circle-outline'}
+                        size={22} color={sel ? '#4F46E5' : '#D1D5DB'} />
+                      <Text style={[styles.listItemText, sel && styles.listItemTextSel]}>
                         {c.businessName}
                       </Text>
                     </TouchableOpacity>
                   );
                 })}
               </ScrollView>
-              
-              {/* Done Button */}
-              <TouchableOpacity
-                style={styles.doneBtn}
-                onPress={handleDoneSelection}
-              >
+            )}
+
+           
+            <View style={styles.sheetFooter}>
+              <TouchableOpacity style={styles.doneBtn} onPress={handleDone}>
                 <Text style={styles.doneBtnText}>Done</Text>
               </TouchableOpacity>
-            </Pressable>
+            </View>
           </Pressable>
-        </Modal>
-
-        {/* Action Buttons */}
-        <View style={styles.footer}>
-          <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.saveBtn, isSubmitting && { opacity: 0.7 }]}
-            onPress={handleSubmit}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.saveText}>{user ? 'Update' : 'Create'}</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
-    </ScrollView>
+        </Pressable>
+      </Modal>
+    </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-
-  form: { paddingTop: 5 },
-  fieldGroup: { marginBottom: 10 },
-
-  label: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#475569',
-    marginBottom: 6,
-    textTransform: 'uppercase',
-  },
-  required: {
-    color: '#dc2626',
-    fontSize: 14,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 8,
-    padding: 8,
-    fontSize: 14,
-    backgroundColor: '#f8fafc',
-    color: '#1e293b',
-  },
-  inputError: {
-    borderColor: '#dc2626',
-    borderWidth: 1,
-  },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-    gap: 4,
-  },
-  errorText: {
-    fontSize: 12,
-    color: '#dc2626',
-    fontWeight: '500',
-  },
-  textArea: { minHeight: 60, textAlignVertical: 'top' },
-  disabledInput: { backgroundColor: '#f1f5f9', color: '#94a3b8' },
-  radioGroup: { flexDirection: 'row', gap: 20, marginBottom: 4, marginTop: 4 },
-  roleItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  radioCircle: {
-    height: 20,
-    width: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#cbd5e1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioSelected: { borderColor: '#3b82f6' },
-  radioInner: {
-    height: 10,
-    width: 10,
-    borderRadius: 5,
-    backgroundColor: '#3b82f6',
-  },
-  radioText: { fontSize: 15, color: '#334155', textTransform: 'capitalize' },
-  dropdownTrigger: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 8,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
-  },
-  triggerText: { fontWeight: '600' },
-  badgeContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 12,
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#dbeafe',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  badgeText: {
-    fontSize: 12,
-    color: '#1d4ed8',
-    fontWeight: '600',
-    maxWidth: 150,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    elevation: 10,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 15,
-    alignItems: 'center',
-  },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1e293b' },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    marginBottom: 10,
-  },
-  searchBar: { flex: 1, padding: 8, fontSize: 14 },
-  //  Select All Button Styles
-  selectAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: '#f8fafc',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 10,
-  },
-  selectAllText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748b',
-  },
-  selectAllTextActive: {
-    color: '#2563eb',
-  },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-    gap: 10,
-  },
-  optionSelected: { backgroundColor: '#f0fdf4' },
-  optionText: { fontSize: 15, color: '#475569' },
-  optionTextActive: { color: '#15803d', fontWeight: '700' },
-  doneBtn: {
-    backgroundColor: '#3b82f6',
-    padding: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 15,
-  },
-  doneBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    // marginTop: 30,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-    paddingTop: 10,
-  },
-  cancelBtn: { padding: 12 },
-  cancelText: { color: '#64748b', fontWeight: '600' },
-  saveBtn: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderRadius: 10,
-    minWidth: 100,
-    alignItems: 'center',
-  },
-  saveText: { color: '#fff', fontWeight: 'bold' },
-});
-
 export default UserForm;
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: '#fff' },
+  header: {
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,
+    borderBottomWidth: 1, borderBottomColor: '#E5E7EB', backgroundColor: '#fff',
+  },
+  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, fontSize: 18, fontWeight: '700', color: '#1F2937', textAlign: 'center' },
+
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 12 },
+  field: { marginBottom: 20 },
+  row: { flexDirection: 'row', gap: 12 },
+
+  label: { fontSize: 13, fontWeight: '500', color: '#6B7280', marginBottom: 7 },
+  req: { color: '#EF4444' },
+
+  input: {
+    borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, backgroundColor: '#fff',
+    paddingHorizontal: 14, paddingVertical: 10,
+    fontSize: 15, color: '#111827', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  inputErr: { borderColor: '#EF4444' },
+  inputDisabled: { backgroundColor: '#F9FAFB' },
+  textArea: { minHeight: 70, textAlignVertical: 'top' },
+  inputText: { fontSize: 15, color: '#111827', flex: 1 },
+  placeholder: { color: '#9CA3AF' },
+  chevron: { fontSize: 16, color: '#6B7280' },
+
+  errorRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 5 },
+  error: { fontSize: 12, color: '#EF4444', fontWeight: '500' },
+
+  roleRow: { flexDirection: 'row', gap: 12 },
+  roleChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1,
+    borderColor: '#D1D5DB', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 11,
+  },
+  roleChipActive: { borderColor: '#4F46E5', backgroundColor: '#EEF2FF' },
+  radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#D1D5DB', alignItems: 'center', justifyContent: 'center' },
+  radioOn: { borderColor: '#4F46E5' },
+  radioDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#4F46E5' },
+  roleText: { fontSize: 14, color: '#6B7280', fontWeight: '500' },
+  roleTextOn: { color: '#4F46E5', fontWeight: '600' },
+
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  badge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EEF2FF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 },
+  badgeText: { fontSize: 12, color: '#4F46E5', fontWeight: '600', maxWidth: 150 },
+
+  footer: {
+    paddingHorizontal: 16, paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 10 : 16,
+    borderTopWidth: 1, borderTopColor: '#E5E7EB', backgroundColor: '#fff',
+  },
+  saveBtn: { backgroundColor: '#4F46E5', borderRadius: 10, paddingVertical: 16, alignItems: 'center' },
+  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
+  // ── Modal ──
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+
+  sheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    height: SCREEN_H * 0.75,        
+    overflow: 'hidden',
+  },
+
+  handle: { width: 38, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB', alignSelf: 'center', marginTop: 10 },
+
+  sheetHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+  },
+  sheetTitle: { fontSize: 16, fontWeight: '600', color: '#1F2937' },
+  closeBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
+  closeX: { fontSize: 13, color: '#6B7280', fontWeight: '600' },
+
+  search: {
+    margin: 12, paddingHorizontal: 14, paddingVertical: 11,
+    borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8,
+    fontSize: 15, color: '#111827', backgroundColor: '#F9FAFB',
+  },
+
+  selectAll: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginHorizontal: 12, marginBottom: 8, paddingVertical: 10, paddingHorizontal: 12,
+    backgroundColor: '#F9FAFB', borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB',
+  },
+  selectAllText: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
+
+  
+  list: { height: SCREEN_H * 0.33 },
+
+  centerBox: { height: SCREEN_H * 0.2, alignItems: 'center', justifyContent: 'center' },
+  centerText: { fontSize: 14, color: '#9CA3AF', marginTop: 8 },
+
+  listItem: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 20, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+  },
+  listItemSel: { backgroundColor: '#F5F3FF' },
+  listItemText: { fontSize: 15, color: '#374151' },
+  listItemTextSel: { color: '#4F46E5', fontWeight: '600' },
+
+  sheetFooter: {
+    paddingHorizontal: 16, paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 14,
+    borderTopWidth: 1, borderTopColor: '#F0F0F0',
+  },
+  doneBtn: {
+    backgroundColor: '#4F46E5', borderRadius: 10,
+    paddingVertical: 15, alignItems: 'center',
+  },
+  doneBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+});

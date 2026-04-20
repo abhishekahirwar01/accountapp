@@ -19,7 +19,7 @@ export function NotificationsTab() {
         {/* Card Header */}
         <View style={styles.cardHeader}>
           <View style={styles.headerIcon}>
-            <Icon name="bell" size={24} color="#3b82f6" />
+            <Icon name="bell" size={24} color="#8b77ff" />
           </View>
           <View style={styles.headerContent}>
             <Text style={styles.cardTitle}>Notification Settings</Text>
@@ -42,7 +42,7 @@ export function NotificationsTab() {
             <RNSwitch
               value={invoiceEmails}
               onValueChange={setInvoiceEmails}
-              trackColor={{ false: '#d1d5db', true: '#3b82f6' }}
+              trackColor={{ false: '#d1d5db', true: '#8b77ff' }}
               thumbColor="#ffffff"
               ios_backgroundColor="#d1d5db"
             />
@@ -62,7 +62,7 @@ export function NotificationsTab() {
             <RNSwitch
               value={monthlyReports}
               onValueChange={setMonthlyReports}
-              trackColor={{ false: '#d1d5db', true: '#3b82f6' }}
+              trackColor={{ false: '#d1d5db', true: '#8b77ff' }}
               thumbColor="#ffffff"
               ios_backgroundColor="#d1d5db"
             />
@@ -82,7 +82,7 @@ export function NotificationsTab() {
             <RNSwitch
               value={securityAlerts}
               onValueChange={setSecurityAlerts}
-              trackColor={{ false: '#d1d5db', true: '#3b82f6' }}
+              trackColor={{ false: '#d1d5db', true: '#8b77ff' }}
               thumbColor="#ffffff"
               ios_backgroundColor="#d1d5db"
             />
@@ -96,17 +96,13 @@ export function NotificationsTab() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f7f9ff',
   },
   card: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
     margin: 12,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    boxShadow:"0px 2px 4px rgba(0, 0, 0, 0.05)"
   },
   cardHeader: {
     flexDirection: 'row',

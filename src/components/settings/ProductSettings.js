@@ -39,6 +39,7 @@ import axios from 'axios';
 
 // Custom Components
 import ProductForm from '../products/ProductForm';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import ExcelImportExport from '../ui/ExcelImportExport';
 import { BASE_URL } from '../../config';
 import CheckBox from '@react-native-community/checkbox';
@@ -56,7 +57,6 @@ export default function ProductSettings() {
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isFormOpen, setIsFormOpen] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [productToDelete, setProductToDelete] = useState(null);
@@ -65,6 +65,7 @@ export default function ProductSettings() {
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
   const [openNameDialog, setOpenNameDialog] = useState(null);
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  const navigation = useNavigation();
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -165,29 +166,30 @@ export default function ProductSettings() {
     refetchAccountPermissions,
   ]);
 
-  useEffect(() => {
-    fetchCompanies();
-    fetchProducts();
-  }, [fetchCompanies, fetchProducts]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchProducts();
+      fetchCompanies();
+    }, [fetchProducts, fetchCompanies]),
+  );
 
   const handleOpenForm = (product = null) => {
-    setSelectedProduct(product);
-    setIsFormOpen(true);
+    navigation.navigate('ProductForm', {
+      product,
+    });
   };
-
+ 
   const handleOpenDeleteDialog = product => {
     setProductToDelete(product);
     setIsAlertOpen(true);
   };
 
   const handleFormSuccess = () => {
-    setIsFormOpen(false);
     fetchProducts();
-    const action = selectedProduct ? 'updated' : 'created';
     Toast.show({
       type: 'success',
-      text1: `Item ${action} successfully`,
-      text2: `The item details have been ${action}.`,
+      text1: `Item saved successfully`,
+      text2: `The item details have been saved.`,
     });
     setSelectedProduct(null);
   };
@@ -332,7 +334,11 @@ export default function ProductSettings() {
     return (
       <TouchableOpacity
         style={styles.productCard}
-        onPress={() => role === 'user' ? handleOpenForm(product) : setOpenNameDialog(product.name)}
+        onPress={() =>
+          role === 'user'
+            ? handleOpenForm(product)
+            : setOpenNameDialog(product.name)
+        }
         activeOpacity={0.7}
       >
         {/* Compact Header Row */}
@@ -345,12 +351,12 @@ export default function ProductSettings() {
                 style={styles.checkbox}
               />
             )} */}
-            
+
             <View style={styles.iconBadge}>
               {product.type === 'service' ? (
                 <Server size={14} color="#8b5cf6" />
               ) : (
-                <Package size={14} color="#3b82f6" />
+                <Package size={14} color="#8b77ff" />
               )}
             </View>
 
@@ -376,7 +382,7 @@ export default function ProductSettings() {
           {role !== 'user' && (
             <TouchableOpacity
               style={styles.moreButton}
-              onPress={(e) => {
+              onPress={e => {
                 e.stopPropagation();
                 setOpenDropdownId(
                   openDropdownId === product._id ? null : product._id,
@@ -396,7 +402,7 @@ export default function ProductSettings() {
                 style={styles.dropdownItem}
                 onPress={() => handleEditProduct(product)}
               >
-                <Edit2 size={14} color="#3b82f6" />
+                <Edit2 size={14} color="#8b77ff" />
                 <Text style={styles.dropdownItemText}>Edit</Text>
               </TouchableOpacity>
             </View>
@@ -472,7 +478,7 @@ export default function ProductSettings() {
               {product.hsn ? product.hsn : 'N/A'}
             </Text>
           </View>
-          
+
           <View style={styles.dateRow}>
             <Calendar size={10} color="#9ca3af" />
             <Text style={styles.dateText}>
@@ -489,7 +495,7 @@ export default function ProductSettings() {
   if (isLoadingCompanies) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#3b82f6" />
+        <ActivityIndicator size="large" color="#8b77ff" />
       </View>
     );
   }
@@ -499,7 +505,7 @@ export default function ProductSettings() {
       <ScrollView contentContainerStyle={styles.centerContainer}>
         <View style={styles.noCompanyCard}>
           <View style={styles.noCompanyIcon}>
-            <Building size={32} color="#3b82f6" />
+            <Building size={32} color="#8b77ff" />
           </View>
 
           <Text style={styles.noCompanyTitle}>Company Setup Required</Text>
@@ -520,7 +526,7 @@ export default function ProductSettings() {
               style={styles.emailButton}
               onPress={() => Linking.openURL('mailto:support@company.com')}
             >
-              <Mail size={20} color="#3b82f6" />
+              <Mail size={20} color="#8b77ff" />
               <Text style={styles.emailButtonText}>Email Us</Text>
             </TouchableOpacity>
           </View>
@@ -543,7 +549,7 @@ export default function ProductSettings() {
               {/* Compact Header */}
               <View style={styles.header}>
                 <View style={styles.headerLeft}>
-                  <Text style={styles.title}>Products & Services</Text>
+                  <Text style={styles.title}>Products</Text>
                   <Text style={styles.description}>
                     {products.length} item{products.length !== 1 ? 's' : ''}
                   </Text>
@@ -612,7 +618,7 @@ export default function ProductSettings() {
               {/* Content */}
               {isLoading ? (
                 <View style={styles.centerContainer}>
-                  <ActivityIndicator size="large" color="#3b82f6" />
+                  <ActivityIndicator size="large" color="#8b77ff" />
                 </View>
               ) : products.length > 0 ? (
                 <>
@@ -688,31 +694,7 @@ export default function ProductSettings() {
               )}
             </View>
 
-            {/* Product Form Modal */}
-            <Dialog
-              open={isFormOpen}
-              onOpenChange={isOpen => {
-                if (!isOpen) setSelectedProduct(null);
-                setIsFormOpen(isOpen);
-              }}
-            >
-              <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>
-                    {selectedProduct ? 'Edit Product' : 'Create New Product'}
-                  </DialogTitle>
-                  <DialogDescription>
-                    {selectedProduct
-                      ? 'Update the details for this item.'
-                      : 'Fill in the form to add a new product or service.'}
-                  </DialogDescription>
-                </DialogHeader>
-                <ProductForm
-                  product={selectedProduct || undefined}
-                  onSuccess={handleFormSuccess}
-                />
-              </DialogContent>
-            </Dialog>
+            {/* Product Form is now opened via navigation, not as a dialog/modal */}
 
             {/* Delete Confirmation Dialog */}
             <Dialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
@@ -764,7 +746,7 @@ export default function ProductSettings() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#f7f9ff',
   },
   centerContainer: {
     flex: 1,
@@ -773,7 +755,6 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   card: {
-    backgroundColor: 'white',
     borderRadius: 8,
     // margin: 12,
     padding: 12,
@@ -782,8 +763,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
+     backgroundColor: '#f7f9ff',
   },
-  
+
   // Compact Header
   header: {
     flexDirection: 'row',
@@ -814,7 +796,7 @@ const styles = StyleSheet.create({
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#8b77ff',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 6,
@@ -831,13 +813,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   productCard: {
-    backgroundColor: '#fafafa',
+    backgroundColor: '#ffffff',
     borderRadius: 8,
     padding: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    // borderWidth: 1,
+    // borderColor: '#e5e7eb',
   },
-  
+
   // Card Header (Name + Actions)
   cardHeader: {
     flexDirection: 'row',
@@ -872,7 +854,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   productName: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: '#111827',
     flex: 1,
@@ -891,13 +873,13 @@ const styles = StyleSheet.create({
     color: '#8b5cf6',
   },
   companyName: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#6b7280',
   },
   moreButton: {
     padding: 4,
   },
-  
+
   // Dropdown
   dropdown: {
     position: 'absolute',
@@ -931,7 +913,7 @@ const styles = StyleSheet.create({
   // Compact Info Row (4 columns)
   infoRow: {
     flexDirection: 'row',
-    backgroundColor: 'white',
+    backgroundColor: '#faf8ff',
     borderRadius: 6,
     padding: 8,
     marginBottom: 8,
@@ -942,13 +924,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   infoLabel: {
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '500',
     color: '#6b7280',
     marginBottom: 4,
   },
   infoValue: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     color: '#374151',
   },
@@ -963,11 +945,11 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   stockValue: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
   },
   priceValue: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '600',
     color: '#059669',
   },
@@ -1024,7 +1006,7 @@ const styles = StyleSheet.create({
   emptyAddButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#8b77ff',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 6,
@@ -1103,7 +1085,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#8b77ff',
     paddingVertical: 12,
     borderRadius: 8,
     gap: 10,
@@ -1118,13 +1100,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#3b82f6',
+    borderColor: '#8b77ff',
     paddingVertical: 12,
     borderRadius: 8,
     gap: 10,
   },
   emailButtonText: {
-    color: '#3b82f6',
+    color: '#8b77ff',
     fontWeight: '500',
     fontSize: 14,
   },

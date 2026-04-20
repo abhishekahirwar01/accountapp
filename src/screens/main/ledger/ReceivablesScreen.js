@@ -1589,6 +1589,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
+    marginBottom: 80,
   },
   header: {
     backgroundColor: '#FFFFFF',

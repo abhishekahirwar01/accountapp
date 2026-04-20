@@ -38,7 +38,7 @@ const CompanyCard = React.memo(
         <View style={styles.cardHeader}>
           <View style={styles.companyInfo}>
             <View style={styles.iconContainer}>
-              <Building size={18} color="#007AFF" />
+              <Building size={18} color="#8b77ff" />
             </View>
             <View style={styles.companyTextContainer}>
               <Text style={styles.businessName} numberOfLines={1}>
@@ -545,6 +545,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
+    marginBottom: 50,
   },
   header: {
     flexDirection: 'row',
@@ -578,13 +579,13 @@ const styles = StyleSheet.create({
   addCompanyButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#007AFF',
+    backgroundColor: '#8b77ff',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
     gap: 8,
     elevation: 4,
-    shadowColor: '#007AFF',
+    shadowColor: '#8b77ff', 
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
@@ -596,6 +597,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    marginBottom: 40,
   },
   loadingContainer: {
     flex: 1,
@@ -641,7 +643,7 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     padding: 8,
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    backgroundColor: '#f3f1ff',
     borderRadius: 8,
   },
   businessName: {

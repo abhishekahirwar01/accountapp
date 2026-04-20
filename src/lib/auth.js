@@ -98,6 +98,12 @@ export const loginClient = async (clientUsername, password) => {
       name: data.client.contactName,
       username: data.client.clientUsername,
       email: data.client.email,
+      phone:
+        data.client.phone ||
+        data.client.mobileNumber ||
+        data.client.mobile ||
+        data.client.phoneNumber ||
+        data.client.contactPhone,
       role: 'customer',
       token: data.token,
       slug: data.client.slug,
@@ -130,6 +136,12 @@ export const loginClientBySlug = async (clientUsername, password) => {
       name: data.client.contactName,
       username: data.client.clientUsername,
       email: data.client.email,
+      phone:
+        data.client.phone ||
+        data.client.mobileNumber ||
+        data.client.mobile ||
+        data.client.phoneNumber ||
+        data.client.contactPhone,
       role: 'customer',
       token: data.token,
       slug: data.client.slug,
@@ -170,6 +182,12 @@ export const loginClientWithOtp = async (clientUsername, otp) => {
       name: data.client.contactName,
       username: data.client.clientUsername,
       email: data.client.email,
+      phone:
+        data.client.phone ||
+        data.client.mobileNumber ||
+        data.client.mobile ||
+        data.client.phoneNumber ||
+        data.client.contactPhone,
       role: 'customer',
       token: data.token,
       slug: data.client.slug,

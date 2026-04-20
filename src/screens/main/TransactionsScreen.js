@@ -27,7 +27,7 @@ import {
   TextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { FileText, PlusCircle, Package, X } from 'lucide-react-native';
+import { FileText, Package, X } from 'lucide-react-native';
 import RNFS from 'react-native-fs';
 import Pdf from 'react-native-pdf';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -35,6 +35,7 @@ import { useCompany } from '../../contexts/company-context';
 import { useToast } from '../../components/hooks/useToast';
 import { usePermissions } from '../../contexts/permission-context';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
+import { Animated } from 'react-native';
 
 // Icons
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -43,9 +44,10 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 
 // Custom components
 import DataTable from '../../components/transactions/DataTable';
-import { TransactionForm } from '../../components/transactions/TransactionForm';
+// Transaction form is now accessed via navigation; no direct import needed
 import ProformaForm from '../../components/transactions/ProformaForm';
 import InvoicePreview from '../../components/invoices/InvoicePreview';
+import { useAllTransactions } from '../../components/hooks/useAllTransactions';
 import {
   columns,
   useColumns,
@@ -57,6 +59,8 @@ import {
   MobileTableSkeleton,
 } from '../../components/transactions/transaction-form/table-skeleton';
 import { BASE_URL } from '../../config';
+import PlusButton from '../../components/ui/PlusButton';
+import FabMenu from '../../components/ui/FabMenu';
 
 const { width, height } = Dimensions.get('window');
 
@@ -91,12 +95,23 @@ const LoadingSkeleton = ({ isMobile = false }) => {
 
 const TransactionsScreen = ({ navigation }) => {
   const { width: windowWidth } = useWindowDimensions();
-  // Reduce title sizes so it fits on one line with buttons
+
   const largeTitleFontSize =
     windowWidth < 360 ? 18 : windowWidth < 400 ? 20 : 20;
   const subtitleFontSize = windowWidth < 360 ? 10 : 10;
+
+  const plusButtonRef = useRef(null);
+  const [fabAnchor, setFabAnchor] = useState(null);
+  const [fabOpen, setFabOpen] = useState(false);
+
+  const handleOpenFabMenu = () => {
+    plusButtonRef.current?.measureInWindow((x, y, w, h) => {
+      setFabAnchor({ x, y, width: w, height: h });
+      setFabOpen(true);
+    });
+  };
+
   // State
-  const [isFormOpen, setIsFormOpen] = useState(false);
   const [isProformaFormOpen, setIsProformaFormOpen] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [isItemsDialogOpen, setIsItemsDialogOpen] = useState(false);
@@ -107,9 +122,6 @@ const TransactionsScreen = ({ navigation }) => {
   const [mobileContentWidth, setMobileContentWidth] = useState(0);
   const [mobileContainerWidth, setMobileContainerWidth] = useState(0);
 
-  // Since chevrons are absolute overlays at the edges, treat the visible
-  // area as the full container width. Show left arrow when scrolled > 5px.
-  // Show right arrow only when there is remaining content to the right.
   const innerContainerWidth = mobileContainerWidth || 0;
   const EDGE_THRESHOLD = 8;
   const showLeftArrow = mobileScrollX > EDGE_THRESHOLD;
@@ -133,6 +145,8 @@ const TransactionsScreen = ({ navigation }) => {
   const [transactionToEdit, setTransactionToEdit] = useState(null);
 
   const [itemsToView, setItemsToView] = useState([]);
+  const [tabWidths, setTabWidths] = useState({});
+  const [tabOffsets, setTabOffsets] = useState({});
 
   const [activeTab, setActiveTab] = useState(TABS.ALL);
   const [vendors, setVendors] = useState([]);
@@ -150,8 +164,7 @@ const TransactionsScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
 
-  const [defaultTransactionType, setDefaultTransactionType] = useState(null);
-  const [prefillFromTransaction, setPrefillFromTransaction] = useState(null);
+  // transaction-specific parameters are supplied via navigation params now
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [filter, setFilter] = useState('');
   const [visibleCount, setVisibleCount] = useState(20);
@@ -162,6 +175,11 @@ const TransactionsScreen = ({ navigation }) => {
   const [emailDialogMessage, setEmailDialogMessage] = useState('');
   const [emailDialogTitle, setEmailDialogTitle] = useState('');
   const [isGmailNotConnected, setIsGmailNotConnected] = useState(false);
+
+  const tabUnderlineAnim = useRef(new Animated.Value(0)).current;
+  const tabWidthsRef = useRef({});
+  const tabOffsetsRef = useRef({});
+  const [tabLayoutsReady, setTabLayoutsReady] = useState(false);
 
   // Hooks
   const { selectedCompanyId, triggerCompaniesRefresh } = useCompany();
@@ -194,6 +212,16 @@ const TransactionsScreen = ({ navigation }) => {
   }, [canSales, canPurchases, canReceipt, canPayment, canJournal]);
 
   const canCreateAny = allowedTypes.length > 0;
+
+  const {
+    data: allTransactionsData,
+    isLoading: isAllTransactionsLoading,
+    refetch: refetchAllTransactions,
+  } = useAllTransactions(
+    selectedCompanyId,
+    dateRange,
+    activeTab === TABS.ALL, // sirf All tab active ho tab hi fetch hoga
+  );
 
   // Tab to form type mapping
   const tabToFormType = tab => {
@@ -476,6 +504,29 @@ const TransactionsScreen = ({ navigation }) => {
     fetchTransactions();
   }, [fetchTransactions]);
 
+  // whenever this screen regains focus (e.g. after closing the form)
+  // refresh the list so we always show any newly saved transaction
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchTransactions();
+      setRefreshTrigger(prev => prev + 1);
+    });
+    return unsubscribe;
+  }, [navigation, fetchTransactions]);
+
+  useEffect(() => {
+    const targetOffset = tabOffsetsRef.current[activeTab];
+    const targetWidth = tabWidthsRef.current[activeTab];
+    if (targetOffset !== undefined) {
+      Animated.spring(tabUnderlineAnim, {
+        toValue: targetOffset,
+        useNativeDriver: true,
+        tension: 68,
+        friction: 10,
+      }).start();
+    }
+  }, [activeTab, tabLayoutsReady]);
+
   // Data processing
   const productNameById = useMemo(() => {
     const map = new Map();
@@ -639,7 +690,9 @@ const TransactionsScreen = ({ navigation }) => {
   const getCurrentSearchedData = useCallback(() => {
     switch (activeTab) {
       case TABS.ALL:
-        return searchedAll;
+        return filter
+          ? allTransactionsData.filter(item => customFilterFn(item, filter))
+          : allTransactionsData;
       case TABS.SALES:
         return searchedSales;
       case TABS.PURCHASES:
@@ -653,11 +706,15 @@ const TransactionsScreen = ({ navigation }) => {
       case TABS.JOURNALS:
         return searchedJournals;
       default:
-        return searchedAll;
+        return filter
+          ? allTransactionsData.filter(item => customFilterFn(item, filter))
+          : allTransactionsData;
     }
   }, [
     activeTab,
-    searchedAll,
+    allTransactionsData,
+    filter,
+    customFilterFn,
     searchedSales,
     searchedPurchases,
     searchedProforma,
@@ -677,7 +734,7 @@ const TransactionsScreen = ({ navigation }) => {
   const getCurrentData = () => {
     switch (activeTab) {
       case TABS.ALL:
-        return allVisibleTransactions;
+        return allTransactionsData;
       case TABS.SALES:
         return filteredSales;
       case TABS.PURCHASES:
@@ -691,7 +748,7 @@ const TransactionsScreen = ({ navigation }) => {
       case TABS.JOURNALS:
         return filteredJournals;
       default:
-        return allVisibleTransactions;
+        return allTransactionsData;
     }
   };
 
@@ -942,9 +999,15 @@ const TransactionsScreen = ({ navigation }) => {
 
   // Event handlers
   const handleOpenForm = (transaction = null, type = null) => {
-    setTransactionToEdit(transaction);
-    setDefaultTransactionType(type);
-    setIsFormOpen(true);
+    // push a new screen instead of opening an in‑component modal
+    navigation.navigate('TransactionForm', {
+      transactionToEdit: transaction,
+      defaultType:
+        type || tabToFormType(activeTab) || allowedTypes[0] || 'sales',
+      serviceNameById: serviceNameById
+        ? Object.fromEntries(serviceNameById)
+        : {},
+    });
   };
 
   const handleOpenDeleteDialog = transaction => {
@@ -996,19 +1059,19 @@ const TransactionsScreen = ({ navigation }) => {
     const svcArr = Array.isArray(tx.services)
       ? tx.services
       : Array.isArray(tx.service)
-        ? tx.service
-        : tx.services
-          ? [tx.services]
-          : [];
+      ? tx.service
+      : tx.services
+      ? [tx.services]
+      : [];
 
     const svcs = svcArr.map(s => {
       const id =
         s.service && typeof s.service === 'object'
           ? s.service._id
-          : (s.service ??
+          : s.service ??
             (s.serviceName && typeof s.serviceName === 'object'
               ? s.serviceName._id
-              : s.serviceName));
+              : s.serviceName);
 
       const name =
         (id && serviceNameById.get(String(id))) ||
@@ -1135,7 +1198,6 @@ const TransactionsScreen = ({ navigation }) => {
       }
 
       // Fetch complete party details
-
       const partyRes = await fetch(`${BASE_URL}/api/parties/${partyId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1167,7 +1229,6 @@ const TransactionsScreen = ({ navigation }) => {
       }
 
       // Fetch company details
-
       const companyRes = await fetch(`${BASE_URL}/api/companies/${companyId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1179,7 +1240,6 @@ const TransactionsScreen = ({ navigation }) => {
       const companyToUse = await companyRes.json();
 
       // Generate PDF using template1
-
       const pdfResult = await generatePdfForTemplate1(
         tx,
         companyToUse || null,
@@ -1321,6 +1381,15 @@ const TransactionsScreen = ({ navigation }) => {
 </view>`;
   };
 
+  const handleTabLayout = (tab, event) => {
+    const { x, width } = event.nativeEvent.layout;
+    tabWidthsRef.current[tab] = width;
+    tabOffsetsRef.current[tab] = x;
+    setTabWidths(prev => ({ ...prev, [tab]: width }));
+    setTabOffsets(prev => ({ ...prev, [tab]: x }));
+    setTabLayoutsReady(true);
+  };
+
   const handleTabChange = tab => {
     setActiveTab(tab);
     setVisibleCount(20);
@@ -1356,10 +1425,13 @@ const TransactionsScreen = ({ navigation }) => {
       serviceNameById: serviceNameById,
       userRole: role,
       onConvertToSales: transaction => {
-        setTransactionToEdit(null);
-        setDefaultTransactionType('sales');
-        setIsFormOpen(true);
-        setPrefillFromTransaction(transaction);
+        navigation.navigate('TransactionForm', {
+          defaultType: 'sales',
+          prefillFrom: transaction,
+          serviceNameById: serviceNameById
+            ? Object.fromEntries(serviceNameById)
+            : {},
+        });
       },
       parties: parties,
     });
@@ -1392,11 +1464,15 @@ const TransactionsScreen = ({ navigation }) => {
     onSendInvoice: handleSendInvoice,
     userRole: role || undefined,
     onConvertToSales: transaction => {
-      setTransactionToEdit(null);
-      setDefaultTransactionType('sales');
-      setIsFormOpen(true);
-      setPrefillFromTransaction(transaction);
+      navigation.navigate('TransactionForm', {
+        defaultType: 'sales',
+        prefillFrom: transaction,
+        serviceNameById: serviceNameById
+          ? Object.fromEntries(serviceNameById)
+          : {},
+      });
     },
+
     parties: parties,
   });
 
@@ -1426,14 +1502,15 @@ const TransactionsScreen = ({ navigation }) => {
     return (
       <TouchableOpacity
         key={tab}
-        style={[styles.tabButton, isActive && styles.activeTabButton]}
+        style={styles.tabButton}
         onPress={() => handleTabChange(tab)}
+        onLayout={e => handleTabLayout(tab, e)}
         activeOpacity={0.7}
       >
         <Feather
           name={getTabIcon(tab)}
           size={14}
-          color={isActive ? '#ffffff' : '#4b5563'}
+          color={isActive ? '#7C6FF7' : '#4b5563'}
         />
         <Text style={[styles.tabText, isActive && styles.activeTabText]}>
           {label}
@@ -1441,7 +1518,6 @@ const TransactionsScreen = ({ navigation }) => {
       </TouchableOpacity>
     );
   };
-
   // Render content based on loading state
   const renderContent = () => {
     const dataForTab = getCurrentData();
@@ -1455,29 +1531,6 @@ const TransactionsScreen = ({ navigation }) => {
         </View>
       );
     }
-
-    // if (dataForTab.length === 0) {
-    //   return (
-    //     <View style={styles.emptyContainer}>
-    //       <Icon name="receipt" size={80} color="#d1d5db" />
-    //       <Text style={styles.emptyText}>No transactions found</Text>
-    //       <Text style={styles.emptySubtext}>
-    //         Create your first transaction to get started
-    //       </Text>
-    //       {canCreateAny && (
-    //         <TouchableOpacity
-    //           style={styles.createFirstButton}
-    //           onPress={() => handleOpenForm(null)}
-    //         >
-    //           <Icon name="add" size={20} color="white" />
-    //           <Text style={styles.createFirstButtonText}>
-    //             Create First Transaction
-    //           </Text>
-    //         </TouchableOpacity>
-    //       )}
-    //     </View>
-    //   );
-    // }
 
     return (
       <View style={styles.tableContainer}>
@@ -1513,6 +1566,7 @@ const TransactionsScreen = ({ navigation }) => {
     try {
       await Promise.all([
         fetchTransactions(true),
+        refetchAllTransactions(),
         triggerCompaniesRefresh(), // Add company refresh
         refetchClientPermissions
           ? refetchClientPermissions()
@@ -1524,6 +1578,7 @@ const TransactionsScreen = ({ navigation }) => {
     }
   }, [
     fetchTransactions,
+    refetchAllTransactions,
     triggerCompaniesRefresh,
     refetchClientPermissions,
     refetchUserPermissions,
@@ -1580,88 +1635,76 @@ const TransactionsScreen = ({ navigation }) => {
 
     return (
       <>
-        {/* Premium Gradient Header */}
-        <View style={styles.premiumHeader}>
-          <View style={styles.premiumHeaderGradient}>
-            <View style={styles.premiumHeaderContent}>
-              <Text
-                style={[
-                  styles.premiumTitle,
-                  { fontSize: largeTitleFontSize + 4, flexShrink: 1 },
-                ]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                Transactions
-              </Text>
-
-              {canCreateAny && (
-                <TouchableOpacity
-                  style={styles.premiumNewButton}
-                  onPress={() => handleOpenForm(null)}
-                >
-                  <PlusCircle size={16} color="#ffffff" strokeWidth={2.5} />
-                  <Text style={styles.premiumNewButtonText}>
-                    New Transaction
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
+        {/* Header (top safe area provided by global Header) */}
+        <View style={[styles.header, styles.headerRow, styles.headerFixed]}>
+          <View style={styles.titleContainer}>
+            <Text
+              style={[
+                styles.title,
+                { fontSize: largeTitleFontSize, flexShrink: 1 },
+              ]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              Transactions
+            </Text>
           </View>
+
+          {/* ── FAB Menu (replaces the two separate buttons) ── */}
+          {canCreateAny && (
+            <View style={styles.headerButtons}>
+              <View ref={plusButtonRef} collapsable={false}>
+                <PlusButton onPress={handleOpenFabMenu} />
+              </View>
+              <FabMenu
+                visible={fabOpen}
+                onClose={() => setFabOpen(false)}
+                anchor={fabAnchor}
+                actions={[
+                  {
+                    label: '+ Transaction',
+                    onPress: () => {
+                      setFabOpen(false);
+                      handleOpenForm(null);
+                    },
+                  },
+                  {
+                    label: '+ Proforma ',
+                    onPress: () => {
+                      setFabOpen(false);
+                      setIsProformaFormOpen(true);
+                    },
+                  },
+                ]}
+              />
+            </View>
+          )}
         </View>
+
         {/* Tabs for large screens */}
         {width > 768 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.tabContainer}>
-              {renderTabButton(TABS.ALL, 'All')}
-              {canSales && renderTabButton(TABS.SALES, 'Sales')}
-              {canPurchases && renderTabButton(TABS.PURCHASES, 'Purchases')}
-              {canSales && renderTabButton(TABS.PROFORMA, 'Proforma')}
-              {canReceipt && renderTabButton(TABS.RECEIPTS, 'Receipts')}
-              {canPayment && renderTabButton(TABS.PAYMENTS, 'Payments')}
-              {canJournal && renderTabButton(TABS.JOURNALS, 'Journals')}
-              <TouchableOpacity
-                style={[
-                  styles.tabDateChip,
-                  (dateRange.startDate ||
-                    dateRange.endDate !==
-                      new Date().toISOString().split('T')[0]) &&
-                    styles.tabDateChipActive,
-                ]}
-                onPress={() => setIsFilterModalOpen(true)}
-              >
-                <Feather
-                  name="calendar"
-                  size={14}
-                  color={
-                    dateRange.startDate ||
-                    dateRange.endDate !== new Date().toISOString().split('T')[0]
-                      ? '#ffffff'
-                      : '#4b5563'
-                  }
-                />
-                <Text
+              <View style={{ position: 'relative' }}>
+                <View style={{ flexDirection: 'row' }}>
+                  {renderTabButton(TABS.ALL, 'All')}
+                  {canSales && renderTabButton(TABS.SALES, 'Sales')}
+                  {canPurchases && renderTabButton(TABS.PURCHASES, 'Purchases')}
+                  {canSales && renderTabButton(TABS.PROFORMA, 'Proforma')}
+                  {canReceipt && renderTabButton(TABS.RECEIPTS, 'Receipts')}
+                  {canPayment && renderTabButton(TABS.PAYMENTS, 'Payments')}
+                  {canJournal && renderTabButton(TABS.JOURNALS, 'Journals')}
+                </View>
+                <Animated.View
                   style={[
-                    styles.tabDateChipText,
-                    (dateRange.startDate ||
-                      dateRange.endDate !==
-                        new Date().toISOString().split('T')[0]) &&
-                      styles.tabDateChipTextActive,
+                    styles.slidingIndicator,
+                    {
+                      width: tabWidths[activeTab] || 0,
+                      transform: [{ translateX: tabUnderlineAnim }],
+                    },
                   ]}
-                >
-                  Date
-                </Text>
-                <Feather
-                  name="chevron-down"
-                  size={12}
-                  color={
-                    dateRange.startDate ||
-                    dateRange.endDate !== new Date().toISOString().split('T')[0]
-                      ? '#ffffff'
-                      : '#4b5563'
-                  }
                 />
-              </TouchableOpacity>
+              </View>
             </View>
           </ScrollView>
         )}
@@ -1683,55 +1726,29 @@ const TransactionsScreen = ({ navigation }) => {
                 { paddingRight: showRightArrow ? 56 : 12 },
               ]}
             >
-              {renderTabButton(TABS.ALL, 'All')}
-              {canSales && renderTabButton(TABS.SALES, 'Sales')}
-              {canPurchases && renderTabButton(TABS.PURCHASES, 'Purchases')}
-              {canSales && renderTabButton(TABS.PROFORMA, 'Proforma')}
-              {canReceipt && renderTabButton(TABS.RECEIPTS, 'Receipts')}
-              {canPayment && renderTabButton(TABS.PAYMENTS, 'Payments')}
-              {canJournal && renderTabButton(TABS.JOURNALS, 'Journals')}
-              <TouchableOpacity
-                style={[
-                  styles.tabDateChip,
-                  (dateRange.startDate ||
-                    dateRange.endDate !==
-                      new Date().toISOString().split('T')[0]) &&
-                    styles.tabDateChipActive,
-                ]}
-                onPress={() => setIsFilterModalOpen(true)}
-              >
-                <Feather
-                  name="calendar"
-                  size={14}
-                  color={
-                    dateRange.startDate ||
-                    dateRange.endDate !== new Date().toISOString().split('T')[0]
-                      ? '#ffffff'
-                      : '#4b5563'
-                  }
-                />
-                <Text
+              <View style={{ position: 'relative' }}>
+                {/* Tab buttons row */}
+                <View style={{ flexDirection: 'row' }}>
+                  {renderTabButton(TABS.ALL, 'All')}
+                  {canSales && renderTabButton(TABS.SALES, 'Sales')}
+                  {canPurchases && renderTabButton(TABS.PURCHASES, 'Purchases')}
+                  {canSales && renderTabButton(TABS.PROFORMA, 'Proforma')}
+                  {canReceipt && renderTabButton(TABS.RECEIPTS, 'Receipts')}
+                  {canPayment && renderTabButton(TABS.PAYMENTS, 'Payments')}
+                  {canJournal && renderTabButton(TABS.JOURNALS, 'Journals')}
+                </View>
+
+                {/* Sliding underline indicator */}
+                <Animated.View
                   style={[
-                    styles.tabDateChipText,
-                    (dateRange.startDate ||
-                      dateRange.endDate !==
-                        new Date().toISOString().split('T')[0]) &&
-                      styles.tabDateChipTextActive,
+                    styles.slidingIndicator,
+                    {
+                      width: tabWidths[activeTab] || 0,
+                      transform: [{ translateX: tabUnderlineAnim }],
+                    },
                   ]}
-                >
-                  Date
-                </Text>
-                <Feather
-                  name="chevron-down"
-                  size={12}
-                  color={
-                    dateRange.startDate ||
-                    dateRange.endDate !== new Date().toISOString().split('T')[0]
-                      ? '#ffffff'
-                      : '#4b5563'
-                  }
                 />
-              </TouchableOpacity>
+              </View>
             </ScrollView>
           </View>
         )}
@@ -1780,57 +1797,7 @@ const TransactionsScreen = ({ navigation }) => {
 
       {/* Modals */}
 
-      <Modal
-        visible={isFormOpen}
-        animationType="slide"
-        onRequestClose={() => {
-          setIsFormOpen(false);
-          setTransactionToEdit(null);
-          setPrefillFromTransaction(null);
-          setDefaultTransactionType(null);
-        }}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              {transactionToEdit
-                ? 'Edit Transaction'
-                : 'Create a New Transaction'}
-            </Text>
-            <TouchableOpacity
-              onPress={() => {
-                setIsFormOpen(false);
-                setTransactionToEdit(null);
-                setPrefillFromTransaction(null);
-                setDefaultTransactionType(null);
-              }}
-            >
-              <Icon name="close" size={24} color="#374151" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.modalScroll}>
-            <TransactionForm
-              transactionToEdit={transactionToEdit}
-              onFormSubmit={() => {
-                setIsFormOpen(false);
-                setTransactionToEdit(null);
-                setPrefillFromTransaction(null);
-                fetchTransactions();
-                setRefreshTrigger(prev => prev + 1);
-              }}
-              defaultType={
-                defaultTransactionType ||
-                tabToFormType(activeTab) ||
-                allowedTypes[0] ||
-                'sales'
-              }
-              serviceNameById={serviceNameById}
-              prefillFrom={prefillFromTransaction}
-            />
-          </ScrollView>
-        </View>
-      </Modal>
+      {/* Transaction form now opens on its own screen via navigation */}
 
       {/* Proforma Form Modal */}
       <Modal
@@ -1841,36 +1808,20 @@ const TransactionsScreen = ({ navigation }) => {
           setTransactionToEdit(null);
         }}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              {transactionToEdit?.type === 'proforma'
-                ? 'Edit Proforma Invoice'
-                : 'Create Proforma Invoice'}
-            </Text>
-            <TouchableOpacity
-              onPress={() => {
-                setIsProformaFormOpen(false);
-                setTransactionToEdit(null);
-              }}
-            >
-              <Icon name="close" size={24} color="#374151" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.modalScroll}>
-            <ProformaForm
-              transactionToEdit={transactionToEdit}
-              onFormSubmit={() => {
-                setIsProformaFormOpen(false);
-                setTransactionToEdit(null);
-                fetchTransactions();
-                setRefreshTrigger(prev => prev + 1);
-              }}
-              serviceNameById={serviceNameById}
-            />
-          </ScrollView>
-        </View>
+        <ProformaForm
+          transactionToEdit={transactionToEdit}
+          onFormSubmit={() => {
+            setIsProformaFormOpen(false);
+            setTransactionToEdit(null);
+            fetchTransactions();
+            setRefreshTrigger(prev => prev + 1);
+          }}
+          onClose={() => {
+            setIsProformaFormOpen(false);
+            setTransactionToEdit(null);
+          }}
+          serviceNameById={serviceNameById}
+        />
       </Modal>
 
       {/* Alert Dialog */}
@@ -2334,11 +2285,11 @@ const TransactionsScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f0f5',
+    backgroundColor: '#ffffff',
+    marginBottom: 80,
   },
   mainContainer: {
     flex: 1,
-    backgroundColor: '#f0f0f5',
   },
   scrollContainer: {
     flexGrow: 1,
@@ -2392,82 +2343,46 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-  // Premium gradient header
-  premiumHeader: {
-    overflow: 'hidden',
+  header: {
+    padding: 12,
+    // paddingBottom: 8,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e6e6e6',
   },
-  premiumHeaderGradient: {
-    backgroundColor: '#4338ca',
-    paddingTop: 16,
-    paddingBottom: 18,
-    paddingHorizontal: 16,
-    // Simulated gradient overlay with layered backgrounds
-    // Real gradient uses react-native-linear-gradient, here we use solid + overlay trick
+  headerFixed: {
+    backgroundColor: 'white',
+    paddingHorizontal: 12,
+    paddingTop: 6,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e6e6e6',
+    zIndex: 20,
   },
-  premiumHeaderContent: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    width: '100%',
   },
-  premiumTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#ffffff',
-    letterSpacing: -0.5,
+  titleContainer: {
+    flex: 1,
+    marginRight: 12,
+    minWidth: 0,
   },
-  premiumNewButton: {
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#111827',
+  },
+
+  headerButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
     gap: 6,
+    // marginTop: 4,
   },
-  premiumNewButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    borderRadius: 18,
-    gap: 4,
-    borderWidth: 0,
-    backgroundColor: 'transparent',
-    minWidth: 56,
-    justifyContent: 'center',
-    height: 34,
-    marginTop: 4,
-  },
-  actionButtonPrimary: {
-    // even smaller primary width so title has more space
-    minWidth: 68,
-    height: 34,
-    marginTop: 4,
-  },
-  actionButtonText: {
-    fontWeight: '600',
-    fontSize: 11,
-    lineHeight: 14,
-  },
-  /* Role-badge style for buttons (match UserCard/Dashboard) */
-  roleBadgeButton: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    borderColor: 'transparent',
-    borderWidth: 0,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 18,
-  },
-  roleBadgeButtonText: {
-    color: '#3b82f6',
-  },
+
   tabContainer: {
     flexDirection: 'row',
     paddingHorizontal: 12,
@@ -2479,7 +2394,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 0,
     paddingVertical: 8,
-    backgroundColor: '#f0f0f5',
+    backgroundColor: 'white',
   },
   arrowButton: {
     padding: 8,
@@ -2514,66 +2429,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
     paddingLeft: 12,
   },
+  // REPLACE WITH:
   tabButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 8,
-    marginRight: 8,
-    borderRadius: 20,
+    marginRight: 4,
     gap: 6,
-    backgroundColor: '#ffffff',
-    borderWidth: 1.5,
-    borderColor: '#e0e0e8',
+    backgroundColor: 'transparent',
+    // borderWidth: 0,
+    // borderBottomWidth: 2,
+    // borderBottomColor: 'transparent',
     minHeight: 36,
   },
   activeTabButton: {
-    backgroundColor: '#4338ca',
-    borderColor: '#4338ca',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#4338ca',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.35,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    backgroundColor: 'transparent',
+    // borderBottomWidth: 2,
+    // borderBottomColor: '#7C6FF7',
   },
   tabText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#4b5563',
+    fontWeight: '500',
+    color: '#6b7280',
   },
   activeTabText: {
-    color: '#ffffff',
+    color: '#7C6FF7',
     fontWeight: '700',
   },
-  tabDateChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 5,
-    backgroundColor: '#ffffff',
-    borderWidth: 1.5,
-    borderColor: '#e0e0e8',
-    minHeight: 36,
-  },
-  tabDateChipActive: {
-    backgroundColor: '#4338ca',
-    borderColor: '#4338ca',
-  },
-  tabDateChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4b5563',
-  },
-  tabDateChipTextActive: {
-    color: '#ffffff',
+  slidingIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    height: 2,
+    backgroundColor: '#7C6FF7',
+    borderRadius: 2,
   },
   dropdownContainer: {
     paddingHorizontal: 16,
@@ -2644,10 +2534,11 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: '#f0f0f5',
+    backgroundColor: '#ffffff',
   },
   tableContainer: {
     flex: 1,
+    backgroundColor: '#ffffff',
   },
   noAccessContainer: {
     flex: 1,

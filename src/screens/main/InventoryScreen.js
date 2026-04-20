@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  memo,
+  useRef,
+} from 'react';
 import {
   View,
   Text,
@@ -29,6 +36,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from '../../components/ui/Dialog';
+import PlusButton from '../../components/ui/PlusButton';
+import FabMenu from '../../components/ui/FabMenu';
 
 // Icons
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -37,7 +46,7 @@ import { generatePDF } from 'react-native-html-to-pdf';
 
 // Custom components
 import ProductForm from '../../components/products/ProductForm';
-import ServiceForm from '../../components/services/ServiceForm';
+import { useNavigation } from '@react-navigation/native';
 import ExcelImportExport from '../../components/ui/ExcelImportExport';
 import InventorySocketListener from '../../socketlisteners/InventorySocketListener';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -82,6 +91,13 @@ const formatDate = dateString => {
   });
 };
 
+const formatPrice = price => {
+  if (price === null || price === undefined || price === '') return '0';
+  const num = typeof price === 'string' ? parseFloat(price) : price;
+  if (isNaN(num)) return '0';
+  return num.toFixed(2);
+};
+
 // ==========================================
 // MEMOIZED COMPONENTS
 // ==========================================
@@ -108,85 +124,96 @@ const ProductCard = memo(
       <View style={[styles.card, isSelected && styles.selectedCard]}>
         <View style={styles.cardHeader}>
           <View style={styles.productInfo}>
-            <TouchableOpacity
-              onPress={handlePress}
-              style={styles.checkboxContainer}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Icon
-                name={isSelected ? 'check-box' : 'check-box-outline-blank'}
-                size={16}
-                color={isSelected ? '#3b82f6' : '#64748b'}
-              />
-            </TouchableOpacity>
             <View style={styles.iconCircle}>
-              <Icon name="inventory-2" size={18} color="#3b82f6" />
+              <Icon name="inventory-2" size={18} color="#2887c7" />
             </View>
             <View style={styles.productDetails}>
-              <Text style={styles.productName} numberOfLines={1}>
-                {capitalizeFirst(item.name)}
-              </Text>
+              <View style={[{ display: 'flex', flexDirection: 'row', gap: 5 }]}>
+                <Text style={styles.productName} numberOfLines={1}>
+                  {capitalizeFirst(item.name)}
+                </Text>
+                {isLowStock && (item.stocks ?? 0) > 0 && (
+                  <View style={styles.lowStockBadge}>
+                    <Text style={styles.lowStockText}>Low Stock</Text>
+                  </View>
+                )}
+              </View>
+
               <Text style={styles.companyName} numberOfLines={1}>
                 {companyName}
               </Text>
             </View>
           </View>
-        </View>
 
+          <TouchableOpacity
+            onPress={handlePress}
+            style={[
+              styles.checkboxContainer,
+              isSelected && styles.checkboxContainerSelected,
+            ]}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Icon
+              name={isSelected ? 'check-circle' : 'radio-button-unchecked'}
+              size={20}
+              color={isSelected ? '#2887c7' : '#2887c7'}
+            />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.headerDivider} />
         <View style={styles.cardBody}>
-          <View style={styles.mainInfoRow}>
-            <View style={styles.stockSection}>
-              <Text style={styles.label}>Stock</Text>
-              <View style={styles.stockDisplay}>
+          <View style={styles.metricsRow}>
+            <View style={styles.metricColumn}>
+              <Text style={styles.metricLabel}>STOCK</Text>
+              <View style={styles.stockDisplayCompact}>
                 <Text
                   style={[
-                    styles.stockValue,
-                    (item.stocks ?? 0) > 10
+                    styles.metricValue,
+                    item.stocks > 10
                       ? styles.stockGood
-                      : (item.stocks ?? 0) > 0
-                      ? styles.stockWarning
-                      : styles.stockDanger,
+                      : item.stocks <= 0
+                      ? styles.stockDanger
+                      : styles.stockWarning,
                   ]}
                 >
                   {item.stocks ?? 0}
                 </Text>
-                <Text style={styles.unit}>{item.unit ?? 'Piece'}</Text>
+                <Text style={styles.unitSmall}>{item.unit ?? 'pc'}</Text>
               </View>
-              {isLowStock && (item.stocks ?? 0) > 0 && (
-                <View style={styles.lowStockBadge}>
-                  <Text style={styles.lowStockText}>Low Stock</Text>
+            </View>
+
+            <View style={styles.verticalDivider} />
+
+            <View style={styles.metricColumn}>
+              <Text style={styles.metricLabel}>COST</Text>
+              <Text style={styles.metricValue}>
+                ₹{formatPrice(item.costPrice)}
+              </Text>
+            </View>
+
+            <View style={styles.verticalDivider} />
+
+            <View style={styles.metricColumn}>
+              <Text style={styles.metricLabel}>SELL</Text>
+              <Text style={[styles.metricValue, styles.sellPrice]}>
+                ₹{formatPrice(item.sellingPrice)}
+              </Text>
+            </View>
+
+            {item.hsn && (
+              <>
+                <View style={styles.verticalDivider} />
+                <View style={styles.metricColumn}>
+                  <Text style={styles.metricLabel}>HSN</Text>
+                  <Text style={styles.metricValue}>{item.hsn}</Text>
                 </View>
-              )}
-            </View>
-
-            <View style={styles.priceSection}>
-              <View style={styles.priceItem}>
-                <Text style={styles.label}>Cost Price</Text>
-                <Text style={styles.costPrice}>
-                  {item.costPrice ? formatCurrencyINR(item.costPrice) : '—'}
-                </Text>
-              </View>
-              <View style={styles.priceItem}>
-                <Text style={styles.label}>Selling Price</Text>
-                <Text style={styles.sellingPrice}>
-                  {item.sellingPrice
-                    ? formatCurrencyINR(item.sellingPrice)
-                    : '—'}
-                </Text>
-              </View>
-            </View>
+              </>
+            )}
           </View>
-
-          {item.hsn && (
-            <View style={styles.hsnRow}>
-              <Text style={styles.hsnLabel}>HSN: </Text>
-              <Text style={styles.hsnValue}>{item.hsn}</Text>
-            </View>
-          )}
         </View>
-
         <View style={styles.cardFooter}>
           <View style={styles.footerLeft}>
+            <Icon name="calendar-today" size={16} color="#3589ff" />
             <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
             <BarcodeDisplay
               value={item._id}
@@ -195,14 +222,17 @@ const ProductCard = memo(
               stockQuantity={item.stocks}
             />
           </View>
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={handleEdit}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Icon name="edit" size={16} color="#3b82f6" />
-            <Text style={styles.editButtonText}>Edit</Text>
-          </TouchableOpacity>
+
+          <View style={styles.editContainer}>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={handleEdit}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Icon name="edit" size={16} color="#2887c7" />
+              <Text style={styles.editButtonText}>Edit</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     );
@@ -235,21 +265,20 @@ const ServiceCard = memo(
 
     return (
       <View style={styles.card}>
-        <View style={styles.cardHeader}>
+        <View style={styles.ServiceCardHeader}>
           <View style={styles.serviceInfo}>
-            <View style={[styles.iconCircle, { backgroundColor: '#fce7f3' }]}>
-              <Icon name="build" size={20} color="#ec4899" />
+            <View style={[styles.iconCircle, { backgroundColor: '#e6ddff' }]}>
+              <Icon name="build" size={20} color="#6e4fc4" />
             </View>
             <View style={styles.serviceDetails}>
               <Text style={styles.serviceName} numberOfLines={1}>
                 {item.serviceName}
               </Text>
-              <Text style={styles.serviceSubtext}>Service</Text>
             </View>
           </View>
         </View>
 
-        <View style={styles.cardBody}>
+        <View style={styles.ServiceCardBody}>
           <View style={styles.serviceInfoRow}>
             <View style={styles.serviceAmountBox}>
               <Text style={styles.label}>Amount</Text>
@@ -277,7 +306,7 @@ const ServiceCard = memo(
               onPress={handleEdit}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Icon name="edit" size={16} color="#3b82f6" />
+              <Icon name="edit" size={16} color="#2887c7" />
               <Text style={styles.editButtonText}>Edit</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -369,6 +398,7 @@ QuantityControl.displayName = 'QuantityControl';
 // MAIN COMPONENT
 // ==========================================
 export default function InventoryScreen() {
+  const navigation = useNavigation();
   const {
     permissions: userCaps,
     isLoading: isLoadingPermissions,
@@ -400,18 +430,26 @@ export default function InventoryScreen() {
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [isProductFormOpen, setIsProductFormOpen] = useState(false);
-  const [productToEdit, setProductToEdit] = useState(null);
+  // Removed: isProductFormOpen, productToEdit (handled by navigation)
   const [productToDelete, setProductToDelete] = useState(null);
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [lastSelectedIndex, setLastSelectedIndex] = useState(null);
 
-  const [isServiceFormOpen, setIsServiceFormOpen] = useState(false);
-  const [serviceToEdit, setServiceToEdit] = useState(null);
   const [serviceToDelete, setServiceToDelete] = useState(null);
 
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [userRole, setUserRole] = useState(null);
+
+  const plusButtonRef = useRef(null);
+  const [fabAnchor, setFabAnchor] = useState(null);
+  const [open, setOpen] = useState(false);
+
+  const handleOpenFabMenu = () => {
+    plusButtonRef.current?.measureInWindow((x, y, width, height) => {
+      setFabAnchor({ x, y, width, height });
+      setOpen(true);
+    });
+  };
 
   // Permissions - Memoized
   const hasCreatePermission = useMemo(() => {
@@ -424,7 +462,6 @@ export default function InventoryScreen() {
     userCaps?.canCreateInventory,
     permissions?.canCreateProducts,
   ]);
-
   // Load user data once on mount
   useEffect(() => {
     const loadUserData = async () => {
@@ -443,11 +480,14 @@ export default function InventoryScreen() {
   }, []);
 
   useFocusEffect(
-    React.useCallback(() => {
-      triggerCompaniesRefresh();
-    }, [triggerCompaniesRefresh]),
+    useCallback(() => {
+      fetchProducts(true);
+      fetchServices(true);
+      if (triggerCompaniesRefresh) {
+        triggerCompaniesRefresh();
+      }
+    }, [selectedCompanyId, fetchProducts, fetchServices]),
   );
-
   // Initialize bulk print quantities - optimized with useMemo
   const initialBulkQuantities = useMemo(() => {
     if (isBulkPrintDialogOpen && selectedProducts.length > 0) {
@@ -640,29 +680,33 @@ export default function InventoryScreen() {
   // CRUD Operations - All optimized with useCallback
   // ==========================================
   const openCreateProduct = useCallback(() => {
-    setProductToEdit(null);
-    setIsProductFormOpen(true);
-  }, []);
+    navigation.navigate('ProductForm');
+  }, [navigation, onProductSaved]);
 
   const openCreateService = useCallback(() => {
-    setServiceToEdit(null);
-    setIsServiceFormOpen(true);
-  }, []);
+    navigation.navigate('ServiceForm');
+  }, [navigation]);
 
-  const openEditProduct = useCallback(p => {
-    setProductToEdit(p);
-    setIsProductFormOpen(true);
-  }, []);
+  const openEditProduct = useCallback(
+    p => {
+      navigation.navigate('ProductForm', {
+        product: p,
+      });
+    },
+    [navigation, onProductSaved],
+  );
 
-  const openEditService = useCallback(s => {
-    setServiceToEdit(s);
-    setIsServiceFormOpen(true);
-  }, []);
+  const openEditService = useCallback(
+    s => {
+      navigation.navigate('ServiceForm', {
+        service: s,
+      });
+    },
+    [navigation],
+  );
 
   const onProductSaved = useCallback(
     saved => {
-      setIsProductFormOpen(false);
-      setProductToEdit(null);
       setProducts(prev => {
         const exists = prev.some(p => p._id === saved._id);
         if (exists) {
@@ -680,8 +724,6 @@ export default function InventoryScreen() {
 
   const onServiceSaved = useCallback(
     saved => {
-      setIsServiceFormOpen(false);
-      setServiceToEdit(null);
       setServices(prev => {
         const exists = prev.some(s => s._id === saved._id);
         if (exists) {
@@ -1006,6 +1048,9 @@ export default function InventoryScreen() {
               >
                 Products ({filteredProducts.length})
               </Text>
+              {activeTab === 'products' && (
+                <View style={styles.activeTabIndicator} />
+              )}
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.tab, activeTab === 'services' && styles.activeTab]}
@@ -1019,6 +1064,9 @@ export default function InventoryScreen() {
               >
                 Services ({filteredServices.length})
               </Text>
+              {activeTab === 'services' && (
+                <View style={styles.activeTabIndicator} />
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -1377,14 +1425,9 @@ export default function InventoryScreen() {
           >
             Inventory Management
           </Text>
-          <Text style={styles.subtitle}>
-            {selectedProducts.length > 0
-              ? `${selectedProducts.length} selected`
-              : 'manage your products and services.'}
-          </Text>
         </View>
         <View style={styles.headerActions}>
-          {hasCreatePermission && (
+          {hasCreatePermission && userCaps?.canCreateInventory && (
             <View style={styles.buttonGroup}>
               {/* Import/Export Component */}
               <ExcelImportExport
@@ -1457,20 +1500,26 @@ export default function InventoryScreen() {
                 companies={companies}
               />
 
-              {/* + Product/Service Button */}
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={
-                  activeTab === 'products'
-                    ? openCreateProduct
-                    : openCreateService
-                }
-              >
-                <Icon name="add-circle" size={16} color="white" />
-                <Text style={styles.addButtonText}>
-                  {activeTab === 'products' ? 'Product' : 'Service'}
-                </Text>
-              </TouchableOpacity>
+              <View ref={plusButtonRef} collapsable={false}>
+                <PlusButton onPress={handleOpenFabMenu} />
+              </View>
+
+              {/* FAB MENU */}
+              <FabMenu
+                visible={open}
+                onClose={() => setOpen(false)}
+                anchor={fabAnchor}
+                actions={[
+                  {
+                    label: '+ Add Product',
+                    onPress: () => navigation.navigate('ProductForm'),
+                  },
+                  {
+                    label: '+ Add Service',
+                    onPress: () => navigation.navigate('ServiceForm'),
+                  },
+                ]}
+              />
             </View>
           )}
         </View>
@@ -1603,80 +1652,8 @@ export default function InventoryScreen() {
         </View>
       </Modal>
 
-      {/* Product Form Dialog */}
-      <Dialog
-        open={isProductFormOpen}
-        onOpenChange={isOpen => {
-          if (!isOpen) {
-            setProductToEdit(null);
-            setIsProductFormOpen(false);
-          }
-        }}
-      >
-        <DialogContent>
-          <View>
-            <DialogHeader>
-              <DialogTitle>
-                {productToEdit ? 'Edit Product' : 'Create New Product'}
-              </DialogTitle>
-              <DialogDescription>
-                {productToEdit
-                  ? 'Update the product details.'
-                  : 'Fill in the form to add a new product.'}
-              </DialogDescription>
-            </DialogHeader>
-            <ScrollView>
-              <ProductForm
-                product={productToEdit}
-                onSuccess={onProductSaved}
-                onClose={() => {
-                  setIsProductFormOpen(false);
-                  setProductToEdit(null);
-                }}
-              />
-            </ScrollView>
-          </View>
-        </DialogContent>
-      </Dialog>
-
-      {/* Service Form Dialog */}
-      <Dialog
-        open={isServiceFormOpen}
-        onOpenChange={isOpen => {
-          if (!isOpen) setServiceToEdit(null);
-          setIsServiceFormOpen(isOpen);
-        }}
-      >
-        <DialogContent>
-          <View style={styles.dialogHeaderRow}>
-            <View style={styles.dialogHeaderLeft}>
-              <Text style={styles.dialogHeaderTitle}>
-                {serviceToEdit ? 'Edit Service' : 'Create New Service'}
-              </Text>
-              <Text style={styles.dialogHeaderSubtitle}>
-                {serviceToEdit
-                  ? 'Update service details'
-                  : 'Add new service to your records'}
-              </Text>
-            </View>
-          </View>
-
-          <ServiceForm
-            service={serviceToEdit}
-            onSuccess={onServiceSaved}
-            onClose={() => {
-              setIsServiceFormOpen(false);
-              setServiceToEdit(null);
-            }}
-            headerTitle={serviceToEdit ? 'Edit Service' : 'Create New Service'}
-            headerSubtitle={
-              serviceToEdit
-                ? 'Update service details'
-                : 'Add new service to your records'
-            }
-          />
-        </DialogContent>
-      </Dialog>
+      {/* ProductForm now opens as a full screen via navigation */}
+      {/* ServiceForm now opens as a full screen via navigation */}
 
       {/* Delete Confirmation Modal */}
       <Modal
@@ -1720,7 +1697,8 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f7f9ff',
+    marginBottom: 100,
   },
   contentContainer: {
     padding: 14,
@@ -1739,17 +1717,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#64748b',
   },
- 
+
   fixedHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 4, 
+    paddingTop: 4,
     paddingBottom: 6,
-    borderBottomWidth: 2,
-    borderBottomColor: '#e5e7eb',
+    // borderBottomWidth: 2,
+    // borderBottomColor: '#e5e7eb',
     backgroundColor: '#ffffff',
+    boxShadow: '0 1px 5px rgba(0, 0, 0, 0.05)',
   },
   headerTitle: {
     flex: 1,
@@ -1809,7 +1788,7 @@ const styles = StyleSheet.create({
   button: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#2887c7',
     paddingHorizontal: 10,
     borderRadius: 8,
     gap: 8,
@@ -1837,15 +1816,10 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
+    backgroundColor: 'transparent',
     borderRadius: 12,
     padding: 4,
     marginBottom: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
   },
   tab: {
     flex: 1,
@@ -1853,14 +1827,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   activeTab: {
-    backgroundColor: '#3b82f6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    backgroundColor: 'transparent',
   },
   tabText: {
     fontSize: 14,
@@ -1868,48 +1838,72 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   activeTabText: {
-    color: 'white',
+    color: '#111827',
+  },
+  activeTabIndicator: {
+    marginTop: 6,
+    height: 3,
+    width: '80%',
+    borderRadius: 2,
+    backgroundColor: '#2887c7',
   },
   card: {
     backgroundColor: 'white',
     borderRadius: 12,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    // borderWidth: 1,
+    // borderColor: '#e2e8f0',
+    boxShadow: '0 1px 5px rgba(0, 0, 0, 0.1)',
   },
+
   selectedCard: {
-    borderColor: '#3b82f6',
+    borderColor: '#2887c7',
     backgroundColor: '#f0f7ff',
   },
   checkboxContainer: {
-    marginRight: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 12, // Half of width/height for perfect circle
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+    borderColor: '#2887c7',
   },
   selectionCount: {
     fontSize: 13,
-    color: '#3b82f6',
+    color: '#2887c7',
     fontWeight: '600',
   },
   cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 10,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  ServiceCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 10,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    marginBottom: 10,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
   },
   iconCircle: {
-    width: 35,
-    height: 35,
+    backgroundColor: '#f0f4ff',
+    padding: 6,
     borderRadius: 20,
-    backgroundColor: '#eff6ff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   cardBody: {
+    paddingHorizontal: 2,
+    paddingVertical: 8,
+  },
+  ServiceCardBody: {
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
@@ -1919,9 +1913,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f7f9ff',
     borderBottomLeftRadius: 12,
     borderBottomRightRadius: 12,
+    borderTopRightRadius: 20,
+    borderTopLeftRadius: 20,
   },
   footerLeft: {
     flexDirection: 'row',
@@ -1929,23 +1925,24 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   dateText: {
-    fontSize: 12,
-    color: '#94a3b8',
+    fontSize: 14,
+    color: '#8f949b',
     fontWeight: '500',
   },
   editButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#eff6ff',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+    backgroundColor: '#ffffff',
     borderRadius: 6,
-    gap: 4,
   },
   editButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#3b82f6',
+    marginLeft: 5,
+    fontSize: 14,
+    color: '#2887c7',
+    fontWeight: '500',
   },
   label: {
     fontSize: 12,
@@ -1956,19 +1953,25 @@ const styles = StyleSheet.create({
   productInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    // borderBottomColor: "#e6e6e6",
+    // borderBottomWidth: 1,
+    // paddingBottom: 12
   },
   productDetails: {
     flex: 1,
   },
   productName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0f172a',
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
   },
   companyName: {
-    fontSize: 10,
+    fontSize: 14,
     color: '#64748b',
-    fontWeight: '500',
+  },
+  editContainer: {
+    alignItems: 'flex-end',
   },
   mainInfoRow: {
     flexDirection: 'row',
@@ -2006,11 +2009,76 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     paddingBottom: 1,
   },
+  unitSmall: {
+    fontSize: 13,
+    color: '#94a3b8',
+    fontWeight: '500',
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    paddingVertical: 12,
+  },
+  metricColumn: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerDivider: {
+    height: 1,
+    backgroundColor: '#e2e8f0',
+    width: '90%',
+    alignSelf: 'center', // This centers the line horizontally
+  },
+  verticalDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#e2e8f0',
+    marginHorizontal: 4,
+  },
+  metricLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748b',
+    marginBottom: 4,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase', // Makes it STOCK, COST, SELL like in image
+  },
+  metricValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  stockDisplayCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  unitSmall: {
+    fontSize: 12,
+    color: '#64748b',
+    marginLeft: 2,
+  },
+  sellPrice: {
+    color: '#10b981',
+  },
+  stockGood: {
+    color: '#10b981',
+  },
+  stockWarning: {
+    color: '#f59e0b',
+  },
+  stockDanger: {
+    color: '#ef4444',
+  },
   lowStockBadge: {
     backgroundColor: '#fef3c7',
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingVertical: 2,
+    borderRadius: 60,
+    marginTop: 4,
     alignSelf: 'flex-start',
   },
   lowStockText: {
@@ -2170,13 +2238,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#cccccc',
     backgroundColor: 'white',
     gap: 8,
   },
   paginationButtonPrimary: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
+    backgroundColor: '#2887c7',
+    borderColor: '#2887c7',
   },
   paginationButtonDisabled: {
     opacity: 0.4,
@@ -2190,7 +2258,7 @@ const styles = StyleSheet.create({
     color: 'white',
   },
   paginationButtonTextDisabled: {
-    color: '#cbd5e1',
+    color: '#2e2e2e',
   },
   noCompanyContainer: {
     flex: 1,
@@ -2238,7 +2306,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#2887c7',
     padding: 16,
     borderRadius: 8,
     gap: 8,
@@ -2253,13 +2321,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#3b82f6',
+    borderColor: '#2887c7',
     padding: 16,
     borderRadius: 8,
     gap: 8,
   },
   secondaryButtonText: {
-    color: '#3b82f6',
+    color: '#2887c7',
     fontWeight: '600',
     fontSize: 16,
   },

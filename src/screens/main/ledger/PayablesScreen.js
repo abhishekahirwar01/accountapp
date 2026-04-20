@@ -42,6 +42,15 @@ import { VendorExpenseList as ImportedVendorExpenseList } from '../../../compone
 import { Skeleton } from '../../../components/ui/Skeleton';
 import { useCompany } from '../../../contexts/company-context';
 
+const formatName = str => {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .trim()
+    .split(/\s+/) // multiple spaces handle karne ke liye
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
 export default function PayablesScreen() {
   const navigation = useNavigation();
   const baseURL = BASE_URL;
@@ -130,11 +139,15 @@ export default function PayablesScreen() {
     Alert.alert(title, description);
   };
 
-  // Date picker handlers
   const handleFromDatePickerChange = (event, selectedDate) => {
     if (Platform.OS === 'android') {
       setShowFromDatePicker(false);
     }
+
+    if (event.type === 'dismissed') {
+      return;
+    }
+
     if (selectedDate) {
       const dateString = selectedDate.toISOString().split('T')[0];
       setDateRange(prev => ({
@@ -148,6 +161,11 @@ export default function PayablesScreen() {
     if (Platform.OS === 'android') {
       setShowToDatePicker(false);
     }
+
+    if (event.type === 'dismissed') {
+      return;
+    }
+
     if (selectedDate) {
       const dateString = selectedDate.toISOString().split('T')[0];
       setDateRange(prev => ({
@@ -633,7 +651,9 @@ export default function PayablesScreen() {
           {currentView === 'vendor' ? (
             <View style={styles.filterItem}>
               <Text style={styles.filterLabel}>
-                 <Icon name="account-multiple" size={14} color="#6B7280" />{' '}Vendor</Text>
+                <Icon name="account-multiple" size={14} color="#6B7280" />{' '}
+                Vendor
+              </Text>
               <TouchableOpacity
                 style={[
                   styles.filterInput,
@@ -650,8 +670,10 @@ export default function PayablesScreen() {
                   numberOfLines={1}
                 >
                   {selectedVendorFilter
-                    ? vendors.find(v => v._id === selectedVendorFilter)
-                        ?.vendorName || 'Select vendor'
+                    ? formatName(
+                        vendors.find(v => v._id === selectedVendorFilter)
+                          ?.vendorName,
+                      )
                     : 'All vendors'}
                 </Text>
                 <Icon name="chevron-down" size={18} color="#94A3B8" />
@@ -676,8 +698,10 @@ export default function PayablesScreen() {
                   numberOfLines={1}
                 >
                   {selectedExpenseFilter
-                    ? expenses.find(e => e._id === selectedExpenseFilter)
-                        ?.name || 'Select category'
+                    ? formatName(
+                        expenses.find(e => e._id === selectedExpenseFilter)
+                          ?.name,
+                      )
                     : 'All categories'}
                 </Text>
                 <Icon name="chevron-down" size={18} color="#94A3B8" />
@@ -687,9 +711,10 @@ export default function PayablesScreen() {
 
           <View style={styles.filterItem}>
             <View style={styles.dateFilterHeader}>
-              
               <Text style={styles.filterLabel}>
-                 <Icon name="calendar-start" size={14} color="#6B7280" /> {' '}Date Range</Text>
+                <Icon name="calendar-start" size={14} color="#6B7280" /> Date
+                Range
+              </Text>
               {(dateRange.from || dateRange.to) && (
                 <TouchableOpacity
                   style={styles.dateResetButton}
@@ -815,7 +840,7 @@ export default function PayablesScreen() {
                         styles.modalItemTextSelected,
                     ]}
                   >
-                    {item.vendorName}
+                    {formatName(item.vendorName)}
                   </Text>
                   {selectedVendorFilter === item._id && (
                     <Icon name="check" size={20} color="#3B82F6" />
@@ -867,7 +892,7 @@ export default function PayablesScreen() {
                         styles.modalItemTextSelected,
                     ]}
                   >
-                    {item.name}
+                    {formatName(item.name)}
                   </Text>
                   {selectedExpenseFilter === item._id && (
                     <Icon name="check" size={20} color="#3B82F6" />
@@ -908,21 +933,19 @@ export default function PayablesScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-           <View style={styles.headerMain}>
-                <View style={styles.titleRow}>
-                  <Text style={styles.title}>
-                    {currentView === 'vendor'
-                      ? 'Vendor Account'
-                      : 'Expense Account'}
-                  </Text>
-                  <View style={styles.mobileToggle}>
-                    <VendorExpenseToggle
-                      currentView={currentView}
-                      onViewChange={setCurrentView}
-                    />
-                  </View>
-                </View>
-              </View>
+        <View style={styles.headerMain}>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>
+              {currentView === 'vendor' ? 'Vendor Account' : 'Expense Account'}
+            </Text>
+            <View style={styles.mobileToggle}>
+              <VendorExpenseToggle
+                currentView={currentView}
+                onViewChange={setCurrentView}
+              />
+            </View>
+          </View>
+        </View>
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.headerTop}>
@@ -941,8 +964,6 @@ export default function PayablesScreen() {
                   <Text style={styles.backButtonText}>Back to List</Text>
                 </TouchableOpacity>
               )}
-
-           
             </View>
           </View>
 
@@ -1023,6 +1044,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
     paddingTop: -50,
+    marginBottom: 60,
   },
   scrollView: {
     flex: 1,
@@ -1068,10 +1090,10 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   headerMain: {
-    backgroundColor:'white',
-     paddingHorizontal: 10,
-     paddingVertical:10,
-      elevation: 4,
+    backgroundColor: 'white',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -1092,8 +1114,8 @@ const styles = StyleSheet.create({
   },
   filterSection: {
     marginBottom: 4,
-    backgroundColor:'white',
-     borderRadius: 16,
+    backgroundColor: 'white',
+    borderRadius: 16,
     padding: 12,
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 2 },

@@ -721,13 +721,21 @@ const generatePageHTML = (
 };
 
 // --- Main PDF Component ---
-const Template9 = ({ transaction, company, party, shippingAddress, bank }) => {
+const Template9 = ({
+  transaction,
+  company,
+  party,
+  shippingAddress,
+  bank,
+  serviceNameById = new Map(),
+}) => {
   const actualShippingAddress = shippingAddress || transaction?.shippingAddress;
   const preparedData = prepareTemplate8Data(
     transaction,
     company,
     party,
     actualShippingAddress,
+    serviceNameById,
   );
 
   const {
@@ -1320,6 +1328,7 @@ export const generatePdfForTemplate9 = async (
       party,
       shippingAddress,
       bank,
+      serviceNameById,
     });
 
     const options = {

@@ -29,10 +29,12 @@ import { City, State } from 'country-state-city';
 
 import { Combobox } from '../../ui/Combobox';
 import CustomDropdown from '../../ui/CustomDropdown';
+import { CompanySelectionModal } from '../../ui/CompanySelectionModal';
 import { useToast } from '../../hooks/useToast';
 import { searchHSNCodes } from '../../../lib/hsnProduct';
 import { searchSACCodes } from '../../../lib/sacService';
 import { BASE_URL } from '../../../config';
+import { OCRUploadButton } from '../../ui/OCRUploadButton';
 
 const baseURL = BASE_URL;
 
@@ -134,8 +136,6 @@ const useFormMethods = form => {
     return {
       watch: field => form.watch?.(field) || form[field],
       setValue: (field, value, options = {}) => {
-        // Ensure we trigger validation and mark field dirty by default so
-        // UI errors clear as user types. Callers can pass options to override.
         if (form.setValue) {
           form.setValue(field, value, {
             shouldValidate: true,
@@ -167,6 +167,11 @@ export function FormTabs({
   salesPurchasesProps,
   renderReceiptPaymentFields,
   receiptPaymentProps,
+  ocrForceOpen,
+  onOcrForceOpenConsumed,
+  onOcrQueueItemApplied,
+  onOcrQueueComplete,
+  showSnackbar,
 }) {
   const SalesPurchasesComponent = renderSalesPurchasesFields;
   const ReceiptPaymentComponent = renderReceiptPaymentFields;
@@ -184,10 +189,753 @@ export function FormTabs({
 
   const formMethods = useFormMethods(form);
 
+  const handleOCRData = useCallback(
+    async data => {
+      const canCreateCustomer = salesPurchasesProps?.canCreateCustomer ?? false;
+      const canCreateVendor = salesPurchasesProps?.canCreateVendor ?? false;
+      const canCreateInventory =
+        salesPurchasesProps?.canCreateInventory ?? false;
+      const canCreateProducts = salesPurchasesProps?.canCreateProducts ?? false;
+
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) throw new Error('Authentication token not found.');
+
+        const currentType = type;
+        let resolvedCompanyId =
+          form.getValues('company') ||
+          salesPurchasesProps?.selectedCompanyIdWatch ||
+          '';
+        const authHeaders = { Authorization: `Bearer ${token}` };
+
+        const normalizeLookupText = value =>
+          String(value ?? '')
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, ' ');
+
+        const normalizeLookupKey = value =>
+          normalizeLookupText(value).replace(/[^a-z0-9]/g, '');
+
+        const LOOKUP_NOISE_WORDS = new Set([
+          'the',
+          'and',
+          'of',
+          'shop',
+          'store',
+          'traders',
+          'trading',
+          'company',
+          'co',
+          'pvt',
+          'private',
+          'ltd',
+          'limited',
+          'llp',
+          'inc',
+        ]);
+
+        const tokenizeLookup = (value, dropNoise = false) => {
+          const tokens = normalizeLookupText(value)
+            .replace(/[^a-z0-9]+/g, ' ')
+            .split(' ')
+            .map(t => t.trim())
+            .filter(Boolean);
+          if (!dropNoise) return tokens;
+          return tokens.filter(t => !LOOKUP_NOISE_WORDS.has(t));
+        };
+
+        const buildLookupSignature = value => {
+          const uniqueTokens = Array.from(new Set(tokenizeLookup(value, true)));
+          return uniqueTokens.join(' ');
+        };
+
+        const resolveLookupIdFromOptions = (rawValue, options) => {
+          const signature = buildLookupSignature(rawValue);
+          if (!signature) return '';
+          const queryTokens = signature.split(' ').filter(Boolean);
+          if (!queryTokens.length) return '';
+          const queryCompact = queryTokens.join('');
+
+          let bestId = '';
+          let bestScore = Number.POSITIVE_INFINITY;
+          for (const option of options) {
+            const optionTokens = Array.from(
+              new Set(tokenizeLookup(option.label, true)),
+            );
+            if (!optionTokens.length) continue;
+            if (!queryTokens.every(t => optionTokens.includes(t))) continue;
+            const score =
+              Math.max(0, optionTokens.length - queryTokens.length) * 100 +
+              Math.abs(optionTokens.join('').length - queryCompact.length);
+            if (score < bestScore) {
+              bestScore = score;
+              bestId = option.id;
+            }
+          }
+          return bestId;
+        };
+
+        const parseApiArray = (data, keys = []) => {
+          if (Array.isArray(data)) return data;
+          if (Array.isArray(data?.data)) return data.data;
+          for (const key of keys) {
+            if (Array.isArray(data?.[key])) return data[key];
+          }
+          return [];
+        };
+
+        const extractCompanyIds = companyValue => {
+          if (!companyValue) return [];
+          if (Array.isArray(companyValue)) {
+            return Array.from(
+              new Set(
+                companyValue
+                  .map(item =>
+                    typeof item === 'string' ? item : String(item?._id || ''),
+                  )
+                  .filter(Boolean),
+              ),
+            );
+          }
+          if (typeof companyValue === 'string') return [companyValue];
+          const id = String(companyValue?._id || '');
+          return id ? [id] : [];
+        };
+
+        const rawCompanyName = data._companyName || '';
+        if (rawCompanyName && companies?.length > 0) {
+          const companyOpts = companies.map(c => ({
+            id: c._id,
+            label: c.businessName || c.name || '',
+          }));
+          const matchedCompanyId = resolveLookupIdFromOptions(
+            rawCompanyName,
+            companyOpts,
+          );
+
+          if (matchedCompanyId) {
+            resolvedCompanyId = matchedCompanyId;
+            form.setValue('company', matchedCompanyId);
+          } else {
+            const selectedId = await new Promise(resolve => {
+              setCompanyModalData({
+                detected: rawCompanyName,
+                companies: companies,
+                resolver: resolve,
+              });
+              setShowCompanyModal(true);
+            });
+
+            if (selectedId) {
+              resolvedCompanyId = selectedId;
+              form.setValue('company', selectedId);
+            }
+          }
+        }
+
+        if (!resolvedCompanyId) throw new Error('No company selected.');
+
+        // Fetch fresh entities for this company
+        const [pRes, vRes, prRes, sRes] = await Promise.all([
+          fetch(`${baseURL}/api/parties?company=${resolvedCompanyId}`, {
+            headers: authHeaders,
+          }),
+          fetch(
+            `${baseURL}/api/vendors?company=${resolvedCompanyId}&limit=10000`,
+            { headers: authHeaders },
+          ),
+          fetch(`${baseURL}/api/products?company=${resolvedCompanyId}`, {
+            headers: authHeaders,
+          }),
+          fetch(`${baseURL}/api/services?companyId=${resolvedCompanyId}`, {
+            headers: authHeaders,
+          }),
+        ]);
+
+        const freshParties = parseApiArray(await pRes.json(), [
+          'parties',
+          'customers',
+        ]);
+        const freshVendors = parseApiArray(await vRes.json(), ['vendors']);
+        const freshProducts = parseApiArray(await prRes.json(), [
+          'products',
+          'items',
+        ]);
+        const freshServices = parseApiArray(await sRes.json(), ['services']);
+
+        const allParties = [
+          ...(salesPurchasesProps?.parties || []),
+          ...freshParties.filter(
+            fp => !salesPurchasesProps?.parties?.find(p => p._id === fp._id),
+          ),
+        ];
+        const allVendors = [
+          ...(salesPurchasesProps?.parties || []),
+          ...freshVendors.filter(
+            fv => !salesPurchasesProps?.parties?.find(v => v._id === fv._id),
+          ),
+        ];
+        const allProducts = [
+          ...(salesPurchasesProps?.products || []),
+          ...freshProducts.filter(
+            fp => !salesPurchasesProps?.products?.find(p => p._id === fp._id),
+          ),
+        ];
+        const allServices = [
+          ...(salesPurchasesProps?.services || []),
+          ...freshServices.filter(
+            fs => !salesPurchasesProps?.services?.find(s => s._id === fs._id),
+          ),
+        ];
+
+        // Build party lookup
+        const partyNameToId = new Map();
+        const partyLookupOptions = [];
+        for (const p of allParties) {
+          const name = String(p?.name || '').trim();
+          const id = String(p?._id || '');
+          if (!name || !id) continue;
+          [
+            normalizeLookupText(name),
+            normalizeLookupKey(name),
+            buildLookupSignature(name),
+          ]
+            .filter(Boolean)
+            .forEach(key => partyNameToId.set(key, id));
+          if (!partyLookupOptions.find(o => o.id === id)) {
+            partyLookupOptions.push({
+              id,
+              label: name,
+              companyIds: extractCompanyIds(p?.company),
+            });
+          }
+        }
+
+        const vendorNameToId = new Map();
+        const vendorLookupOptions = [];
+        for (const v of allVendors) {
+          const name = String(v?.vendorName || v?.name || '').trim();
+          const id = String(v?._id || '');
+          if (!name || !id) continue;
+          [
+            normalizeLookupText(name),
+            normalizeLookupKey(name),
+            buildLookupSignature(name),
+          ]
+            .filter(Boolean)
+            .forEach(key => vendorNameToId.set(key, id));
+          if (!vendorLookupOptions.find(o => o.id === id)) {
+            vendorLookupOptions.push({ id, label: name });
+          }
+        }
+
+        const productKeyToEntries = new Map();
+        for (const product of allProducts) {
+          const productName = String(product?.name || '').trim();
+          const productId = String(product?._id || '');
+          if (!productName || !productId) continue;
+          const companyIds = extractCompanyIds(product?.company);
+          const baseKeys = [
+            normalizeLookupText(productName),
+            normalizeLookupKey(productName),
+            buildLookupSignature(productName),
+          ].filter(Boolean);
+
+          if (companyIds.length === 0) {
+            for (const key of baseKeys) {
+              const existing = productKeyToEntries.get(key) || [];
+              if (!existing.find(e => e.id === productId && e.companyId === ''))
+                existing.push({
+                  id: productId,
+                  companyId: '',
+                  label: productName,
+                });
+              productKeyToEntries.set(key, existing);
+            }
+          } else {
+            for (const cId of companyIds) {
+              for (const key of baseKeys) {
+                const existing = productKeyToEntries.get(key) || [];
+                if (
+                  !existing.find(e => e.id === productId && e.companyId === cId)
+                )
+                  existing.push({
+                    id: productId,
+                    companyId: cId,
+                    label: productName,
+                  });
+                productKeyToEntries.set(key, existing);
+              }
+            }
+          }
+        }
+
+        const serviceKeyToEntries = new Map();
+        for (const service of allServices) {
+          const serviceName = String(service?.serviceName || '').trim();
+          const serviceId = String(service?._id || '');
+          if (!serviceName || !serviceId) continue;
+          const companyIds = extractCompanyIds(
+            Array.isArray(service?.companies) && service.companies.length > 0
+              ? service.companies
+              : service?.company,
+          );
+          const baseKeys = [
+            normalizeLookupText(serviceName),
+            normalizeLookupKey(serviceName),
+            buildLookupSignature(serviceName),
+          ].filter(Boolean);
+
+          if (companyIds.length === 0) {
+            for (const key of baseKeys) {
+              const existing = serviceKeyToEntries.get(key) || [];
+              if (!existing.find(e => e.id === serviceId && e.companyId === ''))
+                existing.push({
+                  id: serviceId,
+                  companyId: '',
+                  label: serviceName,
+                });
+              serviceKeyToEntries.set(key, existing);
+            }
+          } else {
+            for (const cId of companyIds) {
+              for (const key of baseKeys) {
+                const existing = serviceKeyToEntries.get(key) || [];
+                if (
+                  !existing.find(e => e.id === serviceId && e.companyId === cId)
+                )
+                  existing.push({
+                    id: serviceId,
+                    companyId: cId,
+                    label: serviceName,
+                  });
+                serviceKeyToEntries.set(key, existing);
+              }
+            }
+          }
+        }
+
+        const getLookupKeys = value =>
+          [
+            normalizeLookupText(value),
+            normalizeLookupKey(value),
+            buildLookupSignature(value),
+          ].filter(Boolean);
+
+        // Resolve helpers
+        const resolvePartyId = (name, companyId) => {
+          for (const key of getLookupKeys(name)) {
+            const id = partyNameToId.get(key);
+            if (id) return id;
+          }
+          const pool = partyLookupOptions
+            .filter(
+              o =>
+                o.companyIds.length === 0 || o.companyIds.includes(companyId),
+            )
+            .map(o => ({ id: o.id, label: o.label }));
+          return resolveLookupIdFromOptions(name, pool) || '';
+        };
+
+        const resolveVendorId = name => {
+          for (const key of getLookupKeys(name)) {
+            const id = vendorNameToId.get(key);
+            if (id) return id;
+          }
+          return resolveLookupIdFromOptions(name, vendorLookupOptions) || '';
+        };
+
+        const resolveProductId = (name, companyId) => {
+          const matched = [];
+          const seen = new Set();
+          for (const key of getLookupKeys(name)) {
+            for (const entry of productKeyToEntries.get(key) || []) {
+              const dk = `${entry.id}:${entry.companyId}`;
+              if (seen.has(dk)) continue;
+              seen.add(dk);
+              matched.push(entry);
+            }
+          }
+          const companyMatched = matched.filter(
+            e => !e.companyId || e.companyId === companyId,
+          );
+          if (companyMatched.length > 0) return companyMatched[0].id;
+          return (
+            resolveLookupIdFromOptions(
+              name,
+              matched.map(e => ({ id: e.id, label: e.label })),
+            ) || ''
+          );
+        };
+
+        const resolveServiceId = (name, companyId) => {
+          const matched = [];
+          const seen = new Set();
+          for (const key of getLookupKeys(name)) {
+            for (const entry of serviceKeyToEntries.get(key) || []) {
+              const dk = `${entry.id}:${entry.companyId}`;
+              if (seen.has(dk)) continue;
+              seen.add(dk);
+              matched.push(entry);
+            }
+          }
+          const companyMatched = matched.filter(
+            e => !e.companyId || e.companyId === companyId,
+          );
+          if (companyMatched.length > 0) return companyMatched[0].id;
+          return (
+            resolveLookupIdFromOptions(
+              name,
+              matched.map(e => ({ id: e.id, label: e.label })),
+            ) || ''
+          );
+        };
+
+        // Ensure helpers
+        const ensureParty = async name => {
+          const id = resolvePartyId(name, resolvedCompanyId);
+          if (id) return id;
+          if (!canCreateCustomer) return '';
+          try {
+            const res = await fetch(`${baseURL}/api/parties`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                name: name.trim(),
+                company: [resolvedCompanyId],
+              }),
+            });
+            const body = await res.json();
+            if (!res.ok) return '';
+            const newId = String(body?.party?._id || body?._id || '');
+            if (newId && salesPurchasesProps?.setParties) {
+              salesPurchasesProps.setParties(prev => [
+                ...prev,
+                body?.party || body,
+              ]);
+            }
+            return newId;
+          } catch {
+            return '';
+          }
+        };
+
+        const ensureVendor = async name => {
+          const id = resolveVendorId(name);
+          if (id) return id;
+          if (!canCreateVendor) return '';
+          try {
+            const res = await fetch(`${baseURL}/api/vendors`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                vendorName: name.trim(),
+                company: [resolvedCompanyId],
+              }),
+            });
+            const body = await res.json();
+            if (!res.ok) return '';
+            const newId = String(body?.vendor?._id || body?._id || '');
+            if (newId && salesPurchasesProps?.setVendors) {
+              salesPurchasesProps.setVendors(prev => [
+                ...prev,
+                body?.vendor || body,
+              ]);
+            }
+            return newId;
+          } catch {
+            return '';
+          }
+        };
+
+        const ensureProduct = async (name, unit, price, hsn) => {
+          const id = resolveProductId(name, resolvedCompanyId);
+          if (id) return id;
+          if (!canCreateProducts) return '';
+          try {
+            const res = await fetch(`${baseURL}/api/products`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                name: name.trim(),
+                stocks: 0,
+                unit: unit || 'Piece',
+                hsn: hsn || '',
+                sellingPrice: Number(price) || 0,
+                costPrice: Number(price) || 0,
+                company: resolvedCompanyId,
+              }),
+            });
+            const body = await res.json();
+            if (!res.ok) return '';
+            const newId = String(body?.product?._id || body?._id || '');
+            if (newId && salesPurchasesProps?.setProducts) {
+              salesPurchasesProps.setProducts(prev => [
+                ...prev,
+                body?.product || body,
+              ]);
+            }
+            return newId;
+          } catch {
+            return '';
+          }
+        };
+
+        const ensureService = async (name, sac) => {
+          const id = resolveServiceId(name, resolvedCompanyId);
+          if (id) return id;
+          if (!canCreateInventory) return ''; // canCreateInventory for services
+          try {
+            const res = await fetch(`${baseURL}/api/services`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                serviceName: name.trim(),
+                sac: sac || '',
+                company: resolvedCompanyId,
+              }),
+            });
+            const body = await res.json();
+            if (!res.ok) return '';
+            const newId = String(body?.service?._id || body?._id || '');
+            if (newId && salesPurchasesProps?.setServices) {
+              salesPurchasesProps.setServices(prev => [
+                ...prev,
+                body?.service || body,
+              ]);
+            }
+            return newId;
+          } catch {
+            return '';
+          }
+        };
+
+        // ── Map Items: Don't skip unmatched, use [OCR: name] fallback ──
+        const mappedItems = [];
+        for (const it of data.items || []) {
+          const amt =
+            Number(
+              it.amount ??
+                (it.quantity && it.pricePerUnit
+                  ? it.quantity * it.pricePerUnit
+                  : 0),
+            ) || 0;
+          const pct = Number(it.gstPercentage ?? 18);
+          const lineTax = it.lineTax ?? +((amt * pct) / 100).toFixed(2);
+          const lineTotal = it.lineTotal ?? +(amt + lineTax).toFixed(2);
+          const itemType = it.itemType || 'product';
+          const ocrName = (it.product || it.service || it.name || '').trim();
+
+          let productId = '',
+            serviceId = '';
+
+          if (itemType === 'service') {
+            serviceId = await ensureService(ocrName, it.sac || '');
+          } else {
+            productId = await ensureProduct(
+              ocrName,
+              it.unitType,
+              it.pricePerUnit,
+              it.hsn || '',
+            );
+          }
+
+          const isMatched = itemType === 'service' ? !!serviceId : !!productId;
+
+          mappedItems.push({
+            itemType,
+            product: productId,
+            service: serviceId,
+            quantity: it.quantity ?? 1,
+            unitType: it.unitType || 'Piece',
+            otherUnit: it.otherUnit || '',
+            pricePerUnit: it.pricePerUnit ?? 0,
+            amount: +amt.toFixed(2),
+            gstPercentage: pct,
+            lineTax,
+            lineTotal,
+            // Mark unmatched items with [OCR: name] prefix
+            description: isMatched
+              ? it.description || ''
+              : ocrName
+              ? `[OCR: ${ocrName}] ${it.description || ''}`.trim()
+              : it.description || '',
+            hsn: it.hsn || '',
+            sac: it.sac || '',
+          });
+        }
+
+        // Set form values
+        // Date: OCR date + current time
+        if (data.date) {
+          const ocrDate = new Date(data.date);
+          const now = new Date();
+          ocrDate.setHours(
+            now.getHours(),
+            now.getMinutes(),
+            now.getSeconds(),
+            now.getMilliseconds(),
+          );
+          form.setValue('date', ocrDate);
+        }
+        // Due Date: OCR date + current time
+        if (data.dueDate) {
+          const ocrDueDate = new Date(data.dueDate);
+          const now = new Date();
+          ocrDueDate.setHours(
+            now.getHours(),
+            now.getMinutes(),
+            now.getSeconds(),
+            now.getMilliseconds(),
+          );
+          form.setValue('dueDate', ocrDueDate);
+        }
+        if (data.referenceNumber)
+          form.setValue('referenceNumber', data.referenceNumber);
+        if (data.notes) form.setValue('notes', data.notes);
+        if (data.totalAmount != null)
+          form.setValue('totalAmount', data.totalAmount);
+        if (data.taxAmount != null) form.setValue('taxAmount', data.taxAmount);
+        if (data.invoiceTotal != null)
+          form.setValue('invoiceTotal', data.invoiceTotal);
+
+        // Payment method
+        if (data.paymentMethod) {
+          const raw = (data.paymentMethod || '').toLowerCase();
+          const mapped =
+            raw.includes('bank') ||
+            raw.includes('neft') ||
+            raw.includes('rtgs') ||
+            raw.includes('imps')
+              ? 'Bank Transfer'
+              : raw.includes('upi') ||
+                raw.includes('gpay') ||
+                raw.includes('phonepe') ||
+                raw.includes('paytm')
+              ? 'UPI'
+              : raw.includes('cash')
+              ? 'Cash'
+              : raw.includes('cheque') || raw.includes('check')
+              ? 'Cheque'
+              : raw.includes('credit')
+              ? 'Credit'
+              : 'Others';
+          form.setValue('paymentMethod', mapped);
+        }
+
+        // Items
+        if (mappedItems.length > 0) {
+          form.setValue('items', mappedItems);
+          if (salesPurchasesProps?.setItemRenderKeys) {
+            const keys = {};
+            mappedItems.forEach((_, i) => {
+              keys[i] = Date.now() + i;
+            });
+            salesPurchasesProps.setItemRenderKeys(keys);
+          }
+        }
+
+        // Shipping
+        if (data.sameAsBilling != null)
+          form.setValue('sameAsBilling', data.sameAsBilling);
+        if (data.shippingAddressDetails)
+          form.setValue('shippingAddressDetails', data.shippingAddressDetails);
+
+        // ── Party / Vendor ────────────────────────────────────────────────────
+        const rawPartyName = data._partyNameRaw || data.party || '';
+        if (rawPartyName) {
+          if (currentType === 'purchases') {
+            const vendorId = await ensureVendor(rawPartyName);
+            if (vendorId) {
+              form.setValue('party', vendorId);
+
+              salesPurchasesProps?.handlePartyChangeWrapper?.(vendorId);
+            } else {
+              if (salesPurchasesProps?.setNewEntityName) {
+                salesPurchasesProps.setNewEntityName(rawPartyName);
+              }
+            }
+          } else {
+            const partyId = await ensureParty(rawPartyName);
+            if (partyId) {
+              form.setValue('party', partyId);
+              // FIX 5: Call handlePartyChangeWrapper to fetch balance
+              salesPurchasesProps?.handlePartyChangeWrapper?.(partyId);
+            } else {
+              // FIX 6: Call setNewEntityName to prefill name in create flow
+              if (salesPurchasesProps?.setNewEntityName) {
+                salesPurchasesProps.setNewEntityName(rawPartyName);
+              }
+            }
+          }
+        }
+
+        // ── Success Feedback ──────────────────────────────────────────────────
+
+        // Count unmatched items for user feedback
+        const unmatchedCount = mappedItems.filter(
+          item =>
+            item.description?.startsWith('[OCR:') ||
+            (!item.product && !item.service),
+        ).length;
+
+        const successMsg =
+          unmatchedCount > 0
+            ? `OCR data entered. ${unmatchedCount} item${
+                unmatchedCount > 1 ? 's' : ''
+              } need manual review (marked with [OCR:] prefix).`
+            : 'OCR data entered into the form. Review and save.';
+
+        showSnackbar?.(successMsg, unmatchedCount > 0 ? 'warning' : 'success');
+
+        // Trigger form validation to update error states
+        setTimeout(() => {
+          form.trigger();
+        }, 100);
+      } catch (err) {
+        console.error('[handleOCRData]', err);
+        showSnackbar?.(err?.message || 'OCR data apply nahi ho saka.', 'error');
+      }
+    },
+    [type, form, companies, baseURL, showSnackbar, salesPurchasesProps],
+    // Added companies dependency for company mismatch resolution
+  );
+
   const [journalDisplayValue, setJournalDisplayValue] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [transactionDate, setTransactionDate] = useState(new Date());
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [companyModalData, setCompanyModalData] = useState({
+    detected: '',
+    companies: [],
+    resolver: null,
+  });
+
+  const handleCompanySelect = useCallback(
+    selectedCompanyId => {
+      setShowCompanyModal(false);
+      setTimeout(() => {
+        if (companyModalData.resolver) {
+          companyModalData.resolver(selectedCompanyId);
+        }
+      }, 200);
+    },
+    [companyModalData],
+  );
 
   // Keyboard visibility handler
   useEffect(() => {
@@ -296,7 +1044,32 @@ export function FormTabs({
     () => () =>
       (
         <View style={styles.mobileTypeSelector}>
-          <Text style={styles.mobileSelectorLabel}>Transaction Type</Text>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 8,
+            }}
+          >
+            <Text style={styles.mobileSelectorLabel}>Transaction Type</Text>
+            {(type === 'sales' || type === 'purchases') && (
+              <OCRUploadButton
+                transactionType={type}
+                onDataExtracted={handleOCRData}
+                onQueueItemApplied={onOcrQueueItemApplied}
+                onQueueComplete={onOcrQueueComplete}
+                forceOpen={ocrForceOpen}
+                onForceOpenConsumed={onOcrForceOpenConsumed}
+                companies={companies}
+                style={{
+                  paddingHorizontal: 4,
+                  paddingVertical: 2,
+                  gap: 2,
+                }}
+              />
+            )}
+          </View>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -372,6 +1145,12 @@ export function FormTabs({
       canReceipt,
       canPayment,
       canJournal,
+      handleOCRData,
+      ocrForceOpen,
+      onOcrForceOpenConsumed,
+      onOcrQueueItemApplied,
+      onOcrQueueComplete,
+      companies,
     ],
   );
 
@@ -409,7 +1188,9 @@ export function FormTabs({
                 <Text style={styles.sectionTitle}>Core Details</Text>
                 <View style={styles.grid}>
                   <View style={styles.formField}>
-                    <Text style={styles.label}>Company</Text>
+                    <Text style={styles.label}>
+                      Company <Text style={styles.required}>*</Text>
+                    </Text>
                     <CustomDropdown
                       items={companies.map(c => ({
                         label: c.businessName || c.name || 'Company',
@@ -427,7 +1208,9 @@ export function FormTabs({
                   </View>
 
                   <View style={styles.formField}>
-                    <Text style={styles.label}>Transaction Date</Text>
+                    <Text style={styles.label}>
+                      Transaction Date <Text style={styles.required}>*</Text>
+                    </Text>
                     <TouchableOpacity
                       style={[
                         styles.dateInput,
@@ -467,7 +1250,9 @@ export function FormTabs({
                 <Text style={styles.sectionTitle}>Journal Entry</Text>
                 <View style={styles.grid}>
                   <View style={styles.formField}>
-                    <Text style={styles.label}>Debit Account</Text>
+                    <Text style={styles.label}>
+                      Debit Account <Text style={styles.required}>*</Text>
+                    </Text>
                     <TextInput
                       placeholder="e.g., Rent Expense"
                       style={getInputStyle(
@@ -492,7 +1277,9 @@ export function FormTabs({
                   </View>
 
                   <View style={styles.formField}>
-                    <Text style={styles.label}>Credit Account</Text>
+                    <Text style={styles.label}>
+                      Credit Account <Text style={styles.required}>*</Text>
+                    </Text>
                     <TextInput
                       placeholder="e.g., Cash"
                       style={getInputStyle(
@@ -517,7 +1304,9 @@ export function FormTabs({
                   </View>
 
                   <View style={styles.formField}>
-                    <Text style={styles.label}>Amount</Text>
+                    <Text style={styles.label}>
+                      Amount <Text style={styles.required}>*</Text>
+                    </Text>
                     <TextInput
                       placeholder="₹0.00"
                       style={getInputStyle(
@@ -609,6 +1398,14 @@ export function FormTabs({
           )}
         </View>
       </ScrollView>
+
+      <CompanySelectionModal
+        visible={showCompanyModal}
+        onDismiss={() => setShowCompanyModal(false)}
+        detectedCompany={companyModalData.detected}
+        companies={companyModalData.companies || []}
+        onSelectCompany={handleCompanySelect}
+      />
     </View>
   );
 }
@@ -1568,6 +2365,7 @@ export function SACSearchInput({ onSelect, placeholder, value, onChange }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    marginBottom: 16,
   },
   scrollContent: {
     padding: 12,
@@ -1596,10 +2394,10 @@ const styles = StyleSheet.create({
     // marginBottom: 12,
   },
   chip: {
-    backgroundColor: '#d9dbdf',
+    backgroundColor: '#eceef3',
   },
   chipSelected: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#8b77ff',
   },
   chipTextSelected: {
     color: 'white',
@@ -1618,7 +2416,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    elevation: 2,
+    elevation: 1,
     marginBottom: 12,
   },
   sectionTitle: {
@@ -1665,7 +2463,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 1,
   },
   inputError: {
     borderColor: '#ef4444',
@@ -1703,7 +2501,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    elevation: 2,
+    elevation: 1,
   },
   totalRow: {
     flexDirection: 'row',
@@ -1996,6 +2794,11 @@ const styles = StyleSheet.create({
     color: '#b91c1c',
     textAlign: 'center',
     marginTop: 2,
+  },
+  required: {
+    color: '#DC2626',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 
