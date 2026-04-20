@@ -478,7 +478,7 @@ const ExportTransaction = ({
 };
 
 const styles = StyleSheet.create({
-  exportButton: { margin: 8 },
+  // exportButton: { margin: 8 },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',

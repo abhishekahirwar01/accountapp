@@ -274,6 +274,7 @@ const TemplateA5_3PDF = ({
         company,
         party,
         actualShippingAddress,
+        serviceNameById,
       );
 
       if (!result || typeof result !== 'object') {

@@ -21,8 +21,10 @@ import {
   Keyboard,
   ActivityIndicator,
   PermissionsAndroid,
+  StatusBar,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useForm, useFieldArray, useWatch, Controller } from 'react-hook-form';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -38,6 +40,7 @@ import WebView from 'react-native-webview';
 import Pdf from 'react-native-pdf';
 import RenderHtml from 'react-native-render-html';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import IonIcon from 'react-native-vector-icons/Ionicons';
 
 import { useCompany } from '../../contexts/company-context.js';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
@@ -131,9 +134,9 @@ const Button = ({
   icon,
   ...props
 }) => {
-  const backgroundColor = mode === 'contained' ? '#007AFF' : 'transparent';
-  const borderColor = mode === 'outlined' ? '#007AFF' : 'transparent';
-  const textColor = mode === 'contained' ? '#fff' : '#007AFF';
+  const backgroundColor = mode === 'contained' ? '#8b77ff' : 'transparent';
+  const borderColor = mode === 'outlined' ? '#8b77ff' : 'transparent';
+  const textColor = mode === 'contained' ? '#fff' : '#8b77ff';
 
   return (
     <TouchableOpacity
@@ -207,7 +210,7 @@ const IconButton = ({ icon, onPress, size = 24, style, color = '#666' }) => (
 
 const IconAction = ({ iconName, label, onPress, disabled }) => {
   let icon = iconName;
-  let color = '#007AFF';
+  let color = '#8b77ff';
 
   switch (iconName) {
     case 'whatsapp':
@@ -216,7 +219,7 @@ const IconAction = ({ iconName, label, onPress, disabled }) => {
       break;
     case 'download':
       icon = 'download';
-      color = '#007AFF';
+      color = '#8b77ff';
       break;
     case 'email':
       icon = 'email-outline';
@@ -229,7 +232,7 @@ const IconAction = ({ iconName, label, onPress, disabled }) => {
       break;
     default:
       icon = iconName;
-      color = '#007AFF';
+      color = '#8b77ff';
   }
 
   return (
@@ -243,12 +246,6 @@ const IconAction = ({ iconName, label, onPress, disabled }) => {
     </TouchableOpacity>
   );
 };
-
-// const ActivityIndicator = ({ size, color }) => (
-//   <View style={styles.activityIndicator}>
-//     <Text style={{ color, fontSize: size === 'large' ? 24 : 16 }}>●</Text>
-//   </View>
-// );
 
 const TextInput = ({ label, error, style, ...props }) => (
   <View style={styles.textInputContainer}>
@@ -280,12 +277,11 @@ const Snackbar = ({ visible, children, onDismiss, duration, style }) => {
 
   return (
     <View style={[styles.snackbar, style]}>
-      {/* Yahan style update kiya gaya hai taaki text wrap ho aur kate nahi */}
       <RNTextInput
         editable={false}
-        multiline={true} // Isse text wrap hoga
-        scrollEnabled={false} // Scrolling off taaki sirf display ho
-        style={[styles.snackbarText, { paddingLeft: 5 }]} // Thodi padding add ki
+        multiline={true}
+        scrollEnabled={false}
+        style={[styles.snackbarText, { paddingLeft: 5 }]}
       >
         {children}
       </RNTextInput>
@@ -376,19 +372,30 @@ const PRODUCT_DEFAULT = {
 };
 
 export function TransactionForm({
-  transactionToEdit,
+  transactionToEdit: propTransactionToEdit,
   onFormSubmit,
-  defaultType = 'sales',
-  serviceNameById,
-  prefillFrom,
+  defaultType: propDefaultType = 'sales',
+  serviceNameById: propServiceNameById,
+  prefillFrom: propPrefillFrom,
 }) {
+  // Handle navigation params
+  const navigation = useNavigation();
+  const route = useRoute();
+
+  const transactionToEdit =
+    propTransactionToEdit || route.params?.transactionToEdit;
+  const defaultType = propDefaultType || route.params?.defaultType || 'sales';
+  const serviceNameById =
+    propServiceNameById || route.params?.serviceNameById || {};
+  const prefillFrom = propPrefillFrom || route.params?.prefillFrom;
+
+  const isNavigationMode = !!navigation;
+
   const [snackbar, setSnackbar] = useState({
     visible: false,
     message: '',
     type: 'default',
   });
-
-  const navigation = useNavigation();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPartyDialogOpen, setIsPartyDialogOpen] = useState(false);
@@ -457,6 +464,8 @@ export function TransactionForm({
     contactNumber: '',
   });
   const [customGstInputs, setCustomGstInputs] = useState({});
+  const [ocrForceOpen, setOcrForceOpen] = useState(false);
+  const reopenOcrCallbackRef = useRef(null);
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
   const [generatedInvoice, setGeneratedInvoice] = useState(null);
   const [isPreviewProcessing, setIsPreviewProcessing] = useState(false);
@@ -500,7 +509,6 @@ export function TransactionForm({
   const paymentMethods = [
     'Cash',
     'Credit',
-
     'UPI',
     'Bank Transfer',
     'Cheque',
@@ -1222,15 +1230,6 @@ export function TransactionForm({
         shouldValidate: true,
         shouldDirty: true,
       });
-
-      // Trigger validation/calculation so watched effects recalc totals
-      // setTimeout(() => {
-      //   if (typeof form.trigger === 'function') {
-      //     try {
-      //       form.trigger('items');
-      //     } catch (e) {}
-      //   }
-      // }, 100);
     }
   }, [type, products]);
 
@@ -1809,24 +1808,18 @@ export function TransactionForm({
     shippingAddresses,
     transactionToEdit,
   ]);
+
   // Reset party/customer selection when company changes
   useEffect(() => {
     const currentPartyId = form.getValues('party');
 
-    // AGAR:
-    // 1. Koi party selected nahi hai
-    // 2. Ya abhi data load ho raha hai (isLoading)
-    // 3. Ya hum EDIT mode mein hain (transactionToEdit)
-    // TOH: Humein validation karne ki zarurat nahi hai.
     if (!currentPartyId || isLoading || transactionToEdit) return;
 
-    // Check if current party belongs to selected company
     const isValid =
       type === 'sales' || type === 'receipt'
         ? filteredParties.some(p => p._id === currentPartyId)
         : filteredVendors.some(v => v._id === currentPartyId);
 
-    // Web ki tarah behavior: Tabhi reset karein jab lists load ho chuki hon (length > 0)
     const isListReady =
       type === 'sales' || type === 'receipt'
         ? filteredParties.length > 0
@@ -1845,7 +1838,6 @@ export function TransactionForm({
         type: 'info',
       });
     }
-    // Dependencies mein filtered lists add karna zaruri hai
   }, [
     selectedCompanyIdWatch,
     type,
@@ -1859,9 +1851,54 @@ export function TransactionForm({
 
   const handlePreviewClose = () => {
     setInvoicePreviewOpen(false);
-    if (type === 'sales') {
+
+    // Form reset karo next invoice ke liye
+    form.reset({
+      type: type,
+      company: form.getValues('company'),
+      date: new Date(),
+      dueDate: undefined,
+      party: '',
+      referenceNumber: '',
+      description: '',
+      narration: '',
+      paymentMethod: '',
+      bank: '',
+      items: [PRODUCT_DEFAULT],
+      totalAmount: 0,
+      taxAmount: 0,
+      invoiceTotal: 0,
+      notes: '',
+      sameAsBilling: true,
+      shippingAddress: '',
+      shippingAddressDetails: {
+        label: '',
+        address: '',
+        city: '',
+        state: '',
+        pincode: '',
+        contactNumber: '',
+      },
+      isExpense: false,
+      expense: '',
+      fromAccount: '',
+      toAccount: '',
+    });
+
+    setGeneratedInvoice(null);
+    setIsTransactionSaved(false);
+    setSavedTransactionData(null);
+
+    // ── Queue reopen ──
+    if (reopenOcrCallbackRef.current) {
+      const reopen = reopenOcrCallbackRef.current;
+      reopenOcrCallbackRef.current = null;
+      setTimeout(() => reopen(), 300);
+    } else {
       if (onFormSubmit && typeof onFormSubmit === 'function') {
         onFormSubmit();
+      } else {
+        navigation.goBack();
       }
     }
   };
@@ -1949,22 +1986,17 @@ export function TransactionForm({
     };
 
     try {
-      // ✅ FIRST AND MOST IMPORTANT: Check if base64 already exists in the object
       if (pdfInstance?.base64 && typeof pdfInstance.base64 === 'string') {
         return pdfInstance.base64;
       }
 
-      // ✅ SECOND: Check if it's already a base64 string
       if (typeof pdfInstance === 'string') {
         if (pdfInstance.startsWith('data:')) {
           const base64Data = pdfInstance.split(',')[1];
-
           return base64Data || pdfInstance;
         }
 
-        // ✅ Check if string is a filePath (contains /) or base64
         if (pdfInstance.includes('/') || pdfInstance.includes('\\')) {
-          // It's a filePath, try to read it
           try {
             const base64 = await RNFS.readFile(pdfInstance, 'base64');
             if (base64 && typeof base64 === 'string' && base64.length > 0) {
@@ -1973,12 +2005,9 @@ export function TransactionForm({
           } catch (e) {}
         }
 
-        // Assume it's base64
-
         return pdfInstance;
       }
 
-      // ✅ THIRD: Try output('base64') directly
       if (pdfInstance && typeof pdfInstance.output === 'function') {
         try {
           const base64 = pdfInstance.output('base64');
@@ -1988,7 +2017,6 @@ export function TransactionForm({
         } catch (e) {}
       }
 
-      // ✅ FOURTH: Traditional conversion methods (as fallback)
       if (typeof Blob !== 'undefined' && pdfInstance instanceof Blob) {
         const arrayBuffer = await pdfInstance.arrayBuffer();
         const u8 = new Uint8Array(arrayBuffer);
@@ -1996,16 +2024,13 @@ export function TransactionForm({
 
         if (typeof btoa === 'function') {
           const result = btoa(bin);
-
           return result;
         }
         if (typeof Buffer !== 'undefined') {
           const result = Buffer.from(u8).toString('base64');
-
           return result;
         }
         const result = base64FromUint8(u8);
-
         return result;
       }
 
@@ -2015,16 +2040,13 @@ export function TransactionForm({
 
         if (typeof btoa === 'function') {
           const result = btoa(bin);
-
           return result;
         }
         if (typeof Buffer !== 'undefined') {
           const result = Buffer.from(u8).toString('base64');
-
           return result;
         }
         const result = base64FromUint8(u8);
-
         return result;
       }
 
@@ -2037,16 +2059,13 @@ export function TransactionForm({
 
             if (typeof btoa === 'function') {
               const result = btoa(bin);
-
               return result;
             }
             if (typeof Buffer !== 'undefined') {
               const result = Buffer.from(u8).toString('base64');
-
               return result;
             }
             const result = base64FromUint8(u8);
-
             return result;
           }
         } catch (e) {}
@@ -2057,7 +2076,6 @@ export function TransactionForm({
           if (typeof out === 'string') {
             if (out.startsWith('data:')) {
               const base64Data = out.split(',')[1];
-
               return base64Data;
             } else {
               return out;
@@ -2067,16 +2085,7 @@ export function TransactionForm({
       }
 
       const keys = Object.keys(pdfInstance || {});
-      const detailsObj = {
-        type: typeof pdfInstance,
-        constructor: pdfInstance?.constructor?.name,
-        keys,
-        hasOutput: typeof pdfInstance?.output === 'function',
-        hasSave: typeof pdfInstance?.save === 'function',
-      };
 
-      // SPECIAL CASE: React Native HTML to PDF often returns {success, filePath, fileName}
-      // Try to read file from filePath and convert to base64 before failing
       if (
         pdfInstance &&
         typeof pdfInstance === 'object' &&
@@ -2096,6 +2105,7 @@ export function TransactionForm({
       throw err;
     }
   };
+
   const updateProductHsn = async (productId, hsn) => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -2109,7 +2119,6 @@ export function TransactionForm({
         },
         body: JSON.stringify({ hsn }),
       });
-      // Also update local state for consistency
       setProducts(prev =>
         prev.map(p => (p._id === productId ? { ...p, hsn } : p)),
       );
@@ -2131,7 +2140,6 @@ export function TransactionForm({
         },
         body: JSON.stringify({ sac }),
       });
-      // Also update local state for consistency
       setServices(prev =>
         prev.map(s => (s._id === serviceId ? { ...s, sac } : s)),
       );
@@ -2139,6 +2147,7 @@ export function TransactionForm({
       // Optional: show a non-intrusive error
     }
   };
+
   const handleHsnChange = (hsnCodeValue, index) => {
     form.setValue(`items.${index}.hsn`, hsnCodeValue, {
       shouldValidate: true,
@@ -2146,7 +2155,6 @@ export function TransactionForm({
 
     const productId = form.watch(`items.${index}.product`);
     if (productId) {
-      // Fire-and-forget update to the backend
       updateProductHsn(productId, hsnCodeValue);
     }
   };
@@ -2158,7 +2166,6 @@ export function TransactionForm({
 
     const serviceId = form.watch(`items.${index}.service`);
     if (serviceId) {
-      // Fire-and-forget update to the backend
       updateServiceSac(serviceId, sacCodeValue);
     }
   };
@@ -2424,8 +2431,21 @@ export function TransactionForm({
         );
       }
 
+      // Purchases ke liye queue reopen
+      if (values.type === 'purchases' && reopenOcrCallbackRef.current) {
+        const reopen = reopenOcrCallbackRef.current;
+        reopenOcrCallbackRef.current = null;
+        setTimeout(() => reopen(), 500);
+      }
+
       if (shouldCloseForm) {
-        onFormSubmit();
+        // If we have onFormSubmit prop, call it (for modal mode)
+        if (onFormSubmit && typeof onFormSubmit === 'function') {
+          onFormSubmit();
+        } else {
+          // Otherwise go back (for navigation mode)
+          navigation.goBack();
+        }
       }
 
       const templateRes = await fetch(
@@ -2806,7 +2826,6 @@ export function TransactionForm({
       const templateData = await templateRes.json();
       const selectedTemplate = templateData.defaultTemplate || 'template1';
 
-      // Use local PDF queue to serialize generation and avoid "Another PDF conversion" errors
       const pdfDoc = await addToPdfQueue(() =>
         generatePdfByTemplate(
           selectedTemplate,
@@ -2867,20 +2886,17 @@ export function TransactionForm({
       setEmailDialogMessage(`Sent to ${partyDoc.email}`);
       setIsEmailDialogOpen(true);
     } catch (error) {
-      // Check if it's a Gmail connection error
       if (
         error.message?.includes('Gmail is not connected') ||
         error.message?.includes('Gmail not connected') ||
         error.message?.includes('not connected for the company sender')
       ) {
-        // Show specific Gmail connection error with guidance
         setEmailDialogTitle('Gmail Not Connected');
         setEmailDialogMessage(
           'Gmail is not connected. Please connect Gmail in Settings → Integrations to send emails.',
         );
         setIsEmailDialogOpen(true);
 
-        // Optional: You can also show an alert for more prominent notification
         Alert.alert(
           'Gmail Not Connected',
           'To send emails directly from the app, you need to connect your Gmail account first.\n\nPlease go to Settings → Integrations and connect your Gmail account.',
@@ -2888,14 +2904,12 @@ export function TransactionForm({
             {
               text: 'Open Settings',
               onPress: () => {
-                // Navigate to Profile screen Permissions tab so user can connect Gmail
                 try {
                   setIsEmailDialogOpen(false);
                   navigation.navigate('ProfileScreen', {
                     selectTab: 'permissions',
                   });
                 } catch (e) {
-                  // Fallback to OS settings if navigation fails
                   Linking.openURL('app-settings:').catch(() => {});
                 }
               },
@@ -2907,7 +2921,6 @@ export function TransactionForm({
         error.message?.includes('No customer email') ||
         error.message?.includes('does not have an email address')
       ) {
-        // Handle missing customer email
         setEmailDialogTitle('❌ No Email Found');
         setEmailDialogMessage(
           'Customer email not found. Please add an email address for this customer.',
@@ -2959,7 +2972,6 @@ export function TransactionForm({
         services,
       );
 
-      // 1) Android permission check for older OS versions
       if (Platform.OS === 'android' && Platform.Version < 33) {
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
@@ -3013,7 +3025,6 @@ export function TransactionForm({
         throw new Error('Invalid PDF data generated');
       }
 
-      // Filename with timestamp
       const invoiceNumber =
         transactionToUse.invoiceNumber ||
         transactionToUse.referenceNumber ||
@@ -3021,7 +3032,6 @@ export function TransactionForm({
       const timestamp = Date.now();
       const fname = `Invoice_${invoiceNumber || 'INV'}_${timestamp}.pdf`;
 
-      // Paths
       const tempPath = `${RNFS.DocumentDirectoryPath}/${fname}`;
       const downloadDir =
         Platform.OS === 'android'
@@ -3029,10 +3039,8 @@ export function TransactionForm({
           : RNFS.DocumentDirectoryPath;
       const publicPath = `${downloadDir}/${fname}`;
 
-      // Write to temp
       await RNFS.writeFile(tempPath, pdfBase64, 'base64');
 
-      // On Android, copy to Downloads and trigger media scan
       if (Platform.OS === 'android') {
         try {
           await RNFS.copyFile(tempPath, publicPath);
@@ -3048,7 +3056,6 @@ export function TransactionForm({
             { text: 'OK' },
           ]);
         } catch (copyErr) {
-          // If copy fails, fall back to temp path success
           setSnackbar({
             visible: true,
             message: `Invoice saved to app storage: ${tempPath}`,
@@ -3056,22 +3063,16 @@ export function TransactionForm({
           });
         }
       } else {
-        // iOS: present share sheet for the generated PDF
         try {
           await Share.open({
             url: `file://${tempPath}`,
             type: 'application/pdf',
             filename: fname,
           });
-        } catch (shareErr) {
-          // ignore user cancellations
-        }
+        } catch (shareErr) {}
       }
 
-      // Cleanup temp file if exists
-      await RNFS.unlink(tempPath).catch(() => {
-        // ignore cleanup errors
-      });
+      await RNFS.unlink(tempPath).catch(() => {});
 
       setSnackbar({
         visible: true,
@@ -3090,7 +3091,6 @@ export function TransactionForm({
     }
   };
 
-  // Helper function to try opening files (works better on iOS)
   const openFileWithFallback = async filePath => {
     try {
       const fileUri = Platform.OS === 'ios' ? `file://${filePath}` : filePath;
@@ -3099,7 +3099,6 @@ export function TransactionForm({
         showAppsSuggestions: true,
       });
     } catch (error) {
-      // On failure, just show the success message again
       setSnackbar({
         visible: true,
         message:
@@ -3182,10 +3181,8 @@ export function TransactionForm({
       const fname = `Invoice_${invoiceNumber || Date.now()}.pdf`;
       const cachePath = `${RNFS.CachesDirectoryPath}/${fname}`;
 
-      // Write temporary file for printing
       await RNFS.writeFile(cachePath, pdfBase64, 'base64');
 
-      // Open native print dialog
       await RNPrint.print({ filePath: cachePath })
         .catch(err => {
           setSnackbar({
@@ -3197,7 +3194,6 @@ export function TransactionForm({
           });
         })
         .finally(() => {
-          // Delete temporary file after printing
           setTimeout(() => {
             RNFS.unlink(cachePath).catch(() => {});
           }, 2000);
@@ -3232,7 +3228,6 @@ export function TransactionForm({
     setWhatsappComposerOpen(true);
   };
 
-  // Invoice Template Renderer: generate PDF, write to RNFS cache, render using react-native-pdf
   const InvoiceTemplateRenderer = ({ invoiceData }) => {
     const [source, setSource] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -3244,7 +3239,6 @@ export function TransactionForm({
 
       const generatePreview = async () => {
         if (!invoiceData) return;
-        // Preview will queue along with actions - no pausing needed
         try {
           setLoading(true);
           setError(null);
@@ -3256,7 +3250,6 @@ export function TransactionForm({
             throw new Error('Company or party data is missing');
           }
 
-          // Determine template: prefer invoiceData.selectedTemplate, then backend default, then 'template1'
           let selectedTemplate = invoiceData.selectedTemplate || null;
           if (!selectedTemplate) {
             try {
@@ -3289,12 +3282,10 @@ export function TransactionForm({
             ),
           );
 
-          // Prefer centralized conversion helper if available
           let base64 = null;
           try {
             base64 = await pdfInstanceToBase64(pdfDoc);
           } catch (e) {
-            // fallback to older heuristics
             if (pdfDoc && typeof pdfDoc.output === 'function')
               base64 = pdfDoc.output('base64');
             else if (typeof pdfDoc === 'string') base64 = pdfDoc;
@@ -3305,18 +3296,8 @@ export function TransactionForm({
             throw new Error('No PDF data generated');
           }
 
-          // ✅ VALIDATE base64 before using
           if (typeof base64 !== 'string' || base64.trim().length === 0) {
             throw new Error('PDF conversion returned empty or invalid base64');
-          }
-
-          // Check if base64 starts with valid PDF magic bytes (base64 encoded: %PDF)
-          if (
-            !base64.startsWith('JVBERi') &&
-            !base64.startsWith('iVBORw') &&
-            !base64.trim().length
-          ) {
-            // Base64 may not be valid PDF
           }
 
           const fileName = `invoice_preview_${Date.now()}.pdf`;
@@ -3324,7 +3305,6 @@ export function TransactionForm({
 
           await RNFS.writeFile(cachePath, base64, 'base64');
 
-          // keep ref to delete later
           tempFileRef.current = cachePath;
 
           if (!mounted) return;
@@ -3343,7 +3323,6 @@ export function TransactionForm({
 
       return () => {
         mounted = false;
-        // try to remove temp file
         (async () => {
           try {
             if (tempFileRef.current) {
@@ -3351,9 +3330,7 @@ export function TransactionForm({
               if (exists) await RNFS.unlink(tempFileRef.current);
               tempFileRef.current = null;
             }
-          } catch (e) {
-            // ignore cleanup errors
-          }
+          } catch (e) {}
         })();
       };
     }, [invoiceData]);
@@ -3362,7 +3339,7 @@ export function TransactionForm({
       return (
         <View style={styles.previewLoadingContainer}>
           <View style={styles.previewLoadingContent}>
-            <ActivityIndicator size="large" color="#007AFF" />
+            <ActivityIndicator size="large" color="#8b77ff" />
             <Text style={styles.previewLoadingText}>Generating preview...</Text>
           </View>
         </View>
@@ -3465,16 +3442,15 @@ export function TransactionForm({
     }
   };
 
-  // Filter products by selected company
   const filteredProducts = useMemo(() => {
-    if (!selectedCompanyIdWatch) return []; // List khali rakhein agar company select nahi hai
+    if (!selectedCompanyIdWatch) return [];
     return products.filter(p => {
       const prodCompanies = Array.isArray(p.company)
         ? p.company
         : p.company
         ? [p.company]
         : [];
-      if (prodCompanies.length === 0) return true; // Global products
+      if (prodCompanies.length === 0) return true;
       return prodCompanies.some(comp => {
         const compId =
           typeof comp === 'object' && comp !== null ? comp._id : comp;
@@ -3483,7 +3459,6 @@ export function TransactionForm({
     });
   }, [products, selectedCompanyIdWatch]);
 
-  // Filter services by selected company
   const filteredServices = useMemo(() => {
     if (!selectedCompanyIdWatch) return [];
     return services.filter(s => {
@@ -3492,7 +3467,7 @@ export function TransactionForm({
         : s.company
         ? [s.company]
         : [];
-      if (serviceCompanies.length === 0) return true; // Global services
+      if (serviceCompanies.length === 0) return true;
       return serviceCompanies.some(comp => {
         const compId =
           typeof comp === 'object' && comp !== null ? comp._id : comp;
@@ -3501,7 +3476,6 @@ export function TransactionForm({
     });
   }, [services, selectedCompanyIdWatch]);
 
-  // Filter parties/customers based on selected company
   const filteredParties = useMemo(() => {
     if (!selectedCompanyIdWatch) return [];
 
@@ -3521,7 +3495,6 @@ export function TransactionForm({
     });
   }, [parties, selectedCompanyIdWatch]);
 
-  // Filter vendors based on selected company
   const filteredVendors = useMemo(() => {
     if (!selectedCompanyIdWatch) return [];
 
@@ -3589,94 +3562,9 @@ export function TransactionForm({
     value: method,
   }));
 
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <View style={styles.loadingContent}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading form data...</Text>
-        </View>
-      </View>
-    );
-  }
-
-  const hasAnyTxnCreate =
-    canSales || canPurchases || canReceipt || canPayment || canJournal;
-  const hasAnyEntityCreate =
-    canCreateCustomer || canCreateVendor || canCreateInventory;
-  const canOpenForm = isSuper || !!transactionToEdit || hasAnyTxnCreate;
-
-  if (!canOpenForm) {
-    return (
-      <View style={styles.accessDeniedContainer}>
-        <Card style={styles.accessDeniedCard}>
-          <View style={styles.cardContent}>
-            <Text variant="titleLarge">Access denied</Text>
-            <Text variant="bodyMedium" style={styles.accessDeniedText}>
-              Your admin hasn't granted you the permissions required to create
-              transactions here.
-            </Text>
-            {!hasAnyTxnCreate && (
-              <Text variant="bodySmall">
-                • You lack permission to create
-                Sales/Purchases/Receipt/Payment/Journal.
-              </Text>
-            )}
-            {!hasAnyEntityCreate && (
-              <Text variant="bodySmall">
-                • You lack permission to create Customers, Vendors, or Inventory
-                (Products/Services).
-              </Text>
-            )}
-            <Text variant="bodyMedium" style={styles.accessDeniedText}>
-              Please contact your administrator.
-            </Text>
-          </View>
-        </Card>
-      </View>
-    );
-  }
-
-  if (!transactionToEdit && !isSuper && allowedTypes.length === 0) {
-    return (
-      <View style={styles.noPermissionsContainer}>
-        <Text variant="headlineSmall">No permissions</Text>
-        <Text variant="bodyMedium">
-          You don't have access to create any transactions. Please contact your
-          administrator.
-        </Text>
-      </View>
-    );
-  }
-
-  const handleAddressSaved = updatedAddress => {
-    setShippingAddresses(prev =>
-      prev.map(addr =>
-        addr._id === updatedAddress._id ? updatedAddress : addr,
-      ),
-    );
-
-    const currentShippingAddress = form.getValues('shippingAddress');
-    if (currentShippingAddress === updatedAddress._id) {
-      form.setValue('shippingAddressDetails', {
-        label: updatedAddress.label || '',
-        address: updatedAddress.address || '',
-        city: updatedAddress.city || '',
-        state: updatedAddress.state || '',
-        pincode: updatedAddress.pincode || '',
-        contactNumber: updatedAddress.contactNumber || '',
-      });
-    }
-
-    setSnackbar({
-      visible: true,
-      message: 'Shipping address has been updated successfully.',
-      type: 'success',
-    });
-  };
-
-  return (
-    <View style={styles.container}>
+  // ─── Form Content  ───
+  const formContent = (
+    <View style={{ flex: 1 }}>
       <View
         ref={scrollViewRef}
         style={styles.scrollView}
@@ -3691,6 +3579,7 @@ export function TransactionForm({
             Keyboard.dismiss();
             form.setValue('type', newType, { shouldValidate: true });
           }}
+          transactionToEdit={transactionToEdit}
           canSales={canSales}
           canPurchases={canPurchases}
           canReceipt={canReceipt}
@@ -3773,6 +3662,10 @@ export function TransactionForm({
             canCreateProducts,
             canCreateCustomer,
             canCreateVendor,
+            setProducts,
+            setServices,
+            setParties,
+            setVendors,
           }}
           renderReceiptPaymentFields={ReceiptPaymentFields}
           receiptPaymentProps={{
@@ -3808,6 +3701,17 @@ export function TransactionForm({
             canCreateCustomer,
             canCreateVendor,
           }}
+          ocrForceOpen={ocrForceOpen}
+          onOcrForceOpenConsumed={() => setOcrForceOpen(false)}
+          onOcrQueueItemApplied={(remaining, reopenDialog) => {
+            reopenOcrCallbackRef.current = reopenDialog;
+          }}
+          onOcrQueueComplete={() => {
+            reopenOcrCallbackRef.current = null;
+          }}
+          showSnackbar={(message, type) =>
+            setSnackbar({ visible: true, message, type: type || 'success' })
+          }
         />
       </View>
 
@@ -3843,6 +3747,513 @@ export function TransactionForm({
           </Button>
         </View>
       </KeyboardAvoidingView>
+    </View>
+  );
+
+  // ─── Loading State ───
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.loadingContainer}>
+          <View style={styles.loadingContent}>
+            <ActivityIndicator size="large" color="#8b77ff" />
+            <Text style={styles.loadingText}>Loading form data...</Text>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ─── Permission Checks ───
+  const hasAnyTxnCreate =
+    canSales || canPurchases || canReceipt || canPayment || canJournal;
+  const hasAnyEntityCreate =
+    canCreateCustomer || canCreateVendor || canCreateInventory;
+  const canOpenForm = isSuper || !!transactionToEdit || hasAnyTxnCreate;
+
+  if (!canOpenForm) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.accessDeniedContainer}>
+          <Card style={styles.accessDeniedCard}>
+            <View style={styles.cardContent}>
+              <Text variant="titleLarge">Access denied</Text>
+              <Text variant="bodyMedium" style={styles.accessDeniedText}>
+                Your admin hasn't granted you the permissions required to create
+                transactions here.
+              </Text>
+              {!hasAnyTxnCreate && (
+                <Text variant="bodySmall">
+                  • You lack permission to create
+                  Sales/Purchases/Receipt/Payment/Journal.
+                </Text>
+              )}
+              {!hasAnyEntityCreate && (
+                <Text variant="bodySmall">
+                  • You lack permission to create Customers, Vendors, or
+                  Inventory (Products/Services).
+                </Text>
+              )}
+              <Text variant="bodyMedium" style={styles.accessDeniedText}>
+                Please contact your administrator.
+              </Text>
+            </View>
+          </Card>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!transactionToEdit && !isSuper && allowedTypes.length === 0) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.noPermissionsContainer}>
+          <Text variant="headlineSmall">No permissions</Text>
+          <Text variant="bodyMedium">
+            You don't have access to create any transactions. Please contact
+            your administrator.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (isNavigationMode) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+        {/* Header */}
+        <View style={styles.navHeader}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <IonIcon name="arrow-back" size={22} color="#8b77ff" />
+          </TouchableOpacity>
+          <Text style={styles.navHeaderTitle}>
+            {transactionToEdit ? 'Edit Transaction' : 'Create New Transaction'}
+          </Text>
+          <View style={styles.backBtn} />
+        </View>
+
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          {formContent}
+        </KeyboardAvoidingView>
+
+        {/* Dialogs */}
+        <Dialog
+          visible={isPartyDialogOpen}
+          onDismiss={() => setIsPartyDialogOpen(false)}
+          style={styles.dialog}
+        >
+          <View style={styles.modalHeader}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={styles.modalTitle}>
+                Create New{' '}
+                {['sales', 'receipt'].includes(type) ? 'Customer' : 'Vendor'}
+              </Text>
+              <Text style={styles.modalSubTitle}>
+                {['sales', 'receipt'].includes(type)
+                  ? 'Add a customer to this transaction'
+                  : 'Add a vendor to this transaction'}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => setIsPartyDialogOpen(false)}>
+              <Text style={styles.modalCloseIcon}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Dialog.Content>
+            <View style={{ flex: 1 }}>
+              {type === 'sales' || type === 'receipt' ? (
+                <CustomerForm
+                  initialName={newEntityName}
+                  onSuccess={handlePartyCreated}
+                  onCancel={() => setIsPartyDialogOpen(false)}
+                  hideHeader={true}
+                />
+              ) : (
+                <VendorForm
+                  initialName={newEntityName}
+                  onSuccess={handlePartyCreated}
+                  onClose={() => setIsPartyDialogOpen(false)}
+                  hideHeader={true}
+                />
+              )}
+            </View>
+          </Dialog.Content>
+        </Dialog>
+
+        <Dialog
+          visible={isProductDialogOpen}
+          onDismiss={() => setIsProductDialogOpen(false)}
+          style={styles.dialog}
+        >
+          <View style={styles.modalHeader}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={styles.modalTitle}>Create New Product</Text>
+              <Text style={styles.modalSubTitle}>
+                Add a product to use in this transaction
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => setIsProductDialogOpen(false)}>
+              <Text style={styles.modalCloseIcon}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Dialog.Content>
+            <View style={{ flex: 1 }}>
+              <ProductForm
+                productType={'product'}
+                onSuccess={handleProductCreated}
+                initialName={newEntityName}
+                onClose={() => setIsProductDialogOpen(false)}
+                hideHeader={true}
+              />
+            </View>
+          </Dialog.Content>
+        </Dialog>
+
+        <Dialog
+          visible={isServiceDialogOpen}
+          onDismiss={() => setIsServiceDialogOpen(false)}
+          style={styles.dialog}
+        >
+          <View style={styles.modalHeader}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={styles.modalTitle}>Create New Service</Text>
+              <Text style={styles.modalSubTitle}>
+                Add a service to use in this transaction
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => setIsServiceDialogOpen(false)}>
+              <Text style={styles.modalCloseIcon}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Dialog.Content>
+            <View style={{ flex: 1 }}>
+              <ServiceForm
+                onSuccess={handleServiceCreated}
+                service={undefined}
+                initialName={newEntityName}
+                onClose={() => setIsServiceDialogOpen(false)}
+              />
+            </View>
+          </Dialog.Content>
+        </Dialog>
+
+        <Dialog
+          visible={isEditShippingAddressDialogOpen}
+          onDismiss={() => setIsEditShippingAddressDialogOpen(false)}
+          style={styles.dialog}
+        >
+          <Dialog.Title>Edit Shipping Address</Dialog.Title>
+          <Dialog.Content>
+            <View style={styles.editAddressForm}>
+              <View style={styles.formRow}>
+                <View style={styles.formField}>
+                  <Text style={styles.label}>Address Label</Text>
+                  <TextInput
+                    placeholder="e.g., Home, Office, Warehouse"
+                    value={editAddressForm.label}
+                    onChangeText={text =>
+                      setEditAddressForm(prev => ({
+                        ...prev,
+                        label: text,
+                      }))
+                    }
+                    style={styles.input}
+                  />
+                </View>
+                <View style={styles.formField}>
+                  <Text style={styles.label}>Contact Number</Text>
+                  <TextInput
+                    placeholder="Contact number"
+                    value={editAddressForm.contactNumber}
+                    onChangeText={text =>
+                      setEditAddressForm(prev => ({
+                        ...prev,
+                        contactNumber: text,
+                      }))
+                    }
+                    style={styles.input}
+                    keyboardType="phone-pad"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.label}>Address</Text>
+                <TextInput
+                  placeholder="Full address"
+                  value={editAddressForm.address}
+                  onChangeText={text =>
+                    setEditAddressForm(prev => ({
+                      ...prev,
+                      address: text,
+                    }))
+                  }
+                  multiline
+                  numberOfLines={3}
+                  style={styles.textArea}
+                />
+              </View>
+
+              <View style={styles.formRow}>
+                <View style={styles.formField}>
+                  <Text style={styles.label}>State</Text>
+                  <DropDownPicker
+                    open={stateDropdownOpen}
+                    value={
+                      shippingStateOptions.find(
+                        o =>
+                          o.label.toLowerCase() ===
+                          editAddressForm.state.toLowerCase(),
+                      )?.value ?? ''
+                    }
+                    items={shippingStateOptions}
+                    setOpen={setStateDropdownOpen}
+                    onSelectItem={item => {
+                      const selected = indiaStates.find(
+                        s => s.isoCode === item.value,
+                      );
+                      setEditAddressForm(prev => ({
+                        ...prev,
+                        state: selected?.name || '',
+                        city: '',
+                      }));
+                    }}
+                    placeholder="Select state"
+                    style={styles.dropdown}
+                    textStyle={styles.dropdownText}
+                  />
+                </View>
+                <View style={styles.formField}>
+                  <Text style={styles.label}>City</Text>
+                  <DropDownPicker
+                    open={cityDropdownOpen}
+                    value={
+                      shippingCityOptions.find(
+                        o =>
+                          o.label.toLowerCase() ===
+                          editAddressForm.city.toLowerCase(),
+                      )?.value ?? ''
+                    }
+                    items={shippingCityOptions}
+                    setOpen={setCityDropdownOpen}
+                    onSelectItem={item => {
+                      setEditAddressForm(prev => ({
+                        ...prev,
+                        city: item.label,
+                      }));
+                    }}
+                    placeholder={
+                      editAddressForm.state
+                        ? 'Select city'
+                        : 'Select a state first'
+                    }
+                    disabled={
+                      !editAddressForm.state || shippingCityOptions.length === 0
+                    }
+                    style={styles.dropdown}
+                    textStyle={styles.dropdownText}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.label}>Pincode</Text>
+                <TextInput
+                  placeholder="Pincode"
+                  value={editAddressForm.pincode}
+                  onChangeText={text =>
+                    setEditAddressForm(prev => ({
+                      ...prev,
+                      pincode: text,
+                    }))
+                  }
+                  style={styles.input}
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+
+            <View style={styles.dialogActions}>
+              <Button
+                mode="outlined"
+                onPress={() => setIsEditShippingAddressDialogOpen(false)}
+                style={styles.cancelButton}
+              >
+                Cancel
+              </Button>
+              <Button
+                mode="contained"
+                onPress={async () => {
+                  try {
+                    const token = await AsyncStorage.getItem('token');
+                    if (!token)
+                      throw new Error('Authentication token not found.');
+
+                    const updatedAddress = {
+                      ...editingShippingAddress,
+                      ...editAddressForm,
+                    };
+
+                    const res = await fetch(
+                      `${BASE_URL}/api/shipping-addresses/${editingShippingAddress._id}`,
+                      {
+                        method: 'PUT',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify(updatedAddress),
+                      },
+                    );
+
+                    if (res.ok) {
+                      const data = await res.json();
+                      handleAddressSaved(data.shippingAddress);
+                      setIsEditShippingAddressDialogOpen(false);
+                    } else {
+                      throw new Error('Failed to update shipping address');
+                    }
+                  } catch (error) {
+                    setSnackbar({
+                      visible: true,
+                      message: 'Failed to update shipping address.',
+                      type: 'error',
+                    });
+                  }
+                }}
+              >
+                Save Changes
+              </Button>
+            </View>
+          </Dialog.Content>
+        </Dialog>
+
+        {/* Invoice Preview Modal */}
+        <Modal
+          visible={invoicePreviewOpen}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={handlePreviewClose}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text variant="headlineSmall">Invoice Preview</Text>
+              <IconButton
+                icon="close"
+                size={24}
+                onPress={handlePreviewClose}
+                color="#666"
+              />
+            </View>
+
+            <InvoiceTemplateRenderer invoiceData={generatedInvoice} />
+
+            <View style={styles.modalActions}>
+              <IconAction
+                iconName="whatsapp"
+                label="WhatsApp"
+                onPress={handleWhatsAppInvoice}
+              />
+              <IconAction
+                iconName="download"
+                label="Download"
+                onPress={handleDownloadInvoice}
+              />
+              <IconAction
+                iconName="email"
+                label="Email"
+                onPress={handleEmailInvoice}
+              />
+              <IconAction
+                iconName="printer"
+                label="Print"
+                onPress={handlePrintInvoice}
+              />
+            </View>
+          </View>
+        </Modal>
+
+        {/* Email Status Dialog */}
+        <Modal
+          visible={isEmailDialogOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsEmailDialogOpen(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.emailDialogContainer}>
+              <View style={styles.emailDialogContent}>
+                <Text style={styles.emailDialogTitle}>{emailDialogTitle}</Text>
+                <Text style={styles.emailDialogMessage}>
+                  {emailDialogMessage}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.emailDialogButton}
+                onPress={() => setIsEmailDialogOpen(false)}
+              >
+                <Text style={styles.emailDialogButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* WhatsApp Composer Dialog */}
+        <WhatsAppComposerDialog
+          isOpen={whatsappComposerOpen}
+          onClose={() => setWhatsappComposerOpen(false)}
+          transaction={generatedInvoice}
+          party={generatedInvoice?.party}
+          company={generatedInvoice?.company}
+          products={products}
+          services={services}
+          onGeneratePdf={async (transaction, party, company) => {
+            const { generatePdfForTemplate1 } = await import(
+              '../../lib/pdf-template1.js'
+            );
+            return await generatePdfForTemplate1(
+              transaction,
+              company,
+              party,
+              serviceNameById,
+            );
+          }}
+          serviceNameById={serviceNameById}
+        />
+
+        <Snackbar
+          visible={snackbar.visible}
+          onDismiss={() => setSnackbar(prev => ({ ...prev, visible: false }))}
+          duration={3000}
+          style={[
+            styles.snackbar,
+            snackbar.type === 'error' && styles.snackbarError,
+            snackbar.type === 'success' && styles.snackbarSuccess,
+          ]}
+        >
+          {snackbar.message}
+        </Snackbar>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
+      {formContent}
 
       <Dialog
         visible={isPartyDialogOpen}
@@ -4247,6 +4658,7 @@ export function TransactionForm({
 }
 
 const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: '#fff' },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
@@ -4510,7 +4922,7 @@ const styles = StyleSheet.create({
   snackbar: {
     backgroundColor: '#2c2c2c',
     position: 'absolute',
-    bottom: 90, // Submit button ke thoda upar rakhein taaki button ise na dhake
+    bottom: 90,
     left: 16,
     right: 16,
     borderRadius: 12,
@@ -4519,20 +4931,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    zIndex: 9999, // Sabse upar dikhane ke liye
-    elevation: 10, // Android ke liye shadow aur layer
+    zIndex: 9999,
+    elevation: 10,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   snackbarText: {
     color: '#fff',
-    flex: 1, // Poori width lega
+    flex: 1,
     fontSize: 14,
     fontWeight: '500',
     lineHeight: 20,
-    textAlignVertical: 'center', // Android ke liye
-    paddingRight: 10, // Close button se doori
-    minHeight: 40, // Minimum height taaki text kate nahi
+    textAlignVertical: 'center',
+    paddingRight: 10,
+    minHeight: 40,
   },
   snackbarCloseButton: {
     padding: 6,
@@ -4548,7 +4960,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#2e7d32',
     borderColor: 'rgba(76, 175, 80, 0.4)',
   },
-  // Email Dialog Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -4640,4 +5051,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#e0e0e0',
     marginVertical: 8,
   },
+
+  navHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#fff',
+    height: 52,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navHeaderTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
+  },
 });
+
+export default TransactionForm;

@@ -17,9 +17,10 @@ import {
   ActivityIndicator,
   RefreshControl,
   FlatList,
-  Modal, 
+  Modal,
   Dimensions,
   Animated,
+  Easing,
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -90,14 +91,14 @@ const CustomDropdown = ({
     const query = searchQuery.toLowerCase().trim();
     const filtered = items.filter(item => {
       const itemText = (
-        item?.contactName || 
-        item?.businessName || 
-        item?.label || 
+        item?.contactName ||
+        item?.businessName ||
+        item?.label ||
         ''
       ).toLowerCase();
       return itemText.includes(query);
     });
-    
+
     setFilteredItems(filtered);
   }, [items, searchQuery]);
 
@@ -188,7 +189,7 @@ const CustomDropdown = ({
           {item.contactName || item.businessName || item.label}
         </Text>
         {value === item._id && (
-          <Check size={18} color="#007bff" style={styles.dropdownCheckIcon} />
+          <Check size={18} color="#8b77ff" style={styles.dropdownCheckIcon} />
         )}
       </View>
     </TouchableOpacity>
@@ -197,7 +198,7 @@ const CustomDropdown = ({
   return (
     <View style={[styles.dropdownField, style]}>
       {label && <Text style={styles.dropdownLabel}>{label}</Text>}
-      
+
       <TouchableOpacity
         style={[
           styles.dropdownTrigger,
@@ -360,6 +361,12 @@ export default function AnalyticsScreen() {
   const [isCompaniesLoading, setIsCompaniesLoading] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [indicatorWidth, setIndicatorWidth] = useState(0);
+
+  const slideAnimation = useRef(new Animated.Value(0)).current;
+  const scaleAnimation = useRef(new Animated.Value(1)).current;
+  const tabPositions = useRef({}).current;
+  const scrollViewRef = useRef(null);
 
   const isMountedRef = useRef(true);
   const abortControllerRef = useRef(null);
@@ -394,7 +401,7 @@ export default function AnalyticsScreen() {
         'transactionsCache',
         'inventoryCache'
       ]);
-      
+
       await fetchClients();
       if (selectedClientId) {
         await fetchCompanies(selectedClientId);
@@ -424,6 +431,11 @@ export default function AnalyticsScreen() {
     return map;
   }, [companies]);
 
+  const selectedCompanyName = useMemo(() => {
+    if (!selectedCompanyId) return 'All Companies';
+    return companyMap.get(selectedCompanyId) || 'Selected Company';
+  }, [selectedCompanyId, companyMap]);
+
   const TABS = useMemo(
     () => [
       { key: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
@@ -434,6 +446,67 @@ export default function AnalyticsScreen() {
       { key: 'reports', label: 'Reports', Icon: FileText },
     ],
     [],
+  );
+
+  const animateTabChange = useCallback(
+    tabValue => {
+      const position = tabPositions[tabValue];
+      if (position) {
+        Animated.spring(slideAnimation, {
+          toValue: position.left,
+          useNativeDriver: true,
+          friction: 8,
+          tension: 50,
+        }).start();
+
+        Animated.sequence([
+          Animated.timing(scaleAnimation, {
+            toValue: 1.2,
+            duration: 150,
+            useNativeDriver: true,
+            easing: Easing.ease,
+          }),
+          Animated.timing(scaleAnimation, {
+            toValue: 1,
+            duration: 150,
+            useNativeDriver: true,
+            easing: Easing.ease,
+          }),
+        ]).start();
+
+        setIndicatorWidth(position.width);
+
+        if (scrollViewRef.current) {
+          const scrollPosition = position.left - width / 2 + position.width / 2;
+          scrollViewRef.current.scrollTo({
+            x: Math.max(0, scrollPosition),
+            animated: true,
+          });
+        }
+      }
+    },
+    [scaleAnimation, slideAnimation, tabPositions],
+  );
+
+  const handleTabPress = useCallback(
+    tabValue => {
+      setActiveTab(tabValue);
+      animateTabChange(tabValue);
+    },
+    [animateTabChange],
+  );
+
+  const onTabLayout = useCallback(
+    (event, tabValue) => {
+      const { x, width: tabWidth } = event.nativeEvent.layout;
+      tabPositions[tabValue] = { left: x, width: tabWidth };
+
+      if (tabValue === activeTab) {
+        setIndicatorWidth(tabWidth);
+        slideAnimation.setValue(x);
+      }
+    },
+    [activeTab, slideAnimation, tabPositions],
   );
 
   const fetchClients = useCallback(async () => {
@@ -639,7 +712,7 @@ export default function AnalyticsScreen() {
                   style={[
                     styles.reportTabText,
                     activeReport === 'profitandloss' &&
-                      styles.activeReportTabText,
+                    styles.activeReportTabText,
                   ]}
                 >
                   Profit & Loss
@@ -656,7 +729,7 @@ export default function AnalyticsScreen() {
                   style={[
                     styles.reportTabText,
                     activeReport === 'balancesheet' &&
-                      styles.activeReportTabText,
+                    styles.activeReportTabText,
                   ]}
                 >
                   Balance Sheet
@@ -691,48 +764,59 @@ export default function AnalyticsScreen() {
   const renderHeaderAndSelection = useCallback(
     () => (
       <View style={styles.headerContainer}>
-        <View style={styles.headerTextContainer}>
-          <Text style={styles.headerTitle}>Client Analytics</Text>
-          <Text style={styles.headerSubtitle}>
-            Select a client and company to view their detailed dashboard.
-          </Text>
-        </View>
+        <View style={styles.headerCard}>
 
-        <View style={styles.selectionContainer}>
-          <View style={styles.twoColumnSelection}>
-            <CustomDropdown
-              label="Select Client"
-              value={selectedClientId}
-              items={clients}
-              onValueChange={handleClientChange}
-              placeholder="-- Select Client --"
-              isLoading={isClientsLoading}
-              style={styles.dropdownFieldHalf}
-              emptyMessage="No clients available"
-              // searchable={true}
-              searchPlaceholder="Search clients..."
-            />
 
-            {selectedClientId ? (
+          <View style={styles.headerTextContainer}>
+            <View style={styles.headerTitleContainer}>
+              <Text style={styles.headerTitle}>Client Analytics</Text>
+              <View style={styles.analyticsBadge}>
+                <LayoutDashboard size={14} color="#8b77ff" />
+                <Text style={styles.analyticsBadgeText}>Analytics Workspace</Text>
+              </View>
+            </View>
+            <Text style={styles.headerSubtitle}>
+              Select a client and company to view detailed dashboard insights.
+            </Text>
+          </View>
+
+
+
+          <View style={styles.selectionContainer}>
+            <View style={styles.twoColumnSelection}>
               <CustomDropdown
-                label="Select Company"
-                value={selectedCompanyId}
-                items={[
-                  { _id: '', businessName: 'All Companies' },
-                  ...companies,
-                ]}
-                onValueChange={handleCompanyChange}
-                placeholder="All Companies"
-                isLoading={isCompaniesLoading}
+                label="Select Client"
+                value={selectedClientId}
+                items={clients}
+                onValueChange={handleClientChange}
+                placeholder="-- Select Client --"
+                isLoading={isClientsLoading}
                 style={styles.dropdownFieldHalf}
-                disabled={!selectedClientId}
-                emptyMessage="No companies available"
-                searchable={true}
-                searchPlaceholder="Search companies..."
+                emptyMessage="No clients available"
+                searchPlaceholder="Search clients..."
               />
-            ) : (
-              <View style={styles.pickerFieldHalf} />
-            )}
+
+              {selectedClientId ? (
+                <CustomDropdown
+                  label="Select Company"
+                  value={selectedCompanyId}
+                  items={[
+                    { _id: '', businessName: 'All Companies' },
+                    ...companies,
+                  ]}
+                  onValueChange={handleCompanyChange}
+                  placeholder="All Companies"
+                  isLoading={isCompaniesLoading}
+                  style={styles.dropdownFieldHalf}
+                  disabled={!selectedClientId}
+                  emptyMessage="No companies available"
+                  searchable={true}
+                  searchPlaceholder="Search companies..."
+                />
+              ) : (
+                <View style={styles.pickerFieldHalf} />
+              )}
+            </View>
           </View>
         </View>
       </View>
@@ -744,6 +828,8 @@ export default function AnalyticsScreen() {
       companies,
       isClientsLoading,
       isCompaniesLoading,
+      selectedClient,
+      selectedCompanyName,
       handleClientChange,
       handleCompanyChange,
     ],
@@ -753,47 +839,64 @@ export default function AnalyticsScreen() {
     () => (
       <View style={styles.tabsWrapper}>
         <ScrollView
+          ref={scrollViewRef}
           horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.tabScroll}
           contentContainerStyle={styles.tabsScrollContent}
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
         >
-          {TABS.map(({ key, label, Icon }) => (
-            <TouchableOpacity
-              key={key}
-              style={[
-                styles.tabButton,
-                activeTab === key && styles.tabButtonActive,
-              ]}
-              onPress={() => setActiveTab(key)}
-              disabled={!selectedClient}
-            >
-              <Icon
-                size={16}
-                color={
-                  activeTab === key
-                    ? '#fff'
-                    : !selectedClient
-                    ? '#adb5bd'
-                    : '#495057'
-                }
-                style={styles.tabIcon}
-              />
-              <Text
-                style={[
-                  styles.tabButtonText,
-                  activeTab === key && styles.activeTabText,
-                  !selectedClient && styles.disabledTabText,
-                ]}
+          {TABS.map(({ key, label, Icon }) => {
+            const active = activeTab === key;
+            return (
+              <TouchableOpacity
+                key={key}
+                style={[styles.tabItem, active && styles.tabItemActive]}
+                onPress={() => handleTabPress(key)}
+                activeOpacity={0.7}
+                onLayout={event => onTabLayout(event, key)}
               >
-                {label.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Animated.View
+                  style={[
+                    styles.tabRow,
+                    active && {
+                      transform: [{ scale: scaleAnimation }],
+                    },
+                  ]}
+                >
+                  <Icon
+                    size={16}
+                    color={active ? '#8b77ff' : '#565b63'}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={[styles.tabText, active && styles.tabTextActive]}>
+                    {label}
+                  </Text>
+                </Animated.View>
+              </TouchableOpacity>
+            );
+          })}
+
+          <Animated.View
+            style={[
+              styles.activeIndicator,
+              {
+                width: indicatorWidth,
+                transform: [{ translateX: slideAnimation }],
+              },
+            ]}
+          />
         </ScrollView>
       </View>
     ),
-    [TABS, activeTab, selectedClient],
+    [
+      TABS,
+      activeTab,
+      handleTabPress,
+      indicatorWidth,
+      onTabLayout,
+      scaleAnimation,
+      slideAnimation,
+    ],
   );
 
   if (isInitialLoad) {
@@ -801,7 +904,7 @@ export default function AnalyticsScreen() {
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor="#fff" />
         <View style={styles.loadingContainerFull}>
-          <ActivityIndicator size="large" color="#007bff" />
+          <ActivityIndicator size="large" color="#8b77ff" />
           <Text style={styles.loadingTextFull}>Loading Analytics...</Text>
         </View>
       </SafeAreaView>
@@ -811,7 +914,7 @@ export default function AnalyticsScreen() {
   return (
     <>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      
+
       <FlatList
         data={[{ key: 'content' }]}
         renderItem={() => (
@@ -819,7 +922,7 @@ export default function AnalyticsScreen() {
             {!selectedClient && !isClientsLoading ? (
               <View style={styles.noClientScroll}>
                 <View style={styles.noClientContainer}>
-                  <Users size={48} color="#adb5bd" />
+                  <Users size={48} color="#8b77ff" />
                   <Text style={styles.noClientText}>No Client Selected</Text>
                   <Text style={styles.noClientSubtext}>
                     Please select a client to view their data.
@@ -839,8 +942,8 @@ export default function AnalyticsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['#007bff']}
-            tintColor="#007bff"
+            colors={['#8b77ff']}
+            tintColor="#8b77ff"
           />
         }
         keyExtractor={item => item.key}
@@ -854,7 +957,8 @@ export default function AnalyticsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f7f9ff',
+    marginBottom: 80,
   },
 
   tabsContainer: {
@@ -883,79 +987,124 @@ const styles = StyleSheet.create({
   },
 
   headerContainer: {
-    padding: 16,
     paddingTop: 4,
-    paddingBottom: 0,
-    backgroundColor: '#fff',
+    paddingBottom: 10,
+  },
+  headerTitleContainer:{
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 10,
+  marginBottom: 10,
+  },
+  headerCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 16,
+  },
+  analyticsBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#f4f2ff',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: '#ded8ff',
+  },
+  analyticsBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#7c64ff',
   },
   headerTextContainer: {
-    marginBottom: 6,
+    marginTop: 10,
+    marginBottom: 10,
   },
   headerTitle: {
-    fontSize: 20  ,
+    fontSize: 22,
     fontWeight: '800',
-    color: '#212529',
+    color: '#111827',
   },
   headerSubtitle: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 3,
+    lineHeight: 18,
+  },
+  headerSummaryRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  summaryChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e4e8ff',
+    backgroundColor: '#f8f9ff',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  summaryChipText: {
+    flex: 1,
     fontSize: 12,
-    color: '#6c757d',
+    fontWeight: '600',
+    color: '#334155',
   },
 
   selectionContainer: {
-    marginBottom: 4,
-    paddingTop: 4,
+    marginTop: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#ebe8ff',
+    backgroundColor: '#fbfaff',
+    padding: 10,
   },
   twoColumnSelection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginHorizontal: -6,
+    gap: 10,
   },
   dropdownField: {
-    marginBottom: 10,
+    marginBottom: 0,
   },
   dropdownFieldHalf: {
     flex: 1,
-    marginHorizontal: 6,
   },
   pickerFieldHalf: {
     flex: 1,
-    marginHorizontal: 6,
   },
 
   // Custom Dropdown Styles
   dropdownLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#495057',
-    marginBottom: 8,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748b',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   dropdownTrigger: {
-    borderWidth: 1.5,
-    borderColor: '#e9ecef',
+    borderWidth: 1,
+    borderColor: '#ebebfd',
     borderRadius: 12,
     backgroundColor: '#fff',
-    paddingVertical: 14,
+    // paddingVertical: 14,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 52,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 1,
-      },
-    }),
+    minHeight: 40,
+    boxShadow: "0px 2px 5px rgba(0, 0, 0, 0.05)"
   },
   dropdownTriggerOpen: {
-    borderColor: '#007bff',
+    borderColor: '#8b77ff',
     borderWidth: 2,
-    backgroundColor: '#f8f9ff',
+    backgroundColor: '#f7f9ff',
   },
   dropdownTriggerDisabled: {
     backgroundColor: '#f8f9fa',
@@ -966,7 +1115,7 @@ const styles = StyleSheet.create({
   },
   dropdownTriggerText: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
     color: '#212529',
     marginRight: 8,
@@ -1008,14 +1157,15 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#ffffff',
     marginHorizontal: 16,
     marginVertical: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#e9ecef',
+    borderColor: '#eae8fa',
+    boxShadow: "0px 2px 5px rgba(0, 0, 0, 0.05)"
   },
   searchIcon: {
     marginRight: 10,
@@ -1035,7 +1185,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: '#007bff',
+    backgroundColor: '#8b77ff',
     borderRadius: 8,
   },
   clearSearchTextEmpty: {
@@ -1094,7 +1244,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#ffffff',
   },
   dropdownHeaderTitle: {
     fontSize: 16,
@@ -1114,7 +1264,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f1f3f5',
   },
   dropdownItemSelected: {
-    backgroundColor: '#f8f9ff',
+    backgroundColor: '#ffffff',
   },
   dropdownItemLast: {
     borderBottomWidth: 0,
@@ -1130,7 +1280,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dropdownItemTextSelected: {
-    color: '#007bff',
+    color: '#8b77ff',
     fontWeight: '600',
   },
   dropdownCheckIcon: {
@@ -1152,7 +1302,7 @@ const styles = StyleSheet.create({
     marginTop: 40,
     padding: 20,
     borderRadius: 12,
-    backgroundColor: '#f1f3f5',
+    backgroundColor: '#f7f9ff',
   },
   noClientText: {
     fontSize: 20,
@@ -1169,65 +1319,53 @@ const styles = StyleSheet.create({
   },
 
   tabsWrapper: {
-    backgroundColor: '#fff',
+    marginBottom: 0,
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
-    paddingVertical: 10,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 1,
-      },
-    }),
-  },
-  tabScroll: {
-    paddingLeft: 16,
+    borderBottomColor: '#e5e7eb',
+    backgroundColor: '#f7f9ff',
+    position: 'relative',
   },
   tabsScrollContent: {
-    paddingRight: 16,
+    paddingVertical: 0,
+    paddingHorizontal: 8,
+    position: 'relative',
   },
-  tabButton: {
+  tabItem: {
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    marginHorizontal: 0,
+    position: 'relative',
+    minWidth: 100,
+    backgroundColor: 'transparent',
+    shadowOpacity: 0,
+    elevation: 0,
+    zIndex: 1,
+  },
+  tabItemActive: {
+    backgroundColor: 'transparent',
+  },
+  tabRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#f1f3f5',
-    marginRight: 8,
-    minWidth: 100,
+    justifyContent: 'center',
   },
-  tabButtonActive: {
-    backgroundColor: '#007bff',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#007bff',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  tabIcon: {
-    marginRight: 6,
-  },
-  tabButtonText: {
+  tabText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#495057',
+    color: '#4a4e55',
+    textAlign: 'center',
   },
-  activeTabText: {
-    color: '#fff',
+  tabTextActive: {
+    color: '#8b77ff',
   },
-  disabledTabText: {
-    color: '#adb5bd',
+  activeIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    height: 2,
+    backgroundColor: '#8b77ff',
+    borderTopLeftRadius: 2,
+    borderTopRightRadius: 2,
+    zIndex: 0,
   },
 
   reportsContainer: {
@@ -1249,7 +1387,7 @@ const styles = StyleSheet.create({
     minWidth: 140,
   },
   activeReportTab: {
-    backgroundColor: '#007bff',
+    backgroundColor: '#8b77ff',
   },
   reportTabText: {
     fontSize: 14,
@@ -1262,4 +1400,4 @@ const styles = StyleSheet.create({
   reportContent: {
     flex: 1,
   },
-}); 
+});  

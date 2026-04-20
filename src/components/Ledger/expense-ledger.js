@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   FlatList,
   Alert,
- 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,7 +20,7 @@ import {
   Server,
   IndianRupee,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
 } from 'lucide-react-native';
 import { BASE_URL } from '../../config';
 
@@ -46,22 +45,42 @@ const Badge = ({ children, variant = 'default' }) => {
   const badgeStyles = [
     styles.badge,
     variant === 'secondary' && styles.badgeSecondary,
-    variant === 'outline' && styles.badgeOutline
+    variant === 'outline' && styles.badgeOutline,
   ];
-  
+
   return (
     <View style={styles.badge}>
-      {typeof children === 'string' ? <Text style={styles.badgeText}>{children}</Text> : children}
+      {typeof children === 'string' ? (
+        <Text style={styles.badgeText}>{children}</Text>
+      ) : (
+        children
+      )}
     </View>
   );
 };
 
-export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, dateRange }) {
+const formatName = str => {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+export function ExpenseLedger({
+  ledgerData,
+  loading,
+  selectedExpense,
+  expenses,
+  dateRange,
+}) {
   const [isItemsModalOpen, setIsItemsModalOpen] = useState(false);
   const [itemsToView, setItemsToView] = useState([]);
   const [loadingItems, setLoadingItems] = useState(false);
 
-  const formatDate = (dateString) => {
+  const formatDate = dateString => {
     if (!dateString) return '';
     return new Date(dateString).toLocaleDateString('en-IN', {
       day: '2-digit',
@@ -70,7 +89,7 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
     });
   };
 
-  const formatCurrency = (amount) => {
+  const formatCurrency = amount => {
     if (!amount) return '₹0.00';
     return `₹${amount.toLocaleString('en-IN', {
       minimumFractionDigits: 2,
@@ -78,7 +97,7 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
     })}`;
   };
 
-  const getPaymentMethodDisplay = (method) => {
+  const getPaymentMethodDisplay = method => {
     if (!method) return 'Payment';
     const methodMap = {
       Cash: 'Cash Payment',
@@ -90,7 +109,7 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
     return methodMap[method] || `${method} Payment`;
   };
 
-  const getPaymentMethodBadge = (method) => {
+  const getPaymentMethodBadge = method => {
     const variantMap = {
       Cash: 'default',
       'Bank Transfer': 'secondary',
@@ -101,12 +120,12 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
     return variantMap[method || ''] || 'outline';
   };
 
-  const selectedExpenseData = expenses.find((e) => e._id === selectedExpense);
+  const selectedExpenseData = expenses.find(e => e._id === selectedExpense);
 
-  const safeAmount = (n) => Math.abs(Number(n || 0));
+  const safeAmount = n => Math.abs(Number(n || 0));
 
   // Function to handle viewing items for a transaction
-  const handleViewItems = async (entry) => {
+  const handleViewItems = async entry => {
     try {
       setLoadingItems(true);
       const token = await AsyncStorage.getItem('token');
@@ -115,8 +134,8 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
         return;
       }
 
-      const baseURL = BASE_URL; 
-     
+      const baseURL = BASE_URL;
+
       let endpoint = `${baseURL}/api/purchase/${entry.id}`;
 
       const response = await fetch(endpoint, {
@@ -151,9 +170,9 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
     }
   };
 
-  const processTransactionData = (transaction) => {
+  const processTransactionData = transaction => {
     // Process products
-    const prods = (transaction?.products || []).map((p) => ({
+    const prods = (transaction?.products || []).map(p => ({
       itemType: 'product',
       name: p.product?.name || p.product || '(product)',
       quantity: p.quantity ?? '',
@@ -175,8 +194,8 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
       : transaction?.services
       ? [transaction.services]
       : [];
-    
-    const svcs = svcArr.map((s) => ({
+
+    const svcs = svcArr.map(s => ({
       itemType: 'service',
       name: s.service?.serviceName || s.service || '(service)',
       quantity: '',
@@ -210,7 +229,7 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
               <Text style={styles.modalClose}>✕</Text>
             </TouchableOpacity>
           </View>
-          
+
           {loadingItems ? (
             <View style={styles.modalLoading}>
               <ActivityIndicator size="large" color="#3b82f6" />
@@ -218,7 +237,9 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
             </View>
           ) : itemsToView.length === 0 ? (
             <View style={styles.modalEmpty}>
-              <Text style={styles.modalEmptyText}>No items found for this transaction</Text>
+              <Text style={styles.modalEmptyText}>
+                No items found for this transaction
+              </Text>
             </View>
           ) : (
             <ScrollView style={styles.modalContent}>
@@ -228,39 +249,54 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
                   <View style={styles.summaryItem}>
                     <Text style={styles.summaryLabel}>Subtotal</Text>
                     <Text style={styles.summaryValue}>
-                      {formatCurrency(itemsToView.reduce((sum, item) => sum + Number(item.amount || 0), 0))}
+                      {formatCurrency(
+                        itemsToView.reduce(
+                          (sum, item) => sum + Number(item.amount || 0),
+                          0,
+                        ),
+                      )}
                     </Text>
                   </View>
                   <View style={styles.summaryItem}>
                     <Text style={styles.summaryLabel}>Tax Total</Text>
                     <Text style={styles.summaryValue}>
-                      {formatCurrency(itemsToView.reduce((sum, item) => {
-                        const lineTax = item.lineTax;
-                        if (lineTax !== undefined && lineTax !== null) {
-                          return sum + Number(lineTax);
-                        }
-                        const gstRate = item.gstPercentage || item.gstRate || item.gst || 0;
-                        const taxableValue = item.amount || 0;
-                        const taxAmount = (taxableValue * gstRate) / 100;
-                        return sum + taxAmount;
-                      }, 0))}
+                      {formatCurrency(
+                        itemsToView.reduce((sum, item) => {
+                          const lineTax = item.lineTax;
+                          if (lineTax !== undefined && lineTax !== null) {
+                            return sum + Number(lineTax);
+                          }
+                          const gstRate =
+                            item.gstPercentage || item.gstRate || item.gst || 0;
+                          const taxableValue = item.amount || 0;
+                          const taxAmount = (taxableValue * gstRate) / 100;
+                          return sum + taxAmount;
+                        }, 0),
+                      )}
                     </Text>
                   </View>
                   <View style={styles.summaryItem}>
                     <Text style={styles.summaryLabel}>Grand Total</Text>
                     <Text style={[styles.summaryValue, styles.grandTotal]}>
                       {formatCurrency(
-                        itemsToView.reduce((sum, item) => sum + Number(item.amount || 0), 0) +
-                        itemsToView.reduce((sum, item) => {
-                          const lineTax = item.lineTax;
-                          if (lineTax !== undefined && lineTax !== null) {
-                            return sum + Number(lineTax);
-                          }
-                          const gstRate = item.gstPercentage || item.gstRate || item.gst || 0;
-                          const taxableValue = item.amount || 0;
-                          const taxAmount = (taxableValue * gstRate) / 100;
-                          return sum + taxAmount;
-                        }, 0)
+                        itemsToView.reduce(
+                          (sum, item) => sum + Number(item.amount || 0),
+                          0,
+                        ) +
+                          itemsToView.reduce((sum, item) => {
+                            const lineTax = item.lineTax;
+                            if (lineTax !== undefined && lineTax !== null) {
+                              return sum + Number(lineTax);
+                            }
+                            const gstRate =
+                              item.gstPercentage ||
+                              item.gstRate ||
+                              item.gst ||
+                              0;
+                            const taxableValue = item.amount || 0;
+                            const taxAmount = (taxableValue * gstRate) / 100;
+                            return sum + taxAmount;
+                          }, 0),
                       )}
                     </Text>
                   </View>
@@ -271,10 +307,13 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
               <View style={styles.itemsList}>
                 {itemsToView.map((item, index) => {
                   const isService = item.itemType === 'service';
-                  const qty = !isService && item.quantity && !isNaN(Number(item.quantity))
-                    ? `${item.quantity} ${item.unitType || 'Piece'}`
+                  const qty =
+                    !isService && item.quantity && !isNaN(Number(item.quantity))
+                      ? `${item.quantity} ${item.unitType || 'Piece'}`
+                      : '—';
+                  const rate = !isService
+                    ? formatCurrency(Number(item?.pricePerUnit ?? 0))
                     : '—';
-                  const rate = !isService ? formatCurrency(Number(item?.pricePerUnit ?? 0)) : '—';
                   const total = formatCurrency(Number(item?.amount ?? 0));
                   const hsnSacCode = isService ? item.sacCode : item.hsnCode;
 
@@ -289,7 +328,9 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
                           )}
                         </View>
                         <View style={styles.itemTitleContainer}>
-                          <Text style={styles.itemName}>{item?.name ?? '—'}</Text>
+                          <Text style={styles.itemName}>
+                            {item?.name ?? '—'}
+                          </Text>
                           <View style={styles.itemTags}>
                             <View style={styles.itemTag}>
                               <Text style={styles.itemTagText}>
@@ -308,7 +349,9 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
                       </View>
 
                       {isService && item?.description && (
-                        <Text style={styles.itemDescription}>{item.description}</Text>
+                        <Text style={styles.itemDescription}>
+                          {item.description}
+                        </Text>
                       )}
 
                       <View style={styles.itemDetails}>
@@ -340,18 +383,20 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
     return (
       <View style={styles.loadingContainer}>
         <View style={styles.loadingGrid}>
-          {[1, 2, 3, 4].map((i) => (
+          {[1, 2, 3, 4].map(i => (
             <Card key={i} style={styles.loadingCard}>
               <CardContent style={styles.loadingCardContent}>
                 <View style={styles.skeleton}>
                   <View style={styles.skeletonLine} />
-                  <View style={[styles.skeletonLine, styles.skeletonLineShort]} />
+                  <View
+                    style={[styles.skeletonLine, styles.skeletonLineShort]}
+                  />
                 </View>
               </CardContent>
             </Card>
           ))}
         </View>
-        
+
         <Card style={styles.mainLoadingCard}>
           <CardHeader style={styles.loadingHeader}>
             <View style={styles.loadingTitleContainer}>
@@ -361,7 +406,7 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
             <View style={styles.skeletonTextSmall} />
           </CardHeader>
           <CardContent>
-            {[1, 2, 3].map((i) => (
+            {[1, 2, 3].map(i => (
               <View key={i} style={styles.skeletonItem} />
             ))}
           </CardContent>
@@ -379,8 +424,8 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
           </View>
           <Text style={styles.emptyTitle}>No Expense Data</Text>
           <Text style={styles.emptyDescription}>
-            No expense transaction history found for the selected expense category.
-            Transactions will appear here once recorded.
+            No expense transaction history found for the selected expense
+            category. Transactions will appear here once recorded.
           </Text>
         </CardContent>
       </Card>
@@ -388,7 +433,7 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
   }
 
   const creditPurchaseEntries = (ledgerData.debit || []).filter(
-    (entry) => entry.paymentMethod !== 'Credit'
+    entry => entry.paymentMethod !== 'Credit',
   );
   const creditPaymentEntries = ledgerData.credit || [];
   const allCreditEntries = [...creditPurchaseEntries, ...creditPaymentEntries];
@@ -396,7 +441,7 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
   return (
     <ScrollView style={styles.container}>
       <ItemsModal />
-      
+
       {/* Expense Summary Card */}
       <Card style={styles.summaryCard}>
         <CardContent>
@@ -407,22 +452,30 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
               </View>
               <View style={styles.expenseDetails}>
                 <Text style={styles.expenseName}>
-                  {selectedExpenseData?.name || 'Expense'}
+                  {formatName(selectedExpenseData?.name || 'Expense')}
                 </Text>
                 <Text style={styles.expenseDate}>
-                  Expense Ledger Summary • {dateRange?.from && dateRange?.to
-                    ? `${formatDate(dateRange.from)} - ${formatDate(dateRange.to)}`
+                  Expense Ledger Summary •{' '}
+                  {dateRange?.from && dateRange?.to
+                    ? `${formatDate(dateRange.from)} - ${formatDate(
+                        dateRange.to,
+                      )}`
                     : formatDate(new Date().toISOString())}
                 </Text>
               </View>
             </View>
-            
+
             <View style={styles.balanceContainer}>
-              <Text style={[
-                styles.balanceAmount,
-                ledgerData.totals.balance > 0 ? styles.balancePositive : 
-                ledgerData.totals.balance < 0 ? styles.balanceNegative : styles.balanceNeutral
-              ]}>
+              <Text
+                style={[
+                  styles.balanceAmount,
+                  ledgerData.totals.balance > 0
+                    ? styles.balancePositive
+                    : ledgerData.totals.balance < 0
+                    ? styles.balanceNegative
+                    : styles.balanceNeutral,
+                ]}
+              >
                 {formatCurrency(Math.abs(ledgerData.totals.balance))}
               </Text>
             </View>
@@ -438,25 +491,32 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
             <Text style={styles.paymentsTitle}>Expense Payments</Text>
           </View>
         </CardHeader>
-        
+
         <CardContent style={styles.paymentsContent}>
           {allCreditEntries.length === 0 ? (
             <View style={styles.emptyPayments}>
               <CreditCard size={32} color="#94a3b8" />
-              <Text style={styles.emptyPaymentsText}>No payment entries found</Text>
+              <Text style={styles.emptyPaymentsText}>
+                No payment entries found
+              </Text>
               <Text style={styles.emptyPaymentsSubtext}>
                 Cash expenses and payment entries will appear here
               </Text>
             </View>
           ) : (
             <FlatList
-              data={[...allCreditEntries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
-              keyExtractor={(item, index) => `${item.type || 'debit'}-${item.id}-${index}`}
+              data={[...allCreditEntries].sort(
+                (a, b) =>
+                  new Date(b.date).getTime() - new Date(a.date).getTime(),
+              )}
+              keyExtractor={(item, index) =>
+                `${item.type || 'debit'}-${item.id}-${index}`
+              }
               scrollEnabled={false}
               renderItem={({ item, index }) => {
                 const isPurchase = !item.type || item.type === 'debit';
                 return (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.paymentItem}
                     onPress={() => handleViewItems(item)}
                   >
@@ -466,11 +526,15 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
                       </View>
                       <View style={styles.paymentInfo}>
                         <Text style={styles.paymentType}>
-                          {isPurchase ? 'Expense' : getPaymentMethodDisplay(item.paymentMethod)}
+                          {isPurchase
+                            ? 'Expense'
+                            : getPaymentMethodDisplay(item.paymentMethod)}
                         </Text>
                         <View style={styles.paymentDate}>
                           <Calendar size={12} color="#64748b" />
-                          <Text style={styles.paymentDateText}>{formatDate(item.date)}</Text>
+                          <Text style={styles.paymentDateText}>
+                            {formatDate(item.date)}
+                          </Text>
                         </View>
                       </View>
                       <View style={styles.paymentAmountContainer}>
@@ -485,27 +549,41 @@ export function ExpenseLedger({ ledgerData, loading, selectedExpense, expenses, 
                       <View style={styles.paymentDetails}>
                         {item.invoiceNo && (
                           <View style={styles.paymentDetail}>
-                            <Text style={styles.paymentDetailLabel}>Invoice:</Text>
-                            <Text style={styles.paymentDetailValue}>{item.invoiceNo}</Text>
+                            <Text style={styles.paymentDetailLabel}>
+                              Invoice:
+                            </Text>
+                            <Text style={styles.paymentDetailValue}>
+                              {item.invoiceNo}
+                            </Text>
                           </View>
                         )}
                         {item.referenceNumber && (
                           <View style={styles.paymentDetail}>
                             <Text style={styles.paymentDetailLabel}>Ref:</Text>
-                            <Text style={styles.paymentDetailValue}>{item.referenceNumber}</Text>
+                            <Text style={styles.paymentDetailValue}>
+                              {item.referenceNumber}
+                            </Text>
                           </View>
                         )}
                       </View>
                     )}
 
                     {item.description && (
-                      <Text style={styles.paymentDescription}>{item.description}</Text>
+                      <Text style={styles.paymentDescription}>
+                        {item.description}
+                      </Text>
                     )}
 
                     <View style={styles.paymentFooter}>
-                      <Text style={styles.paymentMethodLabel}>Payment Method</Text>
-                      <Badge variant={getPaymentMethodBadge(item.paymentMethod)}>
-                        <Text style={styles.paymentMethodText}>{item.paymentMethod || 'Not Specified'}</Text>
+                      <Text style={styles.paymentMethodLabel}>
+                        Payment Method
+                      </Text>
+                      <Badge
+                        variant={getPaymentMethodBadge(item.paymentMethod)}
+                      >
+                        <Text style={styles.paymentMethodText}>
+                          {item.paymentMethod || 'Not Specified'}
+                        </Text>
                       </Badge>
                     </View>
                   </TouchableOpacity>

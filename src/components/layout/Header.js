@@ -12,7 +12,7 @@ import {
   Platform,
   Image,
   Alert,
-} from 'react-native'
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -26,10 +26,7 @@ import { useCompany } from '../../contexts/company-context';
 import { CompanySwitcher } from './CompanySwitcher';
 import Notification from '../notifications/Notification';
 
-
-
 const logoPath2 = require('../../../assets/images/vinimay.png');
-
 
 function roleToLabel(role) {
   switch (role) {
@@ -47,7 +44,6 @@ function roleToLabel(role) {
       return 'User';
   }
 }
-
 
 function normalizeRole(rawRole) {
   const role = (rawRole ?? '').toLowerCase();
@@ -71,9 +67,6 @@ export default memo(function Header() {
   // Context data
   const { triggerCompaniesRefresh } = useCompany();
 
-  // Note: Companies are loaded once in CompanySwitcher and cached
-  // No need to refresh on every screen focus to prevent loading flicker
-
   useEffect(() => {
     const today = new Date();
     setDateString(
@@ -85,7 +78,6 @@ export default memo(function Header() {
       }),
     );
 
-    // Get user data from AsyncStorage
     getUserData();
   }, []);
 
@@ -113,8 +105,8 @@ export default memo(function Header() {
     role,
   );
 
-  // Check if current role is user
   const isUser = role === 'user';
+  const isCustomer = role === 'customer';
 
   const handleSearchSubmit = () => {
     if (searchText.trim()) {
@@ -145,6 +137,8 @@ export default memo(function Header() {
     setShowDropdown(false);
     if (role === 'master') {
       navigation.navigate('ProfileScreen');
+    } else if (role === 'customer' || role === 'user' || role === 'admin') {
+      navigation.navigate('ClientProfile');
     }
   };
 
@@ -160,7 +154,6 @@ export default memo(function Header() {
       setCurrentHighlightIndex(0);
       return;
     }
-
     setHighlightCount(5);
     setCurrentHighlightIndex(0);
   };
@@ -188,10 +181,7 @@ export default memo(function Header() {
           text: 'Logout',
           style: 'destructive',
           onPress: async () => {
-            
             await AsyncStorage.clear();
-
-            
             navigation.reset({
               index: 0,
               routes: [{ name: 'GettingStarted' }],
@@ -293,81 +283,58 @@ export default memo(function Header() {
   return (
     <>
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }}>
-        <View style={[
-          styles.container,
-        ]}>
-          
+        <View style={styles.container}>
           <Image
             source={logoPath2}
-            style={[
-              styles.logoImage,
-              isUser && styles.userLogoImage
-            ]}
+            style={[styles.logoImage, isUser && styles.userLogoImage]}
             resizeMode="contain"
           />
 
-          {/* Company Switcher - Center Position with different styles for user */}
+          {/* Company Switcher */}
           {showCompanySwitcher && (
-            <View style={[
-              styles.companySwitcherContainer,
-              isUser && styles.userCompanySwitcherContainer
-            ]}>
+            <View
+              style={[
+                styles.companySwitcherContainer,
+                isUser && styles.userCompanySwitcherContainer,
+              ]}
+            >
               <CompanySwitcher />
             </View>
           )}
 
-          {/* Right side icons - Different alignment for user */}
-          <View style={[
-            styles.rightContainer,
-            isUser && styles.userRightContainer
-          ]}>
-            {/* Notification Component - Hidden for user */}
+          {/* Right side icons */}
+          <View
+            style={[styles.rightContainer, isUser && styles.userRightContainer]}
+          >
+            {/* Notification - Hidden for user */}
             {showNotification && (
-              <View style={[
-                styles.notificationContainer,
-                
-              ]}>
+              <View style={styles.notificationContainer}>
                 <Notification socket={null} />
               </View>
             )}
 
-            {/* History Icon - Hidden for user */}
+            {/* History Icon - master only */}
             {showHistory && (
               <TouchableOpacity
-                style={[
-                  styles.iconButton,
-                  
-                ]}
+                style={styles.iconButton}
                 onPress={handleHistory}
               >
                 <Ionicons name="time-outline" size={22} color="#334155" />
               </TouchableOpacity>
             )}
 
-            {/* Profile Dropdown - Different style for user */}
-            <View style={[
-              styles.profileWrapper,
-              
-            ]}>
+            {/* Profile Dropdown */}
+            <View style={styles.profileWrapper}>
               <TouchableOpacity
                 style={[
-                  styles.profileContainer,
-                  isUser && styles.userProfileContainer
+                  styles.textProfileContainer,
+                  isUser && styles.userTextProfileContainer,
                 ]}
                 onPress={() => setShowDropdown(true)}
+                activeOpacity={0.7}
               >
-                <Ionicons
-                  name="person-circle-outline"
-                  size={20}
-                  color="#334155"
-                />
-                {/* Formatted role label display */}
-                <Text style={[
-                  styles.roleText,
-                  isUser && styles.userRoleText
-                ]}>
-                  {formattedRole}
-                </Text>
+                <Text style={styles.textProfileRole}>{formattedRole}</Text>
+                <Ionicons name="chevron-down" size={16} color="#64748b" />
               </TouchableOpacity>
 
               {/* Dropdown Modal */}
@@ -382,11 +349,13 @@ export default memo(function Header() {
                   onPress={() => setShowDropdown(false)}
                 />
                 <View pointerEvents="box-none" style={styles.dropdownPortal}>
-                  <View style={[
-                    styles.dropdownMenu,
-                    isUser && styles.userDropdownMenu
-                  ]}>
-                    {/* Profile Option for Master */}
+                  <View
+                    style={[
+                      styles.dropdownMenu,
+                      (isUser || isCustomer) && styles.userDropdownMenu,
+                    ]}
+                  >
+                    {/* ✅ Profile for Master */}
                     {role === 'master' && (
                       <TouchableOpacity
                         style={styles.dropdownItem}
@@ -401,12 +370,39 @@ export default memo(function Header() {
                       </TouchableOpacity>
                     )}
 
-                    {/* Settings Option */}
+                    {/* ✅ Business Cards for Customer/Client */}
+                    {role === 'customer' && (
+                      <TouchableOpacity
+                        style={styles.dropdownItem}
+                        onPress={handleProfile}
+                      >
+                        <Ionicons
+                          name="card-outline"
+                          size={18}
+                          color="#64748b"
+                        />
+                        <Text style={styles.dropdownText}>Profile</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* ✅ Profile for User & Admin */}
+                    {(role === 'user' || role === 'admin') && (
+                      <TouchableOpacity
+                        style={styles.dropdownItem}
+                        onPress={handleProfile}
+                      >
+                        <Ionicons
+                          name="person-outline"
+                          size={18}
+                          color="#64748b"
+                        />
+                        <Text style={styles.dropdownText}>Profile</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Settings */}
                     <TouchableOpacity
-                      style={[
-                        styles.dropdownItem,
-                        
-                      ]}
+                      style={styles.dropdownItem}
                       onPress={handleSettings}
                     >
                       <Ionicons
@@ -414,42 +410,41 @@ export default memo(function Header() {
                         size={18}
                         color="#64748b"
                       />
-                      <Text style={[
-                        styles.dropdownText,
-                        isUser && styles.userDropdownText
-                      ]}>
+                      <Text
+                        style={[
+                          styles.dropdownText,
+                          isUser && styles.userDropdownText,
+                        ]}
+                      >
                         Settings
                       </Text>
                     </TouchableOpacity>
 
-                    {/* Support Option - Show for user */}
+                    {/* Support - not for master */}
                     {role !== 'master' && (
                       <TouchableOpacity
-                        style={[
-                          styles.dropdownItem,
-                          
-                        ]}
+                        style={styles.dropdownItem}
                         onPress={handleSupport}
                       >
                         <Ionicons
                           name="help-circle-outline"
                           size={18}
-                         color="#64748b"
+                          color="#64748b"
                         />
-                        <Text style={[
-                          styles.dropdownText,
-                          isUser && styles.userDropdownText
-                        ]}>
+                        <Text
+                          style={[
+                            styles.dropdownText,
+                            isUser && styles.userDropdownText,
+                          ]}
+                        >
                           Support
                         </Text>
                       </TouchableOpacity>
                     )}
 
+                    {/* Logout */}
                     <TouchableOpacity
-                      style={[
-                        styles.dropdownItem,
-                        
-                      ]}
+                      style={styles.dropdownItem}
                       onPress={handleLogout}
                     >
                       <Ionicons
@@ -473,7 +468,6 @@ export default memo(function Header() {
 });
 
 const styles = StyleSheet.create({
-  
   container: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -481,8 +475,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   logoImage: {
     width: 80,
@@ -523,47 +515,40 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#64748B',
     fontWeight: '600',
-    // marginTop: 2,
     textAlign: 'center',
   },
-  
-  // User-specific styles
 
+  // User-specific styles
   userLogoImage: {
-    width: 60, 
+    width: 60,
     height: 35,
   },
   userCompanySwitcherContainer: {
-    flex: 1.5, 
+    flex: 1.5,
     marginHorizontal: 4,
     justifyContent: 'center',
   },
   userRightContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    minWidth: 50, 
+    minWidth: 50,
   },
- 
   userProfileContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     padding: 4,
     borderRadius: 8,
-    // backgroundColor: '#EEF2FF', 
   },
   userRoleText: {
     fontSize: 11,
     fontWeight: '700',
   },
   userDropdownMenu: {
-    // backgroundColor: '#F8FAFF', 
     borderWidth: 1,
     borderColor: '#E0E7FF',
   },
 
- 
-
-  // Search styles (common for all)
+  // Search styles
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -600,16 +585,9 @@ const styles = StyleSheet.create({
   dropdownMenu: {
     backgroundColor: '#fff',
     borderRadius: 10,
-    // paddingVertical: 8,
-    width: 130,
+    width: 140,
     ...Platform.select({
       android: { elevation: 12 },
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-      },
     }),
   },
   dropdownItem: {
@@ -621,8 +599,11 @@ const styles = StyleSheet.create({
   },
   dropdownText: {
     fontSize: 14,
-    color: '#1E293B',
+    color: '#3730a3',
     fontWeight: '500',
+  },
+  userDropdownText: {
+    color: '#3730a3',
   },
   searchControls: {
     flexDirection: 'row',
@@ -643,5 +624,23 @@ const styles = StyleSheet.create({
   highlightButton: {
     padding: 4,
     marginHorizontal: 2,
+  },
+  textProfileContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    gap: 4,
+  },
+  userTextProfileContainer: {
+    backgroundColor: '#eef2ff',
+  },
+  textProfileRole: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+    textTransform: 'capitalize',
   },
 });

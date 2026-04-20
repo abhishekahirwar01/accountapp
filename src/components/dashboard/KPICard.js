@@ -1,180 +1,244 @@
-import React, { useMemo } from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useMemo, useEffect, useRef } from 'react';
+import {
+  View,
+  StyleSheet,
+  ImageBackground,
+  Animated,
+} from 'react-native';
 import { Text } from 'react-native-paper';
-import { IndianRupee, CreditCard, Users, Building } from 'lucide-react-native';
+import { User, Building } from 'lucide-react-native';
+import { useCompany } from '../../contexts/company-context';
 
-// Move formatCurrency outside component to prevent recreation
 const formatCurrency = (amount) =>
-  new Intl.NumberFormat('en-IN', { 
-    style: 'currency', 
+  new Intl.NumberFormat('en-IN', {
+    style: 'currency',
     currency: 'INR',
-    // maximumFractionDigits: 0,
   }).format(amount);
 
-// Move static data outside component
-const KPI_CONFIG = [
-  {
-    key: 'sales',
-    title: 'Total Sales',
-    icon: IndianRupee,
-    color: '#3b82f6',
-    getValue: (data) => formatCurrency(data?.totalSales || 0),
-    getDescription: (selectedCompanyId) => 
-      selectedCompanyId ? 'For selected company' : 'Across all companies',
-  },
-  {
-    key: 'purchases',
-    title: 'Total Purchases',
-    icon: CreditCard,
-    color: '#8b5cf6',
-    getValue: (data) => formatCurrency(data?.totalPurchases || 0),
-    getDescription: () => 'All purchases',
-  },
-  {
-    key: 'users',
-    title: 'Active Users',
-    icon: Users,
-    color: '#10b981',
-    getValue: (data) => (data?.users || 0).toString(),
-    getDescription: () => 'Registered users',
-  },
-  {
-    key: 'companies',
-    title: 'Companies',
-    icon: Building,
-    color: '#f59e0b',
-    getValue: (data) => (data?.companies || 0).toString(),
-    getDescription: () => 'Total companies',
-  },
-];
+function KpiCards({
+  data,
+  selectedCompanyId: selectedCompanyIdProp,
+  companies: companiesProp,
+}) {
+  const {
+    selectedCompanyId: contextSelectedCompanyId,
+    companies: contextCompanies = [],
+  } = useCompany();
 
-// Memoized KPI Card component
-const KpiCard = React.memo(({ title, value, icon: Icon, description, color }) => {
+  const selectedCompanyId =
+    selectedCompanyIdProp !== undefined
+      ? selectedCompanyIdProp
+      : contextSelectedCompanyId;
+  const companies =
+    companiesProp !== undefined ? companiesProp : contextCompanies;
+
+  
+  const flipAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    
+    Animated.sequence([
+      Animated.timing(flipAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      Animated.timing(flipAnim, { toValue: 2, duration: 250, useNativeDriver: true }),
+      Animated.timing(flipAnim, { toValue: 3, duration: 250, useNativeDriver: true }),
+      Animated.timing(flipAnim, { toValue: 4, duration: 250, useNativeDriver: true }),
+    ]).start(); 
+  }, []); 
+
+ 
+  const coinScaleX = flipAnim.interpolate({
+    inputRange: [0, 1, 2, 3, 4],
+    outputRange: [1, 0, -1, 0, 1],
+  });
+
+ 
+  const companyName = useMemo(() => {
+    if (!selectedCompanyId) return 'All Companies';
+    const company = companies.find((c) => c._id === selectedCompanyId);
+    return company ? company.businessName : 'All Companies';
+  }, [selectedCompanyId, companies]);
+
+  const totalPurchases = formatCurrency(data?.totalPurchases || 0);
+  const totalSales = formatCurrency(data?.totalSales || 0);
+  const activeUsers = String(data?.users || 0).padStart(2, '0');
+  const totalCompanies = String(data?.companies || 0).padStart(2, '0');
+
   return (
-    <View style={styles.cardWrapper}>
-      <View style={styles.card}>
-        <View style={styles.cardInner}>
+    <View style={styles.wrapper}>
+      <View style={styles.shadowContainer}>
+
+        <View style={styles.bottomShadow} />
+
+        <ImageBackground
+          source={require('../../../assets/dashboard/DashboardCard.jpg')}
+          style={styles.card}
+          imageStyle={styles.cardImage}
+          resizeMode="cover"
+        >
           <View style={styles.headerRow}>
-            <Text variant="labelMedium" style={styles.title} numberOfLines={1}>
-              {title}
+            <Text style={styles.companyName} numberOfLines={1}>
+              {companyName}
             </Text>
-            <View style={[styles.iconContainer, { backgroundColor: color }]}>
-              <Icon size={14} color="#ffffff" strokeWidth={2.5} />
+
+            <Animated.Image
+              source={require('../../../assets/dashboard/Coin1.png')}
+              style={[
+                styles.coinImage,
+                { transform: [{ scaleX: coinScaleX }] },
+              ]}
+              resizeMode="contain"
+            />
+          </View>
+
+          <View style={styles.spacer} />
+
+          <View style={styles.kpiRow}>
+            <Text style={styles.kpiLabel}>Total Purchases</Text>
+            <Text style={styles.kpiValue}>{totalPurchases}</Text>
+          </View>
+
+          <View style={styles.kpiRow}>
+            <Text style={styles.kpiLabel}>Total Sales</Text>
+            <Text style={styles.kpiValue}>{totalSales}</Text>
+          </View>
+
+          <View style={styles.spacer} />
+
+          <View style={styles.bottomRow}>
+            <View style={styles.statItem}>
+              <User size={15} color="rgba(255,255,255,0.85)" strokeWidth={3} />
+              <Text style={styles.statLabel}>ACTIVE USERS</Text>
+              <Text style={styles.statValue}>{activeUsers}</Text>
+            </View>
+
+            <View style={styles.statItem}>
+              <Building size={15} color="rgba(255,255,255,0.85)" strokeWidth={3} />
+              <Text style={styles.statLabel}>COMPANIES</Text>
+              <Text style={styles.statValue}>{totalCompanies}</Text>
             </View>
           </View>
-          
-          <Text variant="headlineMedium" style={styles.value} numberOfLines={1}>
-            {value}
-          </Text>
-          
-          <Text variant="bodySmall" style={styles.description} numberOfLines={1}>
-            {description}
-          </Text>
-        </View>
+        </ImageBackground>
       </View>
-    </View>
-  );
-});
-
-KpiCard.displayName = 'KpiCard';
-
-// Main component - CHANGED: Using function declaration instead of const
-function KpiCards({ data, selectedCompanyId }) {
-  // Memoize kpiData to prevent recalculation on every render
-  const kpiData = useMemo(() => {
-    return KPI_CONFIG.map(config => ({
-      key: config.key,
-      title: config.title,
-      value: config.getValue(data),
-      icon: config.icon,
-      description: config.getDescription(selectedCompanyId),
-      color: config.color,
-    }));
-  }, [data, selectedCompanyId]);
-
-  return (
-    <View style={styles.container}>
-      {kpiData.map((kpi) => (
-        <KpiCard
-          key={kpi.key}
-          title={kpi.title}
-          value={kpi.value}
-          icon={kpi.icon}
-          description={kpi.description}
-          color={kpi.color}
-        />
-      ))}
     </View>
   );
 }
 
-// CHANGED: Export using export { } syntax
 export { KpiCards };
 
+
+// ───────────────── STYLES ─────────────────
 const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    padding: 8,
+  wrapper: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
-  cardWrapper: {
-    flex: 1,
-    minWidth: '45%',
+
+  shadowContainer: {
+    position: 'relative',
   },
+
+  bottomShadow: {
+    position: 'absolute',
+    bottom: -14,
+    left: '1%',
+    right: '1%',
+    height: 40,
+    borderRadius: 24,
+    shadowColor: '#050505',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+
   card: {
-    backgroundColor: '#ffffff',
     borderRadius: 12,
-    elevation: 8,
-    shadowColor: '#000',
+    overflow: 'hidden',
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 18,
+    elevation: 6,
+    shadowColor: '#020202',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
   },
-  cardInner: {
-    // padding: 12,
-    paddingHorizontal:12,
-    paddingVertical:10,
+
+  cardImage: {
     borderRadius: 12,
-    backgroundColor: '#ffffff',
   },
+
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    // marginBottom: 6,
   },
-  title: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#64748b',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+
+  companyName: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 0.3,
     flex: 1,
-    marginRight: 8,
+    marginRight: 12,
+
   },
-  iconContainer: {
-    width: 25,
-    height: 25,
-    borderRadius: 10,
-    justifyContent: 'center',
+
+  coinImage: {
+    width: 35,
+    height: 35,
+  },
+
+  spacer: {
+    height: 18,
+  },
+
+  kpiRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    marginBottom: 6,
   },
-  value: {
+
+  kpiLabel: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#0f172a',
-    // marginBottom: 6,
-    letterSpacing: -0.5,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 0.2,
   },
-  description: {
-    fontSize: 10,
-    color: '#94a3b8',
-    fontWeight: '400',
+
+  kpiValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 1,
+  },
+
+  bottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  statLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.85)',
+    letterSpacing: 0.8,
+  },
+
+  statValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginLeft: 4,
+    letterSpacing: 0.5,
   },
 });

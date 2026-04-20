@@ -430,7 +430,7 @@ const InvoiceTemplateRenderer = ({ invoiceData }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#8b77ff" />
         <Text style={styles.loadingText}>Generating preview...</Text>
       </View>
     );
@@ -567,7 +567,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#e9ecef',
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#8b77ff',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   retryButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#8b77ff',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 6,

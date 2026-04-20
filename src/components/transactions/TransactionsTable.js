@@ -8,30 +8,43 @@ import {
   Dimensions,
   Alert,
 } from 'react-native';
-import { Card, Badge } from 'react-native-paper'; // You can use react-native-paper or create custom components
 
-// Custom Badge component if not using react-native-paper
+
 const CustomBadge = ({ children, style, textStyle }) => (
   <View style={[styles.badge, style]}>
     <Text style={[styles.badgeText, textStyle]}>{children}</Text>
   </View>
 );
 
-// Custom Card component
+
 const CustomCard = ({ children, style }) => (
   <View style={[styles.card, style]}>{children}</View>
 );
 
+const Avatar = ({ name }) => {
+  const initials = name
+    ? name
+        .split(' ')
+        .map((w) => w[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase()
+    : '??';
+  return (
+    <View style={styles.avatar}>
+      <Text style={styles.avatarText}>{initials}</Text>
+    </View>
+  );
+};
+
 function useMediaQuery() {
   const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
-  
   useEffect(() => {
     const subscription = Dimensions.addEventListener('change', ({ window }) => {
       setScreenWidth(window.width);
     });
     return () => subscription?.remove();
   }, []);
-
   return screenWidth < 768;
 }
 
@@ -48,7 +61,6 @@ export default function TransactionsTable({
 }) {
   const isMobile = useMediaQuery();
 
-  // Format currency function
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -58,7 +70,6 @@ export default function TransactionsTable({
     }).format(amount || 0);
   };
 
-  // Format date function
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-GB', {
       day: '2-digit',
@@ -67,17 +78,33 @@ export default function TransactionsTable({
     });
   };
 
+  const getBadgeConfig = (type) => {
+    switch (type) {
+      case 'sales':
+        return { style: styles.badgeSales, textStyle: styles.badgeSalesText };
+      case 'purchases':
+        return { style: styles.badgePurchases, textStyle: styles.badgePurchasesText };
+      case 'receipt':
+        return { style: styles.badgeReceipt, textStyle: styles.badgeReceiptText };
+      case 'payment':
+        return { style: styles.badgePayment, textStyle: styles.badgePaymentText };
+      case 'journal':
+        return { style: styles.badgeJournal, textStyle: styles.badgeJournalText };
+      default:
+        return { style: styles.badgeDefault, textStyle: styles.badgeDefaultText };
+    }
+  };
+
   if (isMobile) {
-    // 📱 Mobile Card View
     return (
       <View style={styles.mobileContainer}>
         {data.map((tx) => {
           const party =
-            (tx.party?.name) || 
-            (tx.vendor?.vendorName) || 
-            tx.party || 
+            tx.party?.name ||
+            tx.vendor?.vendorName ||
+            tx.party ||
             'N/A';
-          
+
           const companyId =
             typeof tx.company === 'object' && tx.company !== null
               ? tx.company._id
@@ -89,118 +116,130 @@ export default function TransactionsTable({
 
           const showViewItems = tx.type === 'sales' || tx.type === 'purchases';
           const amount = tx.totalAmount ?? tx.amount ?? 0;
-
-          // Badge styles based on type
-          const getBadgeStyle = (type) => {
-            switch (type) {
-              case 'sales':
-                return styles.badgeSales;
-              case 'purchases':
-                return styles.badgePurchases;
-              case 'receipt':
-                return styles.badgeReceipt;
-              case 'payment':
-                return styles.badgePayment;
-              case 'journal':
-                return styles.badgeJournal;
-              default:
-                return styles.badgeDefault;
-            }
-          };
+          const badgeConfig = getBadgeConfig(tx.type);
+          const typeLabel = tx.type
+            ? tx.type.charAt(0).toUpperCase() + tx.type.slice(1)
+            : '';
 
           return (
-            <CustomCard key={tx._id} style={styles.mobileCard}>
-              <View style={styles.cardContent}>
-                {/* Header Row - Party + View Items Button */}
-                <View style={styles.cardHeader}>
-                  <View style={styles.partyInfo}>
-                    <Text style={styles.partyName}>{party}</Text>
-                    <Text style={styles.description}>
-                      {tx.description || tx.narration || ''}
+            <CustomCard key={tx._id}>
+              
+              <View style={styles.topRow}>
+              
+                <Avatar name={party} />
+
+                <View style={styles.topMiddle}>
+                  <Text style={styles.partyName} numberOfLines={1}>
+                    {party}
+                  </Text>
+                  {companyName !== 'N/A' && (
+                    <View style={styles.companyRow}>
+                      <Text style={styles.companyIcon}>🏢</Text>
+                      <Text style={styles.companyName} numberOfLines={1}>
+                        {companyName}
+                      </Text>
+                    </View>
+                  )}
+                  {(tx.description || tx.narration) ? (
+                    <Text style={styles.narration} numberOfLines={1}>
+                      {tx.description || tx.narration}
                     </Text>
-                  </View>
+                  ) : null}
+                </View>
+
+               
+                <View style={styles.topRight}>
+                  <Text style={styles.amountValue}>
+                    {formatCurrency(amount)}
+                  </Text>
                   
-                  {/* View Items Button */}
+                  <View style={styles.badgeWrapper}>
+                    <CustomBadge style={badgeConfig.style} textStyle={badgeConfig.textStyle}>
+                      {typeLabel}
+                    </CustomBadge>
+                  </View>
+                </View>
+              </View>
+
+              {/* ── Divider ── */}
+              <View style={styles.divider} />
+
+              {/* ── Meta row: view items icon + date ── */}
+              <View style={styles.metaRow}>
+                <View style={styles.metaLeft}>
                   {showViewItems && (
                     <TouchableOpacity
-                      style={styles.viewItemsButton}
+                      style={styles.metaChip}
                       onPress={() => onViewItems?.(tx)}
                     >
-                      <Text style={styles.viewItemsIcon}>📦</Text>
+                      <Text style={styles.metaChipIcon}>📦</Text>
+                      <Text style={styles.metaChipText}>Items</Text>
                     </TouchableOpacity>
                   )}
+                  {tx.date ? (
+                    <View style={styles.metaChip}>
+                      {/* <Text style={styles.metaChipIcon}>📅</Text> */}
+                      <Text style={styles.metaChipText}>{formatDate(tx.date)}</Text>
+                    </View>
+                  ) : null}
                 </View>
+              </View>
 
-                {/* Company */}
-                <View style={styles.companyRow}>
-                  <Text style={styles.label}>Company: </Text>
-                  <Text style={styles.companyName}>{companyName}</Text>
-                </View>
+              {/* ── Actions row ── */}
+              {!hideActions && (
+                <View style={styles.actionsRow}>
+                  {/* View Invoice / Preview (primary CTA) */}
+                  <TouchableOpacity
+                    style={[
+                      styles.viewInvoiceButton,
+                      tx.type !== 'sales' && styles.viewInvoiceButtonDisabled,
+                    ]}
+                    onPress={() => onPreview?.(tx)}
+                    disabled={tx.type !== 'sales'}
+                  >
+                    <Text style={styles.viewInvoiceText}>View Invoice</Text>
+                    <Text style={styles.viewInvoiceArrow}>›</Text>
+                  </TouchableOpacity>
 
-                {/* Amount and Date Row */}
-                <View style={styles.amountDateRow}>
-                  <View style={styles.amountContainer}>
-                    <Text style={styles.amountLabel}>Amount</Text>
-                    <Text style={styles.amountValue}>
-                      {formatCurrency(amount)}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.dateContainer}>
-                    <Text style={styles.dateLabel}>Date</Text>
-                    <Text style={styles.dateValue}>
-                      {formatDate(tx.date)}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Type Badge */}
-                <CustomBadge style={getBadgeStyle(tx.type)}>
-                  {tx.type?.charAt(0).toUpperCase() + tx.type?.slice(1)}
-                </CustomBadge>
-
-                {/* Actions */}
-                {!hideActions && (
-                  <View style={styles.actionsRow}>
+                  <View style={styles.iconActions}>
                     <TouchableOpacity
-                      style={[styles.actionButton, styles.previewButton]}
-                      onPress={() => onPreview?.(tx)}
-                      disabled={tx.type !== 'sales'}
-                    >
-                      <Text style={styles.actionButtonText}>Preview</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.editButton]}
+                      style={styles.iconActionBtn}
                       onPress={() => onEdit?.(tx)}
                     >
-                      <Text style={styles.actionButtonText}>Edit</Text>
+                      <Text style={styles.iconActionIcon}>✏️</Text>
                     </TouchableOpacity>
-                    
+
                     <TouchableOpacity
-                      style={[styles.actionButton, styles.deleteButton]}
-                      onPress={() => {
+                      style={styles.iconActionBtn}
+                      onPress={() =>
                         Alert.alert(
                           'Delete Transaction',
                           'Are you sure you want to delete this transaction?',
                           [
                             { text: 'Cancel', style: 'cancel' },
-                            { 
-                              text: 'Delete', 
+                            {
+                              text: 'Delete',
                               style: 'destructive',
-                              onPress: () => onDelete?.(tx)
+                              onPress: () => onDelete?.(tx),
                             },
                           ]
-                        );
-                      }}
+                        )
+                      }
                     >
-                      <Text style={[styles.actionButtonText, styles.deleteText]}>
-                        Delete
-                      </Text>
+                      <Text style={styles.iconActionIcon}>🗑️</Text>
                     </TouchableOpacity>
+
+                    {tx.type === 'sales' && (
+                      <TouchableOpacity
+                        style={styles.iconActionBtn}
+                        onPress={() => onSendInvoice?.(tx)}
+                      >
+                        <Text style={styles.iconActionIcon}>⋮</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
-                )}
-              </View>
+                </View>
+              )}
             </CustomCard>
           );
         })}
@@ -208,31 +247,24 @@ export default function TransactionsTable({
     );
   }
 
-  // 🖥 Desktop Table View - You can use your existing DataTable component here
-  // For now, we'll show a simple message or you can integrate your DataTable
+  // 🖥 Desktop Table View
   return (
     <View style={styles.desktopContainer}>
       <Text style={styles.desktopMessage}>
-        Desktop view - Use DataTable component here
+        Desktop view – Use DataTable component here
       </Text>
-      {/* You can integrate your existing DataTable component here */}
-      {/* <DataTable
-        data={data}
-        companyMap={companyMap}
-        serviceNameById={serviceNameById}
-        onViewItems={onViewItems}
-        onPreview={onPreview}
-        onEdit={onEdit}
-        onDelete={onDelete}
-      /> */}
     </View>
   );
 }
 
+const THEME = '#8b77ff';
+const THEME_LIGHT = '#f5f2ff';
+const THEME_BORDER = '#c4b8ff';
+
 const styles = StyleSheet.create({
   mobileContainer: {
-    padding: 16,
-    backgroundColor: '#f8f9fa',
+    padding: 12,
+    backgroundColor: '#f4f2ff', 
   },
   desktopContainer: {
     flex: 1,
@@ -244,169 +276,209 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
+
+
   card: {
-    backgroundColor: 'white',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    marginBottom: 12,
+    shadowColor: THEME,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.13,
+    shadowRadius: 8,
+    elevation: 1,
+    overflow: 'hidden',
+  },
+
+
+  avatar: {
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    flexShrink: 0,
+    backgroundColor: '#f1efff',
   },
-  mobileCard: {
-    marginHorizontal: 0,
+  avatarText: {
+    color: '#8b77ff',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
-  cardContent: {
-    padding: 16,
-  },
-  cardHeader: {
+
+  // ── Top row ───────────────────────────────────────
+  topRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 10,
   },
-  partyInfo: {
+  topMiddle: {
     flex: 1,
-    marginRight: 8,
+    justifyContent: 'center',
   },
   partyName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  description: {
-    fontSize: 14,
-    color: '#6b7280',
-    lineHeight: 18,
-  },
-  viewItemsButton: {
-    padding: 8,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 6,
-    marginLeft: 8,
-  },
-  viewItemsIcon: {
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 3,
   },
   companyRow: {
     flexDirection: 'row',
-    // alignItems: 'center',
-    marginBottom: 12,
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    marginBottom: 2,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
+  companyIcon: {
+    fontSize: 11,
+    marginRight: 4,
   },
   companyName: {
-    fontSize: 14,
-    color: '#6b7280',
-    flex: 1,
-    flexWrap: 'wrap',
+    fontSize: 12,
+    color: '#64748b',
   },
-  amountDateRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+  narration: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 1,
   },
-  amountContainer: {
-    flex: 1,
-  },
-  amountLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6b7280',
-    marginBottom: 2,
+  topRight: {
+    alignItems: 'flex-end', 
+    marginLeft: 8,
   },
   amountValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#059669',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0f172a',
+    letterSpacing: -0.3,
+    marginBottom: 6,
   },
-  dateContainer: {
-    alignItems: 'flex-end',
+  
+  badgeWrapper: {
+    alignSelf: 'flex-end',
   },
-  dateLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6b7280',
-    marginBottom: 2,
-  },
-  dateValue: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
+
+  
   badge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 20,
+    alignSelf: 'flex-end', 
   },
   badgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  badgeSales: { backgroundColor: '#f0fff5' },
+  badgeSalesText: { color: '#15803d' },
+  badgePurchases: { backgroundColor: '#dbeafe' },
+  badgePurchasesText: { color: '#1d4ed8' },
+  badgeReceipt: { backgroundColor: '#fef9c3' },
+  badgeReceiptText: { color: '#a16207' },
+  badgePayment: { backgroundColor: '#fee2e2' },
+  badgePaymentText: { color: '#b91c1c' },
+  badgeJournal: { backgroundColor: '#f3e8ff' },
+  badgeJournalText: { color: '#7e22ce' },
+  badgeDefault: { backgroundColor: '#f1f5f9' },
+  badgeDefaultText: { color: '#475569' },
+
+  divider: {
+    height: 1,
+    backgroundColor: THEME_LIGHT,
+    marginHorizontal: 14,
+  },
+
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  metaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: THEME_LIGHT,
+    // borderWidth: 1,
+    // borderColor: THEME_BORDER,
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    marginRight: 6,
+  },
+  metaChipIcon: {
     fontSize: 12,
-    fontWeight: '500',
-    textTransform: 'capitalize',
+    marginRight: 4,
   },
-  badgeSales: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#bbf7d0',
+  metaChipText: {
+    fontSize: 12,
+    color: THEME,
+    fontWeight: '600',
   },
-  badgePurchases: {
-    backgroundColor: '#dbeafe',
-    borderColor: '#bfdbfe',
-  },
-  badgeReceipt: {
-    backgroundColor: '#fef3c7',
-    borderColor: '#fde68a',
-  },
-  badgePayment: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#fecaca',
-  },
-  badgeJournal: {
-    backgroundColor: '#f3e8ff',
-    borderColor: '#e9d5ff',
-  },
-  badgeDefault: {
-    backgroundColor: '#f3f4f6',
-    borderColor: '#e5e7eb',
-  },
+
   actionsRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  actionButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    minWidth: 60,
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+    paddingTop: 2,
+    borderTopWidth: 1,
+    borderTopColor: THEME_LIGHT,
   },
-  previewButton: {
-    backgroundColor: '#3b82f6',
-  },
-  editButton: {
-    backgroundColor: '#6b7280',
-  },
-  deleteButton: {
-    backgroundColor: '#fef2f2',
+  viewInvoiceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: THEME_LIGHT,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderWidth: 1,
-    borderColor: '#fecaca',
+    borderColor: THEME_BORDER,
   },
-  actionButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: 'white',
+  viewInvoiceButtonDisabled: {
+    backgroundColor: '#f8fafc',
+    borderColor: '#e2e8f0',
+    opacity: 0.5,
   },
-  deleteText: {
-    color: '#dc2626',
+  viewInvoiceText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: THEME,
+    marginRight: 4,
   },
-}); 
+  viewInvoiceArrow: {
+    fontSize: 16,
+    color: THEME,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  iconActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  iconActionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: THEME_LIGHT,
+    borderWidth: 1,
+    borderColor: THEME_BORDER,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+  },
+  iconActionIcon: {
+    fontSize: 15,
+  },
+});

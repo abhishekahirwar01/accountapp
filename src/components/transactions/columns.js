@@ -1,11 +1,9 @@
 // components/transactions/columns.js
 import React, { useState, useEffect, useRef } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import LinearGradient from 'react-native-linear-gradient';
 
-// Global helper: when a DropdownMenu opens it will set this to its
-// close function. Menu items call this to ensure the menu is closed
-// immediately before running their handlers (prevents z-index/backdrop
-// races on Android/iOS with nested modals).
+
 let activeDropdownClose = null;
 import { InteractionManager } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -471,8 +469,7 @@ const DropdownMenu = ({ trigger, children, align = 'end' }) => {
   const windowWidth = Dimensions.get('window').width;
   const windowHeight = Dimensions.get('window').height;
   const DEFAULT_MENU_WIDTH = 260;
-  // Increased default menu height so larger dialogs can fit inside when possible
-  const DEFAULT_MENU_HEIGHT = 520;
+  const DEFAULT_MENU_HEIGHT = 'auto';
   const [contentHeight, setContentHeight] = React.useState(null);
 
   const runAfterInteractionsAsync = () =>
@@ -484,10 +481,7 @@ const DropdownMenu = ({ trigger, children, align = 'end' }) => {
       }
     });
 
-  // expose a close function globally while this menu is open so
-  // individual menu items can reliably close the modal before
-  // invoking actions (prevents the menu overlay from obscuring
-  // subsequent dialogs like the invoice preview).
+
   React.useEffect(() => {
     if (open) {
       activeDropdownClose = closeMenu;
@@ -532,16 +526,15 @@ const DropdownMenu = ({ trigger, children, align = 'end' }) => {
 
   const handleBackdropPress = () => closeMenu();
 
-  // Clone children so that menu items auto-close the dropdown before running their action.
+ 
   const childrenWithAutoClose = React.Children.map(children, child => {
     if (!child || !child.props) return child;
-    // If it's a DropdownMenuItem, wrap its onPress to close the menu first
     if (child.type === DropdownMenuItem) {
       const originalOnPress = child.props.onPress;
       const wrapped = () => {
-        // close the dropdown immediately
+        
         closeMenu();
-        // call original handler after a short delay so the modal backdrop is removed
+       
         setTimeout(() => {
           try {
             originalOnPress && originalOnPress();
@@ -557,7 +550,6 @@ const DropdownMenu = ({ trigger, children, align = 'end' }) => {
     return child;
   });
 
-  // Compute menu placement and whether inner scrolling is required
   let menuStyleComputed = [
     styles.dropdownContent,
     { alignSelf: align === 'end' ? 'flex-end' : 'flex-start' },
@@ -677,9 +669,7 @@ const DropdownMenuItem = ({
   const handlePress = () => {
     if (disabled) return;
 
-    // Close any active dropdown immediately to ensure subsequent
-    // modals/dialogs appear above the menu. Allow a short delay so
-    // the native Modal backdrop is removed before running handler.
+
     try {
       if (typeof activeDropdownClose === 'function') activeDropdownClose();
     } catch (e) {
@@ -733,9 +723,7 @@ const DropdownMenuLabel = ({ children }) => (
 
 const DropdownMenuSeparator = () => <View style={styles.menuSeparator} />;
 
-// Legacy ItemsTooltip removed — use `TooltipContent` (from ../ui/Tooltip) inside `LinesCell` for a richer, consistent UI.
 
-// ✅ SortableHeader Component (alag component)
 const SortableHeader = ({ title, onSort }) => {
   const [sortDirection, setSortDirection] = useState(null);
 
@@ -766,8 +754,82 @@ const SortableHeader = ({ title, onSort }) => {
   );
 };
 
-// ✅ LinesCell Component (alag component)
-const LinesCell = ({ transaction, serviceNameById, onViewItems }) => {
+// helper to copy transaction details to clipboard
+const copyTransactionDetails = async (transaction, serviceNameById) => {
+  const lines = getUnifiedLines(transaction, serviceNameById);
+  const transactionType =
+    transaction.type?.charAt(0).toUpperCase() + transaction.type?.slice(1) ||
+    'Transaction';
+
+  let contactName = 'N/A';
+  if (transaction.type === 'purchases') {
+    contactName =
+      transaction.vendor && typeof transaction.vendor === 'object'
+        ? transaction.vendor.vendorName
+        : transaction.vendor || 'N/A';
+  } else {
+    contactName =
+      transaction.party && typeof transaction.party === 'object'
+        ? transaction.party.name
+        : transaction.party || 'N/A';
+  }
+
+  const date = new Date(transaction.date).toLocaleDateString();
+  const total = new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+  }).format(transaction.totalAmount || transaction.invoiceTotal || 0);
+
+  let text = `${transactionType} Details\n`;
+  text += `Date: ${date}\n`;
+
+  if (transaction.type === 'purchases') {
+    text += `Vendor: ${contactName}\n`;
+  } else if (transaction.type === 'sales') {
+    text += `Customer: ${contactName}\n`;
+  } else {
+    text += `Party: ${contactName}\n`;
+  }
+
+  text += `Total: ${total}\n`;
+
+  if (transaction.type !== 'sales' && transaction.type !== 'purchases') {
+    text += `Reference: ${transaction.referenceNumber || 'N/A'}\n`;
+  }
+
+  text += `\nItems (${lines.length}):\n`;
+
+  lines.forEach((line, index) => {
+    text += `${index + 1}. ${line.type === 'product' ? '📦' : '🛠️'} ${
+      line.name
+    }\n`;
+
+    if (line.type === 'product') {
+      text += `   Qty: ${line.quantity}${
+        line.unitType ? ` ${line.unitType}` : ''
+      }\n`;
+      if (line.pricePerUnit) {
+        text += `   Price: ${new Intl.NumberFormat('en-IN').format(
+          Number(line.pricePerUnit),
+        )}\n`;
+      }
+    } else if (line.type === 'service' && line.description) {
+      text += `   Desc: ${line.description}\n`;
+    }
+
+    if (line.amount) {
+      text += `   Amount: ${new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+      }).format(Number(line.amount))}\n`;
+    }
+    text += '\n';
+  });
+
+  await Clipboard.setString(text);
+};
+
+const LinesCell = ({ transaction, serviceNameById, onViewItems, compact = false }) => {
   const [showCopied, setShowCopied] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
 
@@ -776,76 +838,7 @@ const LinesCell = ({ transaction, serviceNameById, onViewItems }) => {
   if (!lines.length) return <Text style={styles.noItems}>-</Text>;
 
   const handleCopy = async () => {
-    const transactionType =
-      transaction.type?.charAt(0).toUpperCase() + transaction.type?.slice(1) ||
-      'Transaction';
-
-    let contactName = 'N/A';
-    if (transaction.type === 'purchases') {
-      contactName =
-        transaction.vendor && typeof transaction.vendor === 'object'
-          ? transaction.vendor.vendorName
-          : transaction.vendor || 'N/A';
-    } else {
-      contactName =
-        transaction.party && typeof transaction.party === 'object'
-          ? transaction.party.name
-          : transaction.party || 'N/A';
-    }
-
-    const date = new Date(transaction.date).toLocaleDateString();
-    const total = new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-    }).format(transaction.totalAmount || transaction.invoiceTotal || 0);
-
-    let text = `${transactionType} Details\n`;
-    text += `Date: ${date}\n`;
-
-    if (transaction.type === 'purchases') {
-      text += `Vendor: ${contactName}\n`;
-    } else if (transaction.type === 'sales') {
-      text += `Customer: ${contactName}\n`;
-    } else {
-      text += `Party: ${contactName}\n`;
-    }
-
-    text += `Total: ${total}\n`;
-
-    if (transaction.type !== 'sales' && transaction.type !== 'purchases') {
-      text += `Reference: ${transaction.referenceNumber || 'N/A'}\n`;
-    }
-
-    text += `\nItems (${lines.length}):\n`;
-
-    lines.forEach((line, index) => {
-      text += `${index + 1}. ${line.type === 'product' ? '📦' : '🛠️'} ${
-        line.name
-      }\n`;
-
-      if (line.type === 'product') {
-        text += `   Qty: ${line.quantity}${
-          line.unitType ? ` ${line.unitType}` : ''
-        }\n`;
-        if (line.pricePerUnit) {
-          text += `   Price: ${new Intl.NumberFormat('en-IN').format(
-            Number(line.pricePerUnit),
-          )}\n`;
-        }
-      } else if (line.type === 'service' && line.description) {
-        text += `   Desc: ${line.description}\n`;
-      }
-
-      if (line.amount) {
-        text += `   Amount: ${new Intl.NumberFormat('en-IN', {
-          style: 'currency',
-          currency: 'INR',
-        }).format(Number(line.amount))}\n`;
-      }
-      text += '\n';
-    });
-
-    await Clipboard.setString(text);
+    await copyTransactionDetails(transaction, serviceNameById);
     setShowCopied(true);
     setTimeout(() => setShowCopied(false), 2000);
   };
@@ -862,41 +855,65 @@ const LinesCell = ({ transaction, serviceNameById, onViewItems }) => {
         onLongPress={() => onViewItems && onViewItems(transaction)}
         delayLongPress={500}
       >
-        <Text style={styles.itemLabelPrefix}>Item:</Text>
-        <View style={styles.itemsAvatars}>
-          {displayLines.slice(0, 1).map((line, idx) => (
+        {compact ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.itemLabelPrefix}>Item:</Text>
             <View
-              key={idx}
-              style={[
-                styles.itemIcon,
-                line.itemType === 'product'
-                  ? styles.productIcon
-                  : styles.serviceIcon,
-              ]}
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 10,
+                backgroundColor: '#eef2ff',
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginRight: 4,
+              }}
             >
-              {line.itemType === 'product' ? (
-                <Feather name="package" size={12} color="#0369a1" />
-              ) : (
-                <Feather name="tool" size={12} color="#92400e" />
+              <Feather name="package" size={12} color="#0369a1" />
+            </View>
+            <Text style={{ fontSize: 13, color: '#1e1b4b', fontWeight: '600' }}>
+              {lines.length}
+            </Text>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.itemLabelPrefix}>Item:</Text>
+            <View style={styles.itemsAvatars}>
+              {displayLines.slice(0, 1).map((line, idx) => (
+                <View
+                  key={idx}
+                  style={[
+                    styles.itemIcon,
+                    line.itemType === 'product'
+                      ? styles.productIcon
+                      : styles.serviceIcon,
+                  ]}
+                >
+                  {line.itemType === 'product' ? (
+                    <Feather name="package" size={12} color="#0369a1" />
+                  ) : (
+                    <Feather name="tool" size={12} color="#92400e" />
+                  )}
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.itemsTextContainer}>
+              <Text style={styles.itemsText} numberOfLines={1}>
+                {lines[0]?.name || '-'}
+              </Text>
+              {lines.length > 1 && (
+                <Text style={styles.remainingCountText}>
+                  +{lines.length - 1} more
+                </Text>
               )}
             </View>
-          ))}
-        </View>
 
-        <View style={styles.itemsTextContainer}>
-          <Text style={styles.itemsText} numberOfLines={1}>
-            {lines[0]?.name || '-'}
-          </Text>
-          {lines.length > 1 && (
-            <Text style={styles.remainingCountText}>
-              +{lines.length - 1} more
-            </Text>
-          )}
-        </View>
-
-        <TouchableOpacity style={styles.copyButton} onPress={handleCopy}>
-          <Feather name="copy" size={14} color="#9ca3af" />
-        </TouchableOpacity>
+            {/* <TouchableOpacity style={styles.copyButton} onPress={handleCopy}>
+              <Feather name="copy" size={14} color="#9ca3af" />
+            </TouchableOpacity> */}
+          </>
+        )}
       </TouchableOpacity>
 
       <TooltipContent
@@ -904,7 +921,7 @@ const LinesCell = ({ transaction, serviceNameById, onViewItems }) => {
         onClose={() => setShowTooltip(false)}
         title="Item Details"
       >
-        {/* Header Totals Section - Matches Screenshot Top Bar */}
+        {/* Header Totals Section */}
         <View style={styles.screenshotTotalsContainer}>
           <View style={styles.screenshotTotalColumn}>
             <Text style={styles.screenshotLabel}>Subtotal</Text>
@@ -942,11 +959,11 @@ const LinesCell = ({ transaction, serviceNameById, onViewItems }) => {
           </View>
         </View>
 
-        {/* Items List - Matches the Rounded Card in Screenshot */}
+        {/* Items List */}
         <ScrollView showsVerticalScrollIndicator={false}>
           {lines.map((line, idx) => (
             <View key={idx} style={styles.screenshotItemCard}>
-              {/* Item Header (Icon + Name + Badges) */}
+            
               <View style={styles.screenshotItemHeader}>
                 <View style={styles.screenshotIconCircle}>
                   <Feather
@@ -1015,7 +1032,7 @@ const LinesCell = ({ transaction, serviceNameById, onViewItems }) => {
   );
 };
 
-// ✅ TransactionActions Component (alag component) - FIXED
+// ✅ TransactionActions Component
 const TransactionActions = ({
   transaction,
   onPreview,
@@ -1034,13 +1051,12 @@ const TransactionActions = ({
   const { permissions } = useUserPermissions();
   const canEmail = !!permissions?.canSendInvoiceEmail;
   const canWhatsApp = !!permissions?.canSendInvoiceWhatsapp;
-  // console.log('TRANSACTION ACTIONS RENDERED:', transaction._id);
   const [isWhatsAppDialogOpen, setIsWhatsAppDialogOpen] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [mailSentDialogOpen, setMailSentDialogOpen] = useState(false);
   const [mailSentTo, setMailSentTo] = useState('');
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
-  const [isCopyingId, setIsCopyingId] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
   const [pdfUri, setPdfUri] = useState(null);
   const [isPdfViewOpen, setIsPdfViewOpen] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -1081,23 +1097,23 @@ const TransactionActions = ({
 
   const handleSendWhatsApp = async () => {
     try {
-      // If the whatsappConnectionService exposes an isConnected method, prefer to check it.
+      
       const connected =
         typeof whatsappConnectionService?.isConnected === 'function'
           ? await whatsappConnectionService.isConnected()
           : false;
 
-      // If not connected, still open the composer so user can proceed manually or see instructions.
+      
       if (!connected) {
         setIsWhatsAppDialogOpen(true);
         return;
       }
 
-      // Open the composer dialog when connected
+      
       setIsWhatsAppDialogOpen(true);
     } catch (e) {
       console.error('WhatsApp send error:', e);
-      // Fallback to opening composer so user can still attempt to send
+      
       setIsWhatsAppDialogOpen(true);
     }
   };
@@ -1111,16 +1127,16 @@ const TransactionActions = ({
     }, 1000);
   };
 
-  const handleCopyTransactionId = async () => {
+  const handleCopy = async () => {
     try {
-      setIsCopyingId(true);
-      await Clipboard.setString(transaction._id || '');
-      Alert.alert('Copied', 'Transaction ID copied to clipboard');
+      setIsCopying(true);
+      await copyTransactionDetails(transaction, serviceNameById);
+      Alert.alert('Copied', 'Transaction details copied to clipboard');
     } catch (error) {
       console.error('Copy error:', error);
-      Alert.alert('Error', 'Failed to copy transaction ID');
+      Alert.alert('Error', 'Failed to copy transaction details');
     } finally {
-      setIsCopyingId(false);
+      setIsCopying(false);
     }
   };
 
@@ -1174,7 +1190,7 @@ const TransactionActions = ({
         }
       }
 
-      // 2️⃣ Fetch backend default template (like TransactionForm)
+      // 2️⃣ Fetch backend default template
       let selectedTemplate = 'template1';
       try {
         const token = await AsyncStorage.getItem('token');
@@ -1194,7 +1210,7 @@ const TransactionActions = ({
         console.warn('⚠️ Failed to fetch default template:', error.message);
       }
 
-      // 3️⃣ Fetch party, company, bank details (like TransactionForm)
+      // 3️⃣ Fetch party, company, bank details 
       let partyData = transaction.party || null;
       let companyData = transaction.company || null;
       let bankData = null;
@@ -1243,7 +1259,7 @@ const TransactionActions = ({
             );
             if (bankRes.ok) {
               const bankResponse = await bankRes.json();
-              // Extract .data if API returns wrapper {data: {...}, success: true}
+              
               bankData = bankResponse.data || bankResponse;
             } else {
               console.warn(
@@ -1298,10 +1314,9 @@ const TransactionActions = ({
         bankData,
       );
 
-      // 8️⃣ Normalize PDF to Base64 (handles file objects/paths, base64, jsPDF, blobs)
+      // 8️⃣ Normalize PDF to Base64 
       let pdfBase64;
 
-      // If generator returned an object with a filesystem path (react-native-html-to-pdf / generatePDF)
       if (
         pdfBlob &&
         typeof pdfBlob === 'object' &&
@@ -1369,7 +1384,7 @@ const TransactionActions = ({
       // 🔟 Write file
       await RNFS.writeFile(tempPath, pdfBase64, 'base64');
 
-      // 1️⃣1️⃣ Copy to Downloads (Android)
+      
       if (Platform.OS === 'android') {
         await RNFS.copyFile(tempPath, publicPath);
         try {
@@ -1414,7 +1429,7 @@ const TransactionActions = ({
     try {
       setIsGeneratingPdf(true);
 
-      // 1️⃣ Fetch backend default template (like TransactionForm)
+      // 1️⃣ Fetch backend default template 
       let selectedTemplate = 'template1';
       try {
         const token = await AsyncStorage.getItem('token');
@@ -1483,7 +1498,7 @@ const TransactionActions = ({
             );
             if (bankRes.ok) {
               const bankResponse = await bankRes.json();
-              // Extract .data if API returns wrapper {data: {...}, success: true}
+              
               bankData = bankResponse.data || bankResponse;
             } else {
               console.warn(
@@ -1507,13 +1522,13 @@ const TransactionActions = ({
         }
       }
 
-      // 3️⃣ Convert serviceNameById to Map
+      
       const serviceNameMap =
         serviceNameById instanceof Map
           ? serviceNameById
           : new Map(Object.entries(serviceNameById || {}));
 
-      // 4️⃣ Extract shippingAddress
+      
       const shippingAddress =
         transaction?.shippingAddress &&
         typeof transaction.shippingAddress === 'object'
@@ -1530,10 +1545,10 @@ const TransactionActions = ({
         bankData,
       );
 
-      // 6️⃣ Normalize PDF to Base64 (handles file objects/paths, base64, jsPDF, blobs)
+      
       let pdfBase64;
 
-      // If generator returned an object with a filesystem path
+      
       if (
         pdfBlob &&
         typeof pdfBlob === 'object' &&
@@ -1587,13 +1602,13 @@ const TransactionActions = ({
         throw new Error('Invalid PDF data generated');
       }
 
-      // 7️⃣ Save to cache and call native print
+      
       const fileName = `Invoice_${transaction.invoiceNumber || Date.now()}.pdf`;
       const cachePath = `${RNFS.CachesDirectoryPath}/${fileName}`;
 
       await RNFS.writeFile(cachePath, pdfBase64, 'base64');
 
-      // 8️⃣ Call native print dialog
+      
       await RNPrint.print({ filePath: cachePath })
         .catch(err => {
           console.error('Print error:', err);
@@ -1623,114 +1638,140 @@ const TransactionActions = ({
 
   return (
     <>
-      <DropdownMenu
-        trigger={
-          <View style={styles.moreButton}>
-            <Feather name="more-horizontal" size={20} color="#4338ca" />
-          </View>
-        }
-      >
-        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+     
+      <View style={styles.actionRow}>
+        
+        {isInvoiceable && (
+          <TouchableOpacity onPress={handlePreview} activeOpacity={0.8}>
+            <LinearGradient
+              colors={[
+                '#b6aff8',
+                '#7C6FF7',
+                // '#ccbcf8',
+                // '#835deb', 
+                // '#b5a0f0',
+              ]}
+              style={styles.viewInvoiceButton}
+            >
+              <Text style={styles.viewInvoiceButtonText}>View Invoice</Text>
+              <Feather
+                name="chevron-right"
+                size={14}
+                color="#ffffff"
+                style={{ marginLeft: 4 }}
+              />
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
 
-        {/* 1) Send on WhatsApp */}
-        <DropdownMenuItem
-          onPress={() => {
-            if (onSendWhatsApp) onSendWhatsApp(transaction);
-            else handleSendWhatsApp();
-          }}
-          icon={{ type: FontAwesome5, name: 'whatsapp', color: '#25D366' }}
-          disabled={!isWhatsAppAllowed || !canWhatsApp}
-        >
-          Send on WhatsApp
-          {!canWhatsApp && ' (No permission)'}
-        </DropdownMenuItem>
+       
+        <View style={styles.iconGroup}>
+          {/* Copy button */}
+          <TouchableOpacity 
+            onPress={handleCopy}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={{ marginRight: 6 }}
+          >
+            <View style={styles.copyIconButton}>
+              <Feather name="copy" size={18} color="#000" />
+            </View>
+          </TouchableOpacity>
 
-        {/* 2) Send via Email */}
-        <DropdownMenuItem
-          onPress={async () => {
-            console.log(
-              '📧 Send Email clicked - onSendInvoice:',
-              !!onSendInvoice,
-            );
-            if (onSendInvoice) {
-              try {
-                await onSendInvoice(transaction);
-                console.log('✅ Send invoice completed');
-              } catch (err) {
-                console.error('❌ Send invoice error:', err);
-              }
-            } else {
-              console.log(
-                '⚠️ onSendInvoice not provided, calling handleSendEmail',
-              );
-              handleSendEmail();
+          {/* share icon menu containing whatsapp / email options */}
+          <DropdownMenu
+            trigger={
+              <View style={styles.shareButton}>
+                <Feather name="share-2" size={20} color="#000" />
+              </View>
             }
-          }}
-          icon={{ type: Feather, name: 'send' }}
-          disabled={!isInvoiceable || isSendingEmail || !canEmail}
-        >
-          {isSendingEmail ? 'Sending...' : 'Send Invoice via Email'}
-        </DropdownMenuItem>
+          >
+            <DropdownMenuLabel>Share</DropdownMenuLabel>
+            <DropdownMenuItem
+              onPress={() => {
+                if (onSendWhatsApp) onSendWhatsApp(transaction);
+                else handleSendWhatsApp();
+              }}
+              icon={{ type: FontAwesome5, name: 'whatsapp', color: '#25D366' }}
+              disabled={!isWhatsAppAllowed || !canWhatsApp}
+            >
+              Send on WhatsApp
+              {!canWhatsApp && ' (No permission)'}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onPress={async () => {
+                if (onSendInvoice) {
+                  try {
+                    await onSendInvoice(transaction);
+                  } catch (_) {}
+                } else {
+                  handleSendEmail();
+                }
+              }}
+              icon={{ type: Feather, name: 'send' }}
+              disabled={!isInvoiceable || isSendingEmail || !canEmail}
+            >
+              {isSendingEmail ? 'Sending...' : 'Send Invoice via Email'}
+            </DropdownMenuItem>
+          </DropdownMenu>
 
-        {/* 3) Preview Invoice */}
-        <DropdownMenuItem
-          onPress={() => {
-            if (onViewInvoicePDF) onViewInvoicePDF(transaction);
-            else onPreview && onPreview(transaction);
-          }}
-          icon={{ type: Feather, name: 'eye' }}
-          disabled={!isInvoiceable}
-        >
-          Preview Invoice
-        </DropdownMenuItem>
-
-        {/* 4) Download Invoice */}
-        <DropdownMenuItem
-          onPress={() => {
-            if (onDownloadInvoicePDF) onDownloadInvoicePDF(transaction);
-            else handleDownloadPDF();
-          }}
-          icon={{ type: Feather, name: 'download' }}
-          disabled={!isInvoiceable}
-        >
-          Download Invoice
-        </DropdownMenuItem>
-
-        {/* 5) Print Invoice (fallback to internal print helper) */}
-        <DropdownMenuItem
-          onPress={() => {
-            try {
-              if (onViewInvoicePDF) onViewInvoicePDF(transaction);
-              else handlePrintInvoice();
-            } catch (e) {
-              console.error('Print action failed', e);
+          <DropdownMenu
+            trigger={
+              <View style={styles.moreButton}>
+                <Feather name="more-vertical" size={20} color="#000" />
+              </View>
             }
-          }}
-          icon={{ type: Feather, name: 'printer' }}
-          disabled={!isInvoiceable}
-        >
-          Print Invoice
-        </DropdownMenuItem>
+          >
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
 
-        <DropdownMenuSeparator />
+            {/* Download Invoice */}
+            <DropdownMenuItem
+              onPress={() => {
+                if (onDownloadInvoicePDF) onDownloadInvoicePDF(transaction);
+                else handleDownloadPDF();
+              }}
+              icon={{ type: Feather, name: 'download' }}
+              disabled={!isInvoiceable}
+            >
+              Download Invoice
+            </DropdownMenuItem>
 
-        {/* 6) Edit Transaction */}
-        <DropdownMenuItem
-          onPress={() => onEdit && onEdit(transaction)}
-          icon={{ type: Feather, name: 'edit' }}
-        >
-          Edit transaction
-        </DropdownMenuItem>
+            {/* Print Invoice  */}
+            <DropdownMenuItem
+              onPress={() => {
+                try {
+                  if (onViewInvoicePDF) onViewInvoicePDF(transaction);
+                  else handlePrintInvoice();
+                } catch (e) {
+                  console.error('Print action failed', e);
+                }
+              }}
+              icon={{ type: Feather, name: 'printer' }}
+              disabled={!isInvoiceable}
+            >
+              Print Invoice
+            </DropdownMenuItem>
 
-        {/* 7) Delete Transaction */}
-        <DropdownMenuItem
-          onPress={() => onDelete && onDelete(transaction)}
-          icon={{ type: Feather, name: 'trash-2' }}
-          destructive
-        >
-          Delete transaction
-        </DropdownMenuItem>
-      </DropdownMenu>
+            <DropdownMenuSeparator />
+
+            {/* Edit Transaction */}
+            <DropdownMenuItem
+              onPress={() => onEdit && onEdit(transaction)}
+              icon={{ type: Feather, name: 'edit' }}
+            >
+              Edit transaction
+            </DropdownMenuItem>
+
+            {/* Delete Transaction */}
+            <DropdownMenuItem
+              onPress={() => onDelete && onDelete(transaction)}
+              icon={{ type: Feather, name: 'trash-2' }}
+              destructive
+            >
+              Delete transaction
+            </DropdownMenuItem>
+          </DropdownMenu>
+        </View>
+      </View>
 
       {/* PDF Viewer Modal */}
       <PdfViewerModal
@@ -1752,9 +1793,9 @@ const TransactionActions = ({
         isOpen={isWhatsAppDialogOpen}
         onClose={() => setIsWhatsAppDialogOpen(false)}
         transaction={transaction}
-        // prefer real party/vendor and company objects when available
+        
         party={
-          // if the surrounding screen provided a parties list, prefer the full record
+          
           (Array.isArray(parties) &&
             parties.find(p => {
               const partyId = transaction?.party?._id || transaction?.party;
@@ -1767,7 +1808,6 @@ const TransactionActions = ({
           {}
         }
         company={transaction.company || {}}
-        // expose the whatsapp connection service and base URL to the dialog
         whatsappService={whatsappConnectionService}
         baseUrl={BASE_URL}
       />
@@ -1813,7 +1853,7 @@ const TransactionActions = ({
   );
 };
 
-// ✅ Main columns function - WEB जैसा structure
+// ✅ Main columns function 
 export const columns = ({
   onPreview,
   onViewItems,
@@ -1838,7 +1878,7 @@ export const columns = ({
 }) => {
   const customFilterFn = makeCustomFilterFn(serviceNameById);
 
-  // Badge Component (simple function component, no hooks)
+  // Badge Component 
   const Badge = ({ children, variant, style }) => {
     const typeStyles = {
       sales: styles.typeSales,
@@ -1856,17 +1896,17 @@ export const columns = ({
     );
   };
 
-  // Avatar Component (simple function component, no hooks)
+  
   const Avatar = ({ children, size = 28, style }) => (
     <View style={[styles.avatar, { width: size, height: size }, style]}>
       <Text style={styles.avatarText}>{children}</Text>
     </View>
   );
 
-  // ✅ Web की तरह column definitions
+  
   const baseColumns = [];
 
-  // SELECT COLUMN (if not hidden)
+  // SELECT COLUMN 
   if (!hideCheckbox) {
     baseColumns.push({
       id: 'select',
@@ -1908,7 +1948,7 @@ export const columns = ({
     });
   }
 
-  // PARTY / DETAILS - Web की तरह
+  // PARTY / DETAILS 
   baseColumns.push({
     id: 'party',
     header: 'Details',
@@ -2035,7 +2075,7 @@ export const columns = ({
     },
   });
 
-  // COMPANY - Web की तरह
+  // COMPANY 
   baseColumns.push({
     id: 'company',
     header: 'Company',
@@ -2079,22 +2119,24 @@ export const columns = ({
     },
   });
 
-  // LINES (ITEMS/SERVICES) - Web की तरह
+  // LINES (ITEMS/SERVICES)
   baseColumns.push({
     id: 'lines',
     header: 'Items / Services',
-    cell: transaction => (
+    cell: (transaction, opts = {}) => (
       <LinesCell
         transaction={transaction}
         serviceNameById={serviceNameById}
         onViewItems={onViewItems}
+        compact={opts.compact}
       />
     ),
-    render: transaction => (
+    render: (transaction, opts = {}) => (
       <LinesCell
         transaction={transaction}
         serviceNameById={serviceNameById}
         onViewItems={onViewItems}
+        compact={opts.compact}
       />
     ),
     meta: {
@@ -2103,7 +2145,7 @@ export const columns = ({
     },
   });
 
-  // PAYMENT METHOD - Web की तरह
+  // PAYMENT METHOD 
   baseColumns.push({
     id: 'paymentMethod',
     header: 'Payment Method',
@@ -2115,7 +2157,7 @@ export const columns = ({
     },
   });
 
-  // AMOUNT - Web की तरह SortableHeader
+  // AMOUNT -
   baseColumns.push({
     id: 'totalAmount',
     header: () => <SortableHeader title="Amount" onSort={onSortAmount} />,
@@ -2147,7 +2189,7 @@ export const columns = ({
     },
   });
 
-  // DATE - Web की तरह
+  // DATE - 
   baseColumns.push({
     id: 'date',
     header: 'Date',
@@ -2181,7 +2223,7 @@ export const columns = ({
     },
   });
 
-  // TYPE - Web की तरह
+  // TYPE - 
   baseColumns.push({
     id: 'type',
     header: 'Type',
@@ -2225,7 +2267,7 @@ export const columns = ({
     },
   });
 
-  // Add actions column if not hidden - Web की तरह
+  
   if (!hideActions) {
     baseColumns.push({
       id: 'actions',
@@ -2274,7 +2316,7 @@ export const columns = ({
   return baseColumns;
 };
 
-// ✅ Helper function to get column labels for mobile
+
 export const getColumnLabel = (column, defaultLabel = '') => {
   if (column.meta?.mobileLabel) return column.meta.mobileLabel;
   if (column.meta?.label) return column.meta.label;
@@ -2282,7 +2324,7 @@ export const getColumnLabel = (column, defaultLabel = '') => {
   return column.id?.toUpperCase() || defaultLabel;
 };
 
-// ✅ Helper function to get column content
+
 export const getColumnValue = (column, item) => {
   if (column.cell && typeof column.cell === 'function') {
     return column.cell(item);
@@ -2293,13 +2335,11 @@ export const getColumnValue = (column, item) => {
   return item[column.id] || '';
 };
 
-// Lightweight hook-compatible helper for React Native screens
-// Returns the columns and several renderer stubs expected by screens.
+
 export const useColumns = options => {
   const cols = columns(options || {});
 
-  // The screen expects these render helpers to be callable in JSX.
-  // Provide minimal no-op implementations so consumers can opt-in later.
+  
   const renderActionSheet = () => null;
   const renderCopySuccess = () => null;
   const renderEmailNotConnectedDialog = () => null;
@@ -2318,16 +2358,16 @@ export const useColumns = options => {
 
 // Styles
 const styles = StyleSheet.create({
-  // Premium Badge
+  
   badge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 10,
     alignSelf: 'flex-end',
-    borderWidth: 1,
+    // borderWidth: 1,
   },
   badgeText: {
-    fontSize: 10,
+    fontSize: 8,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -2370,7 +2410,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#4338ca',
+    color: '#7C6FF7',
   },
 
   // Item Icon
@@ -2390,7 +2430,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fef3c7',
   },
 
-  // Premium Party Info (left-aligned like image)
+  // Premium Party Info 
   partyInfo: {
     flexDirection: 'column',
     alignItems: 'flex-start',
@@ -2432,7 +2472,7 @@ const styles = StyleSheet.create({
     flex: 0,
   },
 
-  // Items (card-friendly, left-aligned)
+  // Items 
   itemsSection: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2712,14 +2752,14 @@ const styles = StyleSheet.create({
   screenshotFooterValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#10b981', // Emerald green from screenshot
+    color: '#10b981', 
   },
 
   // Premium Amount
   amountText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#4338ca',
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#111111',
     textAlign: 'right',
   },
 
@@ -2789,6 +2829,51 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 8,
   },
+
+  
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    
+  },
+  iconGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 'auto',
+    gap: 6,
+  },
+  viewInvoiceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#8e6bcf',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    minWidth: 120,
+    maxWidth: 200,
+    flexShrink: 0,
+  },
+  viewInvoiceButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  shareButton: {
+    padding: 6,
+    borderRadius: 8,
+    marginHorizontal: 3,
+    // backgroundColor: '#f3f4f6',
+  },
+  copyIconButton: {
+    padding: 6,
+    borderRadius: 8,
+    marginRight: 3,
+    // backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3078,7 +3163,6 @@ const styles = StyleSheet.create({
   },
 });
 
-// ✅ Export functions like web
 export default {
   makeCustomFilterFn,
   printInvoice,

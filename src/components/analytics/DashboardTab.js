@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,14 +9,37 @@ import {
   Dimensions,
   FlatList,
   Alert,
+  Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import CompanyCardAnalytics from '../companies/CompanyCardAnalytics';
+import { KpiCards } from '../dashboard/KPICard';
 import { BASE_URL } from '../../config';
+import capitalize from 'lodash/capitalize';
 
-const formatCurrency = amount => {
-  return '₹' + amount.toLocaleString('en-IN');
+const getDisplayValue = value => {
+  if (value === undefined || value === null) return 'Not provided';
+  const text = String(value).trim();
+  return text.length > 0 ? text : 'Not provided';
+};
+
+const getCompanyAddress = company => {
+  const parts = [
+    company?.address,
+    company?.City,
+    company?.addressState,
+    company?.Country,
+  ]
+    .map(part => (part ? String(part).trim() : ''))
+    .filter(Boolean);
+
+  if (parts.length === 0 && !company?.Pincode) {
+    return 'Not provided';
+  }
+
+  return company?.Pincode
+    ? `${parts.join(', ')}${parts.length ? ' - ' : ''}${company.Pincode}`
+    : parts.join(', ');
 };
 
 // Memoized Custom Carousel Component
@@ -132,63 +155,6 @@ const CustomCarousel = React.memo(({
 
 CustomCarousel.displayName = 'CustomCarousel';
 
-// Memoized KPI Card Component
-const KpiCard = React.memo(({ item, kpiCardWidth }) => (
-  <View style={[styles.kpiCard, { width: kpiCardWidth }]}>
-    <View style={styles.kpiHeader}>
-      <Text style={styles.kpiTitle} numberOfLines={1}>
-        {item.title}
-      </Text>
-      <Icon
-        name={item.icon}
-        size={16}
-        color={item.color}
-        style={styles.kpiIcon}
-      />
-    </View>
-    <View style={styles.kpiContent}>
-      <Text style={styles.kpiValue} numberOfLines={1}>
-        {item.value}
-      </Text>
-    </View>
-  </View>
-));
-
-KpiCard.displayName = 'KpiCard';
-
-// Memoized KPI Carousel Component
-const KpiCarousel = React.memo(({ data }) => {
-  const { width: screenWidth } = Dimensions.get('window');
-  const kpiCardWidth = screenWidth * 0.43;
-
-  const renderKpiItem = useCallback(({ item }) => (
-    <KpiCard item={item} kpiCardWidth={kpiCardWidth} />
-  ), [kpiCardWidth]);
-
-  const keyExtractor = useCallback((item) => item.title, []);
-
-  return (
-    <View style={styles.kpiCarouselContainer}>
-      <FlatList
-        data={data}
-        renderItem={renderKpiItem}
-        keyExtractor={keyExtractor}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.kpiCarouselContent}
-        snapToInterval={kpiCardWidth + 8}
-        snapToAlignment="start"
-        decelerationRate="fast"
-        initialNumToRender={4}
-        maxToRenderPerBatch={4}
-        removeClippedSubviews={true}
-      />
-    </View>
-  );
-});
-
-KpiCarousel.displayName = 'KpiCarousel';
-
 // Memoized Validity Display Component
 const ValidityDisplay = React.memo(({ validity }) => {
   const getStatusColor = useCallback((status) => {
@@ -217,6 +183,11 @@ const ValidityDisplay = React.memo(({ validity }) => {
     }
   }, []);
 
+  const formatStatus = useCallback((status) => {
+    if (!status) return 'Not set';
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  }, []);
+
   const formatDate = useCallback((dateString) => {
     if (!dateString) return 'Not set';
     return new Date(dateString).toLocaleDateString('en-IN', {
@@ -226,44 +197,43 @@ const ValidityDisplay = React.memo(({ validity }) => {
     });
   }, []);
 
-  if (!validity) {
-    return (
-      <View style={styles.clientDetail}>
-        <Icon name="calendar-clock" size={18} color="#6b7280" />
-        <Text style={styles.clientText}>Validity: Not set</Text>
-      </View>
-    );
-  }
+  const normalizedStatus = validity?.status
+    ? String(validity.status).toLowerCase()
+    : '';
 
   return (
-    <View style={styles.clientDetail}>
-      <Icon name="calendar-clock" size={18} color="#6b7280" />
-      <View style={styles.validityContainer}>
-        <Text style={styles.clientText}>
-          Expires: {formatDate(validity.expiresAt)}
-        </Text>
-        {validity.status && (
+    <View style={styles.detailRow}>
+      <View style={styles.detailIconWrap}>
+        <Icon name="calendar-clock" size={16} color="#8b77ff" />
+      </View>
+      <View style={styles.detailTextWrap}>
+        <Text style={styles.detailLabel}>Validity</Text>
+        <View style={styles.validityValueRow}>
+          <Text style={styles.detailValue}>
+            {validity?.expiresAt
+              ? `Expires ${formatDate(validity.expiresAt)}`
+              : 'Not set'}
+          </Text>
           <View
             style={[
               styles.statusBadge,
-              {
-                backgroundColor: getStatusBackground(validity.status),
-              },
+              normalizedStatus
+                ? { backgroundColor: getStatusBackground(normalizedStatus) }
+                : styles.statusBadgeNeutral,
             ]}
           >
             <Text
               style={[
                 styles.statusText,
-                {
-                  color: getStatusColor(validity.status),
-                },
+                normalizedStatus
+                  ? { color: getStatusColor(normalizedStatus) }
+                  : styles.statusTextNeutral,
               ]}
             >
-              {validity.status.charAt(0).toUpperCase() +
-                validity.status.slice(1)}
+              {formatStatus(normalizedStatus)}
             </Text>
           </View>
-        )}
+        </View>
       </View>
     </View>
   );
@@ -324,36 +294,64 @@ NoClientView.displayName = 'NoClientView';
 // Client Details Card - Memoized
 const ClientDetailsCard = React.memo(({ selectedClient, validity }) => {
   const handleEmailPress = useCallback(() => {
-    Linking.openURL(`mailto:${selectedClient.email}`);
+    if (selectedClient.email) {
+      Linking.openURL(`mailto:${selectedClient.email}`);
+    }
   }, [selectedClient.email]);
 
   return (
     <View style={styles.clientCard}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>Client Details</Text>
-        <Text style={styles.cardDescription}>
-          Primary contact information.
-        </Text>
-      </View>
-      <View style={styles.clientContent}>
-        <View style={styles.clientDetail}>
-          <Icon name="account" size={18} color="#6b7280" />
-          <Text style={styles.clientText}>
-            {selectedClient.contactName}
+      <View style={styles.clientCardHeader}>
+        <View style={styles.clientAvatar}>
+          <Icon name="account-tie" size={24} color="#8b77ff" />
+        </View>
+        <View style={styles.clientHeaderTextBlock}>
+          <Text style={styles.clientBadgeText}>Client Details</Text>
+          <Text style={styles.clientNameText}>
+            {capitalize(selectedClient.contactName || 'Unnamed Client')}
+          </Text>
+          <Text style={styles.clientSubText}>
+            Primary contact and account validity information.
           </Text>
         </View>
-        <View style={styles.clientDetail}>
-          <Icon name="email" size={18} color="#6b7280" />
-          <TouchableOpacity onPress={handleEmailPress}>
-            <Text style={[styles.clientText, styles.link]}>
-              {selectedClient.email}
+      </View>
+      <View style={styles.clientDivider} />
+      <View style={styles.clientContent}>
+      
+
+        <View style={styles.detailRow}>
+          <View style={styles.detailIconWrap}>
+            <Icon name="email-outline" size={16} color="#8b77ff" />
+          </View>
+          <View style={styles.detailTextWrap}>
+            <Text style={styles.detailLabel}>Email</Text>
+            {selectedClient.email ? (
+              <TouchableOpacity onPress={handleEmailPress} activeOpacity={0.7}>
+                <View style={styles.linkValueRow}>
+                  <Text style={[styles.detailValue, styles.linkText]}>
+                    {selectedClient.email}
+                  </Text>
+                  <Icon name="open-in-new" size={14} color="#8b77ff" />
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.detailValueMuted}>Not provided</Text>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.detailRow}>
+          <View style={styles.detailIconWrap}>
+            <Icon name="phone-outline" size={16} color="#8b77ff" />
+          </View>
+          <View style={styles.detailTextWrap}>
+            <Text style={styles.detailLabel}>Phone</Text>
+            <Text style={styles.detailValue}>
+              {selectedClient.phone || 'Not provided'}
             </Text>
-          </TouchableOpacity>
+          </View>
         </View>
-        <View style={styles.clientDetail}>
-          <Icon name="phone" size={18} color="#6b7280" />
-          <Text style={styles.clientText}>{selectedClient.phone}</Text>
-        </View>
+
         <ValidityDisplay validity={validity} />
       </View>
     </View>
@@ -361,6 +359,116 @@ const ClientDetailsCard = React.memo(({ selectedClient, validity }) => {
 });
 
 ClientDetailsCard.displayName = 'ClientDetailsCard';
+
+const CompanyCarouselCard = React.memo(({ company, onIdentifierPress }) => {
+  const companyName = capitalize(getDisplayValue(company?.businessName));
+  const businessType = capitalize(getDisplayValue(company?.businessType));
+  const owner = getDisplayValue(company?.companyOwner);
+  const mobile = getDisplayValue(company?.mobileNumber);
+  const email = getDisplayValue(company?.emailId);
+  const address = getCompanyAddress(company);
+  const registrationNumber = getDisplayValue(company?.registrationNumber);
+  const gstin = getDisplayValue(company?.gstin);
+  const pan = getDisplayValue(company?.PANNumber);
+
+  return (
+    <View style={styles.companyCard}>
+      <View style={styles.companyCardHeader}>
+        <View style={styles.companyAvatar}>
+          <Icon name="office-building" size={22} color="#8b77ff" />
+        </View>
+        <View style={styles.companyHeaderTextBlock}>
+          <Text style={styles.clientBadgeText}>Company Details</Text>
+          <Text style={styles.companyNameText} numberOfLines={1}>
+            {companyName}
+          </Text>
+          <Text style={styles.companySubText} numberOfLines={1}>
+            {businessType}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.clientDivider} />
+
+      <View style={styles.companyContent}>
+        <View style={styles.detailRow}>
+          <View style={styles.detailIconWrap}>
+            <Icon name="account-tie-outline" size={16} color="#8b77ff" />
+          </View>
+          <View style={styles.detailTextWrap}>
+            <Text style={styles.detailLabel}>Owner</Text>
+            <Text style={styles.detailValue}>{owner}</Text>
+          </View>
+        </View>
+
+        <View style={styles.detailRow}>
+          <View style={styles.detailIconWrap}>
+            <Icon name="phone-outline" size={16} color="#8b77ff" />
+          </View>
+          <View style={styles.detailTextWrap}>
+            <Text style={styles.detailLabel}>Contact</Text>
+            <Text style={styles.detailValue}>{mobile}</Text>
+          </View>
+        </View>
+
+        <View style={styles.detailRow}>
+          <View style={styles.detailIconWrap}>
+            <Icon name="email-outline" size={16} color="#8b77ff" />
+          </View>
+          <View style={styles.detailTextWrap}>
+            <Text style={styles.detailLabel}>Email</Text>
+            <Text style={styles.detailValue}>{email}</Text>
+          </View>
+        </View>
+
+        <View style={[styles.detailRow, styles.detailRowTop]}>
+          <View style={styles.detailIconWrap}>
+            <Icon name="map-marker-outline" size={16} color="#8b77ff" />
+          </View>
+          <View style={styles.detailTextWrap}>
+            <Text style={styles.detailLabel}>Address</Text>
+            <Text style={styles.detailValue}>{address}</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.companyTagRow}>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => onIdentifierPress?.('Reg. No.', registrationNumber)}
+          style={styles.companyTag}
+        >
+          <Text style={styles.companyTagLabel}>Reg. No.</Text>
+          <Text style={styles.companyTagValue} numberOfLines={1}>
+            {registrationNumber}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => onIdentifierPress?.('GSTIN', gstin)}
+          style={styles.companyTag}
+        >
+          <Text style={styles.companyTagLabel}>GSTIN</Text>
+          <Text style={styles.companyTagValue} numberOfLines={1}>
+            {gstin}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => onIdentifierPress?.('PAN', pan)}
+          style={styles.companyTag}
+        >
+          <Text style={styles.companyTagLabel}>PAN</Text>
+          <Text style={styles.companyTagValue} numberOfLines={1}>
+            {pan}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+});
+
+CompanyCarouselCard.displayName = 'CompanyCarouselCard';
 
 const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
   const [stats, setStats] = useState({
@@ -372,6 +480,11 @@ const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [validity, setValidity] = useState(null);
+  const [identifierPopup, setIdentifierPopup] = useState({
+    visible: false,
+    label: '',
+    value: '',
+  });
   const { width: screenWidth } = Dimensions.get('window');
   const cardWidth = screenWidth - 32;
 
@@ -579,45 +692,27 @@ const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
     fetchStatsAndCompanies();
   }, [selectedClient?._id, selectedCompanyId, getAuthToken, toArray, filterByCompany, idOf, sumAmount, mustOk, fetchValidity]);
 
-  // Memoized KPI data
-  const kpiData = useMemo(() => [
-    {
-      title: 'Total Sales',
-      value: formatCurrency(stats.totalSales || 0),
-      icon: 'currency-inr',
-      color: '#10b981',
-    },
-    {
-      title: 'Total Purchases',
-      value: formatCurrency(stats.totalPurchases || 0),
-      icon: 'currency-inr',
-      color: '#ef4444',
-    },
-    {
-      title: 'Total Users',
-      value: String(stats.totalUsers || 0),
-      icon: 'account-group',
-      color: '#3b82f6',
-    },
-    {
-      title: 'Companies',
-      value: (companies.length || 0).toString(),
-      icon: 'office-building',
-      color: '#8b5cf6',
-    },
-  ], [stats.totalSales, stats.totalPurchases, stats.totalUsers, companies.length]);
+  const openIdentifierPopup = useCallback((label, value) => {
+    setIdentifierPopup({
+      visible: true,
+      label,
+      value,
+    });
+  }, []);
+
+  const closeIdentifierPopup = useCallback(() => {
+    setIdentifierPopup(prev => ({ ...prev, visible: false }));
+  }, []);
 
   // Memoized carousel render item
-  const renderCarouselItem = useCallback(({ item, index }) => (
+  const renderCarouselItem = useCallback(({ item }) => (
     <View style={[styles.carouselItem, { width: cardWidth }]}>
-      <CompanyCardAnalytics
+      <CompanyCarouselCard
         company={item}
-        showIndicators={true}
-        indicators={companies}
-        activeIndex={currentIndex}
+        onIdentifierPress={openIdentifierPopup}
       />
     </View>
-  ), [cardWidth, companies, currentIndex]);
+  ), [cardWidth, openIdentifierPopup]);
 
   if (isLoading) {
     return <LoadingView />;
@@ -628,50 +723,87 @@ const DashboardTab = ({ selectedClient, selectedCompanyId = null }) => {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* KPI Cards Horizontal Carousel */}
-      <View style={styles.kpiSection}>
-        <Text style={styles.sectionTitle}>Overview</Text>
-        <KpiCarousel data={kpiData} />
-      </View>
-
-      {/* Main Content Grid */}
-      <View style={styles.mainGrid}>
-        <ClientDetailsCard 
-          selectedClient={selectedClient} 
-          validity={validity} 
-        />
-      </View>
-
-      {/* Companies Carousel */}
-      <View style={styles.companiesSection}>
-        <Text style={{ fontSize: 20 }}>Companies</Text>
-        {companies.length > 0 ? (
-          <CustomCarousel
-            data={companies}
-            renderItem={renderCarouselItem}
-            currentIndex={currentIndex}
-            setCurrentIndex={setCurrentIndex}
+    <>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Dashboard-style overview card */}
+        <View style={styles.kpiSection}>
+          <Text style={styles.sectionTitle}>Overview</Text>
+          <KpiCards
+            data={{
+              totalSales: stats.totalSales || 0,
+              totalPurchases: stats.totalPurchases || 0,
+              users: stats.totalUsers || 0,
+              companies: companies.length || 0,
+            }}
+            selectedCompanyId={selectedCompanyId}
+            companies={companies}
           />
-        ) : (
-          <View style={styles.noCompaniesCard}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>No Companies Found</Text>
-              <Text style={styles.cardDescription}>
-                This client does not have any companies assigned yet.
-              </Text>
-            </View>
-            <View style={styles.noCompaniesContent}>
-              <Icon name="office-building" size={48} color="#9ca3af" />
-            </View>
+        </View>
+
+        {/* Main Content Grid */}
+        <View style={styles.mainGrid}>
+          <ClientDetailsCard 
+            selectedClient={selectedClient} 
+            validity={validity} 
+          />
+        </View>
+
+        {/* Companies Carousel */}
+        <View style={styles.companiesSection}>
+          <View style={styles.companiesHeader}>
+            <Text style={styles.companiesTitle}>Companies</Text>
+            <Text style={styles.companiesSubtitle}>
+              Swipe to review company profiles for this client.
+            </Text>
           </View>
-        )}
-      </View>
-    </ScrollView>
+          {companies.length > 0 ? (
+            <CustomCarousel
+              data={companies}
+              renderItem={renderCarouselItem}
+              currentIndex={currentIndex}
+              setCurrentIndex={setCurrentIndex}
+            />
+          ) : (
+            <View style={styles.noCompaniesCard}>
+              <View style={styles.noCompaniesIconWrap}>
+                <Icon name="office-building" size={24} color="#8b77ff" />
+              </View>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>No Companies Found</Text>
+                <Text style={styles.cardDescription}>
+                  This client does not have any companies assigned yet.
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={identifierPopup.visible}
+        onRequestClose={closeIdentifierPopup}
+      >
+        <View style={styles.popupBackdrop}>
+          <View style={styles.popupCard}>
+            <Text style={styles.popupTitle}>{identifierPopup.label}</Text>
+            <Text style={styles.popupValue}>{identifierPopup.value}</Text>
+            <TouchableOpacity
+              style={styles.popupCloseButton}
+              onPress={closeIdentifierPopup}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.popupCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
@@ -698,61 +830,61 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginLeft: 16,
   },
-  kpiCarouselContainer: {
-    paddingLeft: 12,
-  },
-  kpiCarouselContent: {
-    paddingRight: 12,
-    gap: 8,
-  },
-  kpiCard: {
-    backgroundColor: 'white',
-    borderRadius: 8,
-    padding: 16,
-    marginRight: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  kpiHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  kpiTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6b7280',
-    flex: 1,
-    marginRight: 8,
-  },
-  kpiIcon: {
-    marginTop: 1,
-  },
-  kpiContent: {
-    marginTop: 4,
-  },
-  kpiValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
   mainGrid: {
     padding: 12,
     gap: 16,
   },
   clientCard: {
     backgroundColor: 'white',
-    borderRadius: 8,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    boxShadow: '0 2px 5px rgba(0, 0, 0, 0.05)',
+  },
+  clientCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  clientAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#e4dfff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#d3cbff',
+  },
+  clientHeaderTextBlock: {
+    flex: 1,
+    gap: 2,
+  },
+  clientBadgeText: {
+    alignSelf: 'flex-start',
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#8b77ff',
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  clientNameText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  clientSubText: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  clientDivider: {
+    height: 1,
+    backgroundColor: '#e0daff',
+    marginVertical: 14,
   },
   cardHeader: {
     marginBottom: 12,
@@ -768,45 +900,94 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   clientContent: {
-    gap: 10,
+    gap: 12,
   },
-  clientDetail: {
+  detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#f7f7ff',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     gap: 10,
   },
-  clientText: {
-    fontSize: 14,
-    color: '#374151',
+  detailIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#e9e5ff',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  link: {
-    color: '#3b82f6',
-    textDecorationLine: 'underline',
-  },
-  validityContainer: {
+  detailTextWrap: {
     flex: 1,
+    gap: 2,
+  },
+  detailLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  detailValue: {
+    flexShrink: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  detailValueMuted: {
+    fontSize: 14,
+    color: '#94a3b8',
+  },
+  linkValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  linkText: {
+    color: '#8b77ff',
+  },
+  validityValueRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 8,
   },
   statusBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 12,
-    marginLeft: 8,
+  },
+  statusBadgeNeutral: {
+    backgroundColor: '#e2e8f0',
   },
   statusText: {
-    fontSize: 10,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  statusTextNeutral: {
+    color: '#475569',
   },
   companiesSection: {
     flex: 1,
     marginTop: 8,
     paddingHorizontal: 12,
   },
+  companiesHeader: {
+    marginBottom: 8,
+  },
+  companiesTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  companiesSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#64748b',
+  },
   carouselContainer: {
     position: 'relative',
-    minHeight: 600,
+    minHeight: 500,
     marginTop: 8,
   },
   carouselContent: {
@@ -814,6 +995,119 @@ const styles = StyleSheet.create({
   },
   carouselItem: {
     paddingHorizontal: 0,
+  },
+  companyCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  companyCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  companyAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#e4dfff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#d3cbff',
+  },
+  companyHeaderTextBlock: {
+    flex: 1,
+    gap: 2,
+  },
+  companyNameText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  companySubText: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  companyContent: {
+    gap: 10,
+  },
+  detailRowTop: {
+    alignItems: 'flex-start',
+  },
+  companyTagRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  companyTag: {
+    flex: 1,
+    backgroundColor: '#f8f7ff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e4dfff',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
+  companyTagLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#8b77ff',
+    textTransform: 'uppercase',
+  },
+  companyTagValue: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  popupBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  popupCard: {
+    width: '100%',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  popupTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  popupValue: {
+    marginTop: 8,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  popupCloseButton: {
+    marginTop: 16,
+    alignSelf: 'flex-end',
+    backgroundColor: '#8b77ff',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  popupCloseText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
   },
   carouselControls: {
     position: 'absolute',
@@ -849,19 +1143,28 @@ const styles = StyleSheet.create({
   },
   noCompaniesCard: {
     backgroundColor: 'white',
-    borderRadius: 8,
-    padding: 16,
+    borderRadius: 16,
+    padding: 18,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
     elevation: 2,
     marginTop: 8,
   },
-  noCompaniesContent: {
-    padding: 32,
+  noCompaniesIconWrap: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#e4dfff',
     alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#d3cbff',
+    marginBottom: 12,
   },
   noClientContainer: {
     flex: 1,

@@ -35,13 +35,20 @@ import AdminCompaniesScreen from '../screens/admin/CompaniesScreen';
 import TransactionsScreen from '../screens/main/TransactionsScreen';
 import CompaniesScreen from '../screens/main/CompaniesScreen';
 import InventoryScreen from '../screens/main/InventoryScreen';
+import ProductForm from '../components/products/ProductForm';
+import UserForm from '../components/users/UserForm';
+import { VendorForm } from '../components/vendors/VendorForm';
+import { CustomerForm } from '../components/customers/CustomerForm';
+import ServiceForm from '../components/services/ServiceForm';
 import UsersScreen from '../screens/main/UsersScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
 import Reports from '../screens/main/reports/Reports';
 import Ledger from '../screens/main/ledger/Ledger';
 import { CompanyForm } from '../components/companies/CompanyForm';
+import ClientForm from '../components/clients/ClientForm';
 import { TransactionForm } from '../components/transactions/TransactionForm';
 import SupportFormScreen from '../screens/support/SupportFormScreen';
+import ClientProfile from '../components/ui/ClientProfile';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -52,7 +59,7 @@ const tabScreenOptions = {
   headerShown: false, // Header is now in parent Stack
   animationEnabled: false, // Disable tab switch animation to prevent flicker
   freezeOnBlur: true, // Freeze inactive screens to prevent re-renders
-    lazy: true,
+  lazy: true,
   detachInactiveScreens: true,
 };
 
@@ -109,7 +116,9 @@ function MainTabNavigator({ route }) {
   }
 
   // Determine which sidebar to use based on role
-  const showAppSidebar = ['master', 'client', 'customer', 'admin'].includes(role);
+  const showAppSidebar = ['master', 'client', 'customer', 'admin'].includes(
+    role,
+  );
   const SidebarComponent = showAppSidebar ? AppSidebar : UserSidebar;
 
   if (loading) {
@@ -125,67 +134,34 @@ function MainTabNavigator({ route }) {
       // Sabse important points:
       initialRouteName={initialRoute} // Yeh user ko uske dashboard par land karwayega
       backBehavior="initialRoute" // Yeh back karne par AdminDashboard par jane se rokega
-      tabBar={(props) => <SidebarComponent {...props} />} // Conditional sidebar
+      tabBar={props => <SidebarComponent {...props} />} // Conditional sidebar
       screenOptions={tabScreenOptions}
     >
       {/* --- Screens WITH Header --- */}
-      <Tab.Screen
-        name="AdminDashboard"
-        component={AdminDashboardScreen}
-      />
-      <Tab.Screen
-        name="UserDashboard"
-        component={UserDashboardScreen}
-      />
+      <Tab.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+      <Tab.Screen name="UserDashboard" component={UserDashboardScreen} />
       <Tab.Screen
         name="CustomerDashboard"
         component={CustomerDashboardScreen}
       />
-      <Tab.Screen
-        name="Transactions"
-        component={TransactionsScreen}
-      />
+      <Tab.Screen name="Transactions" component={TransactionsScreen} />
 
       {/* --- Screens WITHOUT Header --- */}
-      <Tab.Screen
-        name="Inventory"
-        component={InventoryScreen}
-      />
-      <Tab.Screen
-        name="Companies"
-        component={CompaniesScreen}
-      />
-      <Tab.Screen
-        name="Users"
-        component={UsersScreen}
-      />
+      <Tab.Screen name="Inventory" component={InventoryScreen} />
+      <Tab.Screen name="Companies" component={CompaniesScreen} />
+      <Tab.Screen name="Users" component={UsersScreen} />
       <Tab.Screen
         name="Settings"
         component={SettingsScreen}
         options={{ headerShown: false }}
       />
-      <Tab.Screen
-        name="Reports"
-        component={Reports}
-      />
-      <Tab.Screen
-        name="Ledger"
-        component={Ledger}
-      />
+      <Tab.Screen name="Reports" component={Reports} />
+      <Tab.Screen name="Ledger" component={Ledger} />
 
       {/* Admin specific screens */}
-      <Tab.Screen
-        name="AdminAnalytics"
-        component={AdminAnalyticsScreen}
-      />
-      <Tab.Screen
-        name="AnalyticsScreen"
-        component={AnalyticsScreen}
-      />
-      <Tab.Screen
-        name="AdminCompanies"
-        component={AdminCompaniesScreen}
-      />
+      <Tab.Screen name="AdminAnalytics" component={AdminAnalyticsScreen} />
+      <Tab.Screen name="AnalyticsScreen" component={AnalyticsScreen} />
+      <Tab.Screen name="AdminCompanies" component={AdminCompaniesScreen} />
       <Tab.Screen
         name="AdminClientManagement"
         component={AdminClientManagementPage}
@@ -231,6 +207,16 @@ export default function AppNavigator({
       <Stack.Screen name="TransactionForm" component={TransactionForm} />
       <Stack.Screen name="InvoicePreview" component={InvoicePreview} />
       <Stack.Screen name="CompanyForm" component={CompanyForm} />
+      <Stack.Screen name="ClientForm" component={ClientForm} />
+      <Stack.Screen name="ProductForm" component={ProductForm} />
+      <Stack.Screen name="UserForm" component={UserForm} />
+      <Stack.Screen name="CustomerForm" component={CustomerForm} />
+      <Stack.Screen
+        name="ServiceForm"
+        component={ServiceForm}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen name="VendorForm" component={VendorForm} />
       <Stack.Screen
         name="SupportFormScreen"
         component={SupportFormScreen}
@@ -255,6 +241,11 @@ export default function AppNavigator({
             },
           }),
         }}
+      />
+      <Stack.Screen
+        name="ClientProfile"
+        component={ClientProfile}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

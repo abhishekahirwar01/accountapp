@@ -957,6 +957,7 @@ const Template1 = ({
   bank,
   client,
   clientName,
+  serviceNameById = new Map(),
 }) => {
   // 1. Data Preparation and Calculations
   const actualShippingAddress = shippingAddress || transaction?.shippingAddress;
@@ -978,7 +979,13 @@ const Template1 = ({
     showIGST,
     showCGSTSGST,
     showNoTax,
-  } = prepareTemplate8Data(transaction, company, party, actualShippingAddress);
+  } = prepareTemplate8Data(
+    transaction,
+    company,
+    party,
+    actualShippingAddress,
+    serviceNameById,
+  );
 
   const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
 
@@ -1804,6 +1811,7 @@ export const generatePdfForTemplate1 = async (
       bank: { ...bankData, qrBase64 },
       client,
       clientName,
+      serviceNameById,
     });
 
     const options = {

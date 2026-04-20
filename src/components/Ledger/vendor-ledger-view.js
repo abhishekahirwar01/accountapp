@@ -20,7 +20,7 @@ import {
   Package,
   Server,
   IndianRupee,
-  ExternalLink
+  ExternalLink,
 } from 'lucide-react-native';
 import { BASE_URL } from '../../config';
 import { Badge } from '../ui/Badge';
@@ -42,126 +42,139 @@ const CardContent = memo(({ children, style }) => (
   <View style={[styles.cardContent, style]}>{children}</View>
 ));
 
-const Skeleton = memo(({ style }) => (
-  <View style={[styles.skeleton, style]} />
-));
+const Skeleton = memo(({ style }) => <View style={[styles.skeleton, style]} />);
 
 // Memoized Stat Card Component
-const StatCard = memo(({ 
-  icon: Icon, 
-  iconBg, 
-  iconColor, 
-  label, 
-  value, 
-  valueStyle,
-  badge 
-}) => (
-  <Card style={styles.statCard}>
-    <CardContent style={styles.statContent}>
-      <View style={styles.statHeader}>
-        <View style={[styles.statIcon, iconBg]}>
-          <Icon size={16} color={iconColor} />
+const StatCard = memo(
+  ({ icon: Icon, iconBg, iconColor, label, value, valueStyle, badge }) => (
+    <Card style={styles.statCard}>
+      <CardContent style={styles.statContent}>
+        <View style={styles.statHeader}>
+          <View style={[styles.statIcon, iconBg]}>
+            <Icon size={16} color={iconColor} />
+          </View>
+          <Text style={styles.statLabel}>{label}</Text>
         </View>
-        <Text style={styles.statLabel}>{label}</Text>
-      </View>
-      {badge || <Text style={[styles.statValue, valueStyle]}>{value}</Text>}
-    </CardContent>
-  </Card>
-));
+        {badge || <Text style={[styles.statValue, valueStyle]}>{value}</Text>}
+      </CardContent>
+    </Card>
+  ),
+);
 
 // Memoized Transaction Item Component
-const TransactionItem = memo(({ 
-  item, 
-  index, 
-  isDebit,
-  formatDate,
-  formatCurrency,
-  getPaymentMethodDisplay,
-  getPaymentMethodBadge,
-  onPress 
-}) => {
-  const isPurchase = !item.type || item.type === 'debit';
-  const bgColor = isDebit ? '#fef2f2' : '#f0fdf4';
-  const borderColor = isDebit ? '#fecaca' : '#bbf7d0';
-  const textColor = isDebit ? '#d64b4b' : '#2ec995';
-  
-  const handlePress = useCallback(() => {
-    onPress(item);
-  }, [onPress, item]);
-  
-  return (
-    <TouchableOpacity 
-      style={[styles.transactionItem, { backgroundColor: bgColor, borderColor }]}
-      onPress={handlePress}
-      activeOpacity={0.7}
-    >
-      <View style={styles.transactionHeader}>
-        <View style={[styles.transactionIndex, { backgroundColor: textColor }]}>
-          <Text style={styles.transactionIndexText}>{index + 1}</Text>
-        </View>
-        <View style={styles.transactionInfo}>
-          <Text style={styles.transactionType}>
-            {isPurchase ? 'Purchase' : getPaymentMethodDisplay(item.paymentMethod)}
-          </Text>
-          <View style={styles.transactionDate}>
-            <Calendar size={12} color="#64748b" />
-            <Text style={styles.transactionDateText}>{formatDate(item.date)}</Text>
+const TransactionItem = memo(
+  ({
+    item,
+    index,
+    isDebit,
+    formatDate,
+    formatCurrency,
+    getPaymentMethodDisplay,
+    getPaymentMethodBadge,
+    onPress,
+  }) => {
+    const isPurchase = !item.type || item.type === 'debit';
+    const bgColor = isDebit ? '#fef2f2' : '#f0fdf4';
+    const borderColor = isDebit ? '#fecaca' : '#bbf7d0';
+    const textColor = isDebit ? '#d64b4b' : '#2ec995';
+
+    const handlePress = useCallback(() => {
+      onPress(item);
+    }, [onPress, item]);
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.transactionItem,
+          { backgroundColor: bgColor, borderColor },
+        ]}
+        onPress={handlePress}
+        activeOpacity={0.7}
+      >
+        <View style={styles.transactionHeader}>
+          <View
+            style={[styles.transactionIndex, { backgroundColor: textColor }]}
+          >
+            <Text style={styles.transactionIndexText}>{index + 1}</Text>
+          </View>
+          <View style={styles.transactionInfo}>
+            <Text style={styles.transactionType}>
+              {isPurchase
+                ? 'Purchase'
+                : getPaymentMethodDisplay(item.paymentMethod)}
+            </Text>
+            <View style={styles.transactionDate}>
+              <Calendar size={12} color="#64748b" />
+              <Text style={styles.transactionDateText}>
+                {formatDate(item.date)}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.transactionAmountContainer}>
+            <Text style={[styles.transactionAmount, { color: textColor }]}>
+              {formatCurrency(item.amount)}
+            </Text>
+            <ExternalLink size={14} color="#3b82f6" />
           </View>
         </View>
-        <View style={styles.transactionAmountContainer}>
-          <Text style={[styles.transactionAmount, { color: textColor }]}>
-            {formatCurrency(item.amount)}
-          </Text>
-          <ExternalLink size={14} color="#3b82f6" />
+
+        {(item.invoiceNo || item.referenceNumber) && (
+          <View style={styles.transactionDetails}>
+            {item.invoiceNo && (
+              <View style={styles.transactionDetail}>
+                <Text style={styles.transactionDetailLabel}>Invoice:</Text>
+                <Text style={styles.transactionDetailValue}>
+                  {item.invoiceNo}
+                </Text>
+              </View>
+            )}
+            {item.referenceNumber && (
+              <View style={styles.transactionDetail}>
+                <Text style={styles.transactionDetailLabel}>Ref:</Text>
+                <Text style={styles.transactionDetailValue}>
+                  {item.referenceNumber}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {item.description && (
+          <Text style={styles.transactionDescription}>{item.description}</Text>
+        )}
+
+        <View style={styles.transactionFooter}>
+          <Text style={styles.transactionMethodLabel}>Payment Method</Text>
+          <Badge variant={getPaymentMethodBadge(item.paymentMethod)}>
+            <Text style={styles.transactionMethodText}>
+              {item.paymentMethod || 'Not Specified'}
+            </Text>
+          </Badge>
         </View>
-      </View>
-
-      {(item.invoiceNo || item.referenceNumber) && (
-        <View style={styles.transactionDetails}>
-          {item.invoiceNo && (
-            <View style={styles.transactionDetail}>
-              <Text style={styles.transactionDetailLabel}>Invoice:</Text>
-              <Text style={styles.transactionDetailValue}>{item.invoiceNo}</Text>
-            </View>
-          )}
-          {item.referenceNumber && (
-            <View style={styles.transactionDetail}>
-              <Text style={styles.transactionDetailLabel}>Ref:</Text>
-              <Text style={styles.transactionDetailValue}>{item.referenceNumber}</Text>
-            </View>
-          )}
-        </View>
-      )}
-
-      {item.description && (
-        <Text style={styles.transactionDescription}>{item.description}</Text>
-      )}
-
-      <View style={styles.transactionFooter}>
-        <Text style={styles.transactionMethodLabel}>Payment Method</Text>
-        <Badge variant={getPaymentMethodBadge(item.paymentMethod)}>
-          <Text style={styles.transactionMethodText}>{item.paymentMethod || 'Not Specified'}</Text>
-        </Badge>
-      </View>
-    </TouchableOpacity>
-  );
-}, (prevProps, nextProps) => {
-  // Custom comparison to prevent unnecessary re-renders
-  return (
-    prevProps.item.id === nextProps.item.id &&
-    prevProps.item.amount === nextProps.item.amount &&
-    prevProps.isDebit === nextProps.isDebit &&
-    prevProps.index === nextProps.index
-  );
-});
+      </TouchableOpacity>
+    );
+  },
+  (prevProps, nextProps) => {
+    // Custom comparison to prevent unnecessary re-renders
+    return (
+      prevProps.item.id === nextProps.item.id &&
+      prevProps.item.amount === nextProps.item.amount &&
+      prevProps.isDebit === nextProps.isDebit &&
+      prevProps.index === nextProps.index
+    );
+  },
+);
 
 // Memoized Item Card Component for Modal
 const ItemCard = memo(({ item, index, formatCurrency }) => {
   const isService = item.itemType === 'service';
-  const qty = !isService && item.quantity && !isNaN(Number(item.quantity))
-    ? `${item.quantity} ${item.unitType || 'Piece'}`
+  const qty =
+    !isService && item.quantity && !isNaN(Number(item.quantity))
+      ? `${item.quantity} ${item.unitType || 'Piece'}`
+      : '—';
+  const rate = !isService
+    ? formatCurrency(Number(item?.pricePerUnit ?? 0))
     : '—';
-  const rate = !isService ? formatCurrency(Number(item?.pricePerUnit ?? 0)) : '—';
   const total = formatCurrency(Number(item?.amount ?? 0));
   const hsnSacCode = isService ? item.sacCode : item.hsnCode;
 
@@ -185,9 +198,7 @@ const ItemCard = memo(({ item, index, formatCurrency }) => {
             </View>
             {hsnSacCode && (
               <View style={styles.itemTag}>
-                <Text style={styles.itemTagText}>
-                  HSN/SAC: {hsnSacCode}
-                </Text>
+                <Text style={styles.itemTagText}>HSN/SAC: {hsnSacCode}</Text>
               </View>
             )}
           </View>
@@ -216,6 +227,16 @@ const ItemCard = memo(({ item, index, formatCurrency }) => {
   );
 });
 
+const formatName = str => {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
 export function VendorLedgerView({
   loading,
   ledgerData,
@@ -226,7 +247,7 @@ export function VendorLedgerView({
   getPaymentMethodBadge,
   calculateTotals,
   dateRange,
-  productsList = []
+  productsList = [],
 }) {
   const [activeTab, setActiveTab] = useState('debit');
   const [isItemsModalOpen, setIsItemsModalOpen] = useState(false);
@@ -237,30 +258,39 @@ export function VendorLedgerView({
   const totals = useMemo(() => calculateTotals(), [calculateTotals]);
 
   // Memoize credit entries
-  const { creditPurchaseEntries, creditPaymentEntries, allCreditEntries } = useMemo(() => {
-    if (!ledgerData) return { creditPurchaseEntries: [], creditPaymentEntries: [], allCreditEntries: [] };
-    
-    const creditPurchaseEntries = (ledgerData.debit || []).filter(
-      (entry) => entry.paymentMethod !== 'Credit'
-    );
-    const creditPaymentEntries = ledgerData.credit || [];
-    const allCreditEntries = [...creditPurchaseEntries, ...creditPaymentEntries];
-    
-    return { creditPurchaseEntries, creditPaymentEntries, allCreditEntries };
-  }, [ledgerData]);
+  const { creditPurchaseEntries, creditPaymentEntries, allCreditEntries } =
+    useMemo(() => {
+      if (!ledgerData)
+        return {
+          creditPurchaseEntries: [],
+          creditPaymentEntries: [],
+          allCreditEntries: [],
+        };
+
+      const creditPurchaseEntries = (ledgerData.debit || []).filter(
+        entry => entry.paymentMethod !== 'Credit',
+      );
+      const creditPaymentEntries = ledgerData.credit || [];
+      const allCreditEntries = [
+        ...creditPurchaseEntries,
+        ...creditPaymentEntries,
+      ];
+
+      return { creditPurchaseEntries, creditPaymentEntries, allCreditEntries };
+    }, [ledgerData]);
 
   // Memoize sorted debit entries
   const sortedDebitEntries = useMemo(() => {
     if (!ledgerData?.debit) return [];
-    return [...ledgerData.debit].sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
+    return [...ledgerData.debit].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
   }, [ledgerData?.debit]);
 
   // Memoize sorted credit entries
   const sortedCreditEntries = useMemo(() => {
-    return [...allCreditEntries].sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
+    return [...allCreditEntries].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
   }, [allCreditEntries]);
 
@@ -270,7 +300,10 @@ export function VendorLedgerView({
       return { subtotal: 0, taxTotal: 0, grandTotal: 0 };
     }
 
-    const subtotal = itemsToView.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const subtotal = itemsToView.reduce(
+      (sum, item) => sum + Number(item.amount || 0),
+      0,
+    );
     const taxTotal = itemsToView.reduce((sum, item) => {
       const lineTax = item.lineTax;
       if (lineTax !== undefined && lineTax !== null) {
@@ -293,254 +326,302 @@ export function VendorLedgerView({
     return styles.balanceNeutral;
   }, [totals.balance]);
 
-  const processTransactionData = useCallback((transaction) => {
-    // Process products
-    const prods = (transaction?.products || []).map((p) => {
-      let productId = '';
-      let productName = '';
-      let productObj = null;
-      
-      if (p.product) {
-        if (typeof p.product === 'object') {
-          productId = p.product._id || '';
-          productName = p.product.name || p.product || '(product)';
-        } else {
-          productId = p.product;
-          productName = p.product || '(product)';
+  const processTransactionData = useCallback(
+    transaction => {
+      // Process products
+      const prods = (transaction?.products || []).map(p => {
+        let productId = '';
+        let productName = '';
+        let productObj = null;
+
+        if (p.product) {
+          if (typeof p.product === 'object') {
+            productId = p.product._id || '';
+            productName = p.product.name || p.product || '(product)';
+          } else {
+            productId = p.product;
+            productName = p.product || '(product)';
+          }
+
+          if (productId) {
+            productObj = productsList.find(prod => prod._id === productId);
+          }
         }
-        
-        if (productId) {
-          productObj = productsList.find((prod) => prod._id === productId);
-        }
-      }
-      
-      const hsnCode = productObj?.hsn || p.hsn || p.hsnCode || '';
 
-      return {
-        itemType: 'product',
-        name: productName || '(product)',
-        quantity: p.quantity ?? '',
-        unitType: p.unitType ?? '',
-        pricePerUnit: p.pricePerUnit ?? '',
-        description: '',
-        amount: Number(p.amount) || 0,
-        hsnCode,
-        gstPercentage: p.gstPercentage,
-        gstRate: p.gstPercentage,
-        lineTax: p.lineTax,
-      };
-    });
+        const hsnCode = productObj?.hsn || p.hsn || p.hsnCode || '';
 
-    // Process services
-    const svcArr = Array.isArray(transaction?.services)
-      ? transaction.services
-      : Array.isArray(transaction?.service)
-      ? transaction.service
-      : transaction?.services
-      ? [transaction.services]
-      : [];
-    
-    const svcs = svcArr.map((s) => {
-      let serviceName = '';
-      let sacCode = '';
-      
-      if (s.service) {
-        if (typeof s.service === 'object') {
-          serviceName = s.service.serviceName || s.service || '(service)';
-          sacCode = s.service.sac || '';
-        } else {
-          serviceName = s.service || '(service)';
-        }
-      }
-      
-      return {
-        itemType: 'service',
-        name: serviceName || '(service)',
-        quantity: '',
-        unitType: '',
-        pricePerUnit: '',
-        description: s.description || '',
-        amount: Number(s.amount) || 0,
-        sacCode: sacCode || s.sac || '',
-        gstPercentage: s.gstPercentage,
-        gstRate: s.gstPercentage,
-        lineTax: s.lineTax,
-      };
-    });
-
-    const allItems = [...prods, ...svcs];
-    setItemsToView(allItems);
-    setIsItemsModalOpen(true);
-  }, [productsList]);
-
-  const handleViewItems = useCallback(async (entry) => {
-    try {
-      setLoadingItems(true);
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        Alert.alert('Error', 'Authentication token not found.');
-        return;
-      }
-
-      const baseURL = BASE_URL;
-      
-      if (!entry.id) {
-        Alert.alert('Info', 'No detailed items available for this transaction');
-        return;
-      }
-
-      let endpoint = `${baseURL}/api/purchase/${entry.id}`;
-      const response = await fetch(endpoint, {
-        headers: { Authorization: `Bearer ${token}` },
+        return {
+          itemType: 'product',
+          name: productName || '(product)',
+          quantity: p.quantity ?? '',
+          unitType: p.unitType ?? '',
+          pricePerUnit: p.pricePerUnit ?? '',
+          description: '',
+          amount: Number(p.amount) || 0,
+          hsnCode,
+          gstPercentage: p.gstPercentage,
+          gstRate: p.gstPercentage,
+          lineTax: p.lineTax,
+        };
       });
 
-      if (!response.ok) {
-        const paymentsEndpoint = `${baseURL}/api/payments/${entry.id}`;
-        const paymentsResponse = await fetch(paymentsEndpoint, {
+      // Process services
+      const svcArr = Array.isArray(transaction?.services)
+        ? transaction.services
+        : Array.isArray(transaction?.service)
+        ? transaction.service
+        : transaction?.services
+        ? [transaction.services]
+        : [];
+
+      const svcs = svcArr.map(s => {
+        let serviceName = '';
+        let sacCode = '';
+
+        if (s.service) {
+          if (typeof s.service === 'object') {
+            serviceName = s.service.serviceName || s.service || '(service)';
+            sacCode = s.service.sac || '';
+          } else {
+            serviceName = s.service || '(service)';
+          }
+        }
+
+        return {
+          itemType: 'service',
+          name: serviceName || '(service)',
+          quantity: '',
+          unitType: '',
+          pricePerUnit: '',
+          description: s.description || '',
+          amount: Number(s.amount) || 0,
+          sacCode: sacCode || s.sac || '',
+          gstPercentage: s.gstPercentage,
+          gstRate: s.gstPercentage,
+          lineTax: s.lineTax,
+        };
+      });
+
+      const allItems = [...prods, ...svcs];
+      setItemsToView(allItems);
+      setIsItemsModalOpen(true);
+    },
+    [productsList],
+  );
+
+  const handleViewItems = useCallback(
+    async entry => {
+      try {
+        setLoadingItems(true);
+        const token = await AsyncStorage.getItem('token');
+        if (!token) {
+          Alert.alert('Error', 'Authentication token not found.');
+          return;
+        }
+
+        const baseURL = BASE_URL;
+
+        if (!entry.id) {
+          Alert.alert(
+            'Info',
+            'No detailed items available for this transaction',
+          );
+          return;
+        }
+
+        let endpoint = `${baseURL}/api/purchase/${entry.id}`;
+        const response = await fetch(endpoint, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (!paymentsResponse.ok) {
-          console.log('Failed to fetch transaction details from both endpoints');
-          setItemsToView([]);
-          setIsItemsModalOpen(true);
+        if (!response.ok) {
+          const paymentsEndpoint = `${baseURL}/api/payments/${entry.id}`;
+          const paymentsResponse = await fetch(paymentsEndpoint, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (!paymentsResponse.ok) {
+            console.log(
+              'Failed to fetch transaction details from both endpoints',
+            );
+            setItemsToView([]);
+            setIsItemsModalOpen(true);
+            return;
+          }
+
+          const transaction = await paymentsResponse.json();
+
+          if (!transaction || !transaction.payment) {
+            Alert.alert('Info', 'Transaction data not found');
+            return;
+          }
+
+          processTransactionData(transaction.payment);
           return;
         }
 
-        const transaction = await paymentsResponse.json();
-        
-        if (!transaction || !transaction.payment) {
+        const transaction = await response.json();
+
+        if (!transaction || !transaction.entry) {
           Alert.alert('Info', 'Transaction data not found');
           return;
         }
-        
-        processTransactionData(transaction.payment);
-        return;
-      }
 
-      const transaction = await response.json();
-      
-      if (!transaction || !transaction.entry) {
-        Alert.alert('Info', 'Transaction data not found');
-        return;
+        processTransactionData(transaction.entry);
+      } catch (error) {
+        console.error('Error fetching transaction items:', error);
+        Alert.alert('Error', 'Failed to load transaction items');
+        setItemsToView([]);
+        setIsItemsModalOpen(true);
+      } finally {
+        setLoadingItems(false);
       }
-      
-      processTransactionData(transaction.entry);
-    } catch (error) {
-      console.error('Error fetching transaction items:', error);
-      Alert.alert('Error', 'Failed to load transaction items');
-      setItemsToView([]);
-      setIsItemsModalOpen(true);
-    } finally {
-      setLoadingItems(false);
-    }
-  }, [processTransactionData]);
+    },
+    [processTransactionData],
+  );
 
   // Memoized render functions
-  const renderDebitItem = useCallback(({ item, index }) => (
-    <TransactionItem
-      item={item}
-      index={index}
-      isDebit={true}
-      formatDate={formatDate}
-      formatCurrency={formatCurrency}
-      getPaymentMethodDisplay={getPaymentMethodDisplay}
-      getPaymentMethodBadge={getPaymentMethodBadge}
-      onPress={handleViewItems}
-    />
-  ), [formatDate, formatCurrency, getPaymentMethodDisplay, getPaymentMethodBadge, handleViewItems]);
+  const renderDebitItem = useCallback(
+    ({ item, index }) => (
+      <TransactionItem
+        item={item}
+        index={index}
+        isDebit={true}
+        formatDate={formatDate}
+        formatCurrency={formatCurrency}
+        getPaymentMethodDisplay={getPaymentMethodDisplay}
+        getPaymentMethodBadge={getPaymentMethodBadge}
+        onPress={handleViewItems}
+      />
+    ),
+    [
+      formatDate,
+      formatCurrency,
+      getPaymentMethodDisplay,
+      getPaymentMethodBadge,
+      handleViewItems,
+    ],
+  );
 
-  const renderCreditItem = useCallback(({ item, index }) => (
-    <TransactionItem
-      item={item}
-      index={index}
-      isDebit={false}
-      formatDate={formatDate}
-      formatCurrency={formatCurrency}
-      getPaymentMethodDisplay={getPaymentMethodDisplay}
-      getPaymentMethodBadge={getPaymentMethodBadge}
-      onPress={handleViewItems}
-    />
-  ), [formatDate, formatCurrency, getPaymentMethodDisplay, getPaymentMethodBadge, handleViewItems]);
+  const renderCreditItem = useCallback(
+    ({ item, index }) => (
+      <TransactionItem
+        item={item}
+        index={index}
+        isDebit={false}
+        formatDate={formatDate}
+        formatCurrency={formatCurrency}
+        getPaymentMethodDisplay={getPaymentMethodDisplay}
+        getPaymentMethodBadge={getPaymentMethodBadge}
+        onPress={handleViewItems}
+      />
+    ),
+    [
+      formatDate,
+      formatCurrency,
+      getPaymentMethodDisplay,
+      getPaymentMethodBadge,
+      handleViewItems,
+    ],
+  );
 
-  const renderItemCard = useCallback(({ item, index }) => (
-    <ItemCard item={item} index={index} formatCurrency={formatCurrency} />
-  ), [formatCurrency]);
+  const renderItemCard = useCallback(
+    ({ item, index }) => (
+      <ItemCard item={item} index={index} formatCurrency={formatCurrency} />
+    ),
+    [formatCurrency],
+  );
 
   // Memoized key extractors
-  const debitKeyExtractor = useCallback((item) => item.id, []);
-  const creditKeyExtractor = useCallback((item, index) => `${item.type || 'debit'}-${item.id}-${index}`, []);
+  const debitKeyExtractor = useCallback(item => item.id, []);
+  const creditKeyExtractor = useCallback(
+    (item, index) => `${item.type || 'debit'}-${item.id}-${index}`,
+    [],
+  );
   const itemKeyExtractor = useCallback((item, index) => `item-${index}`, []);
 
-  const ItemsModal = useCallback(() => (
-    <Modal
-      visible={isItemsModalOpen}
-      transparent
-      animationType="slide"
-      onRequestClose={() => setIsItemsModalOpen(false)}
-    >
-      <SafeAreaView style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Item Details</Text>
-            <TouchableOpacity onPress={() => setIsItemsModalOpen(false)}>
-              <Text style={styles.modalClose}>✕</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {loadingItems ? (
-            <View style={styles.modalLoading}>
-              <ActivityIndicator size="large" color="#3b82f6" />
-              <Text style={styles.modalLoadingText}>Loading items...</Text>
+  const ItemsModal = useCallback(
+    () => (
+      <Modal
+        visible={isItemsModalOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsItemsModalOpen(false)}
+      >
+        <SafeAreaView style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Item Details</Text>
+              <TouchableOpacity onPress={() => setIsItemsModalOpen(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
             </View>
-          ) : itemsToView.length === 0 ? (
-            <View style={styles.modalEmpty}>
-              <Text style={styles.modalEmptyText}>No items found for this transaction</Text>
-            </View>
-          ) : (
-            <ScrollView style={styles.modalContent}>
-              {/* Summary Section */}
-              <View style={styles.summaryContainer}>
-                <View style={styles.summaryRow}>
-                  <View style={styles.summaryItem}>
-                    <Text style={styles.summaryLabel}>Subtotal</Text>
-                    <Text style={styles.summaryValue}>
-                      {formatCurrency(itemSummary.subtotal)}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryItem}>
-                    <Text style={styles.summaryLabel}>Tax Total</Text>
-                    <Text style={styles.summaryValue}>
-                      {formatCurrency(itemSummary.taxTotal)}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryItem}>
-                    <Text style={styles.summaryLabel}>Grand Total</Text>
-                    <Text style={[styles.summaryValue, styles.grandTotal]}>
-                      {formatCurrency(itemSummary.grandTotal)}
-                    </Text>
+
+            {loadingItems ? (
+              <View style={styles.modalLoading}>
+                <ActivityIndicator size="large" color="#3b82f6" />
+                <Text style={styles.modalLoadingText}>Loading items...</Text>
+              </View>
+            ) : itemsToView.length === 0 ? (
+              <View style={styles.modalEmpty}>
+                <Text style={styles.modalEmptyText}>
+                  No items found for this transaction
+                </Text>
+              </View>
+            ) : (
+              <ScrollView style={styles.modalContent}>
+                {/* Summary Section */}
+                <View style={styles.summaryContainer}>
+                  <View style={styles.summaryRow}>
+                    <View style={styles.summaryItem}>
+                      <Text style={styles.summaryLabel}>Subtotal</Text>
+                      <Text style={styles.summaryValue}>
+                        {formatCurrency(itemSummary.subtotal)}
+                      </Text>
+                    </View>
+                    <View style={styles.summaryItem}>
+                      <Text style={styles.summaryLabel}>Tax Total</Text>
+                      <Text style={styles.summaryValue}>
+                        {formatCurrency(itemSummary.taxTotal)}
+                      </Text>
+                    </View>
+                    <View style={styles.summaryItem}>
+                      <Text style={styles.summaryLabel}>Grand Total</Text>
+                      <Text style={[styles.summaryValue, styles.grandTotal]}>
+                        {formatCurrency(itemSummary.grandTotal)}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              </View>
 
-              {/* Items List */}
-              <View style={styles.itemsList}>
-                <FlatList
-                  data={itemsToView}
-                  renderItem={renderItemCard}
-                  keyExtractor={itemKeyExtractor}
-                  scrollEnabled={false}
-                  removeClippedSubviews={true}
-                  maxToRenderPerBatch={5}
-                  windowSize={3}
-                />
-              </View>
-            </ScrollView>
-          )}
-        </View>
-      </SafeAreaView>
-    </Modal>
-  ), [isItemsModalOpen, loadingItems, itemsToView, formatCurrency, itemSummary, renderItemCard, itemKeyExtractor]);
+                {/* Items List */}
+                <View style={styles.itemsList}>
+                  <FlatList
+                    data={itemsToView}
+                    renderItem={renderItemCard}
+                    keyExtractor={itemKeyExtractor}
+                    scrollEnabled={false}
+                    removeClippedSubviews={true}
+                    maxToRenderPerBatch={5}
+                    windowSize={3}
+                  />
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </SafeAreaView>
+      </Modal>
+    ),
+    [
+      isItemsModalOpen,
+      loadingItems,
+      itemsToView,
+      formatCurrency,
+      itemSummary,
+      renderItemCard,
+      itemKeyExtractor,
+    ],
+  );
 
   if (loading) {
     return (
@@ -563,8 +644,8 @@ export function VendorLedgerView({
           </View>
           <Text style={styles.emptyTitle}>No Ledger Data</Text>
           <Text style={styles.emptyDescription}>
-            No transaction history found for the selected vendor. 
-            Transactions will appear here once recorded.
+            No transaction history found for the selected vendor. Transactions
+            will appear here once recorded.
           </Text>
         </CardContent>
       </Card>
@@ -574,7 +655,7 @@ export function VendorLedgerView({
   return (
     <ScrollView style={styles.container} removeClippedSubviews={true}>
       <ItemsModal />
-      
+
       {/* Vendor Summary Card */}
       <Card style={styles.summaryCard}>
         <CardContent>
@@ -585,16 +666,19 @@ export function VendorLedgerView({
               </View>
               <View style={styles.vendorDetails}>
                 <Text style={styles.vendorName}>
-                  {selectedVendorData?.vendorName}
+                  {formatName(selectedVendorData?.vendorName)}
                 </Text>
                 <Text style={styles.vendorDate}>
-                  Vendor Ledger Summary • {dateRange?.from && dateRange?.to
-                    ? `${formatDate(dateRange.from)} - ${formatDate(dateRange.to)}`
+                  Vendor Ledger Summary •{' '}
+                  {dateRange?.from && dateRange?.to
+                    ? `${formatDate(dateRange.from)} - ${formatDate(
+                        dateRange.to,
+                      )}`
                     : formatDate(new Date().toISOString())}
                 </Text>
               </View>
             </View>
-            
+
             <View style={styles.balanceContainer}>
               <Text style={[styles.balanceAmount, balanceStyle]}>
                 {formatCurrency(Math.abs(totals.balance))}
@@ -602,14 +686,22 @@ export function VendorLedgerView({
               <Badge
                 variant="outline"
                 style={[
-                  totals.balance > 0 ? styles.badgePayable :
-                  totals.balance < 0 ? styles.badgeAdvance : styles.badgeSettled
+                  totals.balance > 0
+                    ? styles.badgePayable
+                    : totals.balance < 0
+                    ? styles.badgeAdvance
+                    : styles.badgeSettled,
                 ]}
               >
-                <Text style={[
-                  totals.balance > 0 ? styles.badgeTextPayable :
-                  totals.balance < 0 ? styles.badgeTextAdvance : styles.badgeTextSettled
-                ]}>
+                <Text
+                  style={[
+                    totals.balance > 0
+                      ? styles.badgeTextPayable
+                      : totals.balance < 0
+                      ? styles.badgeTextAdvance
+                      : styles.badgeTextSettled,
+                  ]}
+                >
                   {totals.balance > 0
                     ? 'Amount Payable'
                     : totals.balance < 0
@@ -650,20 +742,29 @@ export function VendorLedgerView({
           value={formatCurrency(Math.abs(totals.balance))}
           valueStyle={[
             styles.statValue,
-            totals.balance > 0 ? styles.statValueOrange :
-            totals.balance < 0 ? styles.statValueEmerald : styles.statValueBlue
+            totals.balance > 0
+              ? styles.statValueOrange
+              : totals.balance < 0
+              ? styles.statValueEmerald
+              : styles.statValueBlue,
           ]}
         />
 
         <StatCard
           icon={FileText}
           iconBg={
-            totals.balance > 0 ? styles.statIconOrange :
-            totals.balance < 0 ? styles.statIconEmerald : styles.statIconBlue
+            totals.balance > 0
+              ? styles.statIconOrange
+              : totals.balance < 0
+              ? styles.statIconEmerald
+              : styles.statIconBlue
           }
           iconColor={
-            totals.balance > 0 ? '#ea580c' :
-            totals.balance < 0 ? '#059669' : '#2563eb'
+            totals.balance > 0
+              ? '#ea580c'
+              : totals.balance < 0
+              ? '#059669'
+              : '#2563eb'
           }
           label="Status"
           badge={
@@ -677,14 +778,22 @@ export function VendorLedgerView({
               }
               style={[
                 styles.statusBadge,
-                totals.balance > 0 ? styles.statusBadgePayable :
-                totals.balance < 0 ? styles.statusBadgeAdvance : styles.statusBadgeSettled
+                totals.balance > 0
+                  ? styles.statusBadgePayable
+                  : totals.balance < 0
+                  ? styles.statusBadgeAdvance
+                  : styles.statusBadgeSettled,
               ]}
             >
-              <Text style={[
-                totals.balance > 0 ? styles.statusTextPayable :
-                totals.balance < 0 ? styles.statusTextAdvance : styles.statusTextSettled
-              ]}>
+              <Text
+                style={[
+                  totals.balance > 0
+                    ? styles.statusTextPayable
+                    : totals.balance < 0
+                    ? styles.statusTextAdvance
+                    : styles.statusTextSettled,
+                ]}
+              >
                 {totals.balance > 0
                   ? 'Payable'
                   : totals.balance < 0
@@ -704,11 +813,28 @@ export function VendorLedgerView({
           activeOpacity={0.8}
         >
           <View style={styles.tabContent}>
-            <Text style={[styles.tabText, activeTab === 'debit' && styles.tabTextActiveDebit]}>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === 'debit' && styles.tabTextActiveDebit,
+              ]}
+            >
               Debit Side
             </Text>
-            <View style={[styles.tabBadge, activeTab === 'debit' ? styles.tabBadgeActiveDebit : styles.tabBadgeInactive]}>
-              <Text style={[styles.tabBadgeText, activeTab === 'debit' && styles.tabBadgeTextActiveDebit]}>
+            <View
+              style={[
+                styles.tabBadge,
+                activeTab === 'debit'
+                  ? styles.tabBadgeActiveDebit
+                  : styles.tabBadgeInactive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tabBadgeText,
+                  activeTab === 'debit' && styles.tabBadgeTextActiveDebit,
+                ]}
+              >
                 {sortedDebitEntries.length}
               </Text>
             </View>
@@ -722,11 +848,28 @@ export function VendorLedgerView({
           activeOpacity={0.8}
         >
           <View style={styles.tabContent}>
-            <Text style={[styles.tabText, activeTab === 'credit' && styles.tabTextActiveCredit]}>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === 'credit' && styles.tabTextActiveCredit,
+              ]}
+            >
               Credit Side
             </Text>
-            <View style={[styles.tabBadge, activeTab === 'credit' ? styles.tabBadgeActiveCredit : styles.tabBadgeInactive]}>
-              <Text style={[styles.tabBadgeText, activeTab === 'credit' && styles.tabBadgeTextActiveCredit]}>
+            <View
+              style={[
+                styles.tabBadge,
+                activeTab === 'credit'
+                  ? styles.tabBadgeActiveCredit
+                  : styles.tabBadgeInactive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tabBadgeText,
+                  activeTab === 'credit' && styles.tabBadgeTextActiveCredit,
+                ]}
+              >
                 {sortedCreditEntries.length}
               </Text>
             </View>
@@ -736,32 +879,49 @@ export function VendorLedgerView({
       </View>
 
       {/* Transaction List Container */}
-      <Card style={[
-        styles.transactionsCard,
-        activeTab === 'debit' ? styles.debitCard : styles.creditCard
-      ]}>
-        <CardHeader style={[
-          activeTab === 'debit' ? styles.debitHeader : styles.creditHeader
-        ]}>
+      <Card
+        style={[
+          styles.transactionsCard,
+          activeTab === 'debit' ? styles.debitCard : styles.creditCard,
+        ]}
+      >
+        <CardHeader
+          style={[
+            activeTab === 'debit' ? styles.debitHeader : styles.creditHeader,
+          ]}
+        >
           <View style={styles.sectionTitleContainer}>
-            <View style={activeTab === 'debit' ? styles.redDot : styles.greenDot} />
-            <Text style={activeTab === 'debit' ? styles.debitTitle : styles.creditTitle}>
-              {activeTab === 'debit' ? 'Purchase Transactions' : 'Payment Transactions'}
+            <View
+              style={activeTab === 'debit' ? styles.redDot : styles.greenDot}
+            />
+            <Text
+              style={
+                activeTab === 'debit' ? styles.debitTitle : styles.creditTitle
+              }
+            >
+              {activeTab === 'debit'
+                ? 'Purchase Transactions'
+                : 'Payment Transactions'}
             </Text>
           </View>
           <Badge variant="outline" style={styles.sectionTotalBadge}>
             <Text style={styles.sectionTotalText}>
-              Total: {formatCurrency(activeTab === 'debit' ? totals.debit : totals.credit)}
+              Total:{' '}
+              {formatCurrency(
+                activeTab === 'debit' ? totals.debit : totals.credit,
+              )}
             </Text>
           </Badge>
         </CardHeader>
-        
+
         <CardContent style={styles.sectionContent}>
           {activeTab === 'debit' ? (
-            (!ledgerData.debit || ledgerData.debit.length === 0) ? (
+            !ledgerData.debit || ledgerData.debit.length === 0 ? (
               <View style={styles.emptySection}>
                 <FileText size={40} color="#94a3b8" />
-                <Text style={styles.emptySectionText}>No purchase entries found</Text>
+                <Text style={styles.emptySectionText}>
+                  No purchase entries found
+                </Text>
                 <Text style={styles.emptySectionSubtext}>
                   Purchase transactions will appear here once recorded
                 </Text>
@@ -778,27 +938,27 @@ export function VendorLedgerView({
                 initialNumToRender={10}
               />
             )
+          ) : allCreditEntries.length === 0 ? (
+            <View style={styles.emptySection}>
+              <CreditCard size={40} color="#94a3b8" />
+              <Text style={styles.emptySectionText}>
+                No payment entries found
+              </Text>
+              <Text style={styles.emptySectionSubtext}>
+                Cash purchases and payment entries will appear here
+              </Text>
+            </View>
           ) : (
-            allCreditEntries.length === 0 ? (
-              <View style={styles.emptySection}>
-                <CreditCard size={40} color="#94a3b8" />
-                <Text style={styles.emptySectionText}>No payment entries found</Text>
-                <Text style={styles.emptySectionSubtext}>
-                  Cash purchases and payment entries will appear here
-                </Text>
-              </View>
-            ) : (
-              <FlatList
-                data={sortedCreditEntries}
-                keyExtractor={creditKeyExtractor}
-                scrollEnabled={false}
-                renderItem={renderCreditItem}
-                removeClippedSubviews={true}
-                maxToRenderPerBatch={10}
-                windowSize={5}
-                initialNumToRender={10}
-              />
-            )
+            <FlatList
+              data={sortedCreditEntries}
+              keyExtractor={creditKeyExtractor}
+              scrollEnabled={false}
+              renderItem={renderCreditItem}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
+              windowSize={5}
+              initialNumToRender={10}
+            />
           )}
         </CardContent>
       </Card>
@@ -891,7 +1051,7 @@ const styles = StyleSheet.create({
   cardContent: {
     padding: 12,
   },
-  
+
   summaryCard: {
     marginBottom: 16,
   },
@@ -951,7 +1111,6 @@ const styles = StyleSheet.create({
   badgeAdvance: {
     borderColor: '#bbf7d0',
     backgroundColor: '#f0fdf4',
-    
   },
   badgeSettled: {
     borderColor: '#bfdbfe',
@@ -962,7 +1121,7 @@ const styles = StyleSheet.create({
   },
   badgeTextAdvance: {
     color: '#065f46',
-    fontSize:8
+    fontSize: 8,
   },
   badgeTextSettled: {
     color: '#1e40af',

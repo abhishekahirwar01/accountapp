@@ -56,7 +56,12 @@ const renderNotesHTML = notes => {
 /**
  * Generate HTML content for the PDF
  */
-const generateHTMLContent = (transaction, company, party) => {
+const generateHTMLContent = (
+  transaction,
+  company,
+  party,
+  serviceNameById = new Map(),
+) => {
   // Use the shipping address from transaction if available
   const shippingAddress = transaction?.shippingAddress || null;
   const bank = company?.bankDetails || null;
@@ -80,7 +85,13 @@ const generateHTMLContent = (transaction, company, party) => {
     showIGST,
     showCGSTSGST,
     showNoTax,
-  } = prepareTemplate8Data(transaction, company, party, shippingAddress);
+  } = prepareTemplate8Data(
+    transaction,
+    company,
+    party,
+    shippingAddress,
+    serviceNameById,
+  );
 
   const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
 
@@ -102,7 +113,7 @@ const generateHTMLContent = (transaction, company, party) => {
   const totalPages = Math.max(1, Math.ceil(totalItemsCount / ITEMS_PER_PAGE));
 
   // Function to generate item rows for a specific page
-  const generateItemRowsForPage = (pageNumber) => {
+  const generateItemRowsForPage = pageNumber => {
     const startIndex = (pageNumber - 1) * ITEMS_PER_PAGE;
     const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalItemsCount);
     const pageItems = itemsWithGST.slice(startIndex, endIndex);
@@ -234,9 +245,9 @@ const generateHTMLContent = (transaction, company, party) => {
   };
 
   // Generate total row HTML - only shown on last page
-  const generateTotalRow = (isLastPage) => {
+  const generateTotalRow = isLastPage => {
     if (!isLastPage) return '';
-    
+
     const igstTotal = showIGST
       ? `
       <td style="border: 1px solid #0371C1; padding: 2px; width: 12%;">
@@ -371,16 +382,22 @@ const generateHTMLContent = (transaction, company, party) => {
   };
 
   // Function to generate page HTML
-  const generatePageHTML = (pageNumber) => {
+  const generatePageHTML = pageNumber => {
     const isLastPage = pageNumber === totalPages;
     const hasNextPage = pageNumber < totalPages;
-    
+
     // Calculate the height needed for the items table
-    const itemRowsHeight = Math.min(ITEMS_PER_PAGE, totalItemsCount - ((pageNumber - 1) * ITEMS_PER_PAGE)) * 20;
+    const itemRowsHeight =
+      Math.min(
+        ITEMS_PER_PAGE,
+        totalItemsCount - (pageNumber - 1) * ITEMS_PER_PAGE,
+      ) * 20;
     const tableHeight = itemRowsHeight + 40; // Add header height
 
     return `
-      <div class="page" style="page-break-after: ${hasNextPage ? 'always' : 'auto'};">
+      <div class="page" style="page-break-after: ${
+        hasNextPage ? 'always' : 'auto'
+      };">
         <!-- Header Section -->
         <div class="header">
           <div class="header-left">
@@ -994,7 +1011,12 @@ export const generatePdfForTemplateA5 = async (
 ) => {
   try {
     // Generate HTML content
-    const htmlContent = generateHTMLContent(transaction, company, party);
+    const htmlContent = generateHTMLContent(
+      transaction,
+      company,
+      party,
+      serviceNameMap,
+    );
 
     // Generate PDF using react-native-html-to-pdf
     const options = {

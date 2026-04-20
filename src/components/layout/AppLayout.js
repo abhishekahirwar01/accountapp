@@ -82,7 +82,7 @@ export default function AppLayout({ children }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
+  container: { flex: 1, backgroundColor: 'transparent', },
   content: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });

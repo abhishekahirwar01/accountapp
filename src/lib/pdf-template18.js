@@ -51,7 +51,7 @@ const Template18Receipt = ({
   shippingAddress,
   bank,
 }) => {
-   const actualShippingAddress = shippingAddress || transaction?.shippingAddress;
+  const actualShippingAddress = shippingAddress || transaction?.shippingAddress;
   // Use the same data preparation logic from web version
   const {
     totalTaxable,
@@ -821,8 +821,9 @@ export const generatePdfForTemplate18 = async (
 ) => {
   try {
     // Prepare data using the same logic
-    const actualShippingAddress = shippingAddress || transaction?.shippingAddress;
-    
+    const actualShippingAddress =
+      shippingAddress || transaction?.shippingAddress;
+
     const {
       totalTaxable,
       totalAmount,
@@ -833,7 +834,13 @@ export const generatePdfForTemplate18 = async (
       isGSTApplicable,
       showIGST,
       showCGSTSGST,
-    } = prepareTemplate8Data(transaction, company, party, actualShippingAddress);
+    } = prepareTemplate8Data(
+      transaction,
+      company,
+      party,
+      actualShippingAddress,
+      serviceNameById,
+    );
 
     // Generate HTML for PDF
     const bank = bank || transaction?.bank || {};
@@ -1088,9 +1095,7 @@ const generateHTMLReceipt = (
                 <div style="font-weight: bold; margin-bottom: 4px;">QR Code</div>
                 <img src="${BASE_URL}/${bankData.qrCode}" class="qr-image" />
               </div>
-            /${
-                    bank.qrCode
-                  }" class="qr-image" />
+            /${bank.qrCode}" class="qr-image" />
               </div>
             `
                 : ''

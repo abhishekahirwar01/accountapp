@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+} from 'react';
 import {
   View,
   FlatList,
@@ -12,11 +18,11 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import smartFetch from '../../lib/smartFetch';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import CircularProgress from '../ui/CircularProgress';
 
-import ProductForm from '../products/ProductForm';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { usePermissions } from '../../contexts/permission-context';
 import { useCompany } from '../../contexts/company-context';
-import ServiceForm from '../services/ServiceForm';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
 import { capitalizeWords } from '../../lib/utils';
 import ProductTableRow from './ProductTableRow';
@@ -29,6 +35,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from '../ui/Dialog';
+import PlusButton from '../ui/PlusButton';
+import FabMenu from '../ui/FabMenu';
 
 const isTablet = false; // set to true for tablet layout
 const baseURL = BASE_URL;
@@ -76,8 +84,22 @@ const CompactProductItem = ({ item, isExpanded, onPress }) => {
     }).start();
   }, [isExpanded, measuredHeight]);
 
+  // Add this function inside CompactProductItem component
+  const getProgressForItem = item => {
+    // You'll need to determine how to calculate progress based on your data
+    // This is just an example - adjust according to your needs
+    if (item.type === 'service') {
+      return 40; // 40% for services (like "Shop" in image)
+    } else {
+      // For products, maybe based on stock levels
+      const stock = item.stocks || 0;
+      const maxStock = 100; // You might want to get this from your data
+      return Math.min((stock / maxStock) * 100, 100);
+    }
+  };
+
   const onContentLayout = useCallback(
-    (e) => {
+    e => {
       const h = e.nativeEvent.layout.height;
       if (h > 0 && h !== measuredHeight) {
         setMeasuredHeight(h);
@@ -119,7 +141,7 @@ const CompactProductItem = ({ item, isExpanded, onPress }) => {
     outputRange: ['0deg', '180deg'],
   });
 
-  const getStockColor = (stock) => {
+  const getStockColor = stock => {
     const v = stock ?? 0;
     if (v > 10) return '#10b981';
     if (v > 0) return '#f59e0b';
@@ -130,8 +152,9 @@ const CompactProductItem = ({ item, isExpanded, onPress }) => {
     item.type === 'service' ? null : item.unit || 'pieces';
 
   // Icon name and background colour per item type
-  const iconName = item.type === 'service' ? 'briefcase-outline' : 'package-variant-closed';
-  const iconBg   = item.type === 'service' ? '#8b5cf6' : '#e6efff';
+  const iconName =
+    item.type === 'service' ? 'briefcase-outline' : 'package-variant-closed';
+  const iconBg = item.type === 'service' ? '#8b5cf6' : '#e6efff';
 
   return (
     <View style={styles.compactItemContainer}>
@@ -142,9 +165,19 @@ const CompactProductItem = ({ item, isExpanded, onPress }) => {
         activeOpacity={0.7}
       >
         {/* Product / Service icon */}
-        <View style={[styles.compactIcon, { backgroundColor: iconBg }]}>
+        {/* <View style={[styles.compactIcon, { backgroundColor: iconBg }]}>
           <Icon name={iconName} size={16} color="#3b82f6" />
-        </View>
+        </View> */}
+
+        <CircularProgress
+          size={36} // Slightly larger than before to accommodate the progress ring
+          strokeWidth={2.5}
+          progress={getProgressForItem(item)}
+        >
+          <View style={[styles.compactIcon, { backgroundColor: iconBg }]}>
+            <Icon name={iconName} size={16} color="#3b82f6" />
+          </View>
+        </CircularProgress>
 
         <Text style={styles.compactName} numberOfLines={1}>
           {capitalizeWords(item.name || item.serviceName || '')}
@@ -155,7 +188,7 @@ const CompactProductItem = ({ item, isExpanded, onPress }) => {
             <View
               style={[
                 styles.compactStock,
-                { backgroundColor: getStockColor(item.stocks) + '20' },
+                // { backgroundColor: getStockColor(item.stocks) + '20' },
               ]}
             >
               <Text
@@ -177,7 +210,9 @@ const CompactProductItem = ({ item, isExpanded, onPress }) => {
       </TouchableOpacity>
 
       {/* ── Animated expand panel ── */}
-      <Animated.View style={[styles.expandedWrapper, { height: animatedHeight }]}>
+      <Animated.View
+        style={[styles.expandedWrapper, { height: animatedHeight }]}
+      >
         {/* Hidden layer used only for measuring height */}
         <View
           style={styles.measureLayer}
@@ -205,7 +240,7 @@ const CompactProductItem = ({ item, isExpanded, onPress }) => {
 //  StockEditForm
 // ─────────────────────────────────────────────────────────────────────────────
 const StockEditForm = ({ product, onSuccess, onCancel }) => {
-  const [newStock, setNewStock]     = useState(product.stocks?.toString() || '0');
+  const [newStock, setNewStock] = useState(product.stocks?.toString() || '0');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -227,10 +262,17 @@ const StockEditForm = ({ product, onSuccess, onCancel }) => {
       if (!res.ok) throw new Error('Failed to update stock.');
       const data = await res.json();
 
-      toast({ title: 'Stock updated', description: 'Stock has been updated successfully.' });
+      toast({
+        title: 'Stock updated',
+        description: 'Stock has been updated successfully.',
+      });
       onSuccess(data.product);
     } catch (error) {
-      toast({ variant: 'destructive', title: 'Failed to update stock', description: error.message });
+      toast({
+        variant: 'destructive',
+        title: 'Failed to update stock',
+        description: error.message,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -246,7 +288,10 @@ const StockEditForm = ({ product, onSuccess, onCancel }) => {
         keyboardType="numeric"
       />
       <View style={styles.stockEditButtons}>
-        <TouchableOpacity style={[styles.button, styles.outlineButton]} onPress={onCancel}>
+        <TouchableOpacity
+          style={[styles.button, styles.outlineButton]}
+          onPress={onCancel}
+        >
           <Text style={styles.outlineButtonText}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -279,24 +324,62 @@ const CustomButton = ({
   compact = false,
   iconPosition = 'left',
 }) => {
-  const isOutlined  = mode === 'outlined';
+  const isOutlined = mode === 'outlined';
   const isContained = mode === 'contained';
-  const IconComponent = icon && (
+
+  // Separate text from icon elements in children
+  const getTextAndIcon = () => {
+    if (typeof children === 'string') {
+      return { text: children, icon: null };
+    }
+
+    // If children is an array, separate strings from elements
+    if (Array.isArray(children)) {
+      const text = children.filter(child => typeof child === 'string').join('');
+      const iconElement = children.find(child => React.isValidElement(child));
+      return { text, icon: iconElement };
+    }
+
+    return { text: children, icon: null };
+  };
+
+  const { text, icon: childIcon } = getTextAndIcon();
+
+  const IconComponent = icon ? (
     <Icon
       name={icon}
       size={compact ? 16 : 20}
-      color={isContained ? '#fff' : isOutlined ? '#3b82f6' : disabled ? '#9ca3af' : '#3b82f6'}
-      style={iconPosition === 'left' ? styles.buttonIconLeft : styles.buttonIconRight}
+      color={
+        isContained
+          ? '#fff'
+          : isOutlined
+          ? '#000000'
+          : disabled
+          ? '#9ca3af'
+          : '#000000'
+      }
+      style={
+        iconPosition === 'left' ? styles.buttonIconLeft : styles.buttonIconRight
+      }
     />
-  );
+  ) : childIcon ? (
+    <View
+      style={
+        iconPosition === 'left' ? styles.buttonIconLeft : styles.buttonIconRight
+      }
+    >
+      {childIcon}
+    </View>
+  ) : null;
+
   return (
     <TouchableOpacity
       style={[
         styles.customButton,
         isContained && styles.customButtonContained,
-        isOutlined  && styles.customButtonOutlined,
-        disabled    && styles.buttonDisabled,
-        compact     && styles.buttonCompact,
+        isOutlined && styles.customButtonOutlined,
+        disabled && styles.buttonDisabled,
+        compact && styles.buttonCompact,
         style,
       ]}
       onPress={onPress}
@@ -308,13 +391,13 @@ const CustomButton = ({
         style={[
           styles.customButtonText,
           isContained && styles.customButtonTextContained,
-          isOutlined  && styles.customButtonTextOutlined,
-          disabled    && styles.buttonTextDisabled,
-          compact     && styles.buttonTextCompact,
+          isOutlined && styles.customButtonTextOutlined,
+          disabled && styles.buttonTextDisabled,
+          compact && styles.buttonTextCompact,
           textStyle,
         ]}
       >
-        {children}
+        {text}
       </Text>
       {iconPosition === 'right' && IconComponent}
     </TouchableOpacity>
@@ -323,13 +406,13 @@ const CustomButton = ({
 
 const SearchBar = ({ placeholder, value, onChangeText, style }) => (
   <View style={[styles.searchContainer, style]}>
-    <Icon name="magnify" size={20} color="#9ca3af" style={styles.searchIcon} />
+    <Icon name="magnify" size={20} color="#838282" style={styles.searchIcon} />
     <TextInput
       style={styles.searchInput}
       placeholder={placeholder}
       value={value}
       onChangeText={onChangeText}
-      placeholderTextColor="#9ca3af"
+      placeholderTextColor="#838282"
       returnKeyType="search"
       blurOnSubmit={false}
       autoCorrect={false}
@@ -343,7 +426,11 @@ const SearchBar = ({ placeholder, value, onChangeText, style }) => (
 );
 
 const EmptyStateActionButton = ({ onAddProduct }) => (
-  <TouchableOpacity style={styles.emptyStateButton} onPress={onAddProduct} activeOpacity={0.8}>
+  <TouchableOpacity
+    style={styles.emptyStateButton}
+    onPress={onAddProduct}
+    activeOpacity={0.8}
+  >
     <View style={styles.emptyStateButtonContent}>
       <Icon name="plus-circle" size={24} color="#fff" />
       <Text style={styles.emptyStateButtonText}>Add Your First Item</Text>
@@ -363,36 +450,49 @@ const MobileHeaderButton = ({ label, color, onPress }) => (
   </TouchableOpacity>
 );
 
-
-const ProductStock = ({ navigation, refetchPermissions, refetchUserPermissions }) => {
-  const [products, setProducts]                 = useState([]);
-  const [isLoading, setIsLoading]               = useState(true);
-  const [searchTerm, setSearchTerm]             = useState('');
-  const [selectedProduct, setSelectedProduct]   = useState(null);
+const ProductStock = ({
+  navigation: propNavigation,
+  refetchPermissions,
+  refetchUserPermissions,
+}) => {
+  const navigation = propNavigation || useNavigation();
+  const [products, setProducts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
-  const [isAddServiceOpen, setIsAddServiceOpen] = useState(false);
-  const [refreshing, setRefreshing]             = useState(false);
-  const [role, setRole]                         = useState('user');
-  const [openNameDialog, setOpenNameDialog]     = useState(null);
+  // const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [role, setRole] = useState('user');
+  const [openNameDialog, setOpenNameDialog] = useState(null);
   const [expandedProductId, setExpandedProductId] = useState(null);
+  const plusButtonRef = useRef(null);
+  const [fabAnchor, setFabAnchor] = useState(null);
+  const [open, setOpen] = useState(false);
 
-  const { toast }                 = useToast();
-  const { permissions }           = usePermissions();
-  const { selectedCompanyId }     = useCompany();
+  const { toast } = useToast();
+  const { permissions } = usePermissions();
+  const { selectedCompanyId } = useCompany();
   const { permissions: userCaps } = useUserPermissions();
 
-  const canCreateProducts = userCaps?.canCreateProducts ?? userCaps?.canCreateInventory ?? false;
-  const webCanCreate      = permissions?.canCreateProducts ?? permissions?.canCreateInventory ?? false;
+  const canCreateProducts =
+    userCaps?.canCreateProducts ?? userCaps?.canCreateInventory ?? false;
+  const webCanCreate =
+    permissions?.canCreateProducts ?? permissions?.canCreateInventory ?? false;
   const showCreateButtons = canCreateProducts || webCanCreate;
+
+  const handleOpenFabMenu = () => {
+    plusButtonRef.current?.measureInWindow((x, y, width, height) => {
+      setFabAnchor({ x, y, width, height });
+      setOpen(true);
+    });
+  };
 
   const fetchProducts = async (force = false) => {
     const prodEndpoint = selectedCompanyId
       ? `/api/products?companyId=${selectedCompanyId}`
       : `/api/products`;
-    const servEndpoint = selectedCompanyId
-      ? `/api/services?companyId=${selectedCompanyId}`
-      : `/api/services`;
+    const servEndpoint = `/api/services`;
 
     const prodKey = `products:${selectedCompanyId || 'all'}`;
     const servKey = `services:${selectedCompanyId || 'all'}`;
@@ -409,8 +509,9 @@ const ProductStock = ({ navigation, refetchPermissions, refetchUserPermissions }
         const pdata = prodResult.value.data;
         let productsList = Array.isArray(pdata) ? pdata : pdata.products || [];
         if (selectedCompanyId) {
-          productsList = productsList.filter((p) => {
-            const cId = typeof p.company === 'object' ? p.company?._id : p.company;
+          productsList = productsList.filter(p => {
+            const cId =
+              typeof p.company === 'object' ? p.company?._id : p.company;
             return cId === selectedCompanyId || !cId;
           });
         }
@@ -420,14 +521,16 @@ const ProductStock = ({ navigation, refetchPermissions, refetchUserPermissions }
 
       if (servResult.status === 'fulfilled' && servResult.value?.data) {
         const sdata = servResult.value.data;
-        const servicesList = Array.isArray(sdata) ? sdata : sdata.services || [];
+        const servicesList = Array.isArray(sdata)
+          ? sdata
+          : sdata.services || [];
         if (servResult.value.fromCache) usedCache = true;
 
-        setProducts((prev) => {
-          const existingIds = new Set(prev.map((p) => p._id));
+        setProducts(prev => {
+          const existingIds = new Set(prev.map(p => p._id));
           const appended = servicesList
-            .filter((s) => !existingIds.has(s._id))
-            .map((s) => ({
+            .filter(s => !existingIds.has(s._id))
+            .map(s => ({
               _id: s._id,
               name: s.serviceName || s.name,
               type: 'service',
@@ -448,27 +551,41 @@ const ProductStock = ({ navigation, refetchPermissions, refetchUserPermissions }
           smartFetch(servEndpoint, { cacheKey: servKey, forceRefresh: true }),
         ])
           .then(([p, s]) => {
-            if (p.status === 'fulfilled' && !p.value.fromCache && p.value.data) {
+            if (
+              p.status === 'fulfilled' &&
+              !p.value.fromCache &&
+              p.value.data
+            ) {
               const pdata = p.value.data;
-              let productsList = Array.isArray(pdata) ? pdata : pdata.products || [];
+              let productsList = Array.isArray(pdata)
+                ? pdata
+                : pdata.products || [];
               if (selectedCompanyId) {
-                productsList = productsList.filter((item) => {
+                productsList = productsList.filter(item => {
                   const cId =
-                    typeof item.company === 'object' ? item.company?._id : item.company;
+                    typeof item.company === 'object'
+                      ? item.company?._id
+                      : item.company;
                   return cId === selectedCompanyId || !cId;
                 });
               }
               setProducts(productsList);
             }
-            if (s.status === 'fulfilled' && !s.value.fromCache && s.value.data) {
+            if (
+              s.status === 'fulfilled' &&
+              !s.value.fromCache &&
+              s.value.data
+            ) {
               const sdata = s.value.data;
-              const servicesList = Array.isArray(sdata) ? sdata : sdata.services || [];
-              setProducts((prev) => {
-                const base = prev.filter((item) => item.type !== 'service');
-                const existingIds = new Set(base.map((item) => item._id));
+              const servicesList = Array.isArray(sdata)
+                ? sdata
+                : sdata.services || [];
+              setProducts(prev => {
+                const base = prev.filter(item => item.type !== 'service');
+                const existingIds = new Set(base.map(item => item._id));
                 const appended = servicesList
-                  .filter((sv) => !existingIds.has(sv._id))
-                  .map((sv) => ({
+                  .filter(sv => !existingIds.has(sv._id))
+                  .map(sv => ({
                     _id: sv._id,
                     name: sv.serviceName || sv.name,
                     type: 'service',
@@ -496,7 +613,15 @@ const ProductStock = ({ navigation, refetchPermissions, refetchUserPermissions }
     }
   };
 
-  useEffect(() => { fetchProducts(); }, [selectedCompanyId]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchProducts(true);
+    }, []),
+  );
+
+  useEffect(() => {
+    fetchProducts();
+  }, [selectedCompanyId]);
 
   useEffect(() => {
     const getRole = async () => {
@@ -512,67 +637,57 @@ const ProductStock = ({ navigation, refetchPermissions, refetchUserPermissions }
     setRefreshing(true);
     Promise.all([
       fetchProducts(true),
-      refetchPermissions     ? refetchPermissions()     : Promise.resolve(),
+      refetchPermissions ? refetchPermissions() : Promise.resolve(),
       refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
     ]).finally(() => setRefreshing(false));
   };
 
-  const handleEditClick = (product) => {
+  const handleEditClick = product => {
     setSelectedProduct(product);
     setIsEditDialogOpen(true);
   };
 
-  const handleUpdateSuccess = (updatedProduct) => {
-    setProducts((prev) =>
-      prev.map((p) => (p._id === updatedProduct._id ? updatedProduct : p)),
+  const handleUpdateSuccess = updatedProduct => {
+    setProducts(prev =>
+      prev.map(p => (p._id === updatedProduct._id ? updatedProduct : p)),
     );
     setIsEditDialogOpen(false);
     setSelectedProduct(null);
   };
 
-  const handleAddProductSuccess = (newProduct) => {
-    setProducts((prev) => [...prev, newProduct]);
-    setIsAddProductOpen(false);
+  const handleAddProductSuccess = newProduct => {
+    setProducts(prev => [...prev, newProduct]);
     toast({
       title: 'Product Created',
-      description: `${capitalizeWords(newProduct.name)} has been added successfully.`,
+      description: `${capitalizeWords(
+        newProduct.name,
+      )} has been added successfully.`,
     });
     fetchProducts();
   };
 
-  const handleAddServiceSuccess = (newService) => {
-    const serviceAsProduct = {
-      _id: newService._id,
-      name: newService.serviceName,
-      type: 'service',
-      stocks: 0,
-      unit: newService.unit,
-      createdByClient: newService.createdByClient,
-      price: newService.price,
-      sellingPrice: newService.sellingPrice || newService.price,
-      costPrice: newService.costPrice,
-    };
-    setProducts((prev) => [...prev, serviceAsProduct]);
-    setIsAddServiceOpen(false);
-    toast({
-      title: 'Service Created',
-      description: `${capitalizeWords(newService.serviceName)} has been added.`,
-    });
-    setTimeout(() => fetchProducts(true), 1000);
-  };
-
-  const handleProductPress = useCallback((productId) => {
-    setExpandedProductId((prev) => (prev === productId ? null : productId));
+  const handleProductPress = useCallback(productId => {
+    setExpandedProductId(prev => (prev === productId ? null : productId));
   }, []);
 
   const filteredProducts = useMemo(() => {
     const q = (searchTerm || '').trim().toLowerCase();
     if (!products || products.length === 0) return [];
     if (!q) return products;
-    return products.filter((p) =>
+    return products.filter(p =>
       (p.name || p.serviceName || '').toLowerCase().includes(q),
     );
   }, [products, searchTerm]);
+
+  const { totalItems, totalServices } = useMemo(() => {
+    const totalItems = (products || []).filter(
+      p => p.type !== 'service',
+    ).length;
+    const totalServices = (products || []).filter(
+      p => p.type === 'service',
+    ).length;
+    return { totalItems, totalServices };
+  }, [products]);
 
   const renderCompactProductItem = useCallback(
     ({ item }) => (
@@ -585,6 +700,39 @@ const ProductStock = ({ navigation, refetchPermissions, refetchUserPermissions }
     [expandedProductId, handleProductPress],
   );
 
+  const InventorySummaryCard = ({ totalItems, totalServices, onViewMore }) => {
+    return (
+      <View style={styles.summaryCard}>
+        <View style={styles.summaryTopRow}>
+          <View style={[styles.summaryBlock]}>
+            <View style={styles.blockHeader}>
+              <Text style={styles.summaryLabel}>Total Products</Text>
+            </View>
+            <Text style={styles.summaryValue}>{totalItems}</Text>
+          </View>
+
+          {/* <View style={styles.verticalDivider}></View> */}
+
+          <View style={styles.summaryBlock}>
+            <View style={styles.blockHeader}>
+              <Text style={styles.summaryLabel}>Total Services</Text>
+            </View>
+            <Text style={styles.summaryValue}>{totalServices}</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.summaryBtn}
+            onPress={onViewMore}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.summaryBtnText}>View More</Text>
+            <Icon name="arrow-right" size={12} color="#111827" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
   const renderTableRow = ({ item, index }) => (
     <ProductTableRow
       product={item}
@@ -596,9 +744,9 @@ const ProductStock = ({ navigation, refetchPermissions, refetchUserPermissions }
   );
 
   const shouldShowComponent = () => {
-    const canCreate        = permissions?.canCreateProducts;
+    const canCreate = permissions?.canCreateProducts;
     const userInventoryCap = userCaps?.canCreateInventory;
-    const maxInventories   = permissions?.maxInventories ?? 0;
+    const maxInventories = permissions?.maxInventories ?? 0;
     if (!canCreate && !userInventoryCap && maxInventories === 0) return false;
     return true;
   };
@@ -607,31 +755,59 @@ const ProductStock = ({ navigation, refetchPermissions, refetchUserPermissions }
 
   return (
     <View style={styles.container}>
-      <View style={styles.card}>
+      <View>
         <View style={styles.cardContent}>
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <Text style={styles.title}>Product & Service Stock</Text>
-              <Text style={styles.subtitle}>Current inventory levels and management</Text>
             </View>
+
+            {/* PLUS BUTTON */}
+
+            <View ref={plusButtonRef} collapsable={false}>
+              <PlusButton onPress={handleOpenFabMenu} />
+            </View>
+
+            {/* FAB MENU */}
+            <FabMenu
+              visible={open}
+              onClose={() => setOpen(false)}
+              anchor={fabAnchor}
+              actions={[
+                {
+                  label: '+ Add Product',
+                  onPress: () => navigation.navigate('ProductForm'),
+                },
+                {
+                  label: '+ Add Service',
+                  onPress: () => navigation.navigate('ServiceForm'),
+                },
+              ]}
+            />
           </View>
 
-          {/* Mobile add buttons */}
+          {/* Mobile add buttons 
           {showCreateButtons && !isTablet && (
             <View style={styles.mobileHeaderButtonsContainer}>
               <MobileHeaderButton
                 label="Add Product"
                 color="#327ffa"
-                onPress={() => setIsAddProductOpen(true)}
+                onPress={() => navigation.navigate('ProductForm')}
               />
               <MobileHeaderButton
                 label="Add Service"
                 color="#2b9775ff"
-                onPress={() => setIsAddServiceOpen(true)}
+                onPress={() => navigation.navigate('ServiceForm')}
               />
             </View>
-          )}
+          )}*/}
+
+          <InventorySummaryCard
+            totalItems={totalItems}
+            totalServices={totalServices}
+            onViewMore={() => navigation.navigate('Inventory')}
+          />
 
           {/* Search */}
           <SearchBar
@@ -663,7 +839,12 @@ const ProductStock = ({ navigation, refetchPermissions, refetchUserPermissions }
                         <Text style={styles.tableHeaderText}>Unit</Text>
                       </View>
                       {role !== 'user' && (
-                        <View style={[styles.tableCell, { flex: 1, alignItems: 'flex-end' }]}>
+                        <View
+                          style={[
+                            styles.tableCell,
+                            { flex: 1, alignItems: 'flex-end' },
+                          ]}
+                        >
                           <Text style={styles.tableHeaderText}>Actions</Text>
                         </View>
                       )}
@@ -671,7 +852,7 @@ const ProductStock = ({ navigation, refetchPermissions, refetchUserPermissions }
                     <FlatList
                       data={filteredProducts.slice(0, 4)}
                       renderItem={renderTableRow}
-                      keyExtractor={(item) => item._id}
+                      keyExtractor={item => item._id}
                       scrollEnabled={false}
                       contentContainerStyle={{ paddingBottom: 160 }}
                       refreshing={refreshing}
@@ -688,7 +869,7 @@ const ProductStock = ({ navigation, refetchPermissions, refetchUserPermissions }
                   <FlatList
                     data={filteredProducts.slice(0, 5)}
                     renderItem={renderCompactProductItem}
-                    keyExtractor={(item) => item._id}
+                    keyExtractor={item => item._id}
                     scrollEnabled={false}
                     contentContainerStyle={styles.compactList}
                     refreshing={refreshing}
@@ -714,48 +895,66 @@ const ProductStock = ({ navigation, refetchPermissions, refetchUserPermissions }
                     : 'Get started by adding your first product or service.'}
                 </Text>
                 {showCreateButtons && (
-                  <EmptyStateActionButton onAddProduct={() => setIsAddProductOpen(true)} />
+                  <EmptyStateActionButton
+                    onAddProduct={() =>
+                      navigation.navigate('ProductForm', {
+                        onSuccess: handleAddProductSuccess,
+                      })
+                    }
+                  />
                 )}
               </View>
             )}
           </View>
 
           {/* View more */}
-          {filteredProducts.length > 3 && (
+          {/* {filteredProducts.length > 3 && (
             <CustomButton
               mode="outlined"
               onPress={() => navigation.navigate('Inventory')}
               style={styles.viewMoreButton}
               textStyle={styles.viewMoreButtonText}
-              icon="chevron-right"
               iconPosition="right"
             >
               View More
+              <ArrowRight size={15} color="#6366f1" />
             </CustomButton>
-          )}
+          )} */}
         </View>
       </View>
 
       {/* Name Dialog */}
-      <Dialog open={!!openNameDialog} onOpenChange={() => setOpenNameDialog(null)}>
+      <Dialog
+        open={!!openNameDialog}
+        onOpenChange={() => setOpenNameDialog(null)}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Product Name</DialogTitle>
+            <DialogTitle>
+              <Text>Product Name</Text>
+            </DialogTitle>
           </DialogHeader>
           <View style={styles.nameDialogContent}>
-            <Text style={styles.nameDialogText}>{capitalizeWords(openNameDialog)}</Text>
+            <Text style={styles.nameDialogText}>
+              {capitalizeWords(openNameDialog)}
+            </Text>
           </View>
         </DialogContent>
       </Dialog>
 
       {/* Edit Stock Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={() => setIsEditDialogOpen(false)}>
+      <Dialog
+        open={isEditDialogOpen}
+        onOpenChange={() => setIsEditDialogOpen(false)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {selectedProduct
-                ? `Update stock for ${capitalizeWords(selectedProduct.name)}`
-                : 'Update stock'}
+              <Text>
+                {selectedProduct
+                  ? `Update stock for ${capitalizeWords(selectedProduct.name)}`
+                  : 'Update stock'}
+              </Text>
             </DialogTitle>
           </DialogHeader>
           <View style={styles.editDialogContent}>
@@ -770,43 +969,7 @@ const ProductStock = ({ navigation, refetchPermissions, refetchUserPermissions }
         </DialogContent>
       </Dialog>
 
-      {/* Add Product Dialog */}
-      <Dialog open={isAddProductOpen} onOpenChange={() => setIsAddProductOpen(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New Product</DialogTitle>
-            <DialogDescription>
-              Fill in the form to add a new product
-            </DialogDescription>
-          </DialogHeader>
-          <View style={styles.formDialogContent}>
-            <ProductForm
-              hideHeader={true}
-              onSuccess={handleAddProductSuccess}
-              onClose={() => setIsAddProductOpen(false)}
-            />
-          </View>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Service Dialog */}
-      <Dialog open={isAddServiceOpen} onOpenChange={() => setIsAddServiceOpen(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New Service</DialogTitle>
-            <DialogDescription>
-              Fill in the form to add a new service
-            </DialogDescription>
-          </DialogHeader>
-          <View style={styles.formDialogContent}>
-            <ServiceForm
-              hideHeader={true}
-              onSuccess={handleAddServiceSuccess}
-              onClose={() => setIsAddServiceOpen(false)}
-            />
-          </View>
-        </DialogContent>
-      </Dialog>
+      {/* ProductForm now opens as a full screen via navigation */}
     </View>
   );
 };
@@ -815,31 +978,37 @@ const ProductStock = ({ navigation, refetchPermissions, refetchUserPermissions }
 //  Styles
 // ─────────────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container:  { flex: 1, padding: 0 },
+  container: { flex: 1, padding: 0, marginTop: 10 },
   card: {
     backgroundColor: '#fff',
     borderRadius: 12,
     // marginBottom: 16,
     marginTop: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    // shadowColor: '#000',
+    // shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 6,
   },
-  cardContent: { padding: 14 },
-  header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  headerLeft:  { flex: 1 },
-  title:       { fontSize: 20, fontWeight: 'bold', color: '#1f2937' },
-  subtitle:    { fontSize: 12, color: '#6b7280', fontWeight: '400' },
+  cardContent: { padding: 5 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  headerLeft: { flex: 1 },
+  title: { fontSize: 20, fontWeight: 'bold', color: '#1f2937' },
+  subtitle: { fontSize: 10, color: '#6b7280', fontWeight: '400' },
 
   // Compact list item
   compactItemContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
     borderRadius: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#f0f0f0',
+    borderColor: 'transparent',
+    borderBottomColor: '#f0f0f0',
     overflow: 'hidden',
   },
   compactItemContent: {
@@ -847,7 +1016,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 8,
     gap: 12,
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
   },
   compactIcon: {
     width: 30,
@@ -856,11 +1025,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  compactName:         { flex: 1, fontSize: 13, fontWeight: '500', color: '#1f2937' },
-  stockUnitContainer:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  compactStock:        { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, minWidth: 36, alignItems: 'center' },
-  compactStockText:    { fontSize: 13, fontWeight: '600' },
-  unitText:            { fontSize: 12, color: '#6b7280', fontWeight: '400' },
+  compactName: { flex: 1, fontSize: 13, fontWeight: '500', color: '#1f2937' },
+  stockUnitContainer: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '-2px',
+  },
+  compactStock: {
+    paddingHorizontal: 2,
+    paddingVertical: 0,
+    minWidth: 36,
+    alignItems: 'center',
+  },
+  compactStockText: { fontSize: 15, fontWeight: '600' },
+  unitText: { fontSize: 12, color: '#6b7280', fontWeight: '400' },
 
   expandedWrapper: { overflow: 'hidden', backgroundColor: '#fff' },
   measureLayer: {
@@ -877,23 +1055,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    backgroundColor: '#f8fafc',
+    backgroundColor: 'transparent',
     borderRadius: 8,
-    padding: 4,
-    marginHorizontal: 12,
-    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#f7f7f7',
   },
-  priceItem:    { flex: 1, alignItems: 'center' },
-  priceDivider: { width: 1, height: 30, backgroundColor: '#e5e7eb', marginHorizontal: 8 },
-  priceLabel:   { fontSize: 12, color: '#6b7280', marginBottom: 4, fontWeight: '500' },
-  priceValue:   { fontSize: 12, fontWeight: '700', color: '#1f2937' },
+  priceItem: { flex: 1, alignItems: 'center' },
+  priceDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#e5e7eb',
+    marginHorizontal: 8,
+  },
+  priceLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  priceValue: { fontSize: 12, fontWeight: '700', color: '#1f2937' },
 
   compactList: { paddingBottom: 0 },
 
   // Mobile header buttons
-  mobileHeaderButtonsContainer: { flexDirection: 'row', gap: 12, marginBottom: 14 },
+  mobileHeaderButtonsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 14,
+  },
   mobileHeaderButton: {
     flex: 1,
     borderRadius: 12,
@@ -912,7 +1103,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     gap: 8,
   },
-  mobileHeaderButtonText: { fontSize: 14, fontWeight: '600', color: '#fff', textAlign: 'center' },
+  mobileHeaderButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    textAlign: 'center',
+  },
 
   // Empty state
   emptyStateButton: {
@@ -935,27 +1131,44 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: '#6366f1',
   },
-  emptyStateButtonText: { fontSize: 16, fontWeight: '700', color: '#fff', letterSpacing: 0.3 },
+  emptyStateButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.3,
+  },
 
   // Search bar
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 78,
     paddingHorizontal: 16,
     marginBottom: 12,
     height: 40,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+    // borderWidth: 1,
+    // borderColor: '#f8f8f8',
   },
-  searchIcon:  { marginRight: 12 },
-  searchInput: { flex: 1, fontSize: 14, color: '#1f2937', paddingVertical: 10, fontWeight: '400' },
+  searchIcon: { marginRight: 12 },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#18191a',
+    paddingVertical: 10,
+    fontWeight: '400',
+  },
 
   // Loading / empty
   loadingContainer: { alignItems: 'center', padding: 40 },
-  loadingText:      { marginTop: 12, color: '#6b7280', fontSize: 15, fontWeight: '500' },
-  emptyContainer:   { alignItems: 'center', padding: 40 },
+  loadingText: {
+    marginTop: 12,
+    color: '#6b7280',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  emptyContainer: { alignItems: 'center', padding: 40 },
   emptyIcon: {
     backgroundColor: '#f3f4f6',
     width: 80,
@@ -970,49 +1183,237 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  emptyTitle: { fontSize: 20, fontWeight: 'bold', color: '#1f2937', marginBottom: 8 },
-  emptyText:  { textAlign: 'center', color: '#6b7280', fontSize: 15, lineHeight: 22, marginBottom: 8, maxWidth: '80%' },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 8,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#6b7280',
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 8,
+    maxWidth: '80%',
+  },
 
   // Table (tablet)
-  tableContainer: { backgroundColor: '#fff', borderRadius: 12, marginBottom: 20, borderWidth: 1, borderColor: '#e5e7eb', overflow: 'hidden' },
-  tableHeader:    { flexDirection: 'row', padding: 18, borderBottomWidth: 1, borderBottomColor: '#e5e7eb', backgroundColor: '#f8fafc' },
-  tableCell:      { paddingHorizontal: 10 },
-  tableHeaderText:{ fontWeight: '700', color: '#374151', fontSize: 14, letterSpacing: 0.3 },
+  tableContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    overflow: 'hidden',
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    padding: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    backgroundColor: '#f8fafc',
+  },
+  tableCell: { paddingHorizontal: 10 },
+  tableHeaderText: {
+    fontWeight: '700',
+    color: '#374151',
+    fontSize: 14,
+    letterSpacing: 0.3,
+  },
 
   // View more button
-  viewMoreButton:     { marginTop: 6, borderColor: '#d1d5db', borderWidth: 1, borderRadius: 20, paddingVertical: 12 },
+  viewMoreButton: {
+    marginTop: 6,
+    borderColor: '#ececec',
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    width: 150,
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
   viewMoreButtonText: { color: '#374151', fontWeight: '400' },
 
   // Custom button
-  customButton:              { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 10, paddingHorizontal: 20, paddingVertical: 12, gap: 10 },
-  customButtonContained:     { backgroundColor: '#6366f1' },
-  customButtonOutlined:      { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#6366f1' },
-  buttonDisabled:            { opacity: 0.5 },
-  buttonCompact:             { paddingHorizontal: 14, paddingVertical: 8 },
-  buttonIconLeft:            { marginRight: 6 },
-  buttonIconRight:           { marginLeft: 6 },
-  customButtonText:          { fontSize: 14, fontWeight: '600', letterSpacing: 0.3 },
+  customButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  customButtonContained: { backgroundColor: '#6366f1' },
+  customButtonOutlined: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: '#6366f1',
+  },
+  buttonDisabled: { opacity: 0.5 },
+  buttonCompact: { paddingHorizontal: 14, paddingVertical: 8 },
+  buttonIconLeft: { marginRight: 6 },
+  buttonIconRight: { marginLeft: 6 },
+  customButtonText: { fontSize: 14, fontWeight: '600', letterSpacing: 0.3 },
   customButtonTextContained: { color: '#fff' },
-  customButtonTextOutlined:  { color: '#6366f1' },
-  buttonTextDisabled:        { color: '#9ca3af' },
-  buttonTextCompact:         { fontSize: 13 },
+  customButtonTextOutlined: { color: '#6366f1' },
+  buttonTextDisabled: { color: '#9ca3af' },
+  buttonTextCompact: { fontSize: 13 },
 
   // Stock edit form
   stockEditContainer: { padding: 24 },
-  stockEditLabel:     { fontSize: 16, color: '#374151', marginBottom: 12, fontWeight: '500' },
-  stockEditInput:     { borderWidth: 1.5, borderColor: '#d1d5db', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, marginBottom: 20, backgroundColor: '#fff', fontWeight: '500' },
-  stockEditButtons:   { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
-  button:             { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 10, minWidth: 110, alignItems: 'center', justifyContent: 'center' },
-  primaryButton:      { backgroundColor: '#6366f1', shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 },
-  primaryButtonText:  { color: '#fff', fontSize: 16, fontWeight: '600', letterSpacing: 0.3 },
-  outlineButton:      { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#d1d5db' },
-  outlineButtonText:  { color: '#374151', fontSize: 16, fontWeight: '600', letterSpacing: 0.3 },
+  stockEditLabel: {
+    fontSize: 16,
+    color: '#374151',
+    marginBottom: 12,
+    fontWeight: '500',
+  },
+  stockEditInput: {
+    borderWidth: 1.5,
+    borderColor: '#d1d5db',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    marginBottom: 20,
+    backgroundColor: '#fff',
+    fontWeight: '500',
+  },
+  stockEditButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  button: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    minWidth: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plusbutton: {
+    backgroundColor: '#e0e0e0', // Light grey background
+    width: 50,
+    height: 50,
+    borderRadius: 25, // Makes it a circle (half of width/height)
+    justifyContent: 'center',
+    alignItems: 'center',
+    cursor: 'pointer', // Changes cursor to pointer on web
+    transition: 'background-color 0.2s ease', // Smooth hover effect
+    // Optional: Add a subtle shadow
+    boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+  },
+  buttonHover: {
+    backgroundColor: '#d0d0d0',
+  },
+  text: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    lineHeight: 1, // Ensures the text is vertically centered
+  },
+  primaryButton: {
+    backgroundColor: '#6366f1',
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  outlineButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: '#d1d5db',
+  },
+  outlineButtonText: {
+    color: '#374151',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
 
   // Dialogs
   nameDialogContent: { padding: 0 },
-  nameDialogText:    { fontSize: 16, color: '#374151', marginBottom: 0, lineHeight: 24, fontWeight: '500' },
+  nameDialogText: {
+    fontSize: 16,
+    color: '#374151',
+    marginBottom: 0,
+    lineHeight: 24,
+    fontWeight: '500',
+  },
   editDialogContent: { padding: 0 },
   formDialogContent: { flex: 1, padding: 0 },
+
+  summaryCard: {
+    backgroundColor: '#857bee',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+  },
+  summaryTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  summaryBlock: {
+    flex: 1,
+  },
+  blockHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 6,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: '#ffffff',
+    fontWeight: '500',
+  },
+  summaryValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  verticalDivider: {
+    backgroundColor: '#000000',
+    height: '100%',
+    width: 1,
+    position: 'relative',
+  },
+  summaryBtn: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    backgroundColor: '#ffffff',
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+
+  summaryBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#111827',
+  },
 });
 
-export default ProductStock; 
+export default ProductStock;

@@ -25,6 +25,8 @@ import {
   Mail,
   Plus,
   X,
+  Building,
+  User,
 } from 'lucide-react-native';
 import AdminCompanyForm from '../companies/AdminCompanyForm';
 import { BASE_URL } from '../../config';
@@ -144,8 +146,8 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
     company => {
       setShowActionsMenu(null);
       Alert.alert(
-        'Are you sure?',
-        `This will permanently delete ${company.businessName}.`,
+        'Delete Company',
+        `Are you sure you want to delete ${company.businessName}? This action cannot be undone.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -184,7 +186,8 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
     const isThisMenuOpen = showActionsMenu === company._id;
 
     return (
-      <View style={[styles.companyCard, { zIndex: isThisMenuOpen ? 2000 : 1 }]}>
+      <View style={[styles.card, { zIndex: isThisMenuOpen ? 2000 : 1 }]}>
+        {/* Overlay to close menu when clicking outside */}
         {isThisMenuOpen && (
           <Pressable
             style={styles.cardOverlay}
@@ -192,38 +195,49 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
           />
         )}
 
+        {/* Header Section */}
         <View style={styles.cardHeader}>
           <View style={styles.companyInfo}>
-            <Text style={styles.companyName}>{company.businessName}</Text>
-            <Text style={styles.businessType}>{company.businessType}</Text>
+            <View style={styles.iconContainer}>
+              <Building size={17} color="#a090fc" />
+            </View>
+            <View style={styles.companyTextContainer}>
+              <Text style={styles.businessName} numberOfLines={1}>
+                {company.businessName}
+              </Text>
+              <Text style={styles.businessType} numberOfLines={1}>
+                {company.businessType || 'N/A'}
+              </Text>
+            </View>
           </View>
 
-          <View style={{ zIndex: 3000 }}>
+          <View style={styles.menuContainer}>
             <TouchableOpacity
               style={styles.menuButton}
               onPress={() =>
                 setShowActionsMenu(isThisMenuOpen ? null : company._id)
               }
             >
-              <MoreHorizontal size={22} color="#9ca3af" />
+              <MoreHorizontal size={16} color="#666" />
             </TouchableOpacity>
 
+            {/* Dropdown Menu */}
             {isThisMenuOpen && (
-              <View style={styles.localActionsMenu}>
+              <View style={styles.dropdownMenu}>
                 <TouchableOpacity
                   style={styles.menuItem}
                   onPress={() => handleEdit(company)}
                 >
-                  <Edit size={16} color="#3b82f6" />
-                  <Text style={styles.menuText}>Edit</Text>
+                  <Edit size={16} color="#007AFF" />
+                  <Text style={styles.menuItemText}>Edit</Text>
                 </TouchableOpacity>
                 <View style={styles.menuDivider} />
                 <TouchableOpacity
-                  style={styles.menuItem}
+                  style={[styles.menuItem, styles.deleteMenuItem]}
                   onPress={() => handleDelete(company)}
                 >
-                  <Trash2 size={16} color="#ef4444" />
-                  <Text style={[styles.menuText, { color: '#ef4444' }]}>
+                  <Trash2 size={16} color="#FF3B30" />
+                  <Text style={[styles.menuItemText, styles.deleteMenuText]}>
                     Delete
                   </Text>
                 </TouchableOpacity>
@@ -232,41 +246,70 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
           </View>
         </View>
 
-        {/* Contact Info with Labels */}
-        <View style={styles.infoSection}>
-          <View style={styles.infoRow}>
-            <Phone size={14} color="#9ca3af" />
-            <Text style={styles.label}>Phone:</Text>
-            <Text style={styles.infoValue}>
+        {/* Contact Information */}
+        <View style={styles.contactSection}>
+          <View style={styles.contactItem}>
+            <View
+              style={[
+                styles.contactIcon,
+                { backgroundColor: 'rgba(0, 122, 255, 0.1)' },
+              ]}
+            >
+              <User size={12} color="#007AFF" />
+            </View>
+            <Text style={styles.contactText} numberOfLines={1}>
+              {company.emailId || 'N/A'}
+            </Text>
+          </View>
+          <View style={styles.contactItem}>
+            <View
+              style={[
+                styles.contactIcon,
+                { backgroundColor: 'rgba(52, 199, 89, 0.1)' },
+              ]}
+            >
+              <Phone size={12} color="#34C759" />
+            </View>
+            <Text style={styles.contactText} numberOfLines={1}>
               {company.mobileNumber || 'N/A'}
             </Text>
           </View>
-          <View style={styles.infoRow}>
-            <Mail size={14} color="#9ca3af" />
-            <Text style={styles.label}>Email:</Text>
-            <Text style={styles.infoValue}>{company.emailId || 'N/A'}</Text>
-          </View>
         </View>
 
-        <View style={styles.divider} />
-
-        {/* Identifiers with Labels and Tags */}
-        <View style={styles.idSection}>
-          <View style={styles.idRow}>
-            <Hash size={14} color="#9ca3af" />
-            <Text style={styles.label}>Reg No:</Text>
-            <View style={[styles.tag, styles.blueTag]}>
-              <Text style={styles.tagTextBlue}>
-                {company.registrationNumber}
+        {/* Registration & GST Details */}
+        <View style={styles.detailsSection}>
+          <View style={styles.detailItem}>
+            <Text style={styles.detailLabel}>Registration No.</Text>
+            <View style={styles.badge}>
+              <Hash size={12} color="#666" />
+              <Text style={styles.badgeText} numberOfLines={1}>
+                {company.registrationNumber || 'N/A'}
               </Text>
             </View>
           </View>
-          <View style={styles.idRow}>
-            <FileText size={14} color="#9ca3af" />
-            <Text style={styles.label}>GSTIN:</Text>
-            <View style={[styles.tag, styles.greenTag]}>
-              <Text style={styles.tagTextGreen}>{company.gstin || 'N/A'}</Text>
-            </View>
+          <View style={styles.detailItem}>
+            <Text style={styles.detailLabel}>GSTIN</Text>
+            {company.gstin ? (
+              <View style={[styles.badge, styles.gstBadge]}>
+                <FileText size={12} color="#FF9500" />
+                <Text
+                  style={[styles.badgeText, styles.gstText]}
+                  numberOfLines={1}
+                >
+                  {company.gstin}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.naText}>N/A</Text>
+            )}
+          </View>
+        </View>
+
+        {/* Status Indicator */}
+        <View style={styles.cardFooter}>
+          <View style={styles.statusIndicator}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusText}>Active</Text>
           </View>
         </View>
       </View>
@@ -275,49 +318,75 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.fixedHeader}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.title}>Companies</Text>
-            <Text style={styles.description}>
-              Companies managed by {selectedClient?.contactName || 'Admin'}.
-            </Text>
-          </View>
-          <TouchableOpacity style={styles.createButton} onPress={handleAddNew}>
-            <View style={styles.iconCircle}>
-              <Plus size={14} color="#0085ff" strokeWidth={3} />
-            </View>
-            <Text style={styles.createButtonText}>Create</Text>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTitle}>
+          <Text style={styles.title}>Companies</Text>
+          <Text style={styles.subtitle}>
+            Companies managed by {selectedClient?.contactName || 'Admin'}.
+          </Text>
+        </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.addCompanyButton}
+            onPress={handleAddNew}
+          >
+            <Plus size={16} color="white" strokeWidth={3} />
+            <Text style={styles.addCompanyButtonText}>Add Company</Text>
           </TouchableOpacity>
         </View>
       </View>
 
+      {/* Content */}
       <FlatList
         data={companies}
         renderItem={renderCompanyCard}
         keyExtractor={item => item._id}
-        contentContainerStyle={styles.companiesList}
+        contentContainerStyle={styles.listContent}
         removeClippedSubviews={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        showsVerticalScrollIndicator={false}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        initialNumToRender={10}
+        windowSize={10}
         ListEmptyComponent={() => (
-          <View style={styles.loaderContainer}>
+          <View style={styles.emptyState}>
             {isCompaniesLoading ? (
-              <ActivityIndicator color="#0085ff" />
+              <>
+                <ActivityIndicator size="large" color="#007AFF" />
+                <Text style={styles.loadingText}>Loading companies...</Text>
+              </>
             ) : (
-              <Text>No companies found.</Text>
+              <>
+                <Building size={48} color="#999" />
+                <Text style={styles.emptyTitle}>No Companies Found</Text>
+                <Text style={styles.emptyDescription}>
+                  Get started by adding your first company.
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyAddButton}
+                  onPress={handleAddNew}
+                >
+                  <Plus size={16} color="white" />
+                  <Text style={styles.emptyAddButtonText}>Add Company</Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
         )}
       />
 
+      {/* Company Form Modal */}
       <Modal
         visible={isFormOpen}
         animationType="slide"
+        presentationStyle="pageSheet"
         onRequestClose={() => setIsFormOpen(false)}
       >
-        <View style={styles.modalContainer}>
+        <View style={{ flex: 1 }}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
               {selectedCompany ? 'Edit' : 'New'} Company
@@ -339,7 +408,10 @@ export function CompaniesTab({ selectedClientId, selectedClient }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fcfcfc' },
+  container: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
   cardOverlay: {
     position: 'absolute',
     top: -SCREEN_HEIGHT,
@@ -347,116 +419,287 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH * 2,
     height: SCREEN_HEIGHT * 2,
     backgroundColor: 'transparent',
-    zIndex: 1000,
+    zIndex: 999,
   },
-  fixedHeader: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-    zIndex: 5,
-  },
-  headerContent: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    padding: 10,
+    paddingTop: 4,
+    paddingBottom: 8,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    backgroundColor: '#f8fafc',
   },
-  headerTextContainer: { flex: 1 },
-  title: { fontSize: 22, fontWeight: '800', color: '#111827' },
-  description: { fontSize: 13, color: '#9ca3af', marginTop: 2 },
-  createButton: {
-    backgroundColor: '#0085ff',
+  headerTitle: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1a1a1a',
+  },
+  subtitle: {
+    fontSize: 10,
+    color: '#666',
+  },
+  headerActions: {
     flexDirection: 'row',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 12,
     alignItems: 'center',
-    gap: 8,
-    elevation: 2,
+    gap: 12,
+    marginTop: 9,
   },
-  iconCircle: {
-    backgroundColor: '#fff',
+  addCompanyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#8b77ff',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 10,
-    padding: 2,
+    gap: 8,
+    elevation: 4,
+    shadowColor: '#8b77ff',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
   },
-  createButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-
-  companiesList: { padding: 16 },
-  companyCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
+  addCompanyButtonText: {
+    color: 'white',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  listContent: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  card: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 8,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 1,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
     position: 'relative',
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 12,
   },
-  companyName: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  businessType: { fontSize: 14, color: '#9ca3af', marginTop: 2 },
-  menuButton: { padding: 4 },
-
-  infoSection: { gap: 10 },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  label: { fontSize: 14, color: '#9ca3af', width: 65 },
-  infoValue: { fontSize: 14, fontWeight: '600', color: '#1f2937' },
-
-  divider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 16 },
-
-  idSection: { gap: 12 },
-  idRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-
-  tag: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  companyInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  companyTextContainer: {
+    flex: 1,
+  },
+  iconContainer: {
+    padding: 8,
+    backgroundColor: '#e9e5fd7c',
     borderRadius: 8,
   },
-  blueTag: { backgroundColor: '#eff6ff' },
-  greenTag: { backgroundColor: '#f0fdf4' },
-  tagTextBlue: { fontSize: 13, fontWeight: '700', color: '#3b82f6' },
-  tagTextGreen: { fontSize: 13, fontWeight: '700', color: '#22c55e' },
-
-  localActionsMenu: {
+  businessName: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
+    color: '#1a1a1a',
+  },
+  businessType: {
+    fontSize: 10,
+    color: '#666',
+  },
+  menuContainer: {
+    position: 'relative',
+  },
+  menuButton: {
+    padding: 8,
+    borderRadius: 4,
+  },
+  dropdownMenu: {
     position: 'absolute',
-    top: 35,
+    top: 22,
     right: 0,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    minWidth: 120,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    zIndex: 3000,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 5,
+    minWidth: 80,
+    zIndex: 1000,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    gap: 12,
   },
-  menuDivider: { height: 1, backgroundColor: '#f1f5f9' },
-  menuText: { fontSize: 14, color: '#334155', fontWeight: '500' },
-
-  modalContainer: { flex: 1, backgroundColor: '#fff' },
+  menuItemText: {
+    fontSize: 12,
+    color: '#333',
+  },
+  deleteMenuItem: {},
+  deleteMenuText: {
+    color: '#FF3B30',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#f0f0f0',
+    marginHorizontal: 8,
+  },
+  contactSection: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  contactIcon: {
+    padding: 4,
+    borderRadius: 4,
+    width: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  contactText: {
+    fontSize: 12,
+    color: '#333',
+    flex: 1,
+  },
+  detailsSection: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 12,
+  },
+  detailItem: {
+    flex: 1,
+  },
+  detailLabel: {
+    fontSize: 11,
+    color: '#666',
+    marginBottom: 4,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+  },
+  badgeText: {
+    fontSize: 10,
+    color: '#333',
+    fontWeight: '500',
+    flex: 1,
+  },
+  gstBadge: {
+    backgroundColor: 'rgba(255, 149, 0, 0.1)',
+  },
+  gstText: {
+    color: '#FF9500',
+  },
+  naText: {
+    fontSize: 14,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  cardFooter: {
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    paddingTop: 12,
+    marginTop: 8,
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 4,
+    backgroundColor: '#34C759',
+  },
+  statusText: {
+    fontSize: 10,
+    color: '#666',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 48,
+    marginTop: 60,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 8,
+    color: '#1a1a1a',
+  },
+  emptyDescription: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  emptyAddButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 8,
+    elevation: 4,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+  },
+  emptyAddButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  loadingText: {
+    color: '#666',
+    fontSize: 16,
+    marginTop: 12,
+  },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  modalTitle: { fontSize: 18, fontWeight: 'bold' },
-  loaderContainer: { padding: 50, alignItems: 'center' },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1a1a1a',
+  },
 });
 
 export default CompaniesTab;

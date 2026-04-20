@@ -1,4 +1,4 @@
-// UsersScreen.js - Optimized Version with Updated Header
+// UsersScreen.js - Updated to use navigation instead of Dialog (like ProductSettings)
 import React, {
   useEffect,
   useState,
@@ -20,15 +20,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from '../../config';
-import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '../../components/ui/Dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,7 +33,6 @@ import {
 } from '../../components/ui/AlertDialog';
 
 import { UserTable } from '../../components/users/UserTable';
-import { UserForm } from '../../components/users/UserForm';
 import { UserCard } from '../../components/users/UserCard';
 
 import { useToast } from '../../components/hooks/useToast';
@@ -50,6 +41,7 @@ import Icon from 'react-native-vector-icons/Feather';
 import { usePermissions } from '../../contexts/permission-context';
 import { useUserPermissions } from '../../contexts/user-permissions-context';
 import { useCompany } from '../../contexts/company-context';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 const base64Decode = str => {
   const chars =
@@ -65,48 +57,7 @@ const base64Decode = str => {
   return output;
 };
 
-// Memoized URL Card Component
-const URLCard = React.memo(({ userLoginUrl, onCopy, copied }) => (
-  <View style={styles.urlCardWrapper}>
-    <View style={styles.urlCard}>
-      <View style={styles.urlCardContent}>
-        <View style={styles.urlLeftSection}>
-          <View style={styles.urlIconContainer}>
-            <Icon name="link" size={14} color="#3B82F6" />
-          </View>
-          <View style={styles.urlTextSection}>
-            <Text style={styles.urlLabel}>User Login URL</Text>
-            <Text style={styles.urlValue} numberOfLines={1}>
-              {userLoginUrl}
-            </Text>
-          </View>
-        </View>
-        <TouchableOpacity
-          style={[styles.copyButton, copied && styles.copyButtonActive]}
-          onPress={onCopy}
-        >
-          <Icon
-            name={copied ? 'check' : 'copy'}
-            size={14}
-            color={copied ? '#10B981' : '#3B82F6'}
-          />
-          <Text
-            style={[
-              styles.copyButtonText,
-              copied && styles.copyButtonTextActive,
-            ]}
-          >
-            {copied ? 'Copied!' : 'Copy'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  </View>
-));
 
-URLCard.displayName = 'URLCard';
-
-// Memoized Empty State Component
 const EmptyState = React.memo(({ canCreateUsers, onAddUser }) => (
   <View style={styles.emptyStateContainer}>
     <View style={styles.emptyState}>
@@ -130,10 +81,9 @@ const EmptyState = React.memo(({ canCreateUsers, onAddUser }) => (
     </View>
   </View>
 ));
-
 EmptyState.displayName = 'EmptyState';
 
-// Memoized No Company State
+
 const NoCompanyState = React.memo(() => (
   <View style={styles.noCompanyContainer}>
     <Card style={styles.noCompanyCard}>
@@ -159,18 +109,14 @@ const NoCompanyState = React.memo(() => (
     </Card>
   </View>
 ));
-
 NoCompanyState.displayName = 'NoCompanyState';
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [viewMode, setViewMode] = useState('card');
-  const [copied, setCopied] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
@@ -178,65 +124,30 @@ export default function UsersPage() {
   const { permissions, refetch } = usePermissions();
   const { refetch: refetchUserPermissions } = useUserPermissions();
   const { triggerCompaniesRefresh, refreshTrigger } = useCompany();
+  const navigation = useNavigation();
 
-  const userLoginUrl = 'https://vinimay.sharda.co.in/user-login';
-
-  // Refs for cleanup
   const isMountedRef = useRef(true);
   const abortControllerRef = useRef(null);
   const userToDeleteRef = useRef(null);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      if (abortControllerRef.current) abortControllerRef.current.abort();
     };
   }, []);
 
-  // Set view mode based on screen size
   useEffect(() => {
     const { width } = Dimensions.get('window');
     if (width < 640) setViewMode('card');
   }, []);
 
-  // Optimized copy to clipboard
-  const copyToClipboard = useCallback(async () => {
-    try {
-      await Clipboard.setString(userLoginUrl);
-      if (isMountedRef.current) {
-        setCopied(true);
-        toast({
-          title: 'URL copied to clipboard!',
-          description: 'Share this link with your users for login.',
-        });
-        setTimeout(() => {
-          if (isMountedRef.current) {
-            setCopied(false);
-          }
-        }, 2000);
-      }
-    } catch (err) {
-      if (isMountedRef.current) {
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Failed to copy URL. Please copy manually.',
-        });
-      }
-    }
-  }, [userLoginUrl, toast]);
-
-  // Optimized fetch with abort support
+  
   const fetchUsersAndCompanies = useCallback(
     async (signal = null) => {
       try {
         const token = await AsyncStorage.getItem('token');
-        if (!token) {
-          throw new Error('Authentication token not found.');
-        }
+        if (!token) throw new Error('Authentication token not found.');
 
         const [usersRes, companiesRes] = await Promise.all([
           fetch(`${BASE_URL}/api/users`, {
@@ -249,13 +160,8 @@ export default function UsersPage() {
           }),
         ]);
 
-        if (!usersRes.ok || !companiesRes.ok) {
-          const usersError = await usersRes.text();
-          const companiesError = await companiesRes.text();
-          console.error('Users fetch error:', usersError);
-          console.error('Companies fetch error:', companiesError);
+        if (!usersRes.ok || !companiesRes.ok)
           throw new Error('Failed to fetch data');
-        }
 
         const usersData = await usersRes.json();
         const companiesData = await companiesRes.json();
@@ -280,21 +186,14 @@ export default function UsersPage() {
 
         return { usersData: filteredUsers, companiesData };
       } catch (err) {
-        if (err.name === 'AbortError') {
-          console.log('Fetch aborted');
-          return null;
-        }
-
+        if (err.name === 'AbortError') return null;
         console.error('Error fetching users and companies:', err);
-
         if (isMountedRef.current) {
           toast({
             variant: 'destructive',
             title: 'Error',
             description: err.message || 'Failed to fetch data',
           });
-
-          // Set empty arrays on error to prevent infinite loading
           setUsers([]);
           setCompanies([]);
         }
@@ -304,7 +203,7 @@ export default function UsersPage() {
     [toast],
   );
 
-  // Initial data fetch
+  // Initial load
   useEffect(() => {
     let isActive = true;
     let abortController = null;
@@ -312,58 +211,53 @@ export default function UsersPage() {
     const loadData = async () => {
       try {
         setIsLoading(true);
-
         abortController = new AbortController();
         abortControllerRef.current = abortController;
-
         await fetchUsersAndCompanies(abortController.signal);
-
-        if (isActive && isMountedRef.current) {
-          setInitialLoadComplete(true);
-        }
+        if (isActive && isMountedRef.current) setInitialLoadComplete(true);
       } catch (error) {
         console.error('Error in initial load:', error);
       } finally {
-        if (isActive && isMountedRef.current) {
-          setIsLoading(false);
-        }
+        if (isActive && isMountedRef.current) setIsLoading(false);
       }
     };
 
     loadData();
-
     return () => {
       isActive = false;
-      if (abortController) {
-        abortController.abort();
-      }
+      if (abortController) abortController.abort();
     };
   }, [fetchUsersAndCompanies]);
 
-  // Optimized companies-only fetch
+  
+  useFocusEffect(
+    useCallback(() => {
+      if (!initialLoadComplete) return;
+      const abortController = new AbortController();
+      fetchUsersAndCompanies(abortController.signal);
+      return () => abortController.abort();
+    }, [initialLoadComplete, fetchUsersAndCompanies]),
+  );
+
+  
   const fetchCompaniesOnly = useCallback(async (signal = null) => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
-
       const res = await fetch(`${BASE_URL}/api/companies/my`, {
         headers: { Authorization: `Bearer ${token}` },
         ...(signal && { signal }),
       });
-
       if (!res.ok) return;
-
       const data = await res.json();
-      if (isMountedRef.current) {
+      if (isMountedRef.current)
         setCompanies(Array.isArray(data) ? data : data?.data || []);
-      }
     } catch (err) {
       if (err.name === 'AbortError') return;
-      console.error('UsersScreen fetchCompaniesOnly failed:', err);
+      console.error('fetchCompaniesOnly failed:', err);
     }
   }, []);
 
-  // Handle refresh trigger
   useEffect(() => {
     if (refreshTrigger && refreshTrigger > 0 && initialLoadComplete) {
       const abortController = new AbortController();
@@ -372,11 +266,9 @@ export default function UsersPage() {
     }
   }, [refreshTrigger, initialLoadComplete, fetchCompaniesOnly]);
 
-  // Optimized refresh handler
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     const abortController = new AbortController();
-
     try {
       await Promise.all([
         fetchUsersAndCompanies(abortController.signal),
@@ -384,26 +276,19 @@ export default function UsersPage() {
         refetch?.(),
         refetchUserPermissions?.(),
       ]);
-
-      if (isMountedRef.current) {
+      if (isMountedRef.current)
         toast({ title: 'Users data refreshed successfully' });
-      }
     } catch (error) {
       if (error.name === 'AbortError') return;
-
-      if (isMountedRef.current) {
+      if (isMountedRef.current)
         toast({
           variant: 'destructive',
           title: 'Refresh Failed',
           description: error.message || 'Failed to refresh data',
         });
-      }
     } finally {
-      if (isMountedRef.current) {
-        setRefreshing(false);
-      }
+      if (isMountedRef.current) setRefreshing(false);
     }
-
     return () => abortController.abort();
   }, [
     fetchUsersAndCompanies,
@@ -413,89 +298,14 @@ export default function UsersPage() {
     toast,
   ]);
 
-  // Optimized form handlers
-  const handleOpenForm = useCallback((user = null) => {
-    setSelectedUser(user);
-    setIsDialogOpen(true);
-  }, []);
-
-  const handleCloseForm = useCallback(() => {
-    setIsDialogOpen(false);
-    setSelectedUser(null);
-  }, []);
-
-  const handleSave = useCallback(
-    async formDataFromForm => {
-      try {
-        const token = await AsyncStorage.getItem('token');
-        if (!token) {
-          Alert.alert('Error', 'Authentication token not found.');
-          return;
-        }
-
-        const method = selectedUser ? 'PUT' : 'POST';
-        const url = selectedUser
-          ? `${BASE_URL}/api/users/${selectedUser._id}`
-          : `${BASE_URL}/api/users`;
-
-        const res = await fetch(url, {
-          method,
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(formDataFromForm),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          // Backend ka error message Alert mein dikhayega (jaise limit exceeded)
-          Alert.alert(
-            'Operation Failed',
-            data.message ||
-              `Failed to ${selectedUser ? 'update' : 'create'} user.`,
-          );
-          return;
-        }
-
-        // Success Message
-        Alert.alert(
-          'Success',
-          `User ${selectedUser ? 'updated' : 'created'} successfully`,
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                // Refresh companies and users after alert is dismissed
-                if (
-                  formDataFromForm.companies &&
-                  formDataFromForm.companies.length > 0
-                ) {
-                  triggerCompaniesRefresh?.();
-                }
-                const abortController = new AbortController();
-                fetchUsersAndCompanies(abortController.signal);
-                handleCloseForm();
-              },
-            },
-          ],
-        );
-      } catch (error) {
-        if (error.name === 'AbortError') return;
-
-        Alert.alert(
-          'Operation Failed',
-          error.message || 'Something went wrong.',
-        );
-      }
+  const handleOpenForm = useCallback(
+    (user = null) => {
+      navigation.navigate('UserForm', {
+        user: user || null,   
+        companies,            
+      });
     },
-    [
-      selectedUser,
-      triggerCompaniesRefresh,
-      fetchUsersAndCompanies,
-      handleCloseForm,
-    ],
+    [navigation, companies],
   );
 
   const openDeleteDialog = useCallback(user => {
@@ -506,58 +316,39 @@ export default function UsersPage() {
   const handleDelete = useCallback(async () => {
     const userToDelete = userToDeleteRef.current;
     if (!userToDelete) return;
-
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Authentication token not found.',
-        });
+        toast({ variant: 'destructive', title: 'Error', description: 'Authentication token not found.' });
         return;
       }
-
       const res = await fetch(`${BASE_URL}/api/users/${userToDelete._id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || 'Failed to delete user.');
       }
-
       toast({ title: 'User deleted successfully' });
-
       const abortController = new AbortController();
       await fetchUsersAndCompanies(abortController.signal);
-
       if (isMountedRef.current) {
         setIsAlertOpen(false);
         userToDeleteRef.current = null;
       }
     } catch (error) {
       if (error.name === 'AbortError') return;
-
-      toast({
-        variant: 'destructive',
-        title: 'Deletion Failed',
-        description: error.message || 'Something went wrong.',
-      });
+      toast({ variant: 'destructive', title: 'Deletion Failed', description: error.message || 'Something went wrong.' });
     }
   }, [toast, fetchUsersAndCompanies]);
 
-  // Memoized company map
   const companyMap = useMemo(() => {
     const map = new Map();
-    companies.forEach(company => {
-      map.set(company._id, company.businessName);
-    });
+    companies.forEach(c => map.set(c._id, c.businessName));
     return map;
   }, [companies]);
 
-  // Memoized render functions
   const renderUserContent = useMemo(() => {
     if (isLoading && !initialLoadComplete) {
       return (
@@ -569,7 +360,6 @@ export default function UsersPage() {
         </View>
       );
     }
-
     if (users.length === 0 && initialLoadComplete) {
       return (
         <EmptyState
@@ -578,7 +368,6 @@ export default function UsersPage() {
         />
       );
     }
-
     if (users.length > 0) {
       return viewMode === 'list' ? (
         <UserTable
@@ -600,7 +389,6 @@ export default function UsersPage() {
         />
       );
     }
-
     return null;
   }, [
     isLoading,
@@ -615,7 +403,7 @@ export default function UsersPage() {
     handleRefresh,
   ]);
 
-  // Show loading only if initial load is not complete
+  
   if (isLoading && !initialLoadComplete && companies.length === 0) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -650,7 +438,7 @@ export default function UsersPage() {
 
   return (
     <View style={styles.container}>
-      {/* Header - Matching CompaniesScreen exactly */}
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitle}>
           <Text style={styles.title}>User Management</Text>
@@ -669,27 +457,10 @@ export default function UsersPage() {
         </View>
       </View>
 
-      {/* Content with proper refresh */}
+      {/* Content */}
       <View style={styles.contentWrapper}>{renderUserContent}</View>
 
-      {/* Dialogs */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent style={styles.dialogContent}>
-          <DialogHeader>
-            <DialogTitle>
-              {selectedUser ? 'Edit User' : 'Add New User'}
-            </DialogTitle>
-            <DialogDescription>Fill in the form below.</DialogDescription>
-          </DialogHeader>
-          <UserForm
-            user={selectedUser}
-            allCompanies={companies}
-            onSave={handleSave}
-            onCancel={handleCloseForm}
-          />
-        </DialogContent>
-      </Dialog>
-
+     
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -712,15 +483,8 @@ export default function UsersPage() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  // Header styles - Matching CompaniesScreen exactly
+  safeArea: { flex: 1, backgroundColor: '#f8fafc' },
+  container: { flex: 1, backgroundColor: '#f8fafc' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -732,18 +496,9 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e5e7eb',
     backgroundColor: '#ffffff',
   },
-  headerTitle: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-  },
-  subtitle: {
-    fontSize: 10,
-    color: '#666',
-  },
+  headerTitle: { flex: 1 },
+  title: { fontSize: 20, fontWeight: 'bold', color: '#1a1a1a' },
+  subtitle: { fontSize: 10, color: '#666' },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -753,7 +508,7 @@ const styles = StyleSheet.create({
   addUserButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#007AFF',
+    backgroundColor: '#8b77ff',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
@@ -764,51 +519,32 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 3,
   },
-  addUserButtonText: {
-    color: 'white',
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  content: {
-    flex: 1,
-    paddingTop: 8,
-  },
-  contentWrapper: {
-    flex: 1,
-  },
-  mainCard: {
-    flex: 1,
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 16,
-  },
+  addUserButtonText: { color: 'white', fontWeight: '700', fontSize: 12 },
+  contentWrapper: { flex: 1 },
+  scrollContainer: { flexGrow: 1, justifyContent: 'center', padding: 16 },
   fullscreenLoader: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f5f5f5',
   },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#666',
+  loadingCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    margin: 16,
+    marginTop: 8,
+    minHeight: 300,
   },
-  noCompanyContainer: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 48,
   },
-  noCompanyCard: {
-    width: '100%',
-    maxWidth: 400,
-    backgroundColor: '#f0f9ff',
-  },
-  noCompanyContent: {
-    padding: 24,
-    alignItems: 'center',
-  },
+  loadingText: { marginTop: 10, fontSize: 16, color: '#666' },
+  noCompanyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  noCompanyCard: { width: '100%', maxWidth: 400, backgroundColor: '#f0f9ff' },
+  noCompanyContent: { padding: 24, alignItems: 'center' },
   iconContainer: {
     width: 64,
     height: 64,
@@ -831,11 +567,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
   },
-  contactButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-  },
+  contactButtons: { flexDirection: 'row', gap: 12, width: '100%' },
   phoneButton: {
     flex: 1,
     backgroundColor: '#2563eb',
@@ -846,10 +578,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     gap: 8,
   },
-  phoneButtonText: {
-    color: '#fff',
-    fontWeight: '500',
-  },
+  phoneButtonText: { color: '#fff', fontWeight: '500' },
   emailButton: {
     flex: 1,
     borderWidth: 1,
@@ -861,106 +590,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     gap: 8,
   },
-  emailButtonText: {
-    color: '#2563eb',
-    fontWeight: '500',
-  },
-  urlCardWrapper: {
-    marginHorizontal: 16,
-    marginBottom: 8,
-  },
-  urlCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  urlCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  urlLeftSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 10,
-  },
-  urlIconContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    backgroundColor: '#EFF6FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  urlTextSection: {
-    flex: 1,
-  },
-  urlLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 2,
-  },
-  urlValue: {
-    fontSize: 12,
-    color: '#3B82F6',
-    fontWeight: '500',
-  },
-  copyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#EFF6FF',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: '#DBEAFE',
-  },
-  copyButtonActive: {
-    backgroundColor: '#D1FAE5',
-    borderColor: '#A7F3D0',
-  },
-  copyButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#3B82F6',
-  },
-  copyButtonTextActive: {
-    color: '#10B981',
-  },
-  cardContent: {
-    padding: 0,
-  },
-  listContent: {},
-  loadingCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    margin: 16,
-    marginTop: 8,
-    minHeight: 300,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 48,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#666',
-  },
+  emailButtonText: { color: '#2563eb', fontWeight: '500' },
   emptyStateContainer: {
     flex: 1,
     backgroundColor: '#ffffff',
@@ -996,13 +626,5 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     gap: 8,
   },
-  emptyAddButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  dialogContent: {
-    maxWidth: 640,
-    width: '100%',
-  },
-});
+  emptyAddButtonText: { color: 'white', fontWeight: '600', fontSize: 14 },
+}); 

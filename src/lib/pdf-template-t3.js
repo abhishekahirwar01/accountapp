@@ -68,6 +68,7 @@ const Template_t3 = ({
         company,
         party,
         actualShippingAddress,
+        serviceNameById,
       );
 
       if (!result || typeof result !== 'object') {

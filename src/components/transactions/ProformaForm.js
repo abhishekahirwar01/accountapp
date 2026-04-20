@@ -12,7 +12,10 @@ import {
   Modal,
   Text,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useForm, useFieldArray, useWatch, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,6 +26,7 @@ import HsnSacDropdown from '../ui/HsnSacDropdown.js';
 import { Combobox } from '../../components/ui/Combobox';
 import QuillEditor from '../../components/ui/QuillEditor';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import IonIcon from 'react-native-vector-icons/Ionicons';
 import Toast from 'react-native-toast-message';
 
 // Context
@@ -197,7 +201,11 @@ export default function ProformaForm({
   onFormSubmit,
   serviceNameById,
   transactionToEdit,
+  onClose,
+  hideHeader = false,
 }) {
+  const navigation = useNavigation();
+  const route = useRoute();
   const [snackbar, setSnackbar] = useState({
     visible: false,
     message: '',
@@ -319,6 +327,124 @@ export default function ProformaForm({
   const canCreateCustomer = isSuper || !!userCaps?.canCreateCustomers;
   const canCreateInventory = isSuper || !!userCaps?.canCreateInventory;
   const canCreateProducts = isSuper || !!userCaps?.canCreateProducts;
+
+  // Filter functions based on selected company
+  const getFilteredPartyOptions = () => {
+    if (!selectedCompanyIdWatch || !parties.length) return [];
+
+    const filteredList = parties.filter(party => {
+      // Handle company field which could be array, object, or string
+      let partyCompanies = [];
+      if (Array.isArray(party.company)) {
+        partyCompanies = party.company;
+      } else if (party.company) {
+        partyCompanies = [party.company];
+      }
+
+      if (partyCompanies.length === 0) {
+        return true; // Party with no company assigned - show it
+      }
+
+      const isMatch = partyCompanies.some(comp => {
+        const compId =
+          typeof comp === 'object' && comp !== null ? comp._id : comp;
+        return String(compId) === String(selectedCompanyIdWatch);
+      });
+
+      return isMatch;
+    });
+
+    // Handle duplicate names by adding contact number
+    const nameCount = filteredList.reduce((acc, p) => {
+      const name = p.name || '';
+      acc[name] = (acc[name] || 0) + 1;
+      return acc;
+    }, {});
+
+    return filteredList.map(p => {
+      const name = p.name || '';
+      const hasDuplicates = nameCount[name] > 1;
+      const label = hasDuplicates ? `${name} (${p.contactNumber || ''})` : name;
+      return {
+        value: p._id,
+        label: String(label),
+      };
+    });
+  };
+
+  const getFilteredProductOptions = () => {
+    if (!selectedCompanyIdWatch || !products.length) return [];
+
+    const filteredProducts = products.filter(product => {
+      // Handle company field which could be array, object, or string
+      let productCompanies = [];
+      if (Array.isArray(product.company)) {
+        productCompanies = product.company;
+      } else if (product.company) {
+        productCompanies = [product.company];
+      }
+
+      if (productCompanies.length === 0) {
+        return true; // Product with no company assigned - show it
+      }
+
+      const isMatch = productCompanies.some(comp => {
+        const compId =
+          typeof comp === 'object' && comp !== null ? comp._id : comp;
+        return String(compId) === String(selectedCompanyIdWatch);
+      });
+
+      return isMatch;
+    });
+
+    return filteredProducts.map(p => {
+      const stockNum = Number(p.stocks ?? p.stock ?? 0);
+      let stockLabel;
+      if (stockNum > 0) {
+        stockLabel = `${stockNum} in stock`;
+      } else if (stockNum < 0) {
+        stockLabel = `${stockNum} in stock`;
+      } else {
+        stockLabel = 'Out of stock';
+      }
+
+      return {
+        label: `${p.name} (${stockLabel})`,
+        value: p._id,
+      };
+    });
+  };
+
+  const getFilteredServiceOptions = () => {
+    if (!selectedCompanyIdWatch || !services.length) return [];
+
+    const filteredServices = services.filter(service => {
+      // Handle company field which could be array, object, or string
+      let serviceCompanies = [];
+      if (Array.isArray(service.company)) {
+        serviceCompanies = service.company;
+      } else if (service.company) {
+        serviceCompanies = [service.company];
+      }
+
+      if (serviceCompanies.length === 0) {
+        return true; // Service with no company assigned - show it
+      }
+
+      const isMatch = serviceCompanies.some(comp => {
+        const compId =
+          typeof comp === 'object' && comp !== null ? comp._id : comp;
+        return String(compId) === String(selectedCompanyIdWatch);
+      });
+
+      return isMatch;
+    });
+
+    return filteredServices.map(s => ({
+      value: s._id,
+      label: s.serviceName,
+    }));
+  };
 
   // Populate form with transactionToEdit data
   useEffect(() => {
@@ -969,49 +1095,6 @@ export default function ProformaForm({
     setIsServiceDialogOpen(false);
   };
 
-  // Get party options for combobox
-  const getPartyOptions = () => {
-    const source = parties;
-    const nameCount = source.reduce((acc, p) => {
-      const name = p.name || '';
-      acc[name] = (acc[name] || 0) + 1;
-      return acc;
-    }, {});
-
-    return source.map(p => {
-      const name = p.name || '';
-      const hasDuplicates = nameCount[name] > 1;
-      const label = hasDuplicates ? `${name} (${p.contactNumber || ''})` : name;
-      return {
-        value: p._id,
-        label: String(label),
-      };
-    });
-  };
-
-  const partyOptions = getPartyOptions();
-  const productOptions = products.map(p => {
-    const stockNum = Number(p.stocks ?? p.stock ?? 0);
-    let stockLabel;
-    if (stockNum > 0) {
-      stockLabel = `${stockNum} in stock`;
-    } else if (stockNum < 0) {
-      stockLabel = `${stockNum} in stock`;
-    } else {
-      stockLabel = 'Out of stock';
-    }
-
-    return {
-      label: `${p.name} (${stockLabel})`,
-      value: p._id,
-    };
-  });
-
-  const serviceOptions = services.map(s => ({
-    value: s._id,
-    label: s.serviceName,
-  }));
-
   const companyOptions = companies.map(c => ({
     label: c.businessName,
     value: c._id,
@@ -1028,9 +1111,9 @@ export default function ProformaForm({
           </Text>
           <TouchableOpacity
             onPress={() => remove(index)}
-            style={styles.deleteButton}
+            style={styles.iconButton}
           >
-            <Text style={styles.deleteButtonText}>×</Text>
+            <Icon name="trash-can-outline" size={16} color="#DC2626" />
           </TouchableOpacity>
         </View>
 
@@ -1040,9 +1123,11 @@ export default function ProformaForm({
               {/* Product Selection */}
               <View style={styles.formRow}>
                 <View style={[styles.formField, { flex: 2 }]}>
-                  <Text style={styles.label}>Product</Text>
+                  <Text style={styles.inputLabel}>
+                    Product <Text style={styles.required}>*</Text>
+                  </Text>
                   <Combobox
-                    options={productOptions}
+                    options={getFilteredProductOptions()}
                     value={form.watch(`items.${index}.product`) || ''}
                     onChange={value => {
                       form.setValue(`items.${index}.product`, value);
@@ -1073,7 +1158,7 @@ export default function ProformaForm({
                       }
                     }}
                     placeholder={
-                      transactionToEdit && type === 'purchases'
+                      transactionToEdit
                         ? 'Select a product...'
                         : 'Select or create a product...'
                     }
@@ -1107,7 +1192,7 @@ export default function ProformaForm({
               {/* Quantity and Unit */}
               <View style={styles.formRow}>
                 <View style={styles.formField}>
-                  <Text style={styles.label}>Quantity</Text>
+                  <Text style={styles.inputLabel}>Quantity</Text>
                   <Controller
                     control={form.control}
                     name={`items.${index}.quantity`}
@@ -1115,7 +1200,7 @@ export default function ProformaForm({
                       <>
                         <TextInput
                           style={[
-                            styles.input,
+                            styles.textInput,
                             fieldState.error && styles.inputError,
                           ]}
                           value={field.value?.toString()}
@@ -1141,7 +1226,7 @@ export default function ProformaForm({
                 </View>
 
                 <View style={styles.formField}>
-                  <Text style={styles.label}>Unit</Text>
+                  <Text style={styles.inputLabel}>Unit</Text>
                   <CustomDropdown
                     items={unitTypes.map(unit => ({
                       label: unit,
@@ -1164,7 +1249,7 @@ export default function ProformaForm({
               {form.watch(`items.${index}.unitType`) === 'Other' && (
                 <View style={styles.formRow}>
                   <View style={styles.formField}>
-                    <Text style={styles.label}>Specify Unit</Text>
+                    <Text style={styles.inputLabel}>Specify Unit</Text>
                     <Controller
                       control={form.control}
                       name={`items.${index}.otherUnit`}
@@ -1172,7 +1257,7 @@ export default function ProformaForm({
                         <>
                           <TextInput
                             style={[
-                              styles.input,
+                              styles.textInput,
                               fieldState.error && styles.inputError,
                             ]}
                             value={field.value}
@@ -1194,7 +1279,7 @@ export default function ProformaForm({
               {/* Price and Amount */}
               <View style={styles.formRow}>
                 <View style={styles.formField}>
-                  <Text style={styles.label}>Price/Unit</Text>
+                  <Text style={styles.inputLabel}>Price/Unit</Text>
                   <Controller
                     control={form.control}
                     name={`items.${index}.pricePerUnit`}
@@ -1202,7 +1287,7 @@ export default function ProformaForm({
                       <>
                         <TextInput
                           style={[
-                            styles.input,
+                            styles.textInput,
                             fieldState.error && styles.inputError,
                           ]}
                           value={field.value?.toString()}
@@ -1228,7 +1313,7 @@ export default function ProformaForm({
                 </View>
 
                 <View style={styles.formField}>
-                  <Text style={styles.label}>Amount</Text>
+                  <Text style={styles.inputLabel}>Amount</Text>
                   <Controller
                     control={form.control}
                     name={`items.${index}.amount`}
@@ -1236,7 +1321,7 @@ export default function ProformaForm({
                       <>
                         <TextInput
                           style={[
-                            styles.input,
+                            styles.textInput,
                             fieldState.error && styles.inputError,
                           ]}
                           value={field.value?.toString()}
@@ -1262,10 +1347,10 @@ export default function ProformaForm({
                 </View>
               </View>
 
-              {/* HSN/SAC Code */}
+              {/* HSN Code */}
               <View style={styles.formRow}>
                 <View style={styles.formField}>
-                  <Text style={styles.label}>HSN Code</Text>
+                  <Text style={styles.inputLabel}>HSN Code</Text>
                   <HsnSacDropdown
                     items={hsnOptions}
                     value={form.watch(`items.${index}.hsn`) || ''}
@@ -1282,7 +1367,7 @@ export default function ProformaForm({
                 <>
                   <View style={styles.formRow}>
                     <View style={styles.formField}>
-                      <Text style={styles.label}>GST %</Text>
+                      <Text style={styles.inputLabel}>GST %</Text>
                       <CustomDropdown
                         items={GST_OPTIONS}
                         value={
@@ -1302,13 +1387,13 @@ export default function ProformaForm({
                     </View>
 
                     <View style={styles.formField}>
-                      <Text style={styles.label}>Tax</Text>
+                      <Text style={styles.inputLabel}>Tax</Text>
                       <Controller
                         control={form.control}
                         name={`items.${index}.lineTax`}
                         render={({ field }) => (
                           <TextInput
-                            style={[styles.input, styles.readOnlyInput]}
+                            style={[styles.textInput, styles.readOnlyInput]}
                             value={field.value?.toFixed(2)}
                             editable={false}
                             placeholder="0.00"
@@ -1319,7 +1404,7 @@ export default function ProformaForm({
                   </View>
                   <View style={styles.formRow}>
                     <View style={styles.formField}>
-                      <Text style={styles.label}>Total</Text>
+                      <Text style={styles.inputLabel}>Total</Text>
                       <Controller
                         control={form.control}
                         name={`items.${index}.lineTotal`}
@@ -1327,7 +1412,7 @@ export default function ProformaForm({
                           <>
                             <TextInput
                               style={[
-                                styles.input,
+                                styles.textInput,
                                 fieldState.error && styles.inputError,
                               ]}
                               value={field.value?.toString()}
@@ -1362,9 +1447,11 @@ export default function ProformaForm({
               {/* Service Selection */}
               <View style={styles.formRow}>
                 <View style={[styles.formField, { flex: 2 }]}>
-                  <Text style={styles.label}>Service</Text>
+                  <Text style={styles.inputLabel}>
+                    Service <Text style={styles.required}>*</Text>
+                  </Text>
                   <Combobox
-                    options={serviceOptions}
+                    options={getFilteredServiceOptions()}
                     value={form.watch(`items.${index}.service`) || ''}
                     onChange={value => {
                       form.setValue(`items.${index}.service`, value);
@@ -1417,7 +1504,7 @@ export default function ProformaForm({
               {/* Service Amount */}
               <View style={styles.formRow}>
                 <View style={styles.formField}>
-                  <Text style={styles.label}>Amount</Text>
+                  <Text style={styles.inputLabel}>Amount</Text>
                   <Controller
                     control={form.control}
                     name={`items.${index}.amount`}
@@ -1425,7 +1512,7 @@ export default function ProformaForm({
                       <>
                         <TextInput
                           style={[
-                            styles.input,
+                            styles.textInput,
                             fieldState.error && styles.inputError,
                           ]}
                           value={field.value?.toString()}
@@ -1454,13 +1541,13 @@ export default function ProformaForm({
               {/* Service Description */}
               <View style={styles.formRow}>
                 <View style={styles.formField}>
-                  <Text style={styles.label}>Description</Text>
+                  <Text style={styles.inputLabel}>Description</Text>
                   <Controller
                     control={form.control}
                     name={`items.${index}.description`}
                     render={({ field }) => (
                       <TextInput
-                        style={styles.input}
+                        style={styles.textInput}
                         value={field.value}
                         onChangeText={field.onChange}
                         placeholder="Service description"
@@ -1471,10 +1558,10 @@ export default function ProformaForm({
                 </View>
               </View>
 
-              {/* HSN/SAC Code */}
+              {/* SAC Code */}
               <View style={styles.formRow}>
                 <View style={styles.formField}>
-                  <Text style={styles.label}>SAC Code</Text>
+                  <Text style={styles.inputLabel}>SAC Code</Text>
                   <HsnSacDropdown
                     items={sacOptions}
                     value={form.watch(`items.${index}.sac`) || ''}
@@ -1572,310 +1659,346 @@ export default function ProformaForm({
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Loading form data...</Text>
-      </View>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#8b77ff" />
+          <Text style={styles.loadingText}>Loading form data...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      {/* ── Header: back arrow + title ── */}
+      {!hideHeader && (
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => {
+              if (onClose) onClose();
+              else if (navigation) navigation.goBack();
+            }}
+            style={styles.backBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <IonIcon name="arrow-back" size={22} color="#4F46E5" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>
+            {transactionToEdit
+              ? 'Update Proforma Invoice'
+              : 'Create Proforma Invoice'}
+          </Text>
+          <View style={styles.backBtn} />
+        </View>
+      )}
+
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        {/* Core Details */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Core Details</Text>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Core Details */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Core Details</Text>
 
-          <View style={styles.formRow}>
-            <View style={styles.formField}>
-              <Text style={styles.label}>Company</Text>
-              <CustomDropdown
-                items={companyOptions}
-                value={form.watch('company')}
-                onChange={val => form.setValue('company', val)}
-                placeholder="Select company"
-                style={styles.dropdown}
-              />
-            </View>
-          </View>
-
-          <View style={styles.formRow}>
-            <View style={styles.formField}>
-              <Text style={styles.label}>Transaction Date</Text>
-              <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Text style={styles.dateButtonText}>
-                  {form.watch('date')
-                    ? form.watch('date').toLocaleDateString()
-                    : 'Select date'}
+            <View style={styles.formRow}>
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>
+                  Company <Text style={styles.required}>*</Text>
                 </Text>
-                <Icon name="calendar" size={20} color="#6B7280" />
-              </TouchableOpacity>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={form.watch('date') || new Date()}
-                  mode="date"
-                  display="default"
-                  maximumDate={new Date()}
-                  onChange={(event, selectedDate) => {
-                    setShowDatePicker(false);
-                    if (selectedDate) {
-                      form.setValue('date', selectedDate);
-                    }
-                  }}
+                <CustomDropdown
+                  items={companyOptions}
+                  value={form.watch('company')}
+                  onChange={val => form.setValue('company', val)}
+                  placeholder="Select company"
+                  style={styles.dropdown}
                 />
-              )}
-            </View>
-
-            <View style={styles.formField}>
-              <Text style={styles.label}>Due Date (Optional)</Text>
-              <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() => setShowDueDatePicker(true)}
-              >
-                <Text style={styles.dateButtonText}>
-                  {form.watch('dueDate')
-                    ? form.watch('dueDate').toLocaleDateString()
-                    : 'Select date'}
-                </Text>
-                <Icon name="calendar" size={20} color="#6B7280" />
-              </TouchableOpacity>
-              {showDueDatePicker && (
-                <DateTimePicker
-                  value={
-                    form.watch('dueDate') || form.watch('date') || new Date()
-                  }
-                  mode="date"
-                  display="default"
-                  onChange={(event, selectedDate) => {
-                    setShowDueDatePicker(false);
-                    if (selectedDate) {
-                      form.setValue('dueDate', selectedDate);
-                    }
-                  }}
-                />
-              )}
-            </View>
-          </View>
-        </View>
-
-        {/* Customer Details */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Customer Details</Text>
-
-          <View style={styles.formRow}>
-            <View style={styles.formField}>
-              <Text style={styles.label}>Customer</Text>
-              <Combobox
-                options={partyOptions}
-                value={form.watch('party') || ''}
-                onChange={value => {
-                  form.setValue('party', value);
-                }}
-                placeholder="Select customer..."
-                creatable={canCreateCustomer}
-                onCreate={name => {
-                  if (!canCreateCustomer) {
-                    setSnackbar({
-                      visible: true,
-                      message: 'Permission denied to create customers.',
-                      type: 'error',
-                    });
-                    return '';
-                  }
-                  setNewCustomerName(name);
-                  setIsCreateCustomerOpen(true);
-                  return Promise.resolve(name);
-                }}
-              />
-              {form.formState.errors.party && (
-                <Text style={styles.errorText}>
-                  {form.formState.errors.party.message}
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.formField}>
-              <Text style={styles.label}>Reference Number</Text>
-              <Controller
-                control={form.control}
-                name="referenceNumber"
-                render={({ field, fieldState }) => (
-                  <>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        fieldState.error && styles.inputError,
-                      ]}
-                      value={field.value}
-                      onChangeText={field.onChange}
-                      placeholder="e.g., PO No, Ref #"
-                    />
-                    {fieldState.error && (
-                      <Text style={styles.errorText}>
-                        {fieldState.error.message}
-                      </Text>
-                    )}
-                  </>
-                )}
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Items Section */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Items</Text>
-
-          <FlatList
-            data={fields}
-            renderItem={({ item, index }) => renderItemRow(item, index)}
-            keyExtractor={item => item.id}
-            scrollEnabled={false}
-          />
-
-          <View style={styles.addButtonsContainer}>
-            <TouchableOpacity
-              style={[styles.button, styles.outlineButton]}
-              onPress={() => append({ ...PRODUCT_DEFAULT })}
-            >
-              <Text style={styles.outlineButtonText}>Add Product</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.outlineButton]}
-              onPress={() =>
-                append({
-                  itemType: 'service',
-                  service: '',
-                  amount: 0,
-                  description: '',
-                  gstPercentage: 18,
-                  lineTax: 0,
-                  lineTotal: 0,
-                })
-              }
-            >
-              <Text style={styles.outlineButtonText}>Add Service</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Additional Details */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Additional Details</Text>
-
-          {/* Notes Section */}
-          {showNotes ? (
-            <View style={styles.formField}>
-              <View style={styles.notesHeader}>
-                <Text style={styles.label}>Notes</Text>
-                <TouchableOpacity
-                  onPress={() => setShowNotes(false)}
-                  style={styles.removeNotesButton}
-                >
-                  <Text style={styles.removeNotesText}>Remove Notes</Text>
-                </TouchableOpacity>
               </View>
-              <Controller
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <QuillEditor
-                    value={field.value || ''}
-                    onChange={field.onChange}
-                    placeholder="Add detailed notes with formatting..."
-                    style={styles.quillEditor}
+            </View>
+
+            <View style={styles.formRow}>
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>
+                  Transaction Date <Text style={styles.required}>*</Text>
+                </Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <Text style={styles.dateButtonText}>
+                    {form.watch('date')
+                      ? form.watch('date').toLocaleDateString()
+                      : 'Select date'}
+                  </Text>
+                  <Icon name="calendar" size={20} color="#6B7280" />
+                </TouchableOpacity>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={form.watch('date') || new Date()}
+                    mode="date"
+                    display="default"
+                    maximumDate={new Date()}
+                    onChange={(event, selectedDate) => {
+                      setShowDatePicker(false);
+                      if (selectedDate) {
+                        form.setValue('date', selectedDate);
+                      }
+                    }}
                   />
                 )}
-              />
+              </View>
+
+              <View style={styles.formField}>
+                <Text style={styles.inputLabel}>Due Date (Optional)</Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowDueDatePicker(true)}
+                >
+                  <Text style={styles.dateButtonText}>
+                    {form.watch('dueDate')
+                      ? form.watch('dueDate').toLocaleDateString()
+                      : 'Select date'}
+                  </Text>
+                  <Icon name="calendar" size={20} color="#6B7280" />
+                </TouchableOpacity>
+                {showDueDatePicker && (
+                  <DateTimePicker
+                    value={
+                      form.watch('dueDate') || form.watch('date') || new Date()
+                    }
+                    mode="date"
+                    display="default"
+                    onChange={(event, selectedDate) => {
+                      setShowDueDatePicker(false);
+                      if (selectedDate) {
+                        form.setValue('dueDate', selectedDate);
+                      }
+                    }}
+                  />
+                )}
+              </View>
             </View>
-          ) : (
-            <TouchableOpacity
-              style={[styles.button, styles.outlineButton]}
-              onPress={() => setShowNotes(true)}
-            >
-              <Text style={styles.outlineButtonText}>Add Notes</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+          </View>
 
-        {/* Totals Section */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Totals</Text>
+          {/* Customer Details */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Customer Details</Text>
 
-          <View style={styles.totalsContainer}>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Subtotal</Text>
-              <Text style={styles.totalValue}>
-                {(form.watch('totalAmount') || 0).toLocaleString('en-IN', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </Text>
+            <View style={styles.pairRow}>
+              <View style={[styles.inputContainer, styles.pairItem]}>
+                <Text style={styles.inputLabel}>
+                  Customer <Text style={styles.required}>*</Text>
+                </Text>
+                <Combobox
+                  options={getFilteredPartyOptions()}
+                  value={form.watch('party') || ''}
+                  onChange={value => {
+                    form.setValue('party', value);
+                  }}
+                  placeholder="Select customer"
+                  creatable={canCreateCustomer}
+                  onCreate={name => {
+                    if (!canCreateCustomer) {
+                      setSnackbar({
+                        visible: true,
+                        message: 'Permission denied to create customers.',
+                        type: 'error',
+                      });
+                      return '';
+                    }
+                    setNewCustomerName(name);
+                    setIsCreateCustomerOpen(true);
+                    return Promise.resolve(name);
+                  }}
+                />
+                {form.formState.errors.party && (
+                  <Text style={styles.errorText}>
+                    {form.formState.errors.party.message}
+                  </Text>
+                )}
+              </View>
+
+              <View style={[styles.inputContainer, styles.pairItem]}>
+                <Text style={styles.inputLabel}>
+                  Reference Number (optional)
+                </Text>
+                <Controller
+                  control={form.control}
+                  name="referenceNumber"
+                  render={({ field, fieldState }) => (
+                    <>
+                      <TextInput
+                        style={[
+                          styles.textInput,
+                          fieldState.error && styles.inputError,
+                        ]}
+                        value={field.value}
+                        onChangeText={field.onChange}
+                        placeholder="e.g., PO No, Ref #"
+                      />
+                      {fieldState.error && (
+                        <Text style={styles.errorText}>
+                          {fieldState.error.message}
+                        </Text>
+                      )}
+                    </>
+                  )}
+                />
+              </View>
             </View>
+          </View>
 
-            {gstEnabled && (
+          {/* Items Section */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Items</Text>
+
+            <FlatList
+              data={fields}
+              renderItem={({ item, index }) => renderItemRow(item, index)}
+              keyExtractor={item => item.id}
+              scrollEnabled={false}
+            />
+
+            <View style={styles.addButtonsContainer}>
+              <TouchableOpacity
+                style={[styles.button, styles.outlineButton]}
+                onPress={() => append({ ...PRODUCT_DEFAULT })}
+              >
+                <Text style={styles.outlineButtonText}>Add Product</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, styles.outlineButton]}
+                onPress={() =>
+                  append({
+                    itemType: 'service',
+                    service: '',
+                    amount: 0,
+                    description: '',
+                    gstPercentage: 18,
+                    lineTax: 0,
+                    lineTotal: 0,
+                  })
+                }
+              >
+                <Text style={styles.outlineButtonText}>Add Service</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Additional Details */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Additional Details</Text>
+
+            {/* Notes Section */}
+            {showNotes ? (
+              <View style={styles.formField}>
+                <View style={styles.notesHeader}>
+                  <Text style={styles.label}>Notes</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowNotes(false)}
+                    style={styles.removeNotesButton}
+                  >
+                    <Text style={styles.removeNotesText}>Remove Notes</Text>
+                  </TouchableOpacity>
+                </View>
+                <Controller
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <QuillEditor
+                      value={field.value || ''}
+                      onChange={field.onChange}
+                      placeholder="Add detailed notes with formatting..."
+                      style={styles.quillEditor}
+                    />
+                  )}
+                />
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.button, styles.outlineButton]}
+                onPress={() => setShowNotes(true)}
+              >
+                <Text style={styles.outlineButtonText}>Add Notes</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Totals Section */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Totals</Text>
+
+            <View style={styles.totalsContainer}>
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>GST</Text>
+                <Text style={styles.totalLabel}>Subtotal</Text>
                 <Text style={styles.totalValue}>
-                  {(form.watch('taxAmount') || 0).toLocaleString('en-IN', {
+                  {(form.watch('totalAmount') || 0).toLocaleString('en-IN', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}
                 </Text>
               </View>
-            )}
 
-            <View style={[styles.totalRow, styles.invoiceTotalRow]}>
-              <Text style={styles.invoiceTotalLabel}>
-                Invoice Total{gstEnabled ? ' (GST incl.)' : ''}
-              </Text>
-              <Text style={styles.invoiceTotalValue}>
-                {(form.watch('invoiceTotal') || 0).toLocaleString('en-IN', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </Text>
+              {gstEnabled && (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>GST</Text>
+                  <Text style={styles.totalValue}>
+                    {(form.watch('taxAmount') || 0).toLocaleString('en-IN', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </Text>
+                </View>
+              )}
+
+              <View style={[styles.totalRow, styles.invoiceTotalRow]}>
+                <Text style={styles.invoiceTotalLabel}>
+                  Invoice Total{gstEnabled ? ' (GST incl.)' : ''}
+                </Text>
+                <Text style={styles.invoiceTotalValue}>
+                  {(form.watch('invoiceTotal') || 0).toLocaleString('en-IN', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
-      </ScrollView>
 
-      {/* Submit Button */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.submitContainer}
-      >
-        <TouchableOpacity
-          style={[
-            styles.button,
-            styles.submitButton,
-            isSubmitting && styles.submitButtonDisabled,
-          ]}
-          onPress={form.handleSubmit(onSubmit)}
-          disabled={isSubmitting}
-        >
-          {isSubmitting && (
-            <ActivityIndicator
-              size="small"
-              color="#fff"
-              style={styles.submitLoader}
-            />
-          )}
-          <Text style={styles.submitButtonText}>
-            {isSubmitting
-              ? 'Submitting...'
-              : transactionToEdit
-              ? 'Update Proforma Invoice'
-              : 'Create Proforma Invoice'}
-          </Text>
-        </TouchableOpacity>
+          <View style={{ height: 20 }} />
+        </ScrollView>
+
+        {/* ── Sticky Footer: full-width Create Proforma button ── */}
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[
+              styles.primaryBtn,
+              isSubmitting && styles.primaryBtnDisabled,
+            ]}
+            onPress={form.handleSubmit(onSubmit)}
+            disabled={isSubmitting}
+            activeOpacity={0.85}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.primaryBtnText}>
+                {transactionToEdit
+                  ? 'Update Proforma Invoice'
+                  : 'Create Proforma Invoice'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
 
       {/* Dialogs */}
@@ -1992,28 +2115,83 @@ export default function ProformaForm({
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+
+  // ── Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
+  },
+
+  // ── Scroll
+  scrollView: { flex: 1, backgroundColor: '#FFFFFF' },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 12,
+  },
+
+  // ── Footer
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 10 : 16,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  primaryBtn: {
+    backgroundColor: '#4F46E5',
+    borderRadius: 10,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  primaryBtnDisabled: { opacity: 0.6 },
+  primaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+
+  // ── Container
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 100,
-  },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff',
-    paddingTop: 100,
   },
   loadingText: {
     marginTop: 16,
@@ -2022,34 +2200,63 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     backgroundColor: 'white',
-    borderRadius: 8,
-    padding: 16,
+    borderRadius: 12,
+    padding: 12,
     marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 1,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: 'bold',
     marginBottom: 16,
-    color: '#333',
+    color: '#1F2937',
+  },
+  pairRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
   formRow: {
     flexDirection: 'row',
     gap: 12,
     marginBottom: 16,
   },
+  pairItem: {
+    flex: 1,
+    minWidth: 140,
+  },
+  inputContainer: {
+    minWidth: 80,
+    flex: 1,
+  },
   formField: {
     flex: 1,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginBottom: 4,
   },
   label: {
     fontSize: 14,
     fontWeight: '500',
     marginBottom: 8,
     color: '#333',
+  },
+  textInput: {
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#E6EEF5',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    backgroundColor: 'white',
+    fontSize: 12,
   },
   input: {
     backgroundColor: 'white',
@@ -2071,50 +2278,62 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
+  errorBorder: {
+    borderColor: '#d32f2f',
+    borderWidth: 1,
+  },
   dropdown: {
     backgroundColor: 'white',
     borderColor: '#ddd',
     minHeight: 44,
   },
   dateButton: {
-    backgroundColor: 'white',
+    height: 40,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 4,
-    padding: 12,
+    borderColor: '#E6EEF5',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    backgroundColor: 'white',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    minHeight: 44,
   },
   dateButtonText: {
     fontSize: 14,
-    color: '#333',
+    color: '#111827',
   },
   itemCard: {
     backgroundColor: 'white',
     borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
+    padding: 12,
+    marginVertical: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 1,
   },
   itemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   itemTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
   },
+  itemNumber: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
   itemContent: {
     gap: 12,
+  },
+  iconButton: {
+    padding: 4,
   },
   deleteButton: {
     backgroundColor: '#ff4444',
@@ -2132,7 +2351,7 @@ const styles = StyleSheet.create({
   addButtonsContainer: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 16,
+    marginTop: 4,
   },
   button: {
     padding: 12,
@@ -2144,16 +2363,16 @@ const styles = StyleSheet.create({
   outlineButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: '#4F46E5',
     flex: 1,
   },
   outlineButtonText: {
-    color: '#007AFF',
+    color: '#4F46E5',
     fontSize: 14,
     fontWeight: '500',
   },
   submitButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#4F46E5',
   },
   submitButtonDisabled: {
     backgroundColor: '#ccc',
@@ -2166,6 +2385,21 @@ const styles = StyleSheet.create({
   submitLoader: {
     marginRight: 8,
   },
+  totalInput: {
+    backgroundColor: '#DBEAFE',
+    borderColor: '#93C5FD',
+    color: '#1E40AF',
+    fontWeight: '500',
+  },
+  serviceTotalInput: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+    color: '#166534',
+    fontWeight: '500',
+  },
+  rightAlignedInput: {
+    textAlign: 'right',
+  },
   notesHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2176,14 +2410,18 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   removeNotesText: {
-    color: '#007AFF',
+    color: '#4F46E5',
     fontSize: 14,
+  },
+  notesLabel: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   quillEditor: {
     minHeight: 120,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 4,
+    borderColor: '#E6EEF5',
+    borderRadius: 8,
   },
   totalsContainer: {
     gap: 8,
@@ -2303,8 +2541,12 @@ const styles = StyleSheet.create({
   },
   snackbarClose: {
     color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 16,
+    paddingLeft: 8,
+    fontSize: 16,
+  },
+  required: {
+    color: '#DC2626',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

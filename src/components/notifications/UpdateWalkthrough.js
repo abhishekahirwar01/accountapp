@@ -437,7 +437,7 @@ const UpdateWalkthrough = () => {
                 size={20}
                 color={currentStep === 0 ? '#ccc' : '#007AFF'}
               />
-              Previous
+              <Text>Previous</Text>
             </Button>
 
             <View style={styles.footerRight}>
@@ -447,7 +447,7 @@ const UpdateWalkthrough = () => {
                 style={styles.skipButton}
                 textColor="#666"
               >
-                Skip Tour
+                <Text>Skip Tour</Text>
               </Button>
 
               {currentStep === totalSteps - 1 ? (
@@ -458,7 +458,7 @@ const UpdateWalkthrough = () => {
                   textColor="#d32f2f"
                   icon="close"
                 >
-                  Dismiss
+                  <Text>Dismiss</Text>
                 </Button>
               ) : (
                 <Button
@@ -467,7 +467,7 @@ const UpdateWalkthrough = () => {
                   style={styles.nextButton}
                   icon="chevron-right"
                 >
-                  Next
+                  <Text>Next</Text>
                 </Button>
               )}
             </View>

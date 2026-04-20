@@ -1024,6 +1024,7 @@ export const generatePdfForTemplate19 = async (
       company,
       party,
       shippingAddress,
+      serviceNameById,
     );
 
     const htmlContent = Template19({

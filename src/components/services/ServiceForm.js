@@ -13,7 +13,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/Ionicons';
 import { BASE_URL } from '../../config';
 import { searchSACCodes, getSACByCode } from '../../lib/sacService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -41,7 +44,11 @@ export default function ServiceForm({
   onClose,
   headerTitle,
   headerSubtitle,
+  hideHeader = false,
+  route,
 }) {
+  // Extract service from route.params if being called via navigation
+  const serviceParam = service || route?.params?.service;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -67,9 +74,9 @@ export default function ServiceForm({
   } = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      serviceName: service?.serviceName || initialName || '',
-      amount: service?.amount || 0,
-      sac: service?.sac || '',
+      serviceName: serviceParam?.serviceName || initialName || '',
+      amount: serviceParam?.amount || 0,
+      sac: serviceParam?.sac || '',
     },
   });
 
@@ -110,7 +117,7 @@ export default function ServiceForm({
   useEffect(() => {
     if (isInitialLoad.current) {
       isInitialLoad.current = false;
-      if (service?.sac && service.sac.length >= 2) {
+      if (serviceParam?.sac && serviceParam.sac.length >= 2) {
         return;
       }
     }
@@ -134,7 +141,7 @@ export default function ServiceForm({
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [sacValue, sacSelectedFromDropdown, service]);
+  }, [sacValue, sacSelectedFromDropdown, serviceParam]);
 
   const handleSACSelect = sac => {
     setValue('sac', sac.code);
@@ -174,11 +181,11 @@ export default function ServiceForm({
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
 
-      const url = service
-        ? `${BASE_URL}/api/services/${service._id}`
+      const url = serviceParam
+        ? `${BASE_URL}/api/services/${serviceParam._id}`
         : `${BASE_URL}/api/services`;
 
-      const method = service ? 'PUT' : 'POST';
+      const method = serviceParam ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
         method,
@@ -192,12 +199,20 @@ export default function ServiceForm({
       const data = await res.json();
       if (!res.ok) {
         throw new Error(
-          data.message || `Failed to ${service ? 'update' : 'create'} service.`,
+          data.message ||
+            `Failed to ${serviceParam ? 'update' : 'create'} service.`,
         );
       }
 
-      onSuccess(data.service || data);
-      if (!service && onServiceCreated) {
+      if (onSuccess && typeof onSuccess === 'function') {
+        onSuccess(data.service || data);
+      }
+
+      if (
+        !serviceParam &&
+        onServiceCreated &&
+        typeof onServiceCreated === 'function'
+      ) {
         onServiceCreated();
       }
 
@@ -212,7 +227,7 @@ export default function ServiceForm({
   };
 
   const handleDelete = async () => {
-    if (!service?._id || !onDelete) return;
+    if (!serviceParam?._id || !onDelete) return;
 
     Alert.alert(
       'Confirm Delete',
@@ -229,7 +244,7 @@ export default function ServiceForm({
               if (!token) throw new Error('Authentication token not found.');
 
               const res = await fetch(
-                `${BASE_URL}/api/services/${service._id}`,
+                `${BASE_URL}/api/services/${serviceParam._id}`,
                 {
                   method: 'DELETE',
                   headers: {
@@ -245,11 +260,13 @@ export default function ServiceForm({
 
               Alert.alert(
                 'Success',
-                `${service.serviceName} has been deleted.`,
+                `${serviceParam?.serviceName || 'Service'} has been deleted.`,
               );
-              try {
-                onDelete(service);
-              } catch (e) {}
+              if (onDelete && typeof onDelete === 'function') {
+                try {
+                  onDelete(serviceParam);
+                } catch (e) {}
+              }
               if (navigation && typeof navigation.goBack === 'function') {
                 navigation.goBack();
               }
@@ -265,239 +282,321 @@ export default function ServiceForm({
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Service Name */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Service Name</Text>
-          <Controller
-            control={control}
-            name="serviceName"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                style={[styles.input, errors.serviceName && styles.inputError]}
-                placeholder="e.g. Annual Maintenance Contract"
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-              />
-            )}
-          />
-          {errors.serviceName && (
-            <Text style={styles.error}>{errors.serviceName.message}</Text>
-          )}
-        </View>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-        {/* Amount Field - Fixed */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Amount</Text>
-          <Controller
-            control={control}
-            name="amount"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                style={[styles.input, errors.amount && styles.inputError]}
-                placeholder="Enter amount"
-                keyboardType="decimal-pad"
-                value={value === 0 || value === '0' ? '' : String(value ?? '')}
-                onChangeText={text => {
-                  const cleaned = text.replace(/[^\d.]/g, '');
-                  const parts = cleaned.split('.');
-                  if (parts.length > 2) return;
-                  if (parts[1] && parts[1].length > 2) return;
-                  onChange(cleaned === '' ? '' : cleaned);
-                }}
-                onBlur={onBlur}
-              />
-            )}
-          />
-          {errors.amount && (
-            <Text style={styles.error}>{errors.amount.message}</Text>
-          )}
-        </View>
-
-        {/* SAC Code Input */}
-        <View style={styles.field}>
-          <Text style={styles.label}>SAC Code</Text>
-          <Controller
-            control={control}
-            name="sac"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <>
-                <TouchableOpacity
-                  style={[
-                    styles.dropdownButton,
-                    errors.sac && styles.inputError,
-                  ]}
-                  onPress={() => setShowSacModal(true)}
-                >
-                  <Text style={styles.dropdownButtonText}>
-                    {value || 'Select SAC code...'}
-                  </Text>
-                  <Text style={styles.dropdownArrow}>▼</Text>
-                </TouchableOpacity>
-
-                {/* SAC Selection Modal */}
-                <Modal
-                  visible={showSacModal}
-                  animationType="slide"
-                  transparent={true}
-                >
-                  <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                      <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>Select SAC Code</Text>
-                        <TouchableOpacity
-                          onPress={() => {
-                            setShowSacModal(false);
-                          }}
-                        >
-                          <Text style={styles.closeButton}>✕</Text>
-                        </TouchableOpacity>
-                      </View>
-
-                      <View style={styles.searchContainer}>
-                        <TextInput
-                          style={styles.searchInput}
-                          placeholder="Search SAC codes (e.g., 9954)"
-                          value={value}
-                          onChangeText={text => {
-                            onChange(text);
-                            setSacSelectedFromDropdown(false);
-                            if (text.length >= 2) {
-                              setIsLoadingSacSuggestions(true);
-                              const results = searchSACCodes(text);
-                              setSacSuggestions(results);
-                              setIsLoadingSacSuggestions(false);
-                            } else {
-                              setSacSuggestions([]);
-                            }
-                          }}
-                          autoFocus={true}
-                        />
-                      </View>
-
-                      {isLoadingSacSuggestions && (
-                        <ActivityIndicator
-                          style={styles.sacLoading}
-                          size="small"
-                        />
-                      )}
-
-                      <FlatList
-                        data={sacSuggestions}
-                        keyExtractor={item => item.code}
-                        renderItem={({ item }) => (
-                          <TouchableOpacity
-                            style={styles.sacItem}
-                            onPress={() => handleSACSelect(item)}
-                          >
-                            <View style={styles.sacCodeContainer}>
-                              <Text style={styles.sacCode}>{item.code}</Text>
-                              <View style={styles.sacBadge}>
-                                <Text style={styles.sacBadgeText}>SAC</Text>
-                              </View>
-                            </View>
-                            <Text style={styles.sacDescription}>
-                              {item.description}
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                        ListEmptyComponent={
-                          value && value.length >= 2 ? (
-                            <View style={styles.emptyState}>
-                              <Text style={styles.emptyText}>
-                                No matching SAC codes found
-                              </Text>
-                              <Text style={styles.emptySubtext}>
-                                Please check the code or enter manually
-                              </Text>
-                            </View>
-                          ) : (
-                            <View style={styles.emptyState}>
-                              <Text style={styles.emptyText}>
-                                Type minimum 2 characters to search
-                              </Text>
-                            </View>
-                          )
-                        }
-                        style={styles.sacList}
-                        keyboardShouldPersistTaps="handled"
-                      />
-                    </View>
-                  </View>
-                </Modal>
-              </>
-            )}
-          />
-          {errors.sac && <Text style={styles.error}>{errors.sac.message}</Text>}
-          <Text style={styles.helperText}>
-            Start typing 2+ characters to see SAC code suggestions
-          </Text>
-        </View>
-
-        {/* Submit Button */}
-        <TouchableOpacity
-          style={[styles.button, isSubmitting && styles.buttonDisabled]}
-          onPress={handleSubmit(onSubmit)}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>
-              {service ? 'Save Changes' : 'Create Service'}
-            </Text>
-          )}
-        </TouchableOpacity>
-
-        {/* Delete Button */}
-        {service && onDelete && (
+      {/* ── Header ── */}
+      {!hideHeader && (
+        <View style={styles.header}>
           <TouchableOpacity
-            style={[styles.deleteButton, isDeleting && styles.buttonDisabled]}
-            onPress={handleDelete}
-            disabled={isDeleting}
+            onPress={() => {
+              if (onClose) onClose();
+              else if (navigation) navigation.goBack();
+            }}
+            style={styles.backBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            {isDeleting ? (
+            <Icon name="arrow-back" size={22} color="#4F46E5" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>
+            {headerTitle || (serviceParam ? 'Edit Service' : 'Create Service')}
+          </Text>
+          <View style={styles.backBtn} />
+        </View>
+      )}
+
+      {/* ── Scrollable Form ── */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.formContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Service Name */}
+          <View style={styles.field}>
+            <Text style={styles.label}>Service Name <Text style={styles.req}>*</Text></Text>
+            <Controller
+              control={control}
+              name="serviceName"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    errors.serviceName && styles.inputError,
+                  ]}
+                  placeholder="e.g. Annual Maintenance Contract"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                />
+              )}
+            />
+            {errors.serviceName && (
+              <Text style={styles.error}>{errors.serviceName.message}</Text>
+            )}
+          </View>
+
+          {/* Amount Field */}
+          <View style={styles.field}>
+            <Text style={styles.label}>Amount</Text>
+            <Controller
+              control={control}
+              name="amount"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  style={[styles.textInput, errors.amount && styles.inputError]}
+                  placeholder="Enter amount"
+                  keyboardType="decimal-pad"
+                  value={
+                    value === 0 || value === '0' ? '' : String(value ?? '')
+                  }
+                  onChangeText={text => {
+                    const cleaned = text.replace(/[^\d.]/g, '');
+                    const parts = cleaned.split('.');
+                    if (parts.length > 2) return;
+                    if (parts[1] && parts[1].length > 2) return;
+                    onChange(cleaned === '' ? '' : cleaned);
+                  }}
+                  onBlur={onBlur}
+                />
+              )}
+            />
+            {errors.amount && (
+              <Text style={styles.error}>{errors.amount.message}</Text>
+            )}
+          </View>
+
+          {/* SAC Code Input */}
+          <View style={styles.field}>
+            <Text style={styles.label}>SAC Code</Text>
+            <Controller
+              control={control}
+              name="sac"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <>
+                  <TouchableOpacity
+                    style={[
+                      styles.dropdownButton,
+                      errors.sac && styles.inputError,
+                    ]}
+                    onPress={() => setShowSacModal(true)}
+                  >
+                    <Text style={styles.dropdownButtonText}>
+                      {value || 'Select SAC code...'}
+                    </Text>
+                    <Text style={styles.dropdownArrow}>▼</Text>
+                  </TouchableOpacity>
+
+                  {/* SAC Selection Modal */}
+                  <Modal
+                    visible={showSacModal}
+                    animationType="slide"
+                    transparent={true}
+                  >
+                    <View style={styles.modalOverlay}>
+                      <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                          <Text style={styles.modalTitle}>Select SAC Code</Text>
+                          <TouchableOpacity
+                            onPress={() => {
+                              setShowSacModal(false);
+                            }}
+                          >
+                            <Text style={styles.closeButton}>✕</Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.searchContainer}>
+                          <TextInput
+                            style={styles.searchInput}
+                            placeholder="Search SAC codes (e.g., 9954)"
+                            value={value}
+                            onChangeText={text => {
+                              onChange(text);
+                              setSacSelectedFromDropdown(false);
+                              if (text.length >= 2) {
+                                setIsLoadingSacSuggestions(true);
+                                const results = searchSACCodes(text);
+                                setSacSuggestions(results);
+                                setIsLoadingSacSuggestions(false);
+                              } else {
+                                setSacSuggestions([]);
+                              }
+                            }}
+                            autoFocus={true}
+                          />
+                        </View>
+
+                        {isLoadingSacSuggestions && (
+                          <ActivityIndicator
+                            style={styles.sacLoading}
+                            size="small"
+                          />
+                        )}
+
+                        <FlatList
+                          data={sacSuggestions}
+                          keyExtractor={item => item.code}
+                          renderItem={({ item }) => (
+                            <TouchableOpacity
+                              style={styles.sacItem}
+                              onPress={() => handleSACSelect(item)}
+                            >
+                              <View style={styles.sacCodeContainer}>
+                                <Text style={styles.sacCode}>{item.code}</Text>
+                                <View style={styles.sacBadge}>
+                                  <Text style={styles.sacBadgeText}>SAC</Text>
+                                </View>
+                              </View>
+                              <Text style={styles.sacDescription}>
+                                {item.description}
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                          ListEmptyComponent={
+                            value && value.length >= 2 ? (
+                              <View style={styles.emptyState}>
+                                <Text style={styles.emptyText}>
+                                  No matching SAC codes found
+                                </Text>
+                                <Text style={styles.emptySubtext}>
+                                  Please check the code or enter manually
+                                </Text>
+                              </View>
+                            ) : (
+                              <View style={styles.emptyState}>
+                                <Text style={styles.emptyText}>
+                                  Type minimum 2 characters to search
+                                </Text>
+                              </View>
+                            )
+                          }
+                          style={styles.sacList}
+                          keyboardShouldPersistTaps="handled"
+                        />
+                      </View>
+                    </View>
+                  </Modal>
+                </>
+              )}
+            />
+            {errors.sac && (
+              <Text style={styles.error}>{errors.sac.message}</Text>
+            )}
+            <Text style={styles.helperText}>
+              Start typing 2+ characters to see SAC code suggestions
+            </Text>
+          </View>
+        </ScrollView>
+
+        {/* Fixed Button Footer */}
+        <View style={styles.buttonFooter}>
+          {/* Submit Button */}
+          <TouchableOpacity
+            style={[styles.button, isSubmitting && styles.buttonDisabled]}
+            onPress={handleSubmit(onSubmit)}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Delete Service</Text>
+              <Text style={styles.buttonText}>
+                {serviceParam ? 'Save Changes' : 'Create Service'}
+              </Text>
             )}
           </TouchableOpacity>
-        )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+          {/* Delete Button */}
+          {serviceParam && onDelete && (
+            <TouchableOpacity
+              style={[styles.deleteButton, isDeleting && styles.buttonDisabled]}
+              onPress={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Delete Service</Text>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  formContent: {
+    padding: 16,
+    paddingBottom: 16,
+  },
+  buttonFooter: {
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    padding: 16,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 16,
+    gap: 12,
+  },
   container: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  scrollView: {
-    maxHeight: 600,
-  },
-  scrollContent: {
-    // padding: 20,
-    paddingBottom: 40,
   },
   field: {
     marginBottom: 20,
   },
   label: {
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-    fontSize: 16,
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginBottom: 7,
+    letterSpacing: 0.1,
+  },
+  req: { color: '#EF4444' },
+  textInput: {
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#E6EEF5',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    backgroundColor: 'white',
+    fontSize: 14,
   },
   input: {
     borderWidth: 1,
@@ -521,11 +620,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   button: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#8b77ff',
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 0,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -535,7 +634,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 0,
   },
   buttonText: {
     color: '#fff',

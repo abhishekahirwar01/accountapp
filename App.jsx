@@ -125,7 +125,10 @@ export default function App() {
                 {/* 🆕 Socket Manager - Mounts all socket listeners */}
                 <AppSocketWrapper>
                   <NavigationContainer ref={navigationRef}>
-                    <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+                    <StatusBar
+                      barStyle="dark-content"
+                      backgroundColor="#f7f9ff"
+                    />
                     <AppNavigator
                       role={role}
                       setRole={setRole}

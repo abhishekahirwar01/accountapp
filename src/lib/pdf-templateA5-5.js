@@ -86,6 +86,7 @@ const TemplateA5_5 = ({
   shippingAddress,
   bank,
   client,
+  serviceNameById = new Map(),
 }) => {
   const {
     totalTaxable,
@@ -103,7 +104,13 @@ const TemplateA5_5 = ({
     showIGST,
     showCGSTSGST,
     showNoTax,
-  } = prepareTemplate8Data(transaction, company, party, shippingAddress);
+  } = prepareTemplate8Data(
+    transaction,
+    company,
+    party,
+    shippingAddress,
+    serviceNameById,
+  );
 
   const logoSrc = company?.logo ? `${BASE_URL}${company.logo}` : null;
   const bankData = bank || transaction?.bank || {};
@@ -154,14 +161,19 @@ const TemplateA5_5 = ({
 
   // Generate header section - SHOWN ON EVERY PAGE
   const generateHeaderSection = () => {
-    const companyName = company?.businessName || company?.companyName || 'Company Name';
+    const companyName =
+      company?.businessName || company?.companyName || 'Company Name';
 
     return `
       <!-- Header Section - Company Info -->
       <div class="header-wrapper">
         <div class="header-content">
           <div class="header-left">
-            ${logoSrc ? `<img src="${logoSrc}" class="logo" alt="Company Logo" />` : ''}
+            ${
+              logoSrc
+                ? `<img src="${logoSrc}" class="logo" alt="Company Logo" />`
+                : ''
+            }
           </div>
           <div class="header-right">
             <div class="company-name">${capitalizeWords(companyName)}</div>
@@ -217,16 +229,22 @@ const TemplateA5_5 = ({
           <div class="column-header">Details of Buyer | Billed to:</div>
           <div class="info-row">
             <span class="info-label">Name:</span>
-            <span class="info-value">${capitalizeWords(party?.name || '-')}</span>
+            <span class="info-value">${capitalizeWords(
+              party?.name || '-',
+            )}</span>
           </div>
           <div class="info-row">
             <span class="info-label">Address:</span>
-            <span class="info-value">${capitalizeWords(getBillingAddress(party)) || '-'}</span>
+            <span class="info-value">${
+              capitalizeWords(getBillingAddress(party)) || '-'
+            }</span>
           </div>
           <div class="info-row">
             <span class="info-label">Phone:</span>
             <span class="info-value">${
-              party?.contactNumber ? safeFormatPhoneNumber(party.contactNumber) : '-'
+              party?.contactNumber
+                ? safeFormatPhoneNumber(party.contactNumber)
+                : '-'
             }</span>
           </div>
           <div class="info-row">
@@ -241,7 +259,9 @@ const TemplateA5_5 = ({
             <span class="info-label">Place of Supply:</span>
             <span class="info-value">${
               party?.state
-                ? `${capitalizeWords(party.state)} (${getStateCode(party.state) || '-'})`
+                ? `${capitalizeWords(party.state)} (${
+                    getStateCode(party.state) || '-'
+                  })`
                 : '-'
             }</span>
           </div>
@@ -253,13 +273,13 @@ const TemplateA5_5 = ({
           <div class="info-row">
             <span class="info-label">Name:</span>
             <span class="info-value">${capitalizeWords(
-              shippingAddress?.label || party?.name || '-'
+              shippingAddress?.label || party?.name || '-',
             )}</span>
           </div>
           <div class="info-row">
             <span class="info-label">Address:</span>
             <span class="info-value">${capitalizeWords(
-              getShippingAddress(shippingAddress, getBillingAddress(party))
+              getShippingAddress(shippingAddress, getBillingAddress(party)),
             )}</span>
           </div>
           <div class="info-row">
@@ -284,9 +304,13 @@ const TemplateA5_5 = ({
             <span class="info-label">State:</span>
             <span class="info-value">${
               shippingAddress?.state
-                ? `${capitalizeWords(shippingAddress.state)} (${getStateCode(shippingAddress.state) || '-'})`
+                ? `${capitalizeWords(shippingAddress.state)} (${
+                    getStateCode(shippingAddress.state) || '-'
+                  })`
                 : party?.state
-                ? `${capitalizeWords(party.state)} (${getStateCode(party.state) || '-'})`
+                ? `${capitalizeWords(party.state)} (${
+                    getStateCode(party.state) || '-'
+                  })`
                 : '-'
             }</span>
           </div>
@@ -300,11 +324,15 @@ const TemplateA5_5 = ({
           </div>
           <div class="info-row">
             <span class="info-label">Invoice Date:</span>
-            <span class="info-value">${formatDateSafe(transaction.date) || '-'}</span>
+            <span class="info-value">${
+              formatDateSafe(transaction.date) || '-'
+            }</span>
           </div>
           <div class="info-row">
             <span class="info-label">Due Date:</span>
-            <span class="info-value">${formatDateSafe(transaction.dueDate) || '-'}</span>
+            <span class="info-value">${
+              formatDateSafe(transaction.dueDate) || '-'
+            }</span>
           </div>
           <div class="info-row">
             <span class="info-label">P.O. No:</span>
@@ -324,11 +352,15 @@ const TemplateA5_5 = ({
     return `
       <div class="items-table-header">
         <div class="header-cell" style="width: ${colWidths[0]}">Sr. No.</div>
-        <div class="header-cell product-cell" style="width: ${colWidths[1]}">Name of Product/Service</div>
+        <div class="header-cell product-cell" style="width: ${
+          colWidths[1]
+        }">Name of Product/Service</div>
         <div class="header-cell" style="width: ${colWidths[2]}">HSN/SAC</div>
         <div class="header-cell" style="width: ${colWidths[3]}">Qty</div>
         <div class="header-cell" style="width: ${colWidths[4]}">Rate (Rs.)</div>
-        <div class="header-cell bg-highlight" style="width: ${colWidths[5]}">Taxable Value (Rs.)</div>
+        <div class="header-cell bg-highlight" style="width: ${
+          colWidths[5]
+        }">Taxable Value (Rs.)</div>
 
         ${
           showIGST
@@ -361,7 +393,9 @@ const TemplateA5_5 = ({
             : ''
         }
 
-        <div class="header-cell bg-highlight" style="width: ${colWidths[totalColumnIndex]}">Total (Rs.)</div>
+        <div class="header-cell bg-highlight" style="width: ${
+          colWidths[totalColumnIndex]
+        }">Total (Rs.)</div>
       </div>
     `;
   };
@@ -372,14 +406,28 @@ const TemplateA5_5 = ({
       .map(
         (item, index) => `
       <div class="items-table-row">
-        <div class="table-cell" style="width: ${colWidths[0]}">${startIndex + index + 1}</div>
-        <div class="table-cell product-cell" style="width: ${colWidths[1]}">${capitalizeWords(item.name)}</div>
-        <div class="table-cell" style="width: ${colWidths[2]}">${item.code || '-'}</div>
+        <div class="table-cell" style="width: ${colWidths[0]}">${
+          startIndex + index + 1
+        }</div>
+        <div class="table-cell product-cell" style="width: ${
+          colWidths[1]
+        }">${capitalizeWords(item.name)}</div>
+        <div class="table-cell" style="width: ${colWidths[2]}">${
+          item.code || '-'
+        }</div>
         <div class="table-cell" style="width: ${colWidths[3]}">
-          ${item.itemType === 'service' ? '-' : formatQuantity(item.quantity || 0, item.unit)}
+          ${
+            item.itemType === 'service'
+              ? '-'
+              : formatQuantity(item.quantity || 0, item.unit)
+          }
         </div>
-        <div class="table-cell" style="width: ${colWidths[4]}">${formatCurrency(item.pricePerUnit || 0)}</div>
-        <div class="table-cell bg-highlight" style="width: ${colWidths[5]}">${formatCurrency(item.taxableValue)}</div>
+        <div class="table-cell" style="width: ${colWidths[4]}">${formatCurrency(
+          item.pricePerUnit || 0,
+        )}</div>
+        <div class="table-cell bg-highlight" style="width: ${
+          colWidths[5]
+        }">${formatCurrency(item.taxableValue)}</div>
         
         ${
           showIGST
@@ -403,7 +451,9 @@ const TemplateA5_5 = ({
             : ''
         }
         
-        <div class="table-cell bg-highlight" style="width: ${colWidths[totalColumnIndex]}">${formatCurrency(item.total)}</div>
+        <div class="table-cell bg-highlight" style="width: ${
+          colWidths[totalColumnIndex]
+        }">${formatCurrency(item.total)}</div>
       </div>
     `,
       )
@@ -416,25 +466,39 @@ const TemplateA5_5 = ({
       <div class="items-table-total-row">
         <div class="table-cell" style="width: ${colWidths[0]}"></div>
         <div class="table-cell" style="width: ${colWidths[1]}"></div>
-        <div class="table-cell font-bold" style="width: ${colWidths[2]}">Total</div>
-        <div class="table-cell font-bold" style="width: ${colWidths[3]}">${totalQty}</div>
+        <div class="table-cell font-bold" style="width: ${
+          colWidths[2]
+        }">Total</div>
+        <div class="table-cell font-bold" style="width: ${
+          colWidths[3]
+        }">${totalQty}</div>
         <div class="table-cell" style="width: ${colWidths[4]}"></div>
-        <div class="table-cell font-bold bg-highlight" style="width: ${colWidths[5]}">${formatCurrency(totalTaxable)}</div>
+        <div class="table-cell font-bold bg-highlight" style="width: ${
+          colWidths[5]
+        }">${formatCurrency(totalTaxable)}</div>
         
         ${
           showIGST
             ? `
-          <div class="table-cell font-bold" style="width: ${colWidths[6]}">${formatCurrency(totalIGST)}</div>
+          <div class="table-cell font-bold" style="width: ${
+            colWidths[6]
+          }">${formatCurrency(totalIGST)}</div>
           `
             : showCGSTSGST
             ? `
-          <div class="table-cell font-bold" style="width: ${colWidths[6]}">${formatCurrency(totalCGST)}</div>
-          <div class="table-cell font-bold" style="width: ${colWidths[7]}">${formatCurrency(totalSGST)}</div>
+          <div class="table-cell font-bold" style="width: ${
+            colWidths[6]
+          }">${formatCurrency(totalCGST)}</div>
+          <div class="table-cell font-bold" style="width: ${
+            colWidths[7]
+          }">${formatCurrency(totalSGST)}</div>
           `
             : ''
         }
         
-        <div class="table-cell font-bold bg-highlight" style="width: ${colWidths[totalColumnIndex]}">${formatCurrency(totalAmount)}</div>
+        <div class="table-cell font-bold bg-highlight" style="width: ${
+          colWidths[totalColumnIndex]
+        }">${formatCurrency(totalAmount)}</div>
       </div>
     `;
   };
@@ -460,14 +524,46 @@ const TemplateA5_5 = ({
                 ? `
               <div class="bank-details-box">
                 <div class="bank-title">Bank Details:</div>
-                <div class="bank-grid">
-                  ${bankData?.bankName ? `<div class="bank-item"><span class="bank-key">Name:</span> <span class="bank-val">${capitalizeWords(bankData.bankName)}</span></div>` : ''}
-                  ${bankData?.accountNo ? `<div class="bank-item"><span class="bank-key">Acc. No:</span> <span class="bank-val">${bankData.accountNo}</span></div>` : ''}
-                  ${bankData?.ifscCode ? `<div class="bank-item"><span class="bank-key">IFSC:</span> <span class="bank-val">${bankData.ifscCode}</span></div>` : ''}
-                  ${bankData?.branchAddress ? `<div class="bank-item"><span class="bank-key">Branch:</span> <span class="bank-val">${bankData.branchAddress}</span></div>` : ''}
-                  ${bankData?.upiDetails?.upiId ? `<div class="bank-item"><span class="bank-key">UPI ID:</span> <span class="bank-val">${bankData.upiDetails.upiId}</span></div>` : ''}
-                  ${bankData?.upiDetails?.upiName ? `<div class="bank-item"><span class="bank-key">UPI Name:</span> <span class="bank-val">${bankData.upiDetails.upiName}</span></div>` : ''}
-                  ${bankData?.upiDetails?.upiMobile ? `<div class="bank-item"><span class="bank-key">UPI Mobile:</span> <span class="bank-val">${bankData.upiDetails.upiMobile}</span></div>` : ''}
+                <div class="bank-details-content">
+
+                 <div class="bank-grid">
+                  ${
+                    bankData?.bankName
+                      ? `<div class="bank-item"><span class="bank-key">Name:</span> <span class="bank-val">${capitalizeWords(
+                          bankData.bankName,
+                        )}</span></div>`
+                      : ''
+                  }
+                  ${
+                    bankData?.accountNo
+                      ? `<div class="bank-item"><span class="bank-key">Acc. No:</span> <span class="bank-val">${bankData.accountNo}</span></div>`
+                      : ''
+                  }
+                  ${
+                    bankData?.ifscCode
+                      ? `<div class="bank-item"><span class="bank-key">IFSC:</span> <span class="bank-val">${bankData.ifscCode}</span></div>`
+                      : ''
+                  }
+                  ${
+                    bankData?.branchAddress
+                      ? `<div class="bank-item"><span class="bank-key">Branch:</span> <span class="bank-val">${bankData.branchAddress}</span></div>`
+                      : ''
+                  }
+                  ${
+                    bankData?.upiDetails?.upiId
+                      ? `<div class="bank-item"><span class="bank-key">UPI ID:</span> <span class="bank-val">${bankData.upiDetails.upiId}</span></div>`
+                      : ''
+                  }
+                  ${
+                    bankData?.upiDetails?.upiName
+                      ? `<div class="bank-item"><span class="bank-key">UPI Name:</span> <span class="bank-val">${bankData.upiDetails.upiName}</span></div>`
+                      : ''
+                  }
+                  ${
+                    bankData?.upiDetails?.upiMobile
+                      ? `<div class="bank-item"><span class="bank-key">UPI Mobile:</span> <span class="bank-val">${bankData.upiDetails.upiMobile}</span></div>`
+                      : ''
+                  }
                 </div>
                 ${
                   bankData?.qrCode
@@ -479,6 +575,8 @@ const TemplateA5_5 = ({
                 `
                     : ''
                 }
+                </div>
+               
               </div>
             `
                 : ''
@@ -508,17 +606,25 @@ const TemplateA5_5 = ({
                 ? `
               <div class="total-line">
                 <span class="total-label">Total Tax</span>
-                <span class="total-value">${formatCurrency(showIGST ? totalIGST : totalCGST + totalSGST)}</span>
+                <span class="total-value">${formatCurrency(
+                  showIGST ? totalIGST : totalCGST + totalSGST,
+                )}</span>
               </div>
             `
                 : ''
             }
             <div class="total-line highlight-total">
-              <span class="total-label-bold">${isGSTApplicable ? 'Total Amount After Tax' : 'Total Amount'}</span>
-              <span class="total-value-bold">${formatCurrency(totalAmount)}</span>
+              <span class="total-label-bold">${
+                isGSTApplicable ? 'Total Amount After Tax' : 'Total Amount'
+              }</span>
+              <span class="total-value-bold">${formatCurrency(
+                totalAmount,
+              )}</span>
             </div>
             <div class="total-line">
-              <span class="total-label">For ${capitalizeWords(companyName)}</span>
+              <span class="total-label">For ${capitalizeWords(
+                companyName,
+              )}</span>
               <span class="total-value">(E & O.E.)</span>
             </div>
           </div>
@@ -537,7 +643,9 @@ const TemplateA5_5 = ({
         const pageNumber = pageIndex + 1;
 
         const pageHTML = `
-        <div class="page" style="${pageIndex > 0 ? 'page-break-before: always;' : ''}">
+        <div class="page" style="${
+          pageIndex > 0 ? 'page-break-before: always;' : ''
+        }">
           <!-- HEADER - SHOWN ON EVERY PAGE -->
           ${generateHeaderSection()}
           
@@ -907,11 +1015,18 @@ const TemplateA5_5 = ({
             font-weight: bold;
             margin-bottom: 3px;
           }
+            .bank-details-content{
+            display: flex;
+            width: 100%;
+            
+            justify-content: space-between;
+            }
           
           .bank-grid {
             display: flex;
             flex-direction: column;
             gap: 2px;
+            width: 50%;
           }
           
           .bank-item {
@@ -930,8 +1045,9 @@ const TemplateA5_5 = ({
           }
           
           .qr-container {
-            margin-top: 10px;
-            text-align: center;
+            
+            text-align:center;
+            margin-top: -10px;
           }
           
           .qr-title {
@@ -1052,6 +1168,7 @@ export const generatePdfForTemplateA5_5 = async (
       shippingAddress,
       bank,
       client,
+      serviceNameById,
     });
 
     console.log('🟢 HTML Content Generated Successfully');
@@ -1062,7 +1179,7 @@ export const generatePdfForTemplateA5_5 = async (
       fileName: `invoice_${transaction.invoiceNumber || 'document'}`,
       directory: 'Documents',
       width: 595,
-      height: 420,
+      // height: 420,
       base64: true,
     };
 

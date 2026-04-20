@@ -10,10 +10,15 @@ import {
   StyleSheet,
   Alert,
   Modal,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StatusBar,
+  KeyboardAvoidingView,
+  Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/Ionicons';
+import SimpleLineIcons from 'react-native-vector-icons/SimpleLineIcons';
 import { BASE_URL } from '../../config';
 import { searchHSNCodes, getHSNByCode } from '../../lib/hsnProduct';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,7 +27,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useCompany } from '../../contexts/company-context';
 import { z } from 'zod';
 
-// Form Schema with Zod
+// ── Form Schema (unchanged) ────────────────────────────────────────────────
 const formSchema = z
   .object({
     name: z.string().min(2, 'Product name is required.'),
@@ -86,7 +91,6 @@ export default function ProductForm({
   // HSN Search States
   const [hsnSuggestions, setHsnSuggestions] = useState([]);
   const [showHsnModal, setShowHsnModal] = useState(false);
-  const [isLoadingHsnSuggestions, setIsLoadingHsnSuggestions] = useState(false);
   const [hsnSelectedFromDropdown, setHsnSelectedFromDropdown] = useState(false);
 
   // Unit Dropdown States
@@ -99,12 +103,10 @@ export default function ProductForm({
 
   const isInitialLoad = useRef(true);
 
-  // Helper functions for unit defaults
   function getDefaultUnit(productUnit) {
     const standardUnits = STANDARD_UNITS.map(u => u.toLowerCase());
     const existingUnitNames = existingUnits.map(u => u.name?.toLowerCase());
     const lowerProductUnit = productUnit?.toLowerCase();
-
     if (
       !lowerProductUnit ||
       standardUnits.includes(lowerProductUnit) ||
@@ -119,7 +121,6 @@ export default function ProductForm({
     const standardUnits = STANDARD_UNITS.map(u => u.toLowerCase());
     const existingUnitNames = existingUnits.map(u => u.name?.toLowerCase());
     const lowerProductUnit = productUnit?.toLowerCase();
-
     if (
       !lowerProductUnit ||
       standardUnits.includes(lowerProductUnit) ||
@@ -225,7 +226,7 @@ export default function ProductForm({
     setCompanySearchQuery('');
   };
 
-  // Currency Utils
+  // Currency Utils (unchanged)
   const formatCurrency = value => {
     if (value === '' || value == null) return '';
     const num = Number(value);
@@ -270,10 +271,11 @@ export default function ProductForm({
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to save product');
-
-      onSuccess(data.product || data);
-      if (onClose) onClose();
-      else if (navigation) navigation.goBack();
+      if (onClose) {
+        onClose();
+      } else {
+        navigation.goBack();
+      }
     } catch (error) {
       Alert.alert('Error', error.message);
     } finally {
@@ -323,482 +325,613 @@ export default function ProductForm({
       .includes(companySearchQuery.toLowerCase()),
   );
 
-  return (
-    <View
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+  const isEdit = !!product;
+  const heading = title || (isEdit ? 'Edit Product' : 'Create New Product');
 
-      <ScrollView>
-      {/* {!hideHeader && (
-        <View style={styles.headerRow}>
-          <View style={styles.headerContent}>
-            {title && <Text style={styles.headerTitle}>{title}</Text>}
-            {subtitle && <Text style={styles.headerSubtitle}>{subtitle}</Text>}
-          </View>
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      {/* ── Header: back arrow + title only (no subtitle, no X) ── */}
+      {!hideHeader && (
+        <View style={styles.header}>
           <TouchableOpacity
             onPress={() => {
               if (onClose) onClose();
               else if (navigation) navigation.goBack();
             }}
-            style={styles.closeIconButton}
+            style={styles.backBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Text style={styles.closeIconText}>✕</Text>
+            <Icon name="arrow-back" size={22} color="#4F46E5" />
           </TouchableOpacity>
+          <Text style={styles.headerTitle}>{heading}</Text>
+          <View style={styles.backBtn} />
         </View>
-      )} */}
+      )}
 
-      <View style={styles.formContent}>
-        <View style={styles.field}>
-          <Text style={styles.label}>Company</Text>
-          <Controller
-            control={control}
-            name="company"
-            render={() => (
-              <TouchableOpacity
-                style={[
-                  styles.dropdownButton,
-                  errors.company && styles.inputError,
-                ]}
-                onPress={() => setShowCompanyDropdown(true)}
-              >
-                <Text style={styles.dropdownButtonText}>
-                  {companies.find(c => c._id === companyValue)?.businessName ||
-                    'Select company...'}
-                </Text>
-                <Text style={styles.dropdownArrow}>▼</Text>
-              </TouchableOpacity>
-            )}
-          />
-          {errors.company && (
-            <Text style={styles.error}>{errors.company.message}</Text>
-          )}
-        </View>
-
-        {/* Product Name */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Product Name</Text>
-          <Controller
-            control={control}
-            name="name"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                style={[styles.input, errors.name && styles.inputError]}
-                placeholder="e.g. Website Development"
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-              />
-            )}
-          />
-          {errors.name && (
-            <Text style={styles.error}>{errors.name.message}</Text>
-          )}
-        </View>
-
-        {/* Stocks (Opening Stock) - Conditional Disabled */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Opening Stock (Qty)</Text>
-          <Controller
-            control={control}
-            name="stocks"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                style={[styles.input, product && styles.disabledInput]}
-                placeholder="0"
-                keyboardType="numeric"
-                value={String(value)}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                editable={!product}
-              />
-            )}
-          />
-        </View>
-
-        {/* Selling Price */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Selling Price/Unit</Text>
-          <Controller
-            control={control}
-            name="sellingPrice"
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={[styles.input, errors.sellingPrice && styles.inputError]}
-                placeholder="₹0"
-                keyboardType="decimal-pad"
-                value={formatCurrency(value)}
-                onChangeText={text => handleCurrencyInput(onChange, text)}
-              />
-            )}
-          />
-        </View>
-
-        {/* Cost Price */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Cost Price/Unit</Text>
-          <Controller
-            control={control}
-            name="costPrice"
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={[styles.input, errors.costPrice && styles.inputError]}
-                placeholder="₹0"
-                keyboardType="decimal-pad"
-                value={formatCurrency(value)}
-                onChangeText={text => handleCurrencyInput(onChange, text)}
-              />
-            )}
-          />
-          {errors.costPrice && (
-            <Text style={styles.error}>{errors.costPrice.message}</Text>
-          )}
-        </View>
-
-        {/* Unit Selection */}
-        {/* <View style={styles.field}>
-          <Text style={styles.label}>Unit</Text>
-          <Controller
-            control={control}
-            name="unit"
-            render={({ field: { value } }) => (
-              <TouchableOpacity
-                style={styles.dropdownButton}
-                onPress={() => setShowUnitDropdown(true)}
-              >
-                <Text style={styles.dropdownButtonText}>
-                  {value === 'other' ? 'Other' : value || 'Select unit...'}
-                </Text>
-                <Text style={styles.dropdownArrow}>▼</Text>
-              </TouchableOpacity>
-            )}
-          />
-        </View> */}
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Unit</Text>
-          <Controller
-            control={control}
-            name="unit"
-            render={({ field: { value } }) => (
-              <TouchableOpacity
-                style={styles.dropdownButton}
-                onPress={() => setShowUnitDropdown(true)}
-              >
-                <Text style={styles.dropdownButtonText}>
-                  {value === 'other' ? 'Other' : value || 'Select unit...'}
-                </Text>
-                <Text style={styles.dropdownArrow}>▼</Text>
-              </TouchableOpacity>
-            )}
-          />
-        </View>
-
-        {/* Custom Unit Input (when "other" is selected) */}
-        {unitValue === 'other' && (
-          <View style={[styles.field, { marginTop: -10, marginBottom: 20 }]}>
-            <Text style={styles.label}>Custom Unit Name</Text>
+      {/* ── Scrollable Form ── */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Company */}
+          <View style={styles.field}>
+            <Text style={styles.label}>Company <Text style={styles.req}>*</Text></Text>
             <Controller
               control={control}
-              name="customUnit"
+              name="company"
+              render={() => (
+                <TouchableOpacity
+                  style={[styles.inputBox, errors.company && styles.inputError]}
+                  onPress={() => setShowCompanyDropdown(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.inputText,
+                      !companies.find(c => c._id === companyValue) &&
+                        styles.placeholderText,
+                    ]}
+                  >
+                    {companies.find(c => c._id === companyValue)
+                      ?.businessName || 'Select company...'}
+                  </Text>
+                  <SimpleLineIcons name="arrow-down" color="#000" size={10} />
+                </TouchableOpacity>
+              )}
+            />
+            {errors.company && (
+              <Text style={styles.error}>{errors.company.message}</Text>
+            )}
+          </View>
+
+          {/* Product Name */}
+          <View style={styles.field}>
+            <Text style={styles.label}>Product Name <Text style={styles.req}>*</Text></Text>
+            <Controller
+              control={control}
+              name="name"
               render={({ field: { onChange, onBlur, value } }) => (
                 <TextInput
-                  style={styles.input}
-                  placeholder="e.g., hour, session, gigabyte"
+                  style={[styles.inputBox, errors.name && styles.inputError]}
+                  placeholder="e.g. Website Development"
+                  placeholderTextColor="#9CA3AF"
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
-                  autoFocus={true}
                 />
               )}
             />
+            {errors.name && (
+              <Text style={styles.error}>{errors.name.message}</Text>
+            )}
           </View>
-        )}
 
-        {/* HSN Selection */}
-        <View style={styles.field}>
-          <Text style={styles.label}>HSN Code</Text>
-          <Controller
-            control={control}
-            name="hsn"
-            render={({ field: { value } }) => (
-              <TouchableOpacity
-                style={styles.dropdownButton}
-                onPress={() => setShowHsnModal(true)}
-              >
-                <Text style={styles.dropdownButtonText}>
-                  {value || 'Select HSN code...'}
-                </Text>
-                <Text style={styles.dropdownArrow}>▼</Text>
-              </TouchableOpacity>
-            )}
-          />
-        </View>
-
-        <View
-          style={{
-            flexDirection: 'row',
-            gap: 10,
-            justifyContent: 'flex-end',
-            // marginBottom: 40,
-          }}
-        >
-          <TouchableOpacity
-            style={[styles.button, isSubmitting && styles.buttonDisabled]}
-            onPress={handleSubmit(onSubmit)}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>
-                {product ? 'Save Changes' : 'Create Product'}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {/* {product && (
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={handleDelete}
-              disabled={isDeleting}
-            >
-              {isDeleting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Delete Product</Text>
-              )}
-            </TouchableOpacity>
-          )} */}
-        </View>
-
-        {/* Company Modal */}
-        <Modal visible={showCompanyDropdown} animationType="slide" transparent>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Company</Text>
-                <TouchableOpacity onPress={() => setShowCompanyDropdown(false)}>
-                  <Text style={styles.closeButton}>✕</Text>
-                </TouchableOpacity>
-              </View>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search..."
-                onChangeText={setCompanySearchQuery}
+          {/* Opening Stock + Unit — side by side */}
+          <View style={styles.row}>
+            <View style={[styles.field, styles.half]}>
+              <Text style={styles.label}>Opening Stock</Text>
+              <Controller
+                control={control}
+                name="stocks"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.inputBox, product && styles.inputDisabled]}
+                    placeholder="0"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="numeric"
+                    value={String(value)}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    editable={!product}
+                  />
+                )}
               />
-              <ScrollView>
-                {filteredCompanies.map(c => (
-                  <TouchableOpacity
-                    key={c._id}
-                    style={styles.unitItem}
-                    onPress={() => handleCompanySelect(c)}
-                  >
-                    <Text style={styles.unitText}>{c.businessName}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
             </View>
-          </View>
-        </Modal>
 
-        {/* HSN Modal */}
-        <Modal visible={showHsnModal} animationType="slide" transparent>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Search HSN</Text>
-                <TouchableOpacity onPress={() => setShowHsnModal(false)}>
-                  <Text style={styles.closeButton}>✕</Text>
-                </TouchableOpacity>
-              </View>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Type HSN Code..."
-                onChangeText={text => {
-                  if (text.length >= 2) setHsnSuggestions(searchHSNCodes(text));
-                }}
-              />
-              <FlatList
-                data={hsnSuggestions}
-                keyExtractor={item => item.code}
-                renderItem={({ item }) => (
+            <View style={[styles.field, styles.half]}>
+              <Text style={styles.label}>Unit <Text style={styles.req}>*</Text></Text>
+              <Controller
+                control={control}
+                name="unit"
+                render={({ field: { value } }) => (
                   <TouchableOpacity
-                    style={styles.hsnItem}
-                    onPress={() => handleHSNSelect(item)}
+                    style={styles.inputBox}
+                    onPress={() => setShowUnitDropdown(true)}
+                    activeOpacity={0.7}
                   >
-                    <Text style={styles.hsnCode}>
-                      {item.code} - {item.description}
+                    <Text style={styles.inputText}>
+                      {value === 'other'
+                        ? 'Other'
+                        : value
+                        ? value.charAt(0).toUpperCase() + value.slice(1)
+                        : 'Select...'}
                     </Text>
+                    <SimpleLineIcons name="arrow-down" color="#000" size={10} />
                   </TouchableOpacity>
                 )}
               />
             </View>
           </View>
-        </Modal>
 
-        <Modal visible={showUnitDropdown} animationType="slide" transparent>
-          <View style={styles.modalOverlayUnit}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Unit</Text>
-                <TouchableOpacity onPress={() => setShowUnitDropdown(false)}>
-                  <Text style={styles.closeButton}>✕</Text>
-                </TouchableOpacity>
-              </View>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search units..."
-                value={unitSearchQuery}
-                onChangeText={setUnitSearchQuery}
-                autoFocus={true}
+          {/* Custom Unit */}
+          {unitValue === 'other' && (
+            <View style={styles.field}>
+              <Text style={styles.label}>Custom Unit Name</Text>
+              <Controller
+                control={control}
+                name="customUnit"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={styles.inputBox}
+                    placeholder="e.g., hour, session, gigabyte"
+                    placeholderTextColor="#9CA3AF"
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    autoFocus
+                  />
+                )}
               />
-              <ScrollView>
-                {filteredUnits.map((unit, index) => (
-                  <TouchableOpacity
-                    key={unit.id || `${unit.type}-${unit.name}-${index}`}
-                    style={styles.unitItem}
-                    onPress={() => handleUnitSelect(unit.name)}
-                  >
-                    <Text style={styles.unitText}>
-                      {unit.name} {unit.type === 'custom' && '(Custom)'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-                {/* "Other" option */}
-                <TouchableOpacity
-                  style={styles.unitItem}
-                  onPress={() => {
-                    setValue('unit', 'other');
-                    setShowUnitDropdown(false);
-                    setUnitSearchQuery('');
-                  }}
-                >
-                  <Text style={[styles.unitText, { color: '#007AFF' }]}>
-                    Other (Custom Unit)
-                  </Text>
-                </TouchableOpacity>
-              </ScrollView>
+            </View>
+          )}
+
+          {/* Selling Price + Cost Price — side by side */}
+          <View style={styles.row}>
+            <View style={[styles.field, styles.half]}>
+              <Text style={styles.label}>Selling Price/Unit</Text>
+              <Controller
+                control={control}
+                name="sellingPrice"
+                render={({ field: { onChange, value } }) => (
+                  <TextInput
+                    style={[
+                      styles.inputBox,
+                      errors.sellingPrice && styles.inputError,
+                    ]}
+                    placeholder="₹0.00"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="decimal-pad"
+                    value={formatCurrency(value)}
+                    onChangeText={text => handleCurrencyInput(onChange, text)}
+                  />
+                )}
+              />
+              {errors.sellingPrice && (
+                <Text style={styles.error}>{errors.sellingPrice.message}</Text>
+              )}
+            </View>
+
+            <View style={[styles.field, styles.half]}>
+              <Text style={styles.label}>Cost Price/Unit <Text style={styles.req}>*</Text></Text>
+              <Controller
+                control={control}
+                name="costPrice"
+                render={({ field: { onChange, value } }) => (
+                  <TextInput
+                    style={[
+                      styles.inputBox,
+                      errors.costPrice && styles.inputError,
+                    ]}
+                    placeholder="₹0.00"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="decimal-pad"
+                    value={formatCurrency(value)}
+                    onChangeText={text => handleCurrencyInput(onChange, text)}
+                  />
+                )}
+              />
+              {errors.costPrice && (
+                <Text style={styles.error}>{errors.costPrice.message}</Text>
+              )}
             </View>
           </View>
-        </Modal>
-      </View>
-      </ScrollView>
-    </View>
+
+          {/* HSN Code */}
+          <View style={styles.field}>
+            <Text style={styles.label}>HSN Code</Text>
+            <Controller
+              control={control}
+              name="hsn"
+              render={({ field: { value } }) => (
+                <TouchableOpacity
+                  style={[styles.inputBox, errors.hsn && styles.inputError]}
+                  onPress={() => setShowHsnModal(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[styles.inputText, !value && styles.placeholderText]}
+                  >
+                    {value || 'Select HSN code...'}
+                  </Text>
+                  <SimpleLineIcons name="arrow-down" color="#000" size={10} />
+                </TouchableOpacity>
+              )}
+            />
+            {errors.hsn && (
+              <Text style={styles.error}>{errors.hsn.message}</Text>
+            )}
+          </View>
+
+          <View style={{ height: 16 }} />
+        </ScrollView>
+
+        {/* ── Sticky Footer: full-width Create Product button ── */}
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[
+              styles.primaryBtn,
+              isSubmitting && styles.primaryBtnDisabled,
+            ]}
+            onPress={handleSubmit(onSubmit)}
+            disabled={isSubmitting}
+            activeOpacity={0.85}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.primaryBtnText}>
+                {isEdit ? 'Save Changes' : 'Create Product'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+
+      {/* ── Company Modal ── */}
+      <Modal visible={showCompanyDropdown} animationType="slide" transparent>
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setShowCompanyDropdown(false)}
+        >
+          <Pressable style={styles.bottomSheet} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Select Company</Text>
+              <TouchableOpacity
+                onPress={() => setShowCompanyDropdown(false)}
+                style={styles.sheetCloseBtn}
+              >
+                <Text style={styles.sheetCloseTxt}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles.sheetSearch}
+              placeholder="Search..."
+              placeholderTextColor="#9CA3AF"
+              onChangeText={setCompanySearchQuery}
+              autoFocus
+            />
+            <ScrollView style={styles.sheetList}>
+              {filteredCompanies.map(c => (
+                <TouchableOpacity
+                  key={c._id}
+                  style={styles.sheetItem}
+                  onPress={() => handleCompanySelect(c)}
+                >
+                  <Text style={styles.sheetItemText}>{c.businessName}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── Unit Modal ── */}
+      <Modal visible={showUnitDropdown} animationType="slide" transparent>
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => {
+            setShowUnitDropdown(false);
+            setUnitSearchQuery('');
+          }}
+        >
+          <Pressable style={styles.bottomSheet} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Select Unit</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowUnitDropdown(false);
+                  setUnitSearchQuery('');
+                }}
+                style={styles.sheetCloseBtn}
+              >
+                <Text style={styles.sheetCloseTxt}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles.sheetSearch}
+              placeholder="Search units..."
+              placeholderTextColor="#9CA3AF"
+              value={unitSearchQuery}
+              onChangeText={setUnitSearchQuery}
+              autoFocus
+            />
+            <ScrollView style={styles.sheetList}>
+              {filteredUnits.map((unit, index) => (
+                <TouchableOpacity
+                  key={unit.id || `${unit.type}-${unit.name}-${index}`}
+                  style={styles.sheetItem}
+                  onPress={() => handleUnitSelect(unit.name)}
+                >
+                  <Text style={styles.sheetItemText}>
+                    {unit.name.charAt(0).toUpperCase() + unit.name.slice(1)}
+                    {unit.type === 'custom' && (
+                      <Text style={{ color: '#9CA3AF', fontSize: 13 }}>
+                        {' '}
+                        (Custom)
+                      </Text>
+                    )}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={styles.sheetItem}
+                onPress={() => {
+                  setValue('unit', 'other');
+                  setShowUnitDropdown(false);
+                  setUnitSearchQuery('');
+                }}
+              >
+                <Text
+                  style={[
+                    styles.sheetItemText,
+                    { color: '#4F46E5', fontWeight: '600' },
+                  ]}
+                >
+                  + Other (Custom Unit)
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── HSN Modal ── */}
+      <Modal visible={showHsnModal} animationType="slide" transparent>
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setShowHsnModal(false)}
+        >
+          <Pressable style={styles.bottomSheet} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Search HSN Code</Text>
+              <TouchableOpacity
+                onPress={() => setShowHsnModal(false)}
+                style={styles.sheetCloseBtn}
+              >
+                <Text style={styles.sheetCloseTxt}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles.sheetSearch}
+              placeholder="Type HSN Code..."
+              placeholderTextColor="#9CA3AF"
+              onChangeText={text => {
+                if (text.length >= 2) setHsnSuggestions(searchHSNCodes(text));
+                else setHsnSuggestions([]);
+              }}
+              autoFocus
+              keyboardType="numeric"
+            />
+            <FlatList
+              data={hsnSuggestions}
+              keyExtractor={item => item.code}
+              style={styles.sheetList}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.sheetItem}
+                  onPress={() => handleHSNSelect(item)}
+                >
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: '700',
+                      color: '#4F46E5',
+                    }}
+                  >
+                    {item.code}
+                  </Text>
+                  <Text
+                    style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}
+                    numberOfLines={2}
+                  >
+                    {item.description}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <Text
+                  style={{
+                    textAlign: 'center',
+                    color: '#9CA3AF',
+                    padding: 24,
+                    fontSize: 14,
+                  }}
+                >
+                  Type at least 2 characters to search
+                </Text>
+              }
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, },
-  // formContent: { padding: 20, paddingTop: 0 },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    margin: 4,
-    marginTop: 10,
-    marginBottom: 30,
-    gap: 12,
-  },
-  headerContent: {
+  safe: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 4,
+
+  // ── Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  closeIconButton: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 20,
+  backBtn: {
     width: 36,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeIconText: { fontSize: 18, color: '#666', fontWeight: 'bold' },
-  field: { marginBottom: 20 },
-  label: { fontWeight: 'bold', color: '#333', marginBottom: 8, fontSize: 14 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 8,
-    fontSize: 16,
-    backgroundColor: '#fff',
-  },
-  disabledInput: { backgroundColor: '#eeeeee', color: '#777' },
-  inputError: { borderColor: '#ff3b30' },
-  error: { color: '#ff3b30', fontSize: 14, marginTop: 5 },
-  button: {
-    backgroundColor: '#007AFF',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  buttonDisabled: { opacity: 0.6 },
-  deleteButton: {
-    backgroundColor: '#ff3b30',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  buttonText: { color: '#fff', fontWeight: '600', fontSize: 14 },
-  dropdownButton: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 8,
-    backgroundColor: '#fff',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  dropdownButtonText: { fontSize: 16, color: '#333' },
-  dropdownArrow: { color: '#666' },
-  modalOverlay: {
+  headerTitle: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    padding: 20,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
   },
 
-  modalOverlayUnit: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+  // ── Scroll
+  scroll: { flex: 1, backgroundColor: '#FFFFFF' },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 12,
+  },
+
+  // ── Fields
+  field: { marginBottom: 20 },
+  half: { flex: 1 },
+  row: { flexDirection: 'row', gap: 12 },
+
+  // label style like Vyapar — small, grey, medium weight
+  label: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginBottom: 7,
+    letterSpacing: 0.1,
+  },
+  req: { color: '#EF4444' },
+
+  // ── Input box like Vyapar — tall, clean border, no shadow
+  inputBox: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: 15,
+    color: '#111827',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  inputError: { borderColor: '#EF4444' },
+  inputDisabled: { backgroundColor: '#F9FAFB', color: '#9CA3AF' },
+  inputText: { fontSize: 15, color: '#111827', flex: 1 },
+  placeholderText: { color: '#9CA3AF' },
+  chevron: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginLeft: 4,
+  },
+  error: { color: '#EF4444', fontSize: 12, marginTop: 5 },
+
+  // ── Footer
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 10 : 16,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  primaryBtn: {
+    backgroundColor: '#4F46E5',
+    borderRadius: 10,
+    paddingVertical: 16,
+    alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    width: '100%',
   },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    maxHeight: '80%',
+  primaryBtnDisabled: { opacity: 0.6 },
+  primaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
-  modalHeader: {
+
+  // ── Bottom-sheet modals
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  bottomSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '75%',
+    paddingBottom: Platform.OS === 'ios' ? 30 : 16,
+  },
+  sheetHandle: {
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D1D5DB',
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 2,
+  },
+  sheetHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 16,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#F0F0F0',
   },
-  modalTitle: { fontSize: 18, fontWeight: 'bold' },
-  closeButton: { fontSize: 20, color: '#666' },
-  searchInput: {
-    margin: 10,
+  sheetTitle: { fontSize: 16, fontWeight: '600', color: '#1F2937' },
+  sheetCloseBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetCloseTxt: { fontSize: 13, color: '#6B7280', fontWeight: '600' },
+  sheetSearch: {
+    margin: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#D1D5DB',
     borderRadius: 8,
-    padding: 8,
+    fontSize: 15,
+    color: '#111827',
+    backgroundColor: '#F9FAFB',
   },
-  unitItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  unitText: { fontSize: 16 },
-  hsnItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  hsnCode: { fontSize: 14, color: '#333' },
+  sheetList: { maxHeight: 320 },
+  sheetItem: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  sheetItemText: { fontSize: 15, color: '#111827' },
 });

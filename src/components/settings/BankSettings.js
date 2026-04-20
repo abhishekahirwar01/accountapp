@@ -1,5 +1,11 @@
 // BankSettings.js - UPDATED UI VERSION
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from 'react';
 import {
   View,
   Text,
@@ -19,6 +25,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
+import IonIcon from 'react-native-vector-icons/Ionicons';
 import {
   MoreHorizontal,
   Edit,
@@ -61,166 +68,223 @@ const DropdownMenu = React.memo(({ item, onViewDetails, onEdit, onDelete }) => (
       onPress={() => onViewDetails(item)}
       activeOpacity={0.7}
     >
-      <View style={[styles.dropdownIconContainer, { backgroundColor: '#EFF6FF' }]}>
-        <Eye size={16} color="#3B82F6" />
+      <View
+        style={[styles.dropdownIconContainer, { backgroundColor: '#EFF6FF' }]}
+      >
+        <Eye size={16} color="#8b77ff" />
       </View>
       <Text style={styles.dropdownItemText}>View Details</Text>
     </TouchableOpacity>
-    
+
     <View style={styles.dropdownDivider} />
-    
+
     <TouchableOpacity
       style={styles.dropdownItem}
       onPress={() => onEdit(item)}
       activeOpacity={0.7}
     >
-      <View style={[styles.dropdownIconContainer, { backgroundColor: '#ECFDF5' }]}>
+      <View
+        style={[styles.dropdownIconContainer, { backgroundColor: '#ECFDF5' }]}
+      >
         <Edit size={16} color="#10B981" />
       </View>
       <Text style={styles.dropdownItemText}>Edit</Text>
     </TouchableOpacity>
-    
+
     <View style={styles.dropdownDivider} />
-    
+
     <TouchableOpacity
       style={styles.dropdownItem}
       onPress={() => onDelete(item)}
       activeOpacity={0.7}
     >
-      <View style={[styles.dropdownIconContainer, { backgroundColor: '#FEF2F2' }]}>
+      <View
+        style={[styles.dropdownIconContainer, { backgroundColor: '#FEF2F2' }]}
+      >
         <Trash2 size={16} color="#EF4444" />
       </View>
-      <Text style={[styles.dropdownItemText, styles.dropdownItemTextDanger]}>Delete</Text>
+      <Text style={[styles.dropdownItemText, styles.dropdownItemTextDanger]}>
+        Delete
+      </Text>
     </TouchableOpacity>
   </View>
 ));
 
-const BankDetailCard = React.memo(({ item, dropdownVisible, onToggleDropdown, onViewDetails, onEdit, onDelete }) => (
-  <View style={styles.card}>
-    <View style={styles.cardHeader}>
-      <View style={styles.cardTitleRow}>
-        <View style={styles.bankIconContainer}>
-          <Building2 size={20} color="#3B82F6" />
-        </View>
-        <View style={styles.cardTitleContainer}>
-          <Text style={styles.cardTitle}>{capitalizeWords(item.bankName)}</Text>
-        </View>
-      </View>
-      <View>
-        <TouchableOpacity
-          style={styles.moreButton}
-          onPress={() => onToggleDropdown(item._id)}
-          activeOpacity={0.7}
-        >
-          <MoreHorizontal size={22} color="#6B7280" />
-        </TouchableOpacity>
-        
-        {dropdownVisible === item._id && (
-          <View style={styles.dropdownContainer}>
-            <DropdownMenu
-              item={item}
-              onViewDetails={onViewDetails}
-              onEdit={onEdit}
-              onDelete={onDelete}
-            />
+const BankDetailCard = React.memo(
+  ({
+    item,
+    dropdownVisible,
+    onToggleDropdown,
+    onViewDetails,
+    onEdit,
+    onDelete,
+  }) => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={styles.cardTitleRow}>
+          <View style={styles.bankIconContainer}>
+            <Building2 size={20} color="#8b77ff" />
           </View>
-        )}
-      </View>
-    </View>
+          <View style={styles.cardTitleContainer}>
+            <Text style={styles.cardTitle}>{item.bankName}</Text>
+          </View>
+        </View>
+        <View>
+          <TouchableOpacity
+            style={styles.moreButton}
+            onPress={() => onToggleDropdown(item._id)}
+            activeOpacity={0.7}
+          >
+            <MoreHorizontal size={22} color="#8b77ff" />
+          </TouchableOpacity>
 
-    <View style={styles.cardContent}>
-      {/* Account Info Box */}
-      <View style={styles.infoBox}>
-        <View style={styles.infoBoxHeader}>
-          <CreditCard size={14} color="#3B82F6" />
-          <Text style={styles.infoBoxTitle}>Account Information</Text>
-        </View>
-        <View style={styles.infoBoxContent}>
-          <View style={styles.infoBoxRow}>
-            <Text style={styles.infoBoxLabel}>Account Number</Text>
-            <Text style={styles.infoBoxValue}>{item.accountNo}</Text>
-          </View>
-          {item.ifscCode && (
-            <View style={styles.infoBoxRow}>
-              <Text style={styles.infoBoxLabel}>IFSC Code</Text>
-              <Text style={styles.infoBoxValue}>{item.ifscCode}</Text>
+          {dropdownVisible === item._id && (
+            <View style={styles.dropdownContainer}>
+              <DropdownMenu
+                item={item}
+                onViewDetails={onViewDetails}
+                onEdit={onEdit}
+                onDelete={onDelete}
+              />
             </View>
           )}
         </View>
       </View>
 
-      {/* Branch Info Box */}
-      {(item.branchAddress || item.city) && (
+      <View style={styles.cardContent}>
+        {/* Account Info Box */}
         <View style={styles.infoBox}>
           <View style={styles.infoBoxHeader}>
-            <MapPin size={14} color="#8B5CF6" />
-            <Text style={styles.infoBoxTitle}>Branch Details</Text>
+            <CreditCard size={14} color="#8b77ff" />
+            <Text style={styles.infoBoxTitle}>Account Information</Text>
           </View>
           <View style={styles.infoBoxContent}>
-            {item.city && (
-              <View style={styles.infoBoxRow}>
-                <Text style={styles.infoBoxLabel}>City</Text>
-                <Text style={styles.infoBoxValue}>{item.city}</Text>
+            <View style={styles.infoGrid}>
+              <View
+                style={[
+                  styles.infoChip,
+                  !item.ifscCode && styles.infoChipFullWidth,
+                ]}
+              >
+                <Text style={styles.infoBoxLabel}>Account Number</Text>
+                <Text
+                  style={styles.infoBoxValue}
+                  numberOfLines={1}
+                  ellipsizeMode="middle"
+                >
+                  {item.accountNo}
+                </Text>
               </View>
-            )}
-            {item.branchAddress && (
-              <View style={styles.infoBoxRow}>
-                <Text style={styles.infoBoxLabel}>Branch Address</Text>
-                <Text style={styles.infoBoxValue}>{item.branchAddress}</Text>
-              </View>
-            )}
+              {item.ifscCode && (
+                <View style={styles.infoChip}>
+                  <Text style={styles.infoBoxLabel}>IFSC Code</Text>
+                  <Text style={styles.infoBoxValue} numberOfLines={1}>
+                    {item.ifscCode}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
-      )}
-    </View>
-  </View>
-));
 
-const TableRow = React.memo(({ item, index, dropdownVisible, onToggleDropdown, onViewDetails, onEdit, onDelete }) => (
-  <View style={[styles.tableRow, index % 2 === 0 && styles.tableRowEven]}>
-    <View style={styles.tableCell}>
-      <View style={styles.tableCellContent}>
-        <View style={styles.tableBankIcon}>
-          <Building2 size={18} color="#3B82F6" />
-        </View>
-        <Text style={styles.tableCellText}>{capitalizeWords(item.bankName)}</Text>
-      </View>
-    </View>
-    <View style={styles.tableCell}>
-      <View style={styles.tableAccountInfo}>
-        <Text style={styles.tableCellText}>{item.accountNo}</Text>
-        {item.ifscCode && (
-          <Text style={styles.tableIfscText}>IFSC: {item.ifscCode}</Text>
-        )}
-      </View>
-    </View>
-    <View style={styles.tableCell}>
-      <Text style={styles.tableCellText} numberOfLines={2}>{item.branchAddress || 'N/A'}</Text>
-    </View>
-    <View style={[styles.tableCell, styles.actionsCell]}>
-      <View>
-        <TouchableOpacity
-          style={styles.tableMoreButton}
-          onPress={() => onToggleDropdown(item._id)}
-          activeOpacity={0.7}
-        >
-          <MoreHorizontal size={20} color="#6B7280" />
-        </TouchableOpacity>
-        
-        {dropdownVisible === item._id && (
-          <View style={styles.tableDropdownContainer}>
-            <DropdownMenu
-              item={item}
-              onViewDetails={onViewDetails}
-              onEdit={onEdit}
-              onDelete={onDelete}
-            />
+        {/* Branch Info Box */}
+        {(item.branchAddress || item.city) && (
+          <View style={styles.infoBox}>
+            <View style={styles.infoBoxHeader}>
+              <MapPin size={14} color="#8B5CF6" />
+              <Text style={styles.infoBoxTitle}>Branch Details</Text>
+            </View>
+            <View style={styles.infoBoxContent}>
+              <View style={styles.infoGrid}>
+                {item.city && (
+                  <View
+                    style={[
+                      styles.infoChip,
+                      !item.branchAddress && styles.infoChipFullWidth,
+                    ]}
+                  >
+                    <Text style={styles.infoBoxLabel}>City</Text>
+                    <Text style={styles.infoBoxValue}>{item.city}</Text>
+                  </View>
+                )}
+                {item.branchAddress && (
+                  <View style={[styles.infoChip, styles.infoChipFullWidth]}>
+                    <Text style={styles.infoBoxLabel}>Branch Address</Text>
+                    <Text
+                      style={[styles.infoBoxValue, styles.infoAddressValue]}
+                    >
+                      {item.branchAddress}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
           </View>
         )}
       </View>
     </View>
-  </View>
-));
+  ),
+);
+
+const TableRow = React.memo(
+  ({
+    item,
+    index,
+    dropdownVisible,
+    onToggleDropdown,
+    onViewDetails,
+    onEdit,
+    onDelete,
+  }) => (
+    <View style={[styles.tableRow, index % 2 === 0 && styles.tableRowEven]}>
+      <View style={styles.tableCell}>
+        <View style={styles.tableCellContent}>
+          <View style={styles.tableBankIcon}>
+            <Building2 size={18} color="#8b77ff" />
+          </View>
+          <Text style={styles.tableCellText}>
+            {capitalizeWords(item.bankName)}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.tableCell}>
+        <View style={styles.tableAccountInfo}>
+          <Text style={styles.tableCellText}>{item.accountNo}</Text>
+          {item.ifscCode && (
+            <Text style={styles.tableIfscText}>IFSC: {item.ifscCode}</Text>
+          )}
+        </View>
+      </View>
+      <View style={styles.tableCell}>
+        <Text style={styles.tableCellText} numberOfLines={2}>
+          {item.branchAddress || 'N/A'}
+        </Text>
+      </View>
+      <View style={[styles.tableCell, styles.actionsCell]}>
+        <View>
+          <TouchableOpacity
+            style={styles.tableMoreButton}
+            onPress={() => onToggleDropdown(item._id)}
+            activeOpacity={0.7}
+          >
+            <MoreHorizontal size={20} color="#6B7280" />
+          </TouchableOpacity>
+
+          {dropdownVisible === item._id && (
+            <View style={styles.tableDropdownContainer}>
+              <DropdownMenu
+                item={item}
+                onViewDetails={onViewDetails}
+                onEdit={onEdit}
+                onDelete={onDelete}
+              />
+            </View>
+          )}
+        </View>
+      </View>
+    </View>
+  ),
+);
 
 const BankSettings = () => {
   const [bankDetails, setBankDetails] = useState([]);
@@ -231,13 +295,14 @@ const BankSettings = () => {
   const [selectedBankDetail, setSelectedBankDetail] = useState(null);
   const [bankDetailToDelete, setBankDetailToDelete] = useState(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-  const [selectedBankDetailForDetails, setSelectedBankDetailForDetails] = useState(null);
+  const [selectedBankDetailForDetails, setSelectedBankDetailForDetails] =
+    useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [dropdownVisible, setDropdownVisible] = useState(null);
   const scrollViewRef = useRef(null);
-  
+
   // Cache for user company ID
   const userCompanyIdRef = useRef(null);
 
@@ -245,7 +310,7 @@ const BankSettings = () => {
     if (userCompanyIdRef.current !== null) {
       return userCompanyIdRef.current;
     }
-    
+
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return null;
@@ -263,13 +328,13 @@ const BankSettings = () => {
   const fetchBankDetails = useCallback(async () => {
     const controller = new AbortController();
     setIsLoading(true);
-    
+
     try {
       const [token, userCompanyId] = await Promise.all([
         AsyncStorage.getItem('token'),
-        getUserCompanyId()
+        getUserCompanyId(),
       ]);
-      
+
       if (!token) {
         Toast.show({
           type: 'error',
@@ -292,7 +357,7 @@ const BankSettings = () => {
       const allBankDetails = data.data || data || [];
 
       // Filter on client side if needed
-      const filteredData = userCompanyId 
+      const filteredData = userCompanyId
         ? allBankDetails.filter(detail => detail.company === userCompanyId)
         : allBankDetails;
 
@@ -309,7 +374,7 @@ const BankSettings = () => {
       setIsLoading(false);
       setRefreshing(false);
     }
-    
+
     return () => controller.abort();
   }, [getUserCompanyId]);
 
@@ -327,14 +392,15 @@ const BankSettings = () => {
     if (searchQuery.trim() === '') {
       return bankDetails;
     }
-    
+
     const lowerQuery = searchQuery.toLowerCase();
-    return bankDetails.filter(bank =>
-      bank.bankName?.toLowerCase().includes(lowerQuery) ||
-      bank.accountNo?.includes(searchQuery) ||
-      bank.managerName?.toLowerCase().includes(lowerQuery) ||
-      bank.city?.toLowerCase().includes(lowerQuery) ||
-      bank.branchAddress?.toLowerCase().includes(lowerQuery)
+    return bankDetails.filter(
+      bank =>
+        bank.bankName?.toLowerCase().includes(lowerQuery) ||
+        bank.accountNo?.includes(searchQuery) ||
+        bank.managerName?.toLowerCase().includes(lowerQuery) ||
+        bank.city?.toLowerCase().includes(lowerQuery) ||
+        bank.branchAddress?.toLowerCase().includes(lowerQuery),
     );
   }, [searchQuery, bankDetails]);
 
@@ -343,7 +409,7 @@ const BankSettings = () => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     const currentItems = filteredBankDetails.slice(startIndex, endIndex);
-    
+
     return { totalPages, startIndex, endIndex, currentItems };
   }, [filteredBankDetails, currentPage, itemsPerPage]);
 
@@ -359,20 +425,20 @@ const BankSettings = () => {
     setDropdownVisible(null);
   }, []);
 
-  const handleOpenDeleteDialog = useCallback((bankDetail) => {
+  const handleOpenDeleteDialog = useCallback(bankDetail => {
     setBankDetailToDelete(bankDetail);
     setIsAlertOpen(true);
     setDropdownVisible(null);
   }, []);
 
-  const handleOpenDetailsModal = useCallback((bankDetail) => {
+  const handleOpenDetailsModal = useCallback(bankDetail => {
     setSelectedBankDetailForDetails(bankDetail);
     setIsDetailsModalOpen(true);
     setDropdownVisible(null);
   }, []);
 
-  const toggleDropdown = useCallback((id) => {
-    setDropdownVisible(prev => prev === id ? null : id);
+  const toggleDropdown = useCallback(id => {
+    setDropdownVisible(prev => (prev === id ? null : id));
   }, []);
 
   const handleFormSuccess = useCallback(() => {
@@ -389,7 +455,7 @@ const BankSettings = () => {
 
   const handleDeleteBankDetail = useCallback(async () => {
     if (!bankDetailToDelete) return;
-    
+
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
@@ -406,7 +472,7 @@ const BankSettings = () => {
         {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -432,37 +498,55 @@ const BankSettings = () => {
     }
   }, [bankDetailToDelete, fetchBankDetails]);
 
-  const renderBankDetailCard = useCallback(({ item }) => (
-    <BankDetailCard
-      item={item}
-      dropdownVisible={dropdownVisible}
-      onToggleDropdown={toggleDropdown}
-      onViewDetails={handleOpenDetailsModal}
-      onEdit={handleOpenForm}
-      onDelete={handleOpenDeleteDialog}
-    />
-  ), [dropdownVisible, toggleDropdown, handleOpenDetailsModal, handleOpenForm, handleOpenDeleteDialog]);
+  const renderBankDetailCard = useCallback(
+    ({ item }) => (
+      <BankDetailCard
+        item={item}
+        dropdownVisible={dropdownVisible}
+        onToggleDropdown={toggleDropdown}
+        onViewDetails={handleOpenDetailsModal}
+        onEdit={handleOpenForm}
+        onDelete={handleOpenDeleteDialog}
+      />
+    ),
+    [
+      dropdownVisible,
+      toggleDropdown,
+      handleOpenDetailsModal,
+      handleOpenForm,
+      handleOpenDeleteDialog,
+    ],
+  );
 
-  const renderTableRow = useCallback((item, index) => (
-    <TableRow
-      key={item._id}
-      item={item}
-      index={index}
-      dropdownVisible={dropdownVisible}
-      onToggleDropdown={toggleDropdown}
-      onViewDetails={handleOpenDetailsModal}
-      onEdit={handleOpenForm}
-      onDelete={handleOpenDeleteDialog}
-    />
-  ), [dropdownVisible, toggleDropdown, handleOpenDetailsModal, handleOpenForm, handleOpenDeleteDialog]);
+  const renderTableRow = useCallback(
+    (item, index) => (
+      <TableRow
+        key={item._id}
+        item={item}
+        index={index}
+        dropdownVisible={dropdownVisible}
+        onToggleDropdown={toggleDropdown}
+        onViewDetails={handleOpenDetailsModal}
+        onEdit={handleOpenForm}
+        onDelete={handleOpenDeleteDialog}
+      />
+    ),
+    [
+      dropdownVisible,
+      toggleDropdown,
+      handleOpenDetailsModal,
+      handleOpenForm,
+      handleOpenDeleteDialog,
+    ],
+  );
 
-  const keyExtractor = useCallback((item) => item._id, []);
+  const keyExtractor = useCallback(item => item._id, []);
 
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <View style={styles.loadingContent}>
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color="#8b77ff" />
           <Text style={styles.loadingText}>Loading bank details...</Text>
           <Text style={styles.loadingSubtext}>Please wait a moment</Text>
         </View>
@@ -471,8 +555,8 @@ const BankSettings = () => {
   }
 
   return (
-    <TouchableOpacity 
-      activeOpacity={1} 
+    <TouchableOpacity
+      activeOpacity={1}
       style={styles.container}
       onPress={() => setDropdownVisible(null)}
     >
@@ -482,28 +566,29 @@ const BankSettings = () => {
         contentContainerStyle={styles.scrollContent}
         removeClippedSubviews={true}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#3B82F6"
-            colors={['#3B82F6']}
+            tintColor="#8b77ff"
+            colors={['#8b77ff']}
           />
         }
       >
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.headerTop}>
+          <View style={styles.headerLeft}>
             <View style={styles.headerIcon}>
-              <Building2 size={24} color="#3B82F6" />
+              <Building2 size={24} color="#8b77ff" />
             </View>
             <View style={styles.headerContent}>
               <Text style={styles.title}>Manage Bank Details</Text>
               <Text style={styles.subtitle}>
-                Manage and organize all your banking information
+                {filteredBankDetails.length} item
+                {filteredBankDetails.length !== 1 ? 's' : ''}
               </Text>
             </View>
           </View>
-          
+
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => handleOpenForm()}
@@ -512,7 +597,7 @@ const BankSettings = () => {
             <View style={styles.addButtonIconContainer}>
               <PlusCircle size={16} color="#FFFFFF" />
             </View>
-            <Text style={styles.addButtonText}>Add New Bank</Text>
+            <Text style={styles.addButtonText}>Add</Text>
           </TouchableOpacity>
         </View>
 
@@ -556,11 +641,13 @@ const BankSettings = () => {
                 <View style={styles.tableHeaderCell}>
                   <Text style={styles.tableHeaderText}>BRANCH ADDRESS</Text>
                 </View>
-                <View style={[styles.tableHeaderCell, styles.actionsHeaderCell]}>
+                <View
+                  style={[styles.tableHeaderCell, styles.actionsHeaderCell]}
+                >
                   <Text style={styles.tableHeaderText}>ACTIONS</Text>
                 </View>
               </View>
-              
+
               {currentItems.map(renderTableRow)}
             </View>
 
@@ -585,17 +672,28 @@ const BankSettings = () => {
             {totalPages > 1 && (
               <View style={styles.paginationContainer}>
                 <TouchableOpacity
-                  style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
+                  style={[
+                    styles.paginationButton,
+                    currentPage === 1 && styles.paginationButtonDisabled,
+                  ]}
                   onPress={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                   disabled={currentPage === 1}
                   activeOpacity={0.7}
                 >
-                  <ChevronLeft size={18} color={currentPage === 1 ? "#9CA3AF" : "#374151"} />
-                  <Text style={[styles.paginationText, currentPage === 1 && styles.paginationTextDisabled]}>
+                  <ChevronLeft
+                    size={18}
+                    color={currentPage === 1 ? '#9CA3AF' : '#374151'}
+                  />
+                  <Text
+                    style={[
+                      styles.paginationText,
+                      currentPage === 1 && styles.paginationTextDisabled,
+                    ]}
+                  >
                     Previous
                   </Text>
                 </TouchableOpacity>
-                
+
                 <View style={styles.pageInfo}>
                   <View style={styles.pageNumberContainer}>
                     <Text style={styles.pageInfoText}>
@@ -603,20 +701,37 @@ const BankSettings = () => {
                     </Text>
                   </View>
                   <Text style={styles.pageInfoSubText}>
-                    Showing {startIndex + 1}-{Math.min(endIndex, filteredBankDetails.length)} of {filteredBankDetails.length}
+                    Showing {startIndex + 1}-
+                    {Math.min(endIndex, filteredBankDetails.length)} of{' '}
+                    {filteredBankDetails.length}
                   </Text>
                 </View>
-                
+
                 <TouchableOpacity
-                  style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
-                  onPress={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  style={[
+                    styles.paginationButton,
+                    currentPage === totalPages &&
+                      styles.paginationButtonDisabled,
+                  ]}
+                  onPress={() =>
+                    setCurrentPage(prev => Math.min(prev + 1, totalPages))
+                  }
                   disabled={currentPage === totalPages}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.paginationText, currentPage === totalPages && styles.paginationTextDisabled]}>
+                  <Text
+                    style={[
+                      styles.paginationText,
+                      currentPage === totalPages &&
+                        styles.paginationTextDisabled,
+                    ]}
+                  >
                     Next
                   </Text>
-                  <ChevronRight size={18} color={currentPage === totalPages ? "#9CA3AF" : "#374151"} />
+                  <ChevronRight
+                    size={18}
+                    color={currentPage === totalPages ? '#9CA3AF' : '#374151'}
+                  />
                 </TouchableOpacity>
               </View>
             )}
@@ -630,9 +745,9 @@ const BankSettings = () => {
               {searchQuery.trim() ? 'No Results Found' : 'No Bank Details Yet'}
             </Text>
             <Text style={styles.emptyStateText}>
-              {searchQuery.trim() ? 
-                'Try adjusting your search criteria or clear the filters to see all bank details.' :
-                'Get started by adding your first bank account details to manage your financial information.'}
+              {searchQuery.trim()
+                ? 'Try adjusting your search criteria or clear the filters to see all bank details.'
+                : 'Get started by adding your first bank account details to manage your financial information.'}
             </Text>
             {!searchQuery.trim() && (
               <TouchableOpacity
@@ -641,7 +756,9 @@ const BankSettings = () => {
                 activeOpacity={0.8}
               >
                 <PlusCircle size={20} color="#FFFFFF" />
-                <Text style={styles.emptyStateButtonText}>Add Your First Bank</Text>
+                <Text style={styles.emptyStateButtonText}>
+                  Add Your First Bank
+                </Text>
               </TouchableOpacity>
             )}
           </View>
@@ -660,26 +777,27 @@ const BankSettings = () => {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <View style={styles.modalHeaderContent}>
-              <View style={styles.modalIconContainer}>
-                <Building2 size={20} color="#3B82F6" />
-              </View>
-              <Text style={styles.modalTitle}>
-                {selectedBankDetail ? 'Edit Bank Detail' : 'Add New Bank Detail'}
-              </Text>
-            </View>
             <TouchableOpacity
-              style={styles.closeButton}
+              style={styles.backButton}
               onPress={() => {
                 setIsFormOpen(false);
                 setSelectedBankDetail(null);
               }}
               activeOpacity={0.7}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <X size={20} color="#6B7280" />
+              <IonIcon name="arrow-back" size={22} color="#4F46E5" />
             </TouchableOpacity>
+            <View style={styles.modalHeaderContent}>
+              <Text style={styles.modalTitle}>
+                {selectedBankDetail
+                  ? 'Edit Bank Detail'
+                  : 'Add New Bank Detail'}
+              </Text>
+            </View>
+            <View style={styles.backButton} />
           </View>
-          
+
           <BankDetailsForm
             bankDetail={selectedBankDetail || undefined}
             onSuccess={handleFormSuccess}
@@ -687,6 +805,7 @@ const BankSettings = () => {
               setIsFormOpen(false);
               setSelectedBankDetail(null);
             }}
+            hideHeader={true}
           />
         </View>
       </Modal>
@@ -700,51 +819,56 @@ const BankSettings = () => {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <View style={styles.modalHeaderContent}>
-              <View style={styles.modalIconContainer}>
-                <Eye size={20} color="#3B82F6" />
-              </View>
-              <Text style={styles.modalTitle} numberOfLines={1}>
-                {selectedBankDetailForDetails ? capitalizeWords(selectedBankDetailForDetails.bankName) : ''}
-              </Text>
-            </View>
             <TouchableOpacity
-              style={styles.closeButton}
+              style={styles.backButton}
               onPress={() => setIsDetailsModalOpen(false)}
               activeOpacity={0.7}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <X size={20} color="#6B7280" />
+              <IonIcon name="arrow-back" size={22} color="#4F46E5" />
             </TouchableOpacity>
+            <View style={styles.modalHeaderContent}>
+              <Text style={styles.modalTitle} numberOfLines={1}>
+                {selectedBankDetailForDetails
+                  ? capitalizeWords(selectedBankDetailForDetails.bankName)
+                  : ''}
+              </Text>
+            </View>
+            <View style={styles.backButton} />
           </View>
-          
+
           {selectedBankDetailForDetails && (
             <>
-              <ScrollView 
-                style={styles.detailsContent} 
+              <ScrollView
+                style={styles.detailsContent}
                 contentContainerStyle={styles.detailsContentContainer}
                 showsVerticalScrollIndicator={false}
               >
                 {/* Basic Information Section */}
                 <View style={styles.detailsSection}>
                   <Text style={styles.sectionTitle}>Basic Information</Text>
-                  
+
                   <View style={styles.detailRow}>
                     <View style={styles.detailIconWrapper}>
-                      <Building2 size={16} color="#3B82F6" />
+                      <Building2 size={16} color="#8b77ff" />
                     </View>
                     <View style={styles.detailTextContainer}>
                       <Text style={styles.detailLabel}>Bank Name</Text>
-                      <Text style={styles.detailValue}>{capitalizeWords(selectedBankDetailForDetails.bankName)}</Text>
+                      <Text style={styles.detailValue}>
+                        {capitalizeWords(selectedBankDetailForDetails.bankName)}
+                      </Text>
                     </View>
                   </View>
-                  
+
                   <View style={styles.detailRow}>
                     <View style={styles.detailIconWrapper}>
                       <CreditCard size={16} color="#F59E0B" />
                     </View>
                     <View style={styles.detailTextContainer}>
                       <Text style={styles.detailLabel}>Account Number</Text>
-                      <Text style={styles.detailValue}>{selectedBankDetailForDetails.accountNo}</Text>
+                      <Text style={styles.detailValue}>
+                        {selectedBankDetailForDetails.accountNo}
+                      </Text>
                     </View>
                   </View>
 
@@ -754,27 +878,33 @@ const BankSettings = () => {
                     </View>
                     <View style={styles.detailTextContainer}>
                       <Text style={styles.detailLabel}>IFSC Code</Text>
-                      <Text style={styles.detailValue}>{selectedBankDetailForDetails.ifscCode || 'N/A'}</Text>
+                      <Text style={styles.detailValue}>
+                        {selectedBankDetailForDetails.ifscCode || 'N/A'}
+                      </Text>
                     </View>
                   </View>
-                  
+
                   <View style={styles.detailRow}>
                     <View style={styles.detailIconWrapper}>
                       <Building size={16} color="#EF4444" />
                     </View>
                     <View style={styles.detailTextContainer}>
                       <Text style={styles.detailLabel}>City</Text>
-                      <Text style={styles.detailValue}>{selectedBankDetailForDetails.city}</Text>
+                      <Text style={styles.detailValue}>
+                        {selectedBankDetailForDetails.city}
+                      </Text>
                     </View>
                   </View>
-                  
+
                   <View style={styles.detailRow}>
                     <View style={styles.detailIconWrapper}>
                       <MapPin size={16} color="#10B981" />
                     </View>
                     <View style={styles.detailTextContainer}>
                       <Text style={styles.detailLabel}>Branch Address</Text>
-                      <Text style={styles.detailValue}>{selectedBankDetailForDetails.branchAddress || 'N/A'}</Text>
+                      <Text style={styles.detailValue}>
+                        {selectedBankDetailForDetails.branchAddress || 'N/A'}
+                      </Text>
                     </View>
                   </View>
                 </View>
@@ -783,34 +913,43 @@ const BankSettings = () => {
                 {selectedBankDetailForDetails.upiDetails && (
                   <View style={styles.detailsSection}>
                     <Text style={styles.sectionTitle}>UPI Details</Text>
-                    
+
                     <View style={styles.detailRow}>
                       <View style={styles.detailIconWrapper}>
                         <Smartphone size={16} color="#EC4899" />
                       </View>
                       <View style={styles.detailTextContainer}>
                         <Text style={styles.detailLabel}>UPI ID</Text>
-                        <Text style={styles.detailValue}>{selectedBankDetailForDetails.upiDetails.upiId || 'N/A'}</Text>
+                        <Text style={styles.detailValue}>
+                          {selectedBankDetailForDetails.upiDetails.upiId ||
+                            'N/A'}
+                        </Text>
                       </View>
                     </View>
-                    
+
                     <View style={styles.detailRow}>
                       <View style={styles.detailIconWrapper}>
-                        <User size={16} color="#3B82F6" />
+                        <User size={16} color="#8b77ff" />
                       </View>
                       <View style={styles.detailTextContainer}>
                         <Text style={styles.detailLabel}>UPI Name</Text>
-                        <Text style={styles.detailValue}>{selectedBankDetailForDetails.upiDetails.upiName || 'N/A'}</Text>
+                        <Text style={styles.detailValue}>
+                          {selectedBankDetailForDetails.upiDetails.upiName ||
+                            'N/A'}
+                        </Text>
                       </View>
                     </View>
-                    
+
                     <View style={styles.detailRow}>
                       <View style={styles.detailIconWrapper}>
                         <Phone size={16} color="#0EA5E9" />
                       </View>
                       <View style={styles.detailTextContainer}>
                         <Text style={styles.detailLabel}>UPI Mobile</Text>
-                        <Text style={styles.detailValue}>{selectedBankDetailForDetails.upiDetails.upiMobile || 'N/A'}</Text>
+                        <Text style={styles.detailValue}>
+                          {selectedBankDetailForDetails.upiDetails.upiMobile ||
+                            'N/A'}
+                        </Text>
                       </View>
                     </View>
                   </View>
@@ -835,12 +974,13 @@ const BankSettings = () => {
                 <AlertCircle size={32} color="#EF4444" />
               </View>
             </View>
-            
+
             <Text style={styles.alertTitle}>Delete Bank Detail?</Text>
             <Text style={styles.alertMessage}>
-              This action cannot be undone. The bank detail will be permanently removed from your records.
+              This action cannot be undone. The bank detail will be permanently
+              removed from your records.
             </Text>
-            
+
             <View style={styles.alertActions}>
               <TouchableOpacity
                 style={[styles.alertButton, styles.cancelAlertButton]}
@@ -849,7 +989,7 @@ const BankSettings = () => {
               >
                 <Text style={styles.cancelAlertButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.alertButton, styles.confirmAlertButton]}
                 onPress={handleDeleteBankDetail}
@@ -868,7 +1008,7 @@ const BankSettings = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#f7f9ff',
   },
   scrollView: {
     flex: 1,
@@ -881,7 +1021,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#f7f9ff',
   },
   loadingContent: {
     alignItems: 'center',
@@ -899,20 +1039,18 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   header: {
-    padding: 10,
-    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
   },
-  headerTop: {
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
+    flex: 1,
+    marginRight: 12,
   },
   headerIcon: {
     width: 40,
@@ -935,49 +1073,37 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 11,
     color: '#6B7280',
-    lineHeight: 10,
-    fontWeight: '500',
+    marginTop: 2,
   },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#3B82F6',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    backgroundColor: '#8b77ff',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
   },
   addButtonIconContainer: {
-    marginRight: 8,
+    marginRight: 6,
   },
   addButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+    fontSize: 13,
+    fontWeight: '600',
   },
   searchContainer: {
     paddingVertical: 12,
-    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
   },
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 20,
     paddingHorizontal: 16,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#efedfd',
+    boxShadow: '0px 1px 5px rgba(0, 0, 0, 0.05)',
   },
   searchIcon: {
     marginRight: 12,
@@ -993,7 +1119,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   clearButtonInner: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#f7f9ff',
     borderRadius: 12,
     padding: 6,
   },
@@ -1005,11 +1131,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
   },
   tableHeader: {
     flexDirection: 'row',
@@ -1038,7 +1159,7 @@ const styles = StyleSheet.create({
   tableRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#f7f9ff',
     minHeight: 72,
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
@@ -1090,9 +1211,6 @@ const styles = StyleSheet.create({
   tableMoreButton: {
     padding: 10,
     borderRadius: 10,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   tableDropdownContainer: {
     position: 'absolute',
@@ -1110,14 +1228,10 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 10,
+    padding: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
+    borderColor: '#ECEBFF',
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.05)',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1126,7 +1240,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingBottom: 6,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#f7f9ff',
   },
   cardTitleRow: {
     flexDirection: 'row',
@@ -1148,16 +1262,12 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '500',
     color: '#111827',
-    letterSpacing: -0.3,
   },
   moreButton: {
     padding: 6,
     borderRadius: 10,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   dropdownContainer: {
     position: 'absolute',
@@ -1203,55 +1313,73 @@ const styles = StyleSheet.create({
   },
   dropdownDivider: {
     height: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#f7f9ff',
   },
   cardContent: {
-    gap: 12,
+    gap: 10,
   },
-  // NEW BOX STYLES
   infoBox: {
-    backgroundColor: '#FAFBFC',
-    borderRadius: 12,
+    backgroundColor: '#F8FAFF',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#EEF2FF',
     overflow: 'hidden',
   },
   infoBoxHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 5,
-    paddingHorizontal: 14,
-    backgroundColor: '#F3F4F6',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#F3F2FF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#E8EAF6',
     gap: 8,
   },
   infoBoxTitle: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#374151',
+    fontWeight: '800',
+    color: '#4B5563',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   infoBoxContent: {
-    padding: 14,
+    padding: 10,
+  },
+  infoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
   },
-  infoBoxRow: {
+  infoChip: {
+    flexGrow: 1,
+    flexBasis: '48%',
+    minWidth: 130,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 11,
     gap: 4,
   },
+  infoChipFullWidth: {
+    flexBasis: '100%',
+    width: '100%',
+  },
   infoBoxLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#6B7280',
     textTransform: 'uppercase',
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
   },
   infoBoxValue: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#111827',
-    lineHeight: 22,
+    lineHeight: 20,
+    flexShrink: 1,
+  },
+  infoAddressValue: {
+    fontWeight: '500',
   },
   paginationContainer: {
     flexDirection: 'row',
@@ -1306,7 +1434,7 @@ const styles = StyleSheet.create({
   pageInfoText: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#3B82F6',
+    color: '#8b77ff',
   },
   pageInfoSubText: {
     fontSize: 12,
@@ -1355,12 +1483,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#8b77ff',
     paddingVertical: 14,
     paddingHorizontal: 28,
     borderRadius: 12,
     gap: 10,
-    shadowColor: '#3B82F6',
+    shadowColor: '#8b77ff',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -1372,8 +1500,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
-  
-  // MODAL STYLES - KEPT UNCHANGED
+
+  // MODAL STYLES - UPDATED WITH BACK BUTTON PATTERN
   modalContainer: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -1389,9 +1517,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   modalHeaderContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 16,
   },
   modalIconContainer: {
     width: 32,
@@ -1406,15 +1535,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#111827',
-    flex: 1,
+    textAlign: 'center',
   },
-  closeButton: {
+  backButton: {
     width: 32,
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 8,
-    backgroundColor: '#F3F4F6',
   },
   detailsContent: {
     flex: 1,
@@ -1440,7 +1568,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#f7f9ff',
   },
   detailIconWrapper: {
     width: 32,
@@ -1465,7 +1593,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#111827',
   },
-  
+
   // ALERT STYLES
   alertOverlay: {
     flex: 1,
@@ -1525,7 +1653,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cancelAlertButton: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#f7f9ff',
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },

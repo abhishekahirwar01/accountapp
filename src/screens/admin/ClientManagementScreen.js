@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -14,7 +15,6 @@ import {
   StatusBar,
   RefreshControl,
   Animated,
-  FlatList,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -48,6 +48,7 @@ import {
   ExternalLink,
   Check,
   Link,
+  ArrowLeft,
 } from 'lucide-react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import ClientCard from '../../components/clients/ClientCard';
@@ -118,31 +119,7 @@ const Button = ({
   </TouchableOpacity>
 );
 
-const Dialog = ({ visible, onClose, title, description, children }) => (
-  <Modal
-    visible={visible}
-    animationType="slide"
-    transparent={true}
-    onRequestClose={onClose}
-    statusBarTranslucent={true}
-  >
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.modalOverlay}
-    >
-      <View style={styles.dialogContent}>
-        <View style={styles.dialogHeader}>
-          <Text style={styles.dialogTitle}>{title}</Text>
-          <Text style={styles.dialogDescription}>{description}</Text>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <X size={24} color="#6b7280" />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.dialogBody}>{children}</View>
-      </View>
-    </KeyboardAvoidingView>
-  </Modal>
-);
+// Dialog component removed - using Modal with ClientForm's own header instead
 
 // const AlertDialog = ({ visible, onClose, title, description, onConfirm }) => (
 //   <Modal
@@ -180,11 +157,11 @@ const Dialog = ({ visible, onClose, title, description, children }) => (
 export default function ClientManagementPage() {
   // Animation refs for collapsible header
   const scrollY = useRef(new Animated.Value(0)).current;
-  const HEADER_HEIGHT = 200;
-  const diffClamp = Animated.diffClamp(scrollY, 0, HEADER_HEIGHT);
+  const [headerHeight, setHeaderHeight] = useState(130);
+  const diffClamp = Animated.diffClamp(scrollY, 0, headerHeight);
   const headerTranslateY = diffClamp.interpolate({
-    inputRange: [0, HEADER_HEIGHT],
-    outputRange: [0, -HEADER_HEIGHT],
+    inputRange: [0, headerHeight],
+    outputRange: [0, -headerHeight],
   });
 
   // State declarations
@@ -268,6 +245,13 @@ export default function ClientManagementPage() {
   useEffect(() => {
     fetchClients();
   }, [fetchClients]);
+
+  // Refetch clients when screen comes into focus (after navigating back)
+  useFocusEffect(
+    useCallback(() => {
+      fetchClients();
+    }, [fetchClients]),
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -523,8 +507,19 @@ export default function ClientManagementPage() {
     setUsernameFilter('');
   };
 
+  const handleHeaderLayout = useCallback(
+    event => {
+      const measuredHeight = Math.ceil(event?.nativeEvent?.layout?.height || 0);
+      if (measuredHeight > 0 && measuredHeight !== headerHeight) {
+        setHeaderHeight(measuredHeight);
+      }
+    },
+    [headerHeight],
+  );
+
   const renderHeader = () => (
     <Animated.View
+      onLayout={handleHeaderLayout}
       style={[
         styles.headerContainer,
         {
@@ -543,32 +538,6 @@ export default function ClientManagementPage() {
           </View>
           <Text style={styles.modernAddButtonText}>Add Client</Text>
         </TouchableOpacity>
-      </View>
-
-      <View style={styles.loginUrlCard}>
-        <View style={styles.loginUrlHeader}>
-          <View style={styles.loginUrlTextContainer}>
-            <Text
-              style={styles.loginUrlValue}
-              numberOfLines={1}
-              ellipsizeMode="middle"
-            >
-              {CLIENT_LOGIN_URL}
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={styles.copyUrlButton}
-            onPress={copyToClipboard}
-            activeOpacity={0.8}
-          >
-            {copied ? (
-              <Check size={16} color="#ffffff" />
-            ) : (
-              <Copy size={16} color="#ffffff" />
-            )}
-          </TouchableOpacity>
-        </View>
       </View>
 
       <View style={styles.searchContainer}>
@@ -660,7 +629,7 @@ export default function ClientManagementPage() {
           filteredClients.length === 0
             ? styles.emptyListContent
             : styles.listContent,
-          { paddingTop: HEADER_HEIGHT - 8 },
+          { paddingTop: headerHeight },
         ]}
         style={styles.listContainer}
         onScroll={Animated.event(
@@ -672,7 +641,7 @@ export default function ClientManagementPage() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            progressViewOffset={HEADER_HEIGHT}
+            progressViewOffset={headerHeight}
             colors={['#007AFF']}
             tintColor="#007AFF"
           />
@@ -681,33 +650,39 @@ export default function ClientManagementPage() {
         showsVerticalScrollIndicator={false}
       />
 
-      {/* All Modals remain the same */}
-      <Dialog
+      {/* Client Form Modal - Full Screen */}
+      <Modal
         visible={isDialogOpen}
-        onClose={() => setIsDialogOpen(false)}
-        title={selectedClient ? 'Edit Client' : 'Add New Client'}
-        description={
-          selectedClient
-            ? `Update the details for ${selectedClient.contactName}.`
-            : 'Fill in the form below to add a new client.'
-        }
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setIsDialogOpen(false)}
       >
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: 60 }}
-          keyboardShouldPersistTaps="handled"
-          scrollEnabled={true}
-          nestedScrollEnabled={true}
-        >
+        <SafeAreaView style={styles.formModalContainer}>
+          <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+
+          {/* Modal Header */}
+          <View style={styles.formModalHeader}>
+            <TouchableOpacity onPress={() => setIsDialogOpen(false)}>
+              <ArrowLeft size={24} color="#4F46E5" />
+            </TouchableOpacity>
+            <Text style={styles.formModalTitle}>
+              {selectedClient ? 'Edit Client' : 'Add New Client'}
+            </Text>
+            <View style={{ width: 24 }} />
+          </View>
+
+          {/* Form Container */}
           <ClientForm
             client={selectedClient}
             onSubmit={onFormSubmit}
             onCancel={() => setIsDialogOpen(false)}
             hideAdvanced={false}
+            hideHeader={true}
+            navigation={{ goBack: () => setIsDialogOpen(false) }}
             baseURL={BASE_URL}
           />
-        </ScrollView>
-      </Dialog>
+        </SafeAreaView>
+      </Modal>
 
       <AlertDialog visible={isAlertOpen} onClose={() => setIsAlertOpen(false)}>
         <AlertDialogHeader>
@@ -915,7 +890,8 @@ export default function ClientManagementPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f7f9ff',
+    marginBottom: 100,
   },
   listContainer: {
     flex: 1,
@@ -924,7 +900,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f7f9ff',
   },
   loadingText: {
     marginTop: 12,
@@ -936,7 +912,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
+    backgroundColor: '#f7f9ff',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
     zIndex: 10,
@@ -969,7 +945,7 @@ const styles = StyleSheet.create({
   modernAddButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4f46e5',
+    backgroundColor: '#8b77ff',
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 10,
@@ -1014,7 +990,7 @@ const styles = StyleSheet.create({
   loginUrlLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#4f46e5',
+    color: '#8b77ff',
     marginBottom: 6,
     letterSpacing: 0.3,
   },
@@ -1032,12 +1008,12 @@ const styles = StyleSheet.create({
   copyUrlButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4f46e5',
+    backgroundColor: '#8b77ff',
     paddingHorizontal: 10,
     paddingVertical: 10,
     borderRadius: 10,
     gap: 6,
-    shadowColor: '#4f46e5',
+    shadowColor: '#8b77ff',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -1063,12 +1039,11 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
     paddingHorizontal: 14,
     height: 44,
-    borderWidth: 1,
-    borderColor: '#e8e8e8',
+    boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.1)',
   },
   searchIcon: {
     marginRight: 8,
@@ -1146,26 +1121,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  dialogContent: {
+  formModalContainer: {
+    flex: 1,
     backgroundColor: '#fff',
-    borderRadius: 12,
-    width: '95%',
-    height: '90%',
   },
-  dialogHeader: {
-    padding: 24,
+  formModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  dialogTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  formModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
     color: '#1f2937',
-    marginBottom: 8,
   },
-  dialogDescription: { fontSize: 14, color: '#6b7280', lineHeight: 20 },
-  closeButton: { position: 'absolute', top: 16, right: 16, padding: 4 },
-  dialogBody: { flex: 1 },
   alertDialogContent: {
     backgroundColor: '#fff',
     borderRadius: 12,

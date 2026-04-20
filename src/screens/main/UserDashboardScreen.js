@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,12 @@ import {
   TouchableOpacity,
   Dimensions,
   Modal,
-  FlatList,
   RefreshControl,
   TouchableWithoutFeedback,
   Keyboard,
+  ImageBackground,
+  Animated,
+  Image,
 } from 'react-native';
 import { KeyboardAwareFlatList } from 'react-native-keyboard-aware-scroll-view';
 import {
@@ -20,7 +22,6 @@ import {
   Users,
   Building,
   PlusCircle,
-  Settings,
 } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -34,7 +35,6 @@ import { useUserPermissions } from '../../contexts/user-permissions-context';
 import { usePermissions } from '../../contexts/permission-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { BASE_URL } from '../../config';
-import { red100 } from 'react-native-paper/lib/typescript/styles/themes/v2/colors';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -71,6 +71,96 @@ const getAmount = (type, row) => {
   }
 };
 
+// ─── KPI Card (matches KpiCards visual style) ───────────────────────────────
+function DashboardKpiCard({ companyData, selectedCompany, kpis, showSales, showPurchases, isAdmin }) {
+  const flipAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(flipAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      Animated.timing(flipAnim, { toValue: 2, duration: 250, useNativeDriver: true }),
+      Animated.timing(flipAnim, { toValue: 3, duration: 250, useNativeDriver: true }),
+      Animated.timing(flipAnim, { toValue: 4, duration: 250, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  const coinScaleX = flipAnim.interpolate({
+    inputRange: [0, 1, 2, 3, 4],
+    outputRange: [1, 0, -1, 0, 1],
+  });
+
+  const companyName = selectedCompany
+    ? selectedCompany.businessName
+    : 'All Companies';
+
+  const totalPurchases = formatCurrency(companyData?.totalPurchases || 0);
+  const totalSales = formatCurrency(companyData?.totalSales || 0);
+  const activeUsers = String(companyData?.users || 0).padStart(2, '0');
+  const totalCompanies = String(companyData?.companies || 0).padStart(2, '0');
+
+  return (
+    <View style={kpiCardStyles.wrapper}>
+      <View style={kpiCardStyles.shadowContainer}>
+        <View style={kpiCardStyles.bottomShadow} />
+
+        <ImageBackground
+          source={require('../../../assets/dashboard/DashboardCard.jpg')}
+          style={kpiCardStyles.card}
+          imageStyle={kpiCardStyles.cardImage}
+          resizeMode="cover"
+        >
+          {/* Header row */}
+          <View style={kpiCardStyles.headerRow}>
+            <Text style={kpiCardStyles.companyName} numberOfLines={1}>
+              {companyName}
+            </Text>
+            <Animated.Image
+              source={require('../../../assets/dashboard/Coin1.png')}
+              style={[kpiCardStyles.coinImage, { transform: [{ scaleX: coinScaleX }] }]}
+              resizeMode="contain"
+            />
+          </View>
+
+          <View style={kpiCardStyles.spacer} />
+
+          {/* Sales & Purchases rows — only show when permission granted */}
+          {showPurchases && (
+            <View style={kpiCardStyles.kpiRow}>
+              <Text style={kpiCardStyles.kpiLabel}>Total Purchases</Text>
+              <Text style={kpiCardStyles.kpiValue}>{totalPurchases}</Text>
+            </View>
+          )}
+          {showSales && (
+            <View style={kpiCardStyles.kpiRow}>
+              <Text style={kpiCardStyles.kpiLabel}>Total Sales</Text>
+              <Text style={kpiCardStyles.kpiValue}>{totalSales}</Text>
+            </View>
+          )}
+
+          <View style={kpiCardStyles.spacer} />
+
+          {/* Bottom stats row */}
+          <View style={kpiCardStyles.bottomRow}>
+            {isAdmin && (
+              <View style={kpiCardStyles.statItem}>
+                <Users size={15} color="rgba(255,255,255,0.85)" strokeWidth={3} />
+                <Text style={kpiCardStyles.statLabel}>ACTIVE USERS</Text>
+                <Text style={kpiCardStyles.statValue}>{activeUsers}</Text>
+              </View>
+            )}
+            <View style={kpiCardStyles.statItem}>
+              <Building size={15} color="rgba(255,255,255,0.85)" strokeWidth={3} />
+              <Text style={kpiCardStyles.statLabel}>COMPANIES</Text>
+              <Text style={kpiCardStyles.statValue}>{totalCompanies}</Text>
+            </View>
+          </View>
+        </ImageBackground>
+      </View>
+    </View>
+  );
+}
+
+// ─── Main Screen ────
 export default function UserDashboardScreen({ navigation, route }) {
   const { selectedCompanyId, triggerCompaniesRefresh, refreshTrigger } =
     useCompany();
@@ -94,7 +184,6 @@ export default function UserDashboardScreen({ navigation, route }) {
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [serviceNameById, setServiceNameById] = useState(new Map());
   const [refreshing, setRefreshing] = useState(false);
-
   const [role, setRole] = useState('user');
 
   useEffect(() => {
@@ -106,6 +195,7 @@ export default function UserDashboardScreen({ navigation, route }) {
   }, []);
 
   const isAdmin = role === 'admin' || role === 'master';
+
   const selectedCompany = useMemo(
     () =>
       selectedCompanyId
@@ -113,21 +203,6 @@ export default function UserDashboardScreen({ navigation, route }) {
         : null,
     [companies, selectedCompanyId],
   );
-
-  const safeGet = useCallback(async url => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) return {};
-
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) return {};
-      return await response.json();
-    } catch {
-      return {};
-    }
-  }, []);
 
   const fetchCompanyDashboard = useCallback(async () => {
     setIsLoading(true);
@@ -276,9 +351,7 @@ export default function UserDashboardScreen({ navigation, route }) {
       triggerCompaniesRefresh(),
       refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
       refetchPermissions ? refetchPermissions() : Promise.resolve(),
-    ]).finally(() => {
-      setRefreshing(false);
-    });
+    ]).finally(() => setRefreshing(false));
   }, [
     fetchCompanyDashboard,
     triggerCompaniesRefresh,
@@ -290,12 +363,10 @@ export default function UserDashboardScreen({ navigation, route }) {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
-
       const response = await fetch(`${BASE_URL}/api/companies/my`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) return;
-
       const data = await response.json();
       const comps = Array.isArray(data)
         ? data
@@ -309,10 +380,7 @@ export default function UserDashboardScreen({ navigation, route }) {
   useEffect(() => {
     if (refreshTrigger && refreshTrigger > 0) {
       fetchCompaniesOnly().catch(err =>
-        console.error(
-          'UserDashboard fetchCompaniesOnly after trigger failed:',
-          err,
-        ),
+        console.error('UserDashboard fetchCompaniesOnly after trigger failed:', err),
       );
     }
   }, [refreshTrigger, fetchCompaniesOnly]);
@@ -322,79 +390,9 @@ export default function UserDashboardScreen({ navigation, route }) {
     fetchCompanyDashboard();
   };
 
-  const kpis = [
-    {
-      key: 'sales',
-      title: 'TOTAL SALES',
-      value: formatCurrency(companyData?.totalSales || 0),
-      icon: IndianRupee,
-      iconBgColor: '#3B82F6',
-      description: selectedCompanyId
-        ? 'For selected company'
-        : 'All across companies',
-      show: isAdmin || (isAllowed && isAllowed('canCreateSaleEntries')),
-    },
-    {
-      key: 'purchases',
-      title: 'TOTAL PURCHASES',
-      value: formatCurrency(companyData?.totalPurchases || 0),
-      icon: CreditCard,
-      iconBgColor: '#8B5CF6',
-      description: selectedCompanyId
-        ? 'For selected company'
-        : 'All across companies',
-      show: isAdmin || (isAllowed && isAllowed('canCreatePurchaseEntries')),
-    },
-    {
-      key: 'users',
-      title: 'ACTIVE USERS',
-      value: (companyData?.users || 0).toString(),
-      icon: Users,
-      iconBgColor: '#14B8A6',
-      description: 'Total active users',
-      show: isAdmin,
-    },
-    {
-      key: 'companies',
-      title: 'COMPANIES',
-      value: (companyData?.companies || 0).toString(),
-      icon: Building,
-      iconBgColor: '#F59E0B',
-      description: 'Total companies',
-      show: true,
-    },
-  ].filter(k => k.show);
-
-  // --- Handlers
-  const handleSettingsPress = () => navigation.navigate('ProfileScreen');
-  const handleTransactionPress = () => setIsTransactionFormOpen(true);
-
-  const KPICard = ({ title, value, Icon, description, iconBgColor }) => (
-    <View style={styles.cardWrapper}>
-      <View style={styles.kpiCard}>
-        <View style={styles.cardInner}>
-          <View style={styles.headerRow}>
-            <Text style={styles.cardTitle} numberOfLines={1}>
-              {title}
-            </Text>
-            <View
-              style={[styles.iconContainer, { backgroundColor: iconBgColor }]}
-            >
-              <Icon size={18} color="#ffffff" strokeWidth={2.5} />
-            </View>
-          </View>
-
-          <Text style={styles.cardValue} numberOfLines={1}>
-            {value}
-          </Text>
-
-          <Text style={styles.cardDescription} numberOfLines={1}>
-            {description}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
+  // Determine which KPI rows to show based on permissions (same logic as before)
+  const showSales = isAdmin || (isAllowed && isAllowed('canCreateSaleEntries'));
+  const showPurchases = isAdmin || (isAllowed && isAllowed('canCreatePurchaseEntries'));
 
   const renderHeader = () => (
     <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
@@ -413,18 +411,13 @@ export default function UserDashboardScreen({ navigation, route }) {
           {companies.length > 0 && (
             <View style={styles.headerActions}>
               <UpdateWalkthrough />
-
               {isAdmin && (
                 <TouchableOpacity
-                  onPress={handleTransactionPress}
+                  onPress={() => setIsTransactionFormOpen(true)}
                   style={[styles.btn, styles.btnSolid]}
                   activeOpacity={0.85}
                 >
-                  <PlusCircle
-                    size={16}
-                    style={{ marginRight: 8 }}
-                    color="#fff"
-                  />
+                  <PlusCircle size={16} style={{ marginRight: 8 }} color="#fff" />
                   <Text style={{ color: 'white' }}>New Transaction</Text>
                 </TouchableOpacity>
               )}
@@ -432,26 +425,18 @@ export default function UserDashboardScreen({ navigation, route }) {
           )}
         </View>
 
-        {/* KPI Cards Grid */}
-        {kpis.length > 0 && (
-          <View style={styles.kpiGrid}>
-            {kpis.map(k => (
-              <KPICard
-                key={k.key}
-                title={k.title}
-                value={k.value}
-                Icon={k.icon}
-                description={k.description}
-                iconBgColor={k.iconBgColor}
-              />
-            ))}
-          </View>
-        )}
+        {/* KPI Card — same visual as KpiCards component */}
+        <DashboardKpiCard
+          companyData={companyData}
+          selectedCompany={selectedCompany}
+          showSales={showSales}
+          showPurchases={showPurchases}
+          isAdmin={isAdmin}
+        />
       </View>
     </TouchableWithoutFeedback>
   );
 
-  // --- List Content Component
   const renderContent = () => (
     <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
       <View style={styles.contentGrid}>
@@ -468,7 +453,6 @@ export default function UserDashboardScreen({ navigation, route }) {
     </TouchableWithoutFeedback>
   );
 
-  // --- Render Loading
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -563,6 +547,109 @@ export default function UserDashboardScreen({ navigation, route }) {
   );
 }
 
+// ─── KPI Card Styles (mirrors KpiCards component) ────────────────────────────
+const kpiCardStyles = StyleSheet.create({
+  wrapper: {
+    paddingHorizontal: 0,
+    paddingVertical: 8,
+    marginBottom: 6,
+  },
+  shadowContainer: {
+    position: 'relative',
+  },
+  bottomShadow: {
+    position: 'absolute',
+    bottom: -14,
+    left: '1%',
+    right: '1%',
+    height: 40,
+    borderRadius: 24,
+    shadowColor: '#050505',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  card: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 18,
+    elevation: 6,
+    shadowColor: '#020202',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+  },
+  cardImage: {
+    borderRadius: 12,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  companyName: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 0.3,
+    flex: 1,
+    marginRight: 12,
+  },
+  coinImage: {
+    width: 35,
+    height: 35,
+  },
+  spacer: {
+    height: 18,
+  },
+  kpiRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  kpiLabel: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 0.2,
+  },
+  kpiValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 1,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.85)',
+    letterSpacing: 0.8,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginLeft: 4,
+    letterSpacing: 0.5,
+  },
+});
+
+// ─── Screen Styles ────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   contentContainer: {
     padding: 14,
@@ -599,9 +686,7 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
-  header: {
-    // marginBottom: 24,
-  },
+  header: {},
   headerText: {
     marginBottom: 12,
   },
@@ -609,7 +694,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-    // marginBottom: 4,
   },
   subtitle: {
     fontSize: 10,
@@ -620,6 +704,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: 8,
+    marginBottom: 4,
   },
   btn: {
     flexDirection: 'row',
@@ -635,71 +720,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ccc',
     backgroundColor: 'white',
-  },
-
-  kpiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    // padding: 8,
-    marginBottom: 6,
-  },
-  cardWrapper: {
-    width: '48%',
-    minWidth: 155,
-  },
-  kpiCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-  },
-  cardInner: {
-    padding: 10,
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  cardTitle: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#64748b',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    flex: 1,
-    marginRight: 8,
-  },
-  cardValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0f172a',
-    marginBottom: 6,
-    letterSpacing: -0.5,
-  },
-  cardDescription: {
-    fontSize: 10,
-    color: '#94a3b8',
-    fontWeight: '400',
-  },
-  iconContainer: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
   contentGrid: {
     marginBottom: 24,
@@ -749,4 +769,4 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#eee',
   },
-});
+}); 

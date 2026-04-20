@@ -89,40 +89,6 @@ const Card = ({ children, style }) => {
   );
 };
 
-// Animated TouchableOpacity Component (USED in header)
-const AnimatedTouchable = ({ children, onPress, style, disabled }) => {
-  const scaleAnim = React.useRef(new Animated.Value(1)).current;
-
-  const handlePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.96,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 3,
-      tension: 40,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  return (
-    <TouchableOpacity
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      onPress={onPress}
-      disabled={disabled}
-      activeOpacity={0.8}
-    >
-      <Animated.View style={[style, { transform: [{ scale: scaleAnim }] }]}>
-        {children}
-      </Animated.View>
-    </TouchableOpacity>
-  );
-};
 
 // --- Main Component ---
 export default function DashboardPage() {
@@ -461,7 +427,7 @@ export default function DashboardPage() {
         ]}
       >
         {/* Animated Header */}
-        <View style={styles.headerContent}>
+        {/* <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
             <Text
               style={styles.headerTitle}
@@ -512,7 +478,7 @@ export default function DashboardPage() {
                 companies.length === 0 && styles.headerButtonDisabled,
               ]}
             >
-              {/* <FileText size={14} color="#3b82f6" strokeWidth={2.5} /> */}
+             
               <Text
                 style={[styles.headerButtonText, styles.proformaButtonText]}
               >
@@ -520,7 +486,7 @@ export default function DashboardPage() {
               </Text>
             </AnimatedTouchable>
           </View>
-        </View>
+        </View> */}
       </Animated.View>
 
       <KeyboardAwareScrollView
@@ -669,7 +635,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 0,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f7f9ff',
   },
   contentContainer: {
     paddingBottom: 20,

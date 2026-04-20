@@ -467,7 +467,8 @@ const Notification = ({ socket }) => {
         style={styles.bellContainer}
         onPress={() => setIsModalVisible(true)}
       >
-        <Icon name="bell" size={24} color="#000" />
+        {/* Changed from "bell" to "bell-outline" */}
+        <Icon name="bell-outline" size={24} color="#252525" />
         {unreadCount > 0 && (
           <Badge style={styles.badge}>
             {unreadCount > 9 ? '9+' : unreadCount}
@@ -549,6 +550,11 @@ const styles = StyleSheet.create({
     top: 0,
     right: 0,
     backgroundColor: '#ef4444',
+    width: 18,
+    height: 18,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContainer: {
     flex: 1,

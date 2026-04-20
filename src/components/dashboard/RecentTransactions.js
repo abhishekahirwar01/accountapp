@@ -22,6 +22,16 @@ import {
   X,
   ChevronRight,
 } from 'lucide-react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Svg, {
+  Defs,
+  LinearGradient as SvgLinearGradient,
+  Stop,
+  Path,
+  G,
+  Circle,
+  Text as SvgText,
+} from 'react-native-svg';
 
 /* ─── helpers ─── */
 const inr = n => {
@@ -189,6 +199,104 @@ const getTypeConfig = type =>
     amountSign: 'neutral',
   };
 
+
+const GRAPH_LABELS = ['04:00', '09:00', '01:00', '06:00', '10:00', '15:00', '20:00'];
+
+const TransactionsTopGraph = () => {
+  const graphWidth = 340;
+  const graphHeight = 180;
+  const baselineY = 76; // Moved baseline slightly lower
+  const labelY = 140; // Adjusted label position
+
+const areaPath = [
+  `M 0 ${baselineY}`, 
+  `C 20 ${baselineY - 20}, 35 ${baselineY + 20}, 50 ${baselineY}`,
+  `C 65 ${baselineY - 25}, 80 ${baselineY - 50}, 95 ${baselineY - 40}`,
+  `C 110 ${baselineY + 30}, 125 ${baselineY + 45}, 140 ${baselineY + 30}`,
+  `C 155 ${baselineY - 60}, 170 ${baselineY - 80}, 185 ${baselineY - 60}`,
+  `C 200 ${baselineY - 40}, 215 ${baselineY - 20}, 230 ${baselineY - 30}`,
+  `C 245 ${baselineY - 50}, 260 ${baselineY - 70}, 275 ${baselineY - 60}`,
+  `C 290 ${baselineY - 30}, 305 ${baselineY - 15}, ${graphWidth} ${baselineY}`,
+  `L ${graphWidth} ${graphHeight}`,
+  `L 0 ${graphHeight}`,
+  'Z',
+].join(' ');
+
+// Apply the same adjustments to the linePath for the stroke
+const linePath = [
+  `M 0 ${baselineY}`,
+  `C 20 ${baselineY - 20}, 35 ${baselineY + 20}, 50 ${baselineY}`,
+  `C 65 ${baselineY - 25}, 80 ${baselineY - 50}, 95 ${baselineY - 40}`,
+  `C 110 ${baselineY + 30}, 125 ${baselineY + 45}, 140 ${baselineY + 30}`,
+  `C 155 ${baselineY - 60}, 170 ${baselineY - 80}, 185 ${baselineY - 60}`,
+  `C 200 ${baselineY - 40}, 215 ${baselineY - 20}, 230 ${baselineY - 30}`,
+  `C 245 ${baselineY - 50}, 260 ${baselineY - 70}, 275 ${baselineY - 60}`,
+  `C 290 ${baselineY - 30}, 305 ${baselineY - 15}, ${graphWidth} ${baselineY}`,
+].join(' ');
+
+  return (
+    <View style={styles.topGraphWrap}>
+      <Svg width="100%" height={graphHeight} viewBox={`0 0 ${graphWidth} ${graphHeight}`} preserveAspectRatio="none">
+        <Defs>
+          {/* Background gradient */}
+          <SvgLinearGradient id="topGraphBg" x1="0%" y1="0%" x2="0%" y2="100%">
+            <Stop offset="0%" stopColor="#ffffff" />
+            <Stop offset="100%" stopColor="#ffffff" />
+          </SvgLinearGradient>
+          
+          {/* Wave fill gradient */}
+          <SvgLinearGradient id="topGraphWave" x1="0%" y1="0%" x2="0%" y2="100%">
+            <Stop offset="0%" stopColor="#4299e1" stopOpacity="0.3" />
+            <Stop offset="70%" stopColor="#4299e1" stopOpacity="0.1" />
+            <Stop offset="100%" stopColor="#4299e1" stopOpacity="0.05" />
+          </SvgLinearGradient>
+          
+          {/* Wave stroke gradient */}
+          <SvgLinearGradient id="topGraphStroke" x1="0%" y1="0%" x2="100%" y2="0%">
+            <Stop offset="0%" stopColor="#83bfd7" />
+            <Stop offset="50%" stopColor="#71d7ff" />
+            <Stop offset="100%" stopColor="#83bfd7" />
+          </SvgLinearGradient>
+        </Defs>
+
+        {/* Background */}
+        <Path d={`M 0 0 H ${graphWidth} V ${graphHeight} H 0 Z`} fill="url(#topGraphBg)" />
+        
+        {/* Filled area under the wave */}
+        <Path d={areaPath} fill="url(#topGraphWave)" />
+        
+        {/* Wave line on top */}
+        <Path 
+          d={linePath} 
+          fill="none" 
+          stroke="url(#topGraphStroke)" 
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
+
+        {/* Date labels */}
+        {GRAPH_LABELS.map((label, index) => {
+          const padding = 5; // or whatever value you want
+const x = padding + ((graphWidth - (padding * 2)) / (GRAPH_LABELS.length - 1)) * index;
+          return (
+            <SvgText
+              key={label}
+              x={x}
+              y={labelY}
+              fontSize="10"
+              fill={index < 3 ? '#4a5568' : '#718096'}
+              fontWeight="500"
+              textAnchor={index === 0 ? 'start' : index === GRAPH_LABELS.length - 1 ? 'end' : 'middle'}
+            >
+              {label}
+            </SvgText>
+          );
+        })}
+      </Svg>
+    </View>
+  );
+};
+
 /* ─── Transaction Row (mobile card) ─── */
 const TransactionCard = ({ tx, serviceNameById, onItemsPress }) => {
   const cfg = getTypeConfig(tx.type);
@@ -239,16 +347,17 @@ const TransactionCard = ({ tx, serviceNameById, onItemsPress }) => {
 
       {/* Right: badge on top, amount below */}
       <View style={styles.txAmountCol}>
-        <View style={[styles.txBadge, { backgroundColor: cfg.bg, borderColor: cfg.border }]}>
-          <View style={[styles.txBadgeDot, { backgroundColor: cfg.dotColor }]} />
-          <Text style={[styles.txBadgeText, { color: cfg.color }]}>{cfg.label}</Text>
-        </View>
         <Text style={[
           styles.txAmount,
           isCredit ? styles.amtCredit : isDebit ? styles.amtDebit : styles.amtNeutral,
         ]}>
           {isCredit ? '+' : isDebit ? '−' : ''}{inr(Math.abs(amt))}
         </Text>
+        <View style={[styles.txBadge]}>
+          <View style={[styles.txBadgeDot, { backgroundColor: cfg.dotColor }]} />
+          <Text style={[styles.txBadgeText, { color: cfg.color }]}>{cfg.label}</Text>
+        </View>
+        
       </View>
     </TouchableOpacity>
   );
@@ -441,22 +550,35 @@ const RecentTransactions = ({
       <View style={styles.card}>
 
         {/* ── Card Header ── */}
-        <View style={styles.cardHead}>
+        <View style={[styles.cardHead, isMobile && hasTransactions && styles.cardHeadWithGraph]}>
           <View>
             <Text style={styles.cardTitle}>Recent Transactions</Text>
-            <Text style={styles.cardSubtitle}>Latest financial activity</Text>
           </View>
-          {/* {hasTransactions && (
-            <TouchableOpacity
+          {/* ── button ── */}
+        {hasTransactions && (
+          <View style={styles.cardFoot}>
+            {/* <TouchableOpacity
               onPress={() => navigation.navigate('Transactions')}
-              style={styles.headLink}
+              style={styles.footBtn}
               activeOpacity={0.7}
             >
-              <Text style={styles.headLinkText}>See all</Text>
-              <ArrowRight size={14} color="#3b82f6" strokeWidth={2} />
-            </TouchableOpacity>
-          )} */}
+              <Text style={styles.footBtnText}>See All</Text>
+              <ArrowRight size={15}  />
+            </TouchableOpacity> */}
+
+             <TouchableOpacity
+          style={styles.footBtn}
+         onPress={() => navigation.navigate('Transactions')}
+          activeOpacity={0.8}
+        >
+           <Text style={styles.footBtnText}>See All</Text>
+          <Icon name="arrow-right" size={18} color="#ffffff" />
+        </TouchableOpacity>
+          </View>
+        )}
         </View>
+
+        {isMobile && hasTransactions && <TransactionsTopGraph />}
 
         
         {!isMobile && hasTransactions && (
@@ -523,19 +645,7 @@ const RecentTransactions = ({
           )}
         </ScrollView>
 
-        {/* ── Footer ── */}
-        {hasTransactions && (
-          <View style={styles.cardFoot}>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Transactions')}
-              style={styles.footBtn}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.footBtnText}>View All Transactions</Text>
-              <ArrowRight size={15} color="#3b82f6" strokeWidth={2} />
-            </TouchableOpacity>
-          </View>
-        )}
+       
       </View>
 
       {/* ── Dialog ── */}
@@ -558,12 +668,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#e8edf2',
-    shadowColor: '#000',
+    borderColor: 'transparent',
+    shadowColor: '#ffffff',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 3,
+    marginBottom: 100,
   },
 
   /* Card Header */
@@ -574,10 +685,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: '#f1f5f9a1',
   },
-  cardTitle:   { fontSize: 16, fontWeight: '700', color: '#0f172a', letterSpacing: -0.3 },
-  cardSubtitle:{ fontSize: 12, color: '#94a3b8', marginTop: 2 },
+  cardHeadWithGraph: {
+    borderBottomWidth: 0,
+    paddingBottom: 8,
+  },
+  cardTitle:   { fontSize: 20, fontWeight: '700', color: '#0f172a', letterSpacing: -0.3 },
+  cardSubtitle:{ fontSize: 12, color: '#94a3b8', },
   headLink: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -590,6 +705,13 @@ const styles = StyleSheet.create({
   headLinkText: { fontSize: 13, fontWeight: '600', color: '#3b82f6' },
 
   /* Desktop table head */
+   topGraphWrap: {
+    height: 140,
+    borderBottomWidth: 0,
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    marginBottom: 5,
+  },
   deskHead: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -652,13 +774,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 10,
+    // borderRadius: 10,
     // padding: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
     gap: 12,
     borderWidth: 1,
-    borderColor: '#e8e9eb',
+    borderColor:"transparent",
+    borderBottomColor: '#ebebeb',
     // shadowColor: '#000',
     // shadowOffset: { width: 0, height: 1 },
     // shadowOpacity: 0.04,
@@ -674,14 +797,14 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   txBody:       { flex: 1, gap: 3 },
-  txParty:      { fontSize: 12, fontWeight: '700', color: '#0f172a' },
+  txParty:      { fontSize: 14, fontWeight: '700', color: '#0f172a' },
   txItemRow:    { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 },
   txItemText:   { fontSize: 11, color: '#64748b', flexShrink: 1 },
   txItemClickable: { color: '#3b82f6' },
   txDesc:       { fontSize: 12, color: '#94a3b8' },
   txDate:       { fontSize: 11, color: '#94a3b8', marginTop: 2 },
   txAmountCol:  { alignItems: 'flex-end', justifyContent: 'space-between', flexShrink: 0, gap: 6 },
-  txAmount:     { fontSize: 12, fontWeight: '700', letterSpacing: -0.3 },
+  txAmount:     { fontSize: 14, fontWeight: '700', letterSpacing: -0.3 },
 
   /* Amount colors */
   amtCredit:  { color: '#16a34a' },
@@ -693,35 +816,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 7,
     paddingVertical: 3,
-    borderRadius: 12,
-    borderWidth: 1,
-    flexShrink: 0,
+
   },
   txBadgeDot:  { width: 4, height: 4, borderRadius: 3 },
-  txBadgeText: { fontSize: 8, fontWeight: '600', letterSpacing: 0.2 },
+  txBadgeText: { fontSize: 10, fontWeight: '600', letterSpacing: 0.2 },
 
   /* Card footer */
   cardFoot: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+
+    // borderTopColor: '#f1f5f9',
     alignItems: 'flex-end',
   },
   footBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#dbeafe',
-    backgroundColor: '#eff6ff',
+    marginTop: 12,
+  alignSelf: 'flex-start',
+  backgroundColor: '#857bed',
+  borderRadius: 999,
+  paddingVertical: 8,
+  paddingHorizontal: 14,
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 8,
+  borderWidth: 1,
+  borderColor: '#857bed',
   },
-  footBtnText: { fontSize: 13, fontWeight: '600', color: '#3b82f6' },
+  footBtnText: {  fontSize: 13,
+  fontWeight: '600',
+  color: '#ffffff', },
 
   /* Empty state */
   emptyWrap: { alignItems: 'center', paddingVertical: 48, paddingHorizontal: 24 },

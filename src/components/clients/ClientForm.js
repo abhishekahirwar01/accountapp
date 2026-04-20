@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -9,12 +10,25 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Platform,
+  KeyboardAvoidingView,
+  StatusBar,
+  Modal,
+  Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import SimpleLineIcons from 'react-native-vector-icons/SimpleLineIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useToast } from '../hooks/useToast';
 import ClientValidityCard from '../admin/settings/ClientValidityCard';
 import { BASE_URL } from '../../config';
-import { AlertCircle, Check, Eye, EyeOff } from 'lucide-react-native';
+import {
+  AlertCircle,
+  Check,
+  Eye,
+  EyeOff,
+  ArrowLeft,
+} from 'lucide-react-native';
 
 // Field validation functions
 const fieldValidations = {
@@ -190,8 +204,11 @@ export default function ClientForm({
   onSubmit: parentOnSubmit,
   onCancel,
   hideAdvanced = false,
+  navigation: navProp,
+  hideHeader = false,
 }) {
   const { toast } = useToast();
+  const navigation = useNavigation();
 
   // form state
   const [contactName, setContactName] = useState(client?.contactName || '');
@@ -233,6 +250,8 @@ export default function ClientForm({
   const [validityAmount, setValidityAmount] = useState(30);
   const [validityUnit, setValidityUnit] = useState('days');
   const [eyeOpen, setEyeOpen] = useState(false);
+  const [showValidityUnitDropdown, setShowValidityUnitDropdown] =
+    useState(false);
 
   // Validation errors state
   const [fieldErrors, setFieldErrors] = useState({});
@@ -858,6 +877,11 @@ export default function ClientForm({
         description: `${contactName} saved.`,
       });
       parentOnSubmit?.(data);
+
+      // Navigate back to AdminClientManagement after successful creation
+      if (navigation && !client) {
+        navigation.navigate('AdminClientManagement');
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Something went wrong';
       applyServerErrorsToUI(msg);
@@ -905,6 +929,7 @@ export default function ClientForm({
             fieldErrors[fieldName] && styles.inputError,
           ]}
           placeholder={placeholder}
+          placeholderTextColor="#9CA3AF"
           value={value}
           onChangeText={onChange}
           onBlur={() => handleFieldValidation(fieldName, value)}
@@ -960,6 +985,7 @@ export default function ClientForm({
               fieldErrors.clientUsername && styles.inputError,
             ]}
             placeholder="e.g. johndoe"
+            placeholderTextColor="#9CA3AF"
             value={clientUsername}
             editable={!client}
             onChangeText={t => {
@@ -1023,6 +1049,7 @@ export default function ClientForm({
                 fieldErrors.password && styles.inputError,
               ]}
               placeholder="••••••••"
+              placeholderTextColor="#9CA3AF"
               secureTextEntry={!eyeOpen}
               value={password}
               onChangeText={text => {
@@ -1075,63 +1102,162 @@ export default function ClientForm({
       )}
 
       {!client && !hideAdvanced && (
-        <View style={styles.section}>
-          <Text style={styles.label}>
-            Account Validity<Text style={styles.required}> *</Text>
-          </Text>
-          <View style={styles.validityRow}>
-            <View style={styles.validityInputContainer}>
-              <TextInput
-                style={[
-                  styles.input,
-                  fieldErrors.validityAmount && styles.inputError,
-                ]}
-                placeholder="30"
-                value={String(validityAmount)}
-                onChangeText={v => {
-                  setValidityAmount(Number(v || 0));
-                  handleFieldValidation('validityAmount', v);
-                }}
-                onBlur={() =>
-                  handleFieldValidation('validityAmount', validityAmount)
-                }
-                keyboardType="numeric"
-              />
+        <>
+          <View style={styles.section}>
+            <Text style={styles.label}>Account Validity</Text>
+            <View style={styles.validityRow}>
+              <View style={styles.validityInputContainer}>
+                <Text style={styles.gridLabel}>
+                  Duration<Text style={styles.required}> *</Text>
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    fieldErrors.validityAmount && styles.inputError,
+                  ]}
+                  placeholder="30"
+                  placeholderTextColor="#9CA3AF"
+                  value={String(validityAmount)}
+                  onChangeText={v => {
+                    setValidityAmount(Number(v || 0));
+                    handleFieldValidation('validityAmount', v);
+                  }}
+                  onBlur={() =>
+                    handleFieldValidation('validityAmount', validityAmount)
+                  }
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={styles.validityInputContainer}>
+                <Text style={styles.gridLabel}>
+                  Unit<Text style={styles.required}> *</Text>
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.input,
+                    styles.dropdownButton,
+                    fieldErrors.validityUnit && styles.inputError,
+                  ]}
+                  onPress={() => setShowValidityUnitDropdown(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.dropdownButtonText}>
+                    {validityUnit.charAt(0).toUpperCase() +
+                      validityUnit.slice(1)}
+                  </Text>
+                  <SimpleLineIcons
+                    name="arrow-down"
+                    color="#6B7280"
+                    size={14}
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
-            <View style={styles.validityInputContainer}>
-              <TextInput
-                style={[
-                  styles.input,
-                  fieldErrors.validityUnit && styles.inputError,
-                ]}
-                placeholder="days"
-                value={validityUnit}
-                onChangeText={v => {
-                  setValidityUnit(v);
-                  handleFieldValidation('validityUnit', v);
-                }}
-                onBlur={() =>
-                  handleFieldValidation('validityUnit', validityUnit)
-                }
-              />
+            {(fieldErrors.validityAmount || fieldErrors.validityUnit) && (
+              <View style={styles.errorContainer}>
+                <AlertCircle size={14} color="#EF4444" />
+                <Text style={styles.errorText}>
+                  {fieldErrors.validityAmount || fieldErrors.validityUnit}
+                </Text>
+              </View>
+            )}
+            {expiryPreview &&
+              !fieldErrors.validityAmount &&
+              !fieldErrors.validityUnit && (
+                <Text style={styles.helperText}>
+                  This account will expire on {expiryPreview}.
+                </Text>
+              )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Limits</Text>
+            <View style={styles.gridContainer}>
+              <View style={styles.gridItem}>
+                <Text style={styles.gridLabel}>
+                  Max Companies<Text style={styles.required}> *</Text>
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    fieldErrors.maxCompanies && styles.inputError,
+                  ]}
+                  placeholder="5"
+                  placeholderTextColor="#9CA3AF"
+                  value={String(maxCompanies || '')}
+                  onChangeText={v => {
+                    setMaxCompanies(Number(v || 0));
+                    handleFieldValidation('maxCompanies', Number(v || 0));
+                  }}
+                  onBlur={() =>
+                    handleFieldValidation('maxCompanies', maxCompanies)
+                  }
+                  keyboardType="numeric"
+                />
+                {fieldErrors.maxCompanies && (
+                  <View style={styles.errorContainer}>
+                    <AlertCircle size={12} color="#dc2626" />
+                    <Text style={[styles.errorText, { fontSize: 11 }]}>
+                      {fieldErrors.maxCompanies}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.gridItem}>
+                <Text style={styles.gridLabel}>
+                  Max Users<Text style={styles.required}> *</Text>
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    fieldErrors.maxUsers && styles.inputError,
+                  ]}
+                  placeholder="10"
+                  placeholderTextColor="#9CA3AF"
+                  value={String(maxUsers || '')}
+                  onChangeText={v => {
+                    setMaxUsers(Number(v || 0));
+                    handleFieldValidation('maxUsers', Number(v || 0));
+                  }}
+                  onBlur={() => handleFieldValidation('maxUsers', maxUsers)}
+                  keyboardType="numeric"
+                />
+                {fieldErrors.maxUsers && (
+                  <View style={styles.errorContainer}>
+                    <AlertCircle size={12} color="#dc2626" />
+                    <Text style={[styles.errorText, { fontSize: 11 }]}>
+                      {fieldErrors.maxUsers}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
           </View>
-          {(fieldErrors.validityAmount || fieldErrors.validityUnit) && (
-            <View style={styles.errorContainer}>
-              <AlertCircle size={14} color="#dc2626" />
-              <Text style={styles.errorText}>
-                {fieldErrors.validityAmount || fieldErrors.validityUnit}
-              </Text>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Feature Access</Text>
+            <View style={styles.permissionsGrid}>
+              <View style={styles.permissionItem}>
+                <Text style={styles.permissionLabel}>
+                  Send Invoice via Email
+                </Text>
+                <RNSwitch
+                  value={canSendInvoiceEmail}
+                  onValueChange={setCanSendInvoiceEmail}
+                />
+              </View>
+              <View style={styles.permissionItem}>
+                <Text style={styles.permissionLabel}>
+                  Send Invoice via WhatsApp
+                </Text>
+                <RNSwitch
+                  value={canSendInvoiceWhatsapp}
+                  onValueChange={setCanSendInvoiceWhatsapp}
+                />
+              </View>
             </View>
-          )}
-          {expiryPreview &&
-            !fieldErrors.validityAmount &&
-            !fieldErrors.validityUnit && (
-              <Text style={styles.helperText}>
-                This account will expire on {expiryPreview}.
-              </Text>
-            )}
-        </View>
+          </View>
+        </>
       )}
 
       {/* {!hideAdvanced && (
@@ -1157,29 +1283,7 @@ export default function ClientForm({
           </View>
         </>
       )} */}
-
-      <View style={styles.buttonRow}>
-        <TouchableOpacity onPress={onCancel} style={styles.cancelButton}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={handleSubmit}
-          disabled={isSubmitting || Object.keys(fieldErrors).length > 0}
-          style={[
-            styles.submitButton,
-            (isSubmitting || Object.keys(fieldErrors).length > 0) &&
-              styles.buttonDisabled,
-          ]}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.submitText}>
-              {client ? 'Save Changes' : 'Create Client'}
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
+      <View style={{ height: 100 }} />
     </ScrollView>
   );
 
@@ -1363,32 +1467,7 @@ export default function ClientForm({
             </View>
           </View>
         </View>
-
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            onPress={handleSavePermissions}
-            disabled={
-              isSavingPermissions ||
-              Object.keys(fieldErrors).some(k =>
-                ['maxCompanies', 'maxUsers', 'maxInventories'].includes(k),
-              )
-            }
-            style={[
-              styles.submitButton,
-              (isSavingPermissions ||
-                Object.keys(fieldErrors).some(k =>
-                  ['maxCompanies', 'maxUsers', 'maxInventories'].includes(k),
-                )) &&
-                styles.buttonDisabled,
-            ]}
-          >
-            {isSavingPermissions ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.submitText}>Save Permissions</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+        <View style={{ height: 100 }} />
       </ScrollView>
     </View>
   );
@@ -1398,6 +1477,7 @@ export default function ClientForm({
       <View style={styles.section}>
         <ClientValidityCard clientId={client._id} onChanged={() => {}} />
       </View>
+      <View style={{ height: 80 }} />
     </ScrollView>
   );
 
@@ -1423,6 +1503,7 @@ export default function ClientForm({
               fieldErrors.newPassword && styles.inputError,
             ]}
             placeholder="Enter new password"
+            placeholderTextColor="#9CA3AF"
             secureTextEntry={!eyeOpenPassword}
             value={newPassword}
             onChangeText={text => {
@@ -1449,69 +1530,277 @@ export default function ClientForm({
           </View>
         )}
       </View>
-
-      <View style={{ marginTop: 20 }}>
-        <TouchableOpacity
-          onPress={handleResetPassword}
-          disabled={
-            isSubmittingPassword ||
-            !newPassword.trim() ||
-            Boolean(fieldErrors.newPassword)
-          }
-          style={[
-            styles.submitButton,
-            (isSubmittingPassword ||
-              !newPassword.trim() ||
-              fieldErrors.newPassword) &&
-              styles.buttonDisabled,
-          ]}
-        >
-          {isSubmittingPassword ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.submitText}>Reset Password</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+      <View style={{ height: 80 }} />
     </ScrollView>
   );
 
   return (
-    <View style={styles.container}>
-      {client ? (
-        <>
-          <View style={styles.tabContainer}>
-            {renderTabButton('general', 'General')}
-            {renderTabButton('permissions', 'Permissions')}
-            {renderTabButton('validity', 'Validity')}
-            {renderTabButton('password', 'Password')}
-          </View>
+    <SafeAreaView style={styles.safeContainer}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
+      {/* Optional Header for standalone usage */}
+      {!hideHeader && (
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => {
+              if (onCancel) onCancel();
+              else if (navigation) navigation.goBack();
+            }}
+          >
+            <ArrowLeft size={22} color="#4F46E5" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>
+            {client ? 'Edit Client' : 'Add New Client'}
+          </Text>
+          <View style={{ width: 22 }} />
+        </View>
+      )}
+
+      {/* Tab Navigation for Edit Mode */}
+      {client && (
+        <View style={styles.tabContainer}>
+          {renderTabButton('general', 'General')}
+          {renderTabButton('permissions', 'Permissions')}
+          {renderTabButton('validity', 'Validity')}
+          {renderTabButton('password', 'Password')}
+        </View>
+      )}
+
+      {/* Content Area with Keyboard Handling */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoidContainer}
+      >
+        {client ? (
           <View style={styles.tabContentContainer}>
             {activeTab === 'general' && renderGeneralForm()}
             {activeTab === 'permissions' && renderPermissionsForm()}
             {activeTab === 'validity' && renderValidityForm()}
             {activeTab === 'password' && renderPasswordForm()}
           </View>
-        </>
-      ) : (
-        renderGeneralForm()
-      )}
-    </View>
+        ) : (
+          renderGeneralForm()
+        )}
+      </KeyboardAvoidingView>
+
+      {/* Fixed Footer with Context-Aware Buttons */}
+      {renderFooter()}
+
+      {/* Unit Dropdown Modal */}
+      <Modal
+        visible={showValidityUnitDropdown}
+        animationType="slide"
+        transparent
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setShowValidityUnitDropdown(false)}
+        >
+          <Pressable style={styles.bottomSheet} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Select Duration Unit</Text>
+              <TouchableOpacity
+                onPress={() => setShowValidityUnitDropdown(false)}
+                style={styles.sheetCloseBtn}
+              >
+                <Text style={styles.sheetCloseTxt}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.sheetList}>
+              {['days', 'months', 'years'].map(unit => (
+                <TouchableOpacity
+                  key={unit}
+                  style={styles.sheetItem}
+                  onPress={() => {
+                    setValidityUnit(unit);
+                    handleFieldValidation('validityUnit', unit);
+                    setShowValidityUnitDropdown(false);
+                  }}
+                >
+                  <Text style={styles.sheetItemText}>
+                    {unit.charAt(0).toUpperCase() + unit.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </SafeAreaView>
   );
+
+  // Render footer with context-aware buttons
+  function renderFooter() {
+    if (client) {
+      // Edit mode - show different buttons based on active tab
+      if (activeTab === 'general') {
+        return (
+          <View style={styles.fixedFooter}>
+            <TouchableOpacity
+              onPress={handleSubmit}
+              disabled={isSubmitting || Object.keys(fieldErrors).length > 0}
+              style={[
+                styles.submitButton,
+                (isSubmitting || Object.keys(fieldErrors).length > 0) &&
+                  styles.buttonDisabled,
+              ]}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitText}>Save Changes</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        );
+      }
+      if (activeTab === 'permissions') {
+        return (
+          <View style={styles.fixedFooter}>
+            <TouchableOpacity
+              onPress={handleSavePermissions}
+              disabled={
+                isSavingPermissions ||
+                Object.keys(fieldErrors).some(k =>
+                  ['maxCompanies', 'maxUsers', 'maxInventories'].includes(k),
+                )
+              }
+              style={[
+                styles.submitButton,
+                (isSavingPermissions ||
+                  Object.keys(fieldErrors).some(k =>
+                    ['maxCompanies', 'maxUsers', 'maxInventories'].includes(k),
+                  )) &&
+                  styles.buttonDisabled,
+              ]}
+            >
+              {isSavingPermissions ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitText}>Save Permissions</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        );
+      }
+      if (activeTab === 'password') {
+        return (
+          <View style={styles.fixedFooter}>
+            <TouchableOpacity
+              onPress={handleResetPassword}
+              disabled={
+                isSubmittingPassword ||
+                !newPassword.trim() ||
+                Boolean(fieldErrors.newPassword)
+              }
+              style={[
+                styles.submitButton,
+                (isSubmittingPassword ||
+                  !newPassword.trim() ||
+                  fieldErrors.newPassword) &&
+                  styles.buttonDisabled,
+              ]}
+            >
+              {isSubmittingPassword ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitText}>Reset Password</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        );
+      }
+      // Validity tab - no action button needed
+      return null;
+    }
+
+    // Create mode - dual buttons (Cancel + Create) side by side
+    return (
+      <View style={[styles.fixedFooter, styles.footerRow]}>
+        <TouchableOpacity
+          onPress={onCancel}
+          style={[styles.cancelButton, styles.cancelButtonFlex]}
+        >
+          <Text style={styles.cancelText}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleSubmit}
+          disabled={isSubmitting || Object.keys(fieldErrors).length > 0}
+          style={[
+            styles.submitButton,
+            styles.submitButtonFlex,
+            (isSubmitting || Object.keys(fieldErrors).length > 0) &&
+              styles.buttonDisabled,
+          ]}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.submitText}>Create Client</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    );
+  }
 }
 
 const styles = StyleSheet.create({
+  safeContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
   container: {
     flex: 1,
     padding: 20,
     backgroundColor: '#fff',
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
+  },
+  keyboardAvoidContainer: {
+    flex: 1,
+  },
+  fixedFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 10 : 16,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  footerRow: {
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'flex-end',
+  },
+  cancelButtonFlex: {
+    flex: 0,
+    minWidth: 100,
+  },
+  submitButtonFlex: {
+    flex: 1,
+    width: 'auto',
+  },
   tabContainer: {
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: 0,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
   },
   tabButton: {
     flex: 1,
@@ -1521,14 +1810,14 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   activeTab: {
-    borderBottomColor: '#2563eb',
+    borderBottomColor: '#4F46E5',
   },
   tabText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#6B7280',
   },
   activeTabText: {
-    color: '#2563eb',
+    color: '#4F46E5',
     fontWeight: '600',
   },
   tabContentContainer: {
@@ -1536,6 +1825,10 @@ const styles = StyleSheet.create({
   },
   tabContent: {
     flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 12,
+    backgroundColor: '#FFFFFF',
   },
   section: {
     marginBottom: 20,
@@ -1557,38 +1850,53 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    fontWeight: 'bold',
-    marginBottom: 8,
-    fontSize: 16,
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginBottom: 7,
+    letterSpacing: 0.1,
   },
   required: {
-    color: '#dc2626',
-    fontSize: 14,
+    color: '#EF4444',
+    fontSize: 13,
   },
   gridLabel: {
-    fontWeight: '600',
-    marginBottom: 4,
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginBottom: 7,
+    letterSpacing: 0.1,
   },
   permissionLabel: {
-    fontWeight: '600',
-    fontSize: 14,
+    fontWeight: '500',
+    fontSize: 15,
+    color: '#111827',
     flex: 1,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 6,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#fff',
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: 15,
+    color: '#111827',
+    backgroundColor: '#FFFFFF',
+  },
+  inputText: {
+    fontSize: 15,
+    color: '#111827',
+    flex: 1,
+  },
+  placeholderText: {
+    color: '#9CA3AF',
   },
   inputDisabled: {
-    backgroundColor: '#f3f4f6',
-    color: '#6b7280',
+    backgroundColor: '#F9FAFB',
+    color: '#9CA3AF',
   },
   inputError: {
-    borderColor: '#dc2626',
+    borderColor: '#EF4444',
   },
   passwordContainer: {
     position: 'relative',
@@ -1615,7 +1923,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 12,
-    color: '#dc2626',
+    color: '#EF4444',
     marginLeft: 4,
   },
   successContainer: {
@@ -1676,9 +1984,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#E5E7EB',
     borderRadius: 8,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#F9FAFB',
   },
   buttonRow: {
     marginTop: 20,
@@ -1689,31 +1997,104 @@ const styles = StyleSheet.create({
   cancelButton: {
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 6,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
   },
   cancelText: {
-    color: '#374151',
+    color: '#6B7280',
     fontWeight: '600',
     fontSize: 16,
   },
   submitButton: {
-    backgroundColor: '#2563eb',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 6,
-    justifyContent: 'center',
+    backgroundColor: '#4F46E5',
+    borderRadius: 10,
+    paddingVertical: 16,
     alignItems: 'center',
-    minWidth: 120,
+    justifyContent: 'center',
+    width: '100%',
   },
   submitText: {
-    color: '#fff',
-    fontWeight: '600',
+    color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  dropdownButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingRight: 12,
+  },
+  dropdownButtonText: {
+    fontSize: 15,
+    color: '#111827',
+    flex: 1,
+  },
+  // Modal styles
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  bottomSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '75%',
+    paddingBottom: Platform.OS === 'ios' ? 30 : 16,
+  },
+  sheetHandle: {
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D1D5DB',
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 2,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  sheetCloseBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetCloseTxt: {
+    fontSize: 18,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  sheetList: {
+    maxHeight: 350,
+  },
+  sheetItem: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  sheetItemText: {
+    fontSize: 15,
+    color: '#111827',
   },
 });

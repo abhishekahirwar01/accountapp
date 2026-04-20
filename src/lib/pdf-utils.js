@@ -614,6 +614,7 @@ export const prepareTemplate8Data = (
   company,
   party,
   shippingAddress,
+  serviceNameById = new Map(),
 ) => {
   // ✅ FIX: Agar transaction undefined hai toh return karein
   if (!transaction) {
@@ -664,12 +665,12 @@ export const prepareTemplate8Data = (
   const totalTaxable = totals.subtotal;
   const totalAmount = totals.invoiceTotal;
 
-  const items = getUnifiedLines(transaction);
+  const items = getUnifiedLines(transaction, serviceNameById);
 
   const totalItems = items.length;
   const totalQty = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
 
-  const itemsBody = getItemsBody(transaction);
+  const itemsBody = getItemsBody(transaction, serviceNameById);
 
   // Calculate GST for each item with proper party and shipping address context
   const itemsWithGST = items.map((item, index) => {

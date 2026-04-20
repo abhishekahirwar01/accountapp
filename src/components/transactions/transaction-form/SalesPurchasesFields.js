@@ -463,66 +463,34 @@ export const SalesPurchasesFields = props => {
 
       if (res.ok) {
         const data = await res.json();
-        let banksData = data;
+        let banksData =
+          data.banks || data.data || (Array.isArray(data) ? data : []);
 
-        if (data && data.banks) {
-          banksData = data.banks;
-        } else if (Array.isArray(data)) {
-          banksData = data;
-        } else if (data && Array.isArray(data.data)) {
-          banksData = data.data;
-        } else {
-          banksData = [];
-        }
-
+        // Filter banks for this company
         const filteredBanks = banksData.filter(bank => {
-          const bankCompanyId =
+          const bankCompId =
             bank.company?._id || bank.company || bank.companyId;
-          return !companyId || bankCompanyId === companyId;
+          return bankCompId === companyId;
         });
 
         setBanks(filteredBanks);
 
-        // Enhanced Auto Bank Selection Logic
+        // FIX: Jab bhi company change ho aur Cash ke alawa koi method ho
         if (filteredBanks.length > 0 && watchedPaymentMethod !== 'Cash') {
-          const currentBankValue = getValues('bank');
-
-          // Only auto-select if no bank is currently selected
-          if (!currentBankValue) {
-            const firstBankId = filteredBanks[0]._id;
-
-            setSelectedBank(firstBankId);
-            setValue('bank', firstBankId, {
-              shouldValidate: true,
-              shouldDirty: false,
-            });
-            setIsBankAutoSelected(true);
-
-            // Toast removed as per user request
-            if (filteredBanks.length > 1) {
-              // Toast.show({
-              //   type: 'info',
-              //   text1: 'Bank Auto-Selected',
-              //   text2: 'First bank selected - you can change it',
-              // });
-            }
-          }
-        } else if (
-          filteredBanks.length === 0 &&
-          watchedPaymentMethod !== 'Cash'
-        ) {
-          // Clear bank selection if no banks available
-          setValue('bank', '');
+          const firstBankId = filteredBanks[0]._id;
+          setSelectedBank(firstBankId);
+          setValue('bank', firstBankId, { shouldValidate: true });
+          setIsBankAutoSelected(true);
+        } else {
+          // Agar bank nahi hain, toh clear karein
           setSelectedBank('');
-          setIsBankAutoSelected(false);
+          setValue('bank', '');
         }
       }
     } catch (error) {
       console.error('Error fetching banks:', error);
-      setBanks([]);
     }
   };
-
   const handleDeleteUnit = async unitId => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -581,6 +549,8 @@ export const SalesPurchasesFields = props => {
 
   useEffect(() => {
     if (selectedCompanyIdWatch) {
+      setSelectedBank('');
+      setValue('bank', '');
       fetchBanks(selectedCompanyIdWatch);
       fetchPaymentExpenses(selectedCompanyIdWatch);
     } else {
@@ -1233,7 +1203,9 @@ export const SalesPurchasesFields = props => {
           <View style={styles.productSelectionContainer}>
             <View style={styles.sectionHeader}>
               <Icon name={IconMap.ShoppingCart} size={16} color="#1E40AF" />
-              <Text style={styles.sectionHeaderText}>Product Selection</Text>
+              <Text style={styles.sectionHeaderText}>
+                Product Selection <Text style={styles.required}>*</Text>
+              </Text>
               {isOriginalProduct && (
                 <Text style={styles.originalProductWarning} numberOfLines={2}>
                   (Product name is fixed — you can edit Qty, price or add new
@@ -1412,14 +1384,52 @@ export const SalesPurchasesFields = props => {
             <View style={styles.pairRow}>
               <View style={[styles.inputContainer, styles.pairItem]}>
                 <Text style={styles.inputLabel}>HSN Code</Text>
-                <HsnSacDropdown
-                  items={hsnOptions}
-                  value={watch(`items.${index}.hsn`) || ''}
-                  onChange={hsnCodeValue => {
-                    handleHsnChange(hsnCodeValue, index);
-                  }}
-                  placeholder="Search HSN..."
-                />
+                {(() => {
+                  const selectedProductId = watch(`items.${index}.product`);
+                  const selectedProduct = products?.find(
+                    p => p._id === selectedProductId,
+                  );
+                  const productHsn = selectedProduct?.hsn;
+                  const ocrHsn = watch(`items.${index}.hsn`);
+                  const displayHsn = productHsn || ocrHsn;
+
+                  // Show read-only if product has HSN, otherwise show search
+                  if (displayHsn && productHsn) {
+                    return (
+                      <View
+                        style={[
+                          styles.textInput,
+                          {
+                            backgroundColor: '#F3F4F6',
+                            justifyContent: 'center',
+                            borderColor: '#D1D5DB',
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            fontWeight: '600',
+                            color: '#374151',
+                          }}
+                        >
+                          {displayHsn}
+                        </Text>
+                      </View>
+                    );
+                  } else {
+                    return (
+                      <HsnSacDropdown
+                        items={hsnOptions}
+                        value={watch(`items.${index}.hsn`) || ''}
+                        onChange={hsnCodeValue => {
+                          handleHsnChange(hsnCodeValue, index);
+                        }}
+                        placeholder="Search HSN..."
+                      />
+                    );
+                  }
+                })()}
                 <FormMessage error={errors?.items?.[index]?.hsn} />
               </View>
 
@@ -1587,7 +1597,9 @@ export const SalesPurchasesFields = props => {
           <View style={styles.serviceSelectionContainer}>
             <View style={styles.sectionHeader}>
               <Icon name={IconMap.Zap} size={16} color="#166534" />
-              <Text style={styles.sectionHeaderText}>Service Selection</Text>
+              <Text style={styles.sectionHeaderText}>
+                Service Selection <Text style={styles.required}>*</Text>
+              </Text>
             </View>
 
             <View ref={ref => registerFieldRef(`items.${index}.service`, ref)}>
@@ -1702,14 +1714,52 @@ export const SalesPurchasesFields = props => {
             <View style={styles.pairRow}>
               <View style={[styles.inputContainer, styles.pairItem]}>
                 <Text style={styles.inputLabel}>SAC Code</Text>
-                <HsnSacDropdown
-                  items={sacOptions}
-                  value={watch(`items.${index}.sac`) || ''}
-                  onChange={sacCodeValue => {
-                    handleSacChange(sacCodeValue, index);
-                  }}
-                  placeholder="Search SAC..."
-                />
+                {(() => {
+                  const selectedServiceId = watch(`items.${index}.service`);
+                  const selectedService = services?.find(
+                    s => s._id === selectedServiceId,
+                  );
+                  const serviceSac = selectedService?.sac;
+                  const ocrSac = watch(`items.${index}.sac`);
+                  const displaySac = serviceSac || ocrSac;
+
+                  // Show read-only if service has SAC, otherwise show search
+                  if (displaySac && serviceSac) {
+                    return (
+                      <View
+                        style={[
+                          styles.textInput,
+                          {
+                            backgroundColor: '#F3F4F6',
+                            justifyContent: 'center',
+                            borderColor: '#D1D5DB',
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            fontWeight: '600',
+                            color: '#374151',
+                          }}
+                        >
+                          {displaySac}
+                        </Text>
+                      </View>
+                    );
+                  } else {
+                    return (
+                      <HsnSacDropdown
+                        items={sacOptions}
+                        value={watch(`items.${index}.sac`) || ''}
+                        onChange={sacCodeValue => {
+                          handleSacChange(sacCodeValue, index);
+                        }}
+                        placeholder="Search SAC..."
+                      />
+                    );
+                  }
+                })()}
                 <FormMessage error={errors?.items?.[index]?.sac} />
               </View>
 
@@ -1865,7 +1915,9 @@ export const SalesPurchasesFields = props => {
             >
               <View style={styles.transactionRow}>
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Company</Text>
+                  <Text style={styles.label}>
+                    Company <Text style={styles.required}>*</Text>
+                  </Text>
                   <View ref={ref => registerFieldRef('company', ref)}>
                     <Controller
                       control={control}
@@ -1895,7 +1947,9 @@ export const SalesPurchasesFields = props => {
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Transaction Date</Text>
+                  <Text style={styles.label}>
+                    Transaction Date <Text style={styles.required}>*</Text>
+                  </Text>
                   <View ref={ref => registerFieldRef('date', ref)}>
                     <Controller
                       control={control}
@@ -1944,7 +1998,9 @@ export const SalesPurchasesFields = props => {
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Due Date</Text>
+                  <Text style={styles.label}>
+                    Due Date <Text style={styles.required}>*</Text>
+                  </Text>
                   <View ref={ref => registerFieldRef('dueDate', ref)}>
                     <Controller
                       control={control}
@@ -1994,7 +2050,9 @@ export const SalesPurchasesFields = props => {
 
               <View style={styles.transactionRow}>
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{partyLabel}</Text>
+                  <Text style={styles.label}>
+                    {partyLabel} <Text style={styles.required}>*</Text>
+                  </Text>
                   <View ref={ref => registerFieldRef('party', ref)}>
                     <Controller
                       control={control}
@@ -2045,7 +2103,9 @@ export const SalesPurchasesFields = props => {
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Payment Method</Text>
+                  <Text style={styles.label}>
+                    Payment Method <Text style={styles.required}>*</Text>
+                  </Text>
                   <View ref={ref => registerFieldRef('paymentMethod', ref)}>
                     <Controller
                       control={control}
@@ -2077,7 +2137,9 @@ export const SalesPurchasesFields = props => {
 
               {shouldShowBankField && (
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Bank</Text>
+                  <Text style={styles.label}>
+                    Bank <Text style={styles.required}>*</Text>
+                  </Text>
                   <Controller
                     control={control}
                     name="bank"
@@ -2548,7 +2610,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 0,
-    marginBottom: 0,
+    marginBottom: 60,
   },
   card: {
     backgroundColor: 'white',
@@ -2559,7 +2621,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 1,
   },
   sectionCard: {
     marginBottom: 16,
@@ -2570,7 +2632,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 1,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -2699,7 +2761,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
-    elevation: 2,
+    elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
@@ -3122,6 +3184,11 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     fontSize: 12,
     marginTop: 4,
+  },
+  required: {
+    color: '#DC2626',
+    fontSize: 14,
+    fontWeight: '600',
   },
   deleteUnitButton: {
     padding: 4,

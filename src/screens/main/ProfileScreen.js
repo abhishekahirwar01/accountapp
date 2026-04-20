@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import {
   View,
   Text,
@@ -12,6 +18,8 @@ import {
   RefreshControl,
   Platform,
   BackHandler,
+  Animated,
+  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -35,6 +43,7 @@ import {
   XCircle,
   ArrowLeft,
 } from 'lucide-react-native';
+import LinearGradient from 'react-native-linear-gradient';
 
 import { BASE_URL } from '../../config';
 import { usePermissions } from '../../contexts/permission-context';
@@ -55,6 +64,11 @@ import ServiceSettings from '../../components/settings/ServiceSettings';
 import BankSettings from '../../components/settings/BankSettings';
 import TemplateSettings from '../../components/settings/TemplateSettings';
 import { EmailSendingConsent } from '../../components/settings/EmailSendingConsent';
+
+const GRADIENT_COLORS = [
+  "#8b77ff", // Purple/Indigo
+  "#988be2", // Light blue
+];
 
 const PermissionsTab = React.memo(() => {
   const { permissions } = usePermissions();
@@ -192,7 +206,7 @@ const PermissionsTab = React.memo(() => {
         <View style={styles.card}>
           <View style={styles.cardContent}>
             <View style={styles.cardHeader}>
-              <Shield size={24} color="#3b82f6" />
+              <Shield size={24} color="#8b77ff" />
               <Text style={styles.cardTitle}>Permissions</Text>
             </View>
             <Text style={styles.cardSubtitle}>
@@ -209,7 +223,7 @@ const PermissionsTab = React.memo(() => {
       <View style={styles.card}>
         <View style={styles.cardContent}>
           <View style={styles.cardHeader}>
-            <Shield size={24} color="#3b82f6" />
+            <Shield size={24} color="#7C6FF7" />
             <View style={styles.cardHeaderText}>
               <Text style={styles.cardTitle}>Plan & Permissions</Text>
               <Text style={styles.cardDescription}>
@@ -219,30 +233,41 @@ const PermissionsTab = React.memo(() => {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>USAGE LIMITS</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>USAGE LIMITS</Text>
+
+              <View style={styles.horizontalLine}></View>
+            </View>
+
             <View style={styles.limitsRow}>
-              {limitItems.map((item, idx) => (
-                <View
+              {limitItems.map(item => (
+
+                <LinearGradient
                   key={item.label}
-                  style={[
-                    styles.limitItem,
-                    idx % 3 !== 2 && { marginRight: 12 },
-                  ]}
+                  colors={GRADIENT_COLORS}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.gradient}
                 >
                   <View style={styles.limitItemHeader}>
-                    <item.icon size={18} color="#9ca3af" />
+                    <item.icon size={18} color="#fff" />
                     <Text style={styles.limitValue}>{item.value ?? 'N/A'}</Text>
                   </View>
                   <Text style={styles.limitLabel}>{item.label}</Text>
-                </View>
+                </LinearGradient>
+
               ))}
             </View>
           </View>
 
-          <View style={styles.separator} />
+          {/* <View style={styles.separator} /> */}
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>FEATURE ACCESS</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>FEATURE ACCESS</Text>
+
+              <View style={styles.horizontalLine}></View>
+            </View>
             <View>
               {permissionItems.map(item => {
                 const isEmailRow = item.label === 'Send Invoice via Email';
@@ -250,7 +275,7 @@ const PermissionsTab = React.memo(() => {
                 return (
                   <View key={item.label} style={styles.featureItem}>
                     <View style={styles.featureInfo}>
-                      <item.icon size={15} color="#9ca3af" />
+                      <item.icon size={20} color="#8c78ff" />
                       <Text style={styles.featureLabel}>{item.label}</Text>
 
                       {isEmailRow && (
@@ -264,7 +289,7 @@ const PermissionsTab = React.memo(() => {
                           style={styles.emailStatusIndicator}
                         >
                           {loadingGmail ? (
-                            <ActivityIndicator size="small" color="#3b82f6" />
+                            <ActivityIndicator size="small" color="#8b77ff" />
                           ) : !emailPerm ? (
                             <AlertTriangle size={15} color="#f59e0b" />
                           ) : gmailLinked ? (
@@ -277,9 +302,9 @@ const PermissionsTab = React.memo(() => {
                     </View>
 
                     {item.granted ? (
-                      <CheckCircle size={20} color="#10b981" />
+                      <CheckCircle size={24} color="#10b981"/>
                     ) : (
-                      <XCircle size={20} color="#ef4444" />
+                      <XCircle size={24} color="#ef4444" />
                     )}
                   </View>
                 );
@@ -394,7 +419,7 @@ const UserPermissionsTab = React.memo(() => {
       <View style={styles.card}>
         <View style={styles.cardContent}>
           <View style={styles.cardHeader}>
-            <Shield size={24} color="#3b82f6" />
+            <Shield size={24} color="#8b77ff" />
             <View style={styles.cardHeaderText}>
               <Text style={styles.cardTitle}>My Permissions</Text>
               <Text style={styles.cardDescription}>
@@ -403,7 +428,7 @@ const UserPermissionsTab = React.memo(() => {
             </View>
           </View>
 
-          <View style={styles.separator} />
+          {/* <View style={styles.separator} /> */}
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>FEATURE ACCESS</Text>
@@ -411,7 +436,7 @@ const UserPermissionsTab = React.memo(() => {
               {features.map(feature => (
                 <View key={feature.label} style={styles.featureItem}>
                   <View style={styles.featureInfo}>
-                    <feature.icon size={16} color="#9ca3af" />
+                    <feature.icon size={16} color="#8c78ff" />
                     <Text style={styles.featureLabel}>{feature.label}</Text>
                   </View>
                   <CheckCircle size={20} color="#10b981" />
@@ -432,9 +457,16 @@ export default function ProfilePage({ navigation, route }) {
   const isMobile = width < 768;
   const { socket, isConnected } = useSocket();
   const { permissions, refetch: refetchPermissions } = usePermissions();
-
   const { permissions: userCaps, refetch: refetchUserPermissions } =
     useUserPermissions();
+
+  // Animation refs
+  const slideAnimation = useRef(new Animated.Value(0)).current;
+  const scaleAnimation = useRef(new Animated.Value(1)).current;
+  const tabPositions = useRef({}).current;
+  const scrollViewRef = useRef(null);
+  const [indicatorWidth, setIndicatorWidth] = useState(0);
+  const [tabLayouts, setTabLayouts] = useState({});
 
   // Real-time Permission Listeners
   usePermissionSocket(() => {
@@ -450,9 +482,76 @@ export default function ProfilePage({ navigation, route }) {
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
+  // Animated tab change function
+  const animateTabChange = useCallback(
+    tabValue => {
+      const position = tabPositions[tabValue];
+      if (position) {
+        // Animate the indicator to new position with spring for natural feel
+        Animated.spring(slideAnimation, {
+          toValue: position.left,
+          useNativeDriver: true,
+          friction: 8,
+          tension: 50,
+        }).start();
+
+        // Scale animation for active tab
+        Animated.sequence([
+          Animated.timing(scaleAnimation, {
+            toValue: 1.2,
+            duration: 150,
+            useNativeDriver: true,
+            easing: Easing.ease,
+          }),
+          Animated.timing(scaleAnimation, {
+            toValue: 1,
+            duration: 150,
+            useNativeDriver: true,
+            easing: Easing.ease,
+          }),
+        ]).start();
+
+        setIndicatorWidth(position.width);
+
+        // Scroll to make the selected tab visible if needed
+        if (scrollViewRef.current) {
+          const scrollPosition = position.left - width / 2 + position.width / 2;
+          scrollViewRef.current.scrollTo({
+            x: Math.max(0, scrollPosition),
+            animated: true,
+          });
+        }
+      }
+    },
+    [slideAnimation, scaleAnimation, tabPositions, width],
+  );
+
+  const handleTabPress = useCallback(
+    tabValue => {
+      setSelectedTab(tabValue);
+      animateTabChange(tabValue);
+    },
+    [animateTabChange],
+  );
+
+  // Measure tab layout
+  const onTabLayout = useCallback(
+    (event, tabValue) => {
+      const { x, width } = event.nativeEvent.layout;
+      tabPositions[tabValue] = { left: x, width };
+
+      // Set initial indicator position
+      if (tabValue === selectedTab) {
+        setIndicatorWidth(width);
+        slideAnimation.setValue(x);
+      }
+    },
+    [selectedTab, slideAnimation, tabPositions],
+  );
+
   useEffect(() => {
     if (initialLoadComplete && route?.params?.selectTab) {
-      setSelectedTab(route.params.selectTab);
+      handleTabPress(route.params.selectTab);
     }
   }, [initialLoadComplete, route?.params?.selectTab]);
 
@@ -510,6 +609,11 @@ export default function ProfilePage({ navigation, route }) {
           initialTab = 'permissions';
         }
         setSelectedTab(initialTab);
+
+        // Set initial indicator position after a short delay to ensure layouts are measured
+        setTimeout(() => {
+          animateTabChange(initialTab);
+        }, 100);
       }
       return user;
     } catch (error) {
@@ -572,17 +676,17 @@ export default function ProfilePage({ navigation, route }) {
 
     const permissionsTab = isUser
       ? {
-          value: 'my-permissions',
-          label: 'My Permissions',
-          icon: Shield,
-          component: <UserPermissionsTab />,
-        }
+        value: 'my-permissions',
+        label: 'My Permissions',
+        icon: Shield,
+        component: <UserPermissionsTab />,
+      }
       : {
-          value: 'permissions',
-          label: 'Permissions',
-          icon: Shield,
-          component: <PermissionsTab />,
-        };
+        value: 'permissions',
+        label: 'Permissions',
+        icon: Shield,
+        component: <PermissionsTab />,
+      };
 
     const memberTabs = [permissionsTab];
 
@@ -632,7 +736,7 @@ export default function ProfilePage({ navigation, route }) {
         value: 'services',
         label: 'Services',
         icon: Server,
-        component: <ServiceSettings />,
+        component: <ServiceSettings navigation={navigation} />,
       });
     }
 
@@ -670,7 +774,7 @@ export default function ProfilePage({ navigation, route }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3b82f6" />
+          <ActivityIndicator size="large" color="#8b77ff" />
           <Text style={styles.loadingText}>Loading settings...</Text>
         </View>
       </SafeAreaView>
@@ -688,8 +792,8 @@ export default function ProfilePage({ navigation, route }) {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['#3b82f6']}
-            tintColor="#3b82f6"
+            colors={['#8b77ff']}
+            tintColor="#8b77ff"
             progressViewOffset={Platform.OS === 'android' ? 50 : 0}
           />
         }
@@ -704,7 +808,7 @@ export default function ProfilePage({ navigation, route }) {
                   activeOpacity={0.7}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <ArrowLeft size={22} color="#3b82f6" />
+                  <ArrowLeft size={22} color="#8b77ff" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Settings</Text>
               </View>
@@ -717,41 +821,61 @@ export default function ProfilePage({ navigation, route }) {
 
           <View style={styles.tabsContainer}>
             <ScrollView
+              ref={scrollViewRef}
               horizontal
-              showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.tabsScrollContent}
+              showsHorizontalScrollIndicator={false}
+              scrollEventThrottle={16}
             >
               {availableTabs.map(tab => {
                 const active = selectedTab === tab.value;
-
                 return (
                   <TouchableOpacity
                     key={tab.value}
                     style={[styles.tabItem, active && styles.tabItemActive]}
-                    onPress={() => {
-                      setSelectedTab(tab.value);
-                    }}
+                    onPress={() => handleTabPress(tab.value)}
+                    activeOpacity={0.7}
+                    onLayout={event => onTabLayout(event, tab.value)}
                   >
-                    <View style={styles.tabRow}>
+                    <Animated.View
+                      style={[
+                        styles.tabRow,
+                        active && {
+                          transform: [{ scale: scaleAnimation }],
+                        },
+                      ]}
+                    >
                       {tab.icon && (
                         <tab.icon
                           size={16}
-                          color={active ? '#3b82f6' : '#9ca3af'}
-                          style={{ marginRight: 8 }}
+                          color={active ? '#8b77ff' : '#565b63'}
+                          style={{ marginRight: 6 }}
                         />
                       )}
                       <Text
                         style={[styles.tabText, active && styles.tabTextActive]}
-                        numberOfLines={1}
                       >
                         {tab.label}
                       </Text>
-                    </View>
-
-                    {active && <View style={styles.activeIndicator} />}
+                    </Animated.View>
                   </TouchableOpacity>
                 );
               })}
+
+              {/* Animated Indicator */}
+              <Animated.View
+                style={[
+                  styles.activeIndicator,
+                  {
+                    width: indicatorWidth,
+                    transform: [
+                      {
+                        translateX: slideAnimation,
+                      },
+                    ],
+                  },
+                ]}
+              />
             </ScrollView>
           </View>
 
@@ -772,7 +896,7 @@ export default function ProfilePage({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f7f9ff',
   },
   scrollView: {
     flex: 1,
@@ -780,6 +904,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
     padding: 12,
+    backgroundColor: '#f7f9ff',
   },
   loadingContainer: {
     flex: 1,
@@ -793,15 +918,15 @@ const styles = StyleSheet.create({
     color: '#1f2937',
   },
   headerContainer: {
-    marginBottom: 14,
+    marginBottom: 8,
   },
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    // marginBottom: 8,
   },
   backButton: {
     marginRight: 12,
+    padding: 4,
   },
   headerTextContainer: {
     flex: 1,
@@ -814,30 +939,33 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 12,
     color: '#6b7280',
-    // lineHeight: 22,
+    marginTop: 4,
   },
   tabsContainer: {
-    marginBottom: 4,
+    marginBottom: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    backgroundColor: '#f7f9ff',
+    position: 'relative',
   },
   tabsScrollContent: {
-    paddingVertical: 4,
+    paddingVertical: 0,
+    paddingHorizontal: 8,
+    position: 'relative',
   },
   tabItem: {
-    // paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginHorizontal: 4,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    marginHorizontal: 0,
     position: 'relative',
-    minWidth: 110,
-    borderRadius: 10,
-    backgroundColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
+    minWidth: 100,
+    backgroundColor: 'transparent',
+    shadowOpacity: 0,
+    elevation: 0,
+    zIndex: 1,
   },
   tabItemActive: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: 'transparent',
   },
   tabRow: {
     flexDirection: 'row',
@@ -845,23 +973,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tabText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#6b7280',
+    color: '#4a4e55',
     textAlign: 'center',
   },
   tabTextActive: {
-    color: '#3b82f6',
+    color: '#8b77ff',
   },
   activeIndicator: {
     position: 'absolute',
     bottom: 0,
-    left: 12,
-    right: 12,
-    height: 3,
-    backgroundColor: '#3b82f6',
+    height: 2,
+    backgroundColor: '#8b77ff',
     borderTopLeftRadius: 2,
     borderTopRightRadius: 2,
+    zIndex: 0,
   },
   tabContentWrapper: {
     flex: 1,
@@ -873,12 +1000,11 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 16,
     borderRadius: 12,
-    elevation: 0.5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    // shadowColor: '#000',
+    // shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
-    backgroundColor: '#fff',
+    backgroundColor: '#f7f9ff',
   },
   cardContent: {
     padding: 10,
@@ -887,12 +1013,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
-    padding:8
+    paddingVertical: 10,
   },
   cardHeaderText: {
     flex: 1,
     marginLeft: 12,
-    
   },
   cardTitle: {
     fontSize: 19,
@@ -902,8 +1027,6 @@ const styles = StyleSheet.create({
   cardDescription: {
     fontSize: 13,
     color: '#6b7280',
-    // marginTop: 4,
-    // lineHeight: 20,
   },
   cardSubtitle: {
     fontSize: 14,
@@ -912,11 +1035,24 @@ const styles = StyleSheet.create({
   section: {
     // marginBottom: 24,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    display: "flex"
+  },
+
+  horizontalLine: {
+    height: 1,
+    backgroundColor: '#e6eeff',
+    marginVertical: 16,
+    width: '65%',
+  },
   sectionTitle: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '800',
     color: '#6b7280',
-    marginBottom: 16,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
@@ -927,17 +1063,30 @@ const styles = StyleSheet.create({
   },
   limitsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    padding: 0,
+    gap: 8,
+    marginBottom: 10
   },
   limitItem: {
-    flex: 1,
-    padding: 6,
-    backgroundColor: '#f8fafc',
+    width: '30%', // Set a fixed width to maintain uniform size across cards
+    padding: 12,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    marginBottom: 12,
+    overflow: 'hidden', // Ensures no content overflows
   },
-  
+  gradient: {
+    flex: 1, // Ensures gradient covers the entire area of the card
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+    paddingVertical: 4, // Adjust padding for balance
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 4, // Apply shadow for Android
+  },
   limitItemHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -945,14 +1094,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   limitValue: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: '#fff',
     marginLeft: 8,
   },
   limitLabel: {
     fontSize: 12,
-    color: '#6b7280',
+    color: '#fff',
     textAlign: 'center',
   },
   featureItem: {
@@ -960,9 +1109,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    boxShadow: "0px 1px 5px rgba(0,0,0,0.1) ",
     backgroundColor: '#fff',
     marginBottom: 12,
   },
@@ -972,7 +1120,7 @@ const styles = StyleSheet.create({
   },
   featureLabel: {
     marginLeft: 8,
-    fontSize: 12,
+    fontSize: 14,
     color: '#1f2937',
   },
   emailStatusIndicator: {

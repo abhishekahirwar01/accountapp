@@ -13,6 +13,7 @@ import {
   FlatList,
   Platform,
   Dimensions,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useForm, Controller } from 'react-hook-form';
@@ -25,6 +26,7 @@ import { BASE_URL } from '../../config';
 import ImagePicker from 'react-native-image-crop-picker';
 import ImageCropper from '../ui/ImageCropper.js';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 
 // Form Schema
 const formSchema = z.object({
@@ -33,6 +35,7 @@ const formSchema = z.object({
     .string()
     .min(2, 'Business name must be at least 2 characters'),
   businessType: z.string().min(2, 'Business type is required'),
+  industryType: z.string().min(1, 'Industry type is required'),
   address: z.string().min(5, 'Address must be at least 5 characters'),
   City: z.string().optional(),
   addressState: z.string().optional(),
@@ -92,6 +95,7 @@ const stepFields = {
   1: [
     'client',
     'businessType',
+    'industryType',
     'businessName',
     'registrationNumber',
     'address',
@@ -128,6 +132,7 @@ const stepFields = {
 const FIELD_LABELS = {
   client: 'Assign to Client',
   businessType: 'Business Type',
+  industryType: 'Industry Type',
   businessName: 'Business Name',
   registrationNumber: 'Registration Number',
   address: 'Address',
@@ -158,6 +163,19 @@ const FIELD_LABELS = {
 };
 
 const getLabel = name => FIELD_LABELS[name] || name;
+
+// Required fields marked with asterisk
+const REQUIRED_FIELDS = new Set([
+  'client',
+  'businessType',
+  'industryType',
+  'businessName',
+  'registrationNumber',
+  'address',
+  'mobileNumber',
+]);
+
+const isRequiredField = name => REQUIRED_FIELDS.has(name);
 
 // Custom Dropdown Component
 const CustomDropdown = ({
@@ -368,7 +386,13 @@ const SearchableDropdown = ({
   );
 };
 
-export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
+export default function AdminCompanyForm({
+  company,
+  clients,
+  onFormSubmit,
+  onCancel,
+  hideHeader = false,
+}) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [step, setStep] = useState(1);
   const [logoFile, setLogoFile] = useState(null);
@@ -417,6 +441,7 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
       registrationNumber: company?.registrationNumber || '',
       businessName: company?.businessName || '',
       businessType: company?.businessType || '',
+      industryType: company?.industryType || 'general',
       address: company?.address || '',
       City: company?.City || '',
       addressState: company?.addressState || '',
@@ -495,6 +520,7 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
         registrationNumber: company.registrationNumber || '',
         businessName: company.businessName || '',
         businessType: company.businessType || '',
+        industryType: company.industryType || 'general',
         address: company.address || '',
         City: company.City || '',
         addressState: company.addressState || '',
@@ -676,7 +702,7 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
       setStep(step + 1);
     } else {
       Alert.alert(
-        'Validation Error',
+        'Required Fields Missing',
         'Please fill all required fields before proceeding to the next step.',
         [{ text: 'OK' }],
       );
@@ -819,7 +845,10 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
       name={name}
       render={({ field: { onChange, onBlur, value } }) => (
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>{getLabel(name)}</Text>
+          <Text style={styles.label}>
+            {getLabel(name)}
+            {isRequiredField(name) && <Text style={styles.asterisk}>*</Text>}
+          </Text>
           <TextInput
             style={[
               styles.input,
@@ -848,7 +877,10 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
       name={name}
       render={({ field: { onChange, value } }) => (
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>{getLabel(name)}</Text>
+          <Text style={styles.label}>
+            {getLabel(name)}
+            {isRequiredField(name) && <Text style={styles.asterisk}>*</Text>}
+          </Text>
           {searchable ? (
             <SearchableDropdown
               value={value}
@@ -987,6 +1019,25 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      {/* Header with Back Button - Hidden when used in Dialog */}
+      {!hideHeader && (
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={onCancel}
+            style={styles.backBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <MaterialIcon name="arrow-back" size={24} color="#4F46E5" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>
+            {company ? 'Edit Company' : 'Create Company'}
+          </Text>
+          <View style={styles.backBtn} />
+        </View>
+      )}
+
       {/* Step Indicator */}
       {renderStepIndicator()}
 
@@ -1048,6 +1099,14 @@ export default function AdminCompanyForm({ company, clients, onFormSubmit }) {
                   value: type,
                 })),
                 'Select business type',
+              )}
+              {renderSelectField(
+                'industryType',
+                [
+                  { label: 'General', value: 'general' },
+                  { label: 'Travels', value: 'travels' },
+                ],
+                'Select industry type',
               )}
 
               {/* Responsive Layout */}
@@ -1323,6 +1382,30 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
 
+  // Header Styles
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
+  },
+
   connector: {
     height: 2,
     width: 40, // Mobile connector length
@@ -1455,11 +1538,11 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 20,
-    paddingBottom: 100,
+    paddingBottom: 20,
   },
   mobileScrollContent: {
     padding: 16,
-    paddingBottom: 120,
+    paddingBottom: 16,
   },
   stepContent: {
     gap: 16,
@@ -1484,6 +1567,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
     marginBottom: 8,
+  },
+  asterisk: {
+    color: '#ef4444',
+    marginLeft: 4,
+    fontSize: 14,
+    fontWeight: '600',
   },
   input: {
     borderWidth: 1,
@@ -1647,15 +1736,12 @@ const styles = StyleSheet.create({
   // Navigation Buttons
   // Mobile Navigation
   mobileNavigationContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
     paddingHorizontal: 16,
     paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 16,
     ...Platform.select({
       ios: {
         shadowColor: '#000',

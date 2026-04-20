@@ -277,7 +277,9 @@ export const ReceiptPaymentFields = props => {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Company</Text>
+          <Text style={styles.label}>
+            Company <Text style={styles.required}>*</Text>
+          </Text>
           <Controller
             control={control}
             name="company"
@@ -298,7 +300,9 @@ export const ReceiptPaymentFields = props => {
         </View>
 
         <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Transaction Date</Text>
+          <Text style={styles.label}>
+            Transaction Date <Text style={styles.required}>*</Text>
+          </Text>
           <Controller
             control={control}
             name="date"
@@ -348,7 +352,7 @@ export const ReceiptPaymentFields = props => {
                         setValue('expense', '');
                       }
                     }}
-                    trackColor={{ false: '#767577', true: '#007AFF' }}
+                    trackColor={{ false: '#767577', true: '#8b77ff' }}
                     thumbColor={value ? '#f4f3f4' : '#f4f3f4'}
                   />
                 )}
@@ -366,7 +370,9 @@ export const ReceiptPaymentFields = props => {
         <View style={styles.fieldContainer}>
           {isExpense && type === 'payment' ? (
             <>
-              <Text style={styles.label}>Expense Category</Text>
+              <Text style={styles.label}>
+                Expense Category <Text style={styles.required}>*</Text>
+              </Text>
               <Controller
                 control={control}
                 name="expense"
@@ -387,7 +393,9 @@ export const ReceiptPaymentFields = props => {
             </>
           ) : (
             <>
-              <Text style={styles.label}>{partyLabel}</Text>
+              <Text style={styles.label}>
+                {partyLabel} <Text style={styles.required}>*</Text>
+              </Text>
               <Controller
                 control={control}
                 name="party"
@@ -428,7 +436,9 @@ export const ReceiptPaymentFields = props => {
         </View>
 
         <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Amount</Text>
+          <Text style={styles.label}>
+            Amount <Text style={styles.required}>*</Text>
+          </Text>
           <Controller
             control={control}
             name="totalAmount"
@@ -449,7 +459,9 @@ export const ReceiptPaymentFields = props => {
         </View>
 
         <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Payment Method</Text>
+          <Text style={styles.label}>
+            Payment Method <Text style={styles.required}>*</Text>
+          </Text>
           <Controller
             control={control}
             name="paymentMethod"
@@ -513,6 +525,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 14,
     paddingBottom: 12,
+    marginBottom: 90,
   },
   content: {
     padding: 12,
@@ -597,6 +610,7 @@ const styles = StyleSheet.create({
   balanceCard: {
     marginTop: 12,
     borderLeftWidth: 4,
+    paddingHorizontal: 12,
   },
   balanceLabel: {
     fontSize: 12,
@@ -614,5 +628,10 @@ const styles = StyleSheet.create({
   },
   errorBorder: {
     borderColor: '#DC2626',
+  },
+  required: {
+    color: '#DC2626',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

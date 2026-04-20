@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Platform,
   KeyboardAvoidingView,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useForm, Controller } from 'react-hook-form';
@@ -20,7 +21,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  X,
   ChevronLeft,
   ChevronRight,
   PlusCircle,
@@ -56,6 +56,8 @@ const formSchema = z.object({
     .trim(),
 
   businessType: z.string().min(1, 'Business type is required'),
+
+  industryType: z.string().min(1, 'Industry type is required'),
 
   address: z
     .string()
@@ -290,6 +292,7 @@ const gstRegistrationTypes = [
 const FIELD_LABELS = {
   client: 'Assign to Client',
   businessType: 'Business Type',
+  industryType: 'Industry Type',
   businessName: 'Business Name',
   registrationNumber: 'Registration Number',
   address: 'Address',
@@ -323,6 +326,7 @@ const getStepFields = isClient => ({
   1: [
     ...(isClient ? [] : ['client']),
     'businessType',
+    'industryType',
     'businessName',
     'registrationNumber',
     'address',
@@ -416,6 +420,7 @@ export function CompanyForm({ company, clients, onFormSubmit, onCancel }) {
       registrationNumber: company?.registrationNumber || '',
       businessName: company?.businessName || '',
       businessType: company?.businessType || '',
+      industryType: company?.industryType || 'general',
       address: company?.address || '',
       City: company?.City || '',
       addressState: company?.addressState || '',
@@ -673,6 +678,7 @@ export function CompanyForm({ company, clients, onFormSubmit, onCancel }) {
         registrationNumber: company.registrationNumber || '',
         businessName: company.businessName || '',
         businessType: company.businessType || '',
+        industryType: company.industryType || 'general',
         address: company.address || '',
         City: company.City || '',
         addressState: company.addressState || '',
@@ -710,6 +716,7 @@ export function CompanyForm({ company, clients, onFormSubmit, onCancel }) {
         registrationNumber: '',
         businessName: '',
         businessType: '',
+        industryType: 'general',
         address: '',
         City: '',
         addressState: '',
@@ -1168,7 +1175,12 @@ export function CompanyForm({ company, clients, onFormSubmit, onCancel }) {
       name={name}
       render={({ field: { onChange, value } }) => (
         <View style={styles.formField}>
-          <Text style={styles.label}>{FIELD_LABELS[name] || name}</Text>
+          <Text style={styles.label}>
+            {FIELD_LABELS[name] || name}
+            {['businessType', 'industryType'].includes(name) && (
+              <Text style={styles.required}> *</Text>
+            )}
+          </Text>
           <CustomDropdown
             items={items}
             value={value}
@@ -1186,26 +1198,28 @@ export function CompanyForm({ company, clients, onFormSubmit, onCancel }) {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header with Title and Cancel Button */}
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      {/* Header with Title and Back Button */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity
+            onPress={onCancel}
+            style={styles.backBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <ChevronLeft size={22} color="#4F46E5" />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {company ? 'Edit Company' : 'Add New Company'}
+            {company ? 'Edit Company' : 'Create Company'}
           </Text>
-          <Text style={styles.headerSubtitle}>
-            {company
-              ? `Update the details for ${company.businessName}`
-              : 'Fill in the form below to add a new company'}
-          </Text>
+          <View style={styles.backBtn} />
         </View>
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={onCancel}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <X size={24} color="#666" />
-        </TouchableOpacity>
+        <Text style={styles.headerSubtitle}>
+          {company
+            ? `Update ${company.businessName}`
+            : 'Fill in the form to add a new company'}
+        </Text>
       </View>
 
       <KeyboardAvoidingView
@@ -1219,6 +1233,7 @@ export function CompanyForm({ company, clients, onFormSubmit, onCancel }) {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          scrollEventThrottle={16}
         >
           {renderStepper()}
 
@@ -1281,6 +1296,14 @@ export function CompanyForm({ company, clients, onFormSubmit, onCancel }) {
                     value: type,
                   })),
                   'Select business type',
+                )}
+                {renderDropdownField(
+                  'industryType',
+                  [
+                    { label: 'General', value: 'general' },
+                    { label: 'Travels', value: 'travels' },
+                  ],
+                  'Select industry type',
                 )}
                 {renderField('businessName')}
                 {renderField('registrationNumber')}
@@ -1426,19 +1449,17 @@ export function CompanyForm({ company, clients, onFormSubmit, onCancel }) {
               </View>
             </View>
           )}
-
-          <View style={styles.bottomSpacer} />
         </ScrollView>
 
-        {/* Bottom Action Buttons */}
-        <View style={styles.bottomActions}>
+        {/* Sticky Button Footer */}
+        <View style={styles.buttonFooter}>
           <View style={styles.actionButtons}>
             {step > 1 && (
               <TouchableOpacity
                 style={[styles.button, styles.outlineButton]}
                 onPress={() => setStep(step - 1)}
               >
-                <ChevronLeft size={20} color="#3b82f6" />
+                <ChevronLeft size={20} color="#4F46E5" />
                 <Text style={[styles.buttonText, styles.outlineButtonText]}>
                   Previous
                 </Text>
@@ -1531,30 +1552,41 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal:16,
-    paddingVertical:4,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: '#E5E7EB',
   },
-  headerLeft: {
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 0,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerContent: {
     flex: 1,
-    marginRight: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
   },
   headerSubtitle: {
-    fontSize: 11,
-    color: '#666',
-    marginTop: 2,
-  },
-  cancelButton: {
-    padding: 4,
+    fontSize: 10,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 14,
+    marginTop: -5,
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -1564,13 +1596,13 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    // paddingBottom: 120,
+    paddingBottom: 16,
   },
   stepperContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 15,
     paddingHorizontal: 20,
   },
   stepContainer: {
@@ -1754,55 +1786,50 @@ const styles = StyleSheet.create({
     color: '#dc2626',
     marginLeft: 4,
   },
-  bottomActions: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#fff',
+  buttonFooter: {
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    // padding: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+    borderTopColor: '#E5E7EB',
+    padding: 16,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 16,
+    gap: 12,
   },
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
   },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderRadius: 8,
-    minWidth: 120,
+    minWidth: 100,
   },
   primaryButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#4F46E5',
     marginLeft: 'auto',
   },
   outlineButton: {
     borderWidth: 1,
-    borderColor: '#3b82f6',
+    borderColor: '#4F46E5',
     backgroundColor: '#fff',
   },
   submitButton: {
     backgroundColor: '#10b981',
+    marginLeft: 'auto',
   },
   buttonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#fff',
-    marginHorizontal: 8,
+    marginHorizontal: 6,
   },
   outlineButtonText: {
-    color: '#3b82f6',
-  },
-  bottomSpacer: {
-    height: 80,
+    color: '#4F46E5',
   },
   required: {
     color: '#dc2626',
