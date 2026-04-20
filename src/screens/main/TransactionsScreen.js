@@ -996,19 +996,19 @@ const TransactionsScreen = ({ navigation }) => {
     const svcArr = Array.isArray(tx.services)
       ? tx.services
       : Array.isArray(tx.service)
-      ? tx.service
-      : tx.services
-      ? [tx.services]
-      : [];
+        ? tx.service
+        : tx.services
+          ? [tx.services]
+          : [];
 
     const svcs = svcArr.map(s => {
       const id =
         s.service && typeof s.service === 'object'
           ? s.service._id
-          : s.service ??
+          : (s.service ??
             (s.serviceName && typeof s.serviceName === 'object'
               ? s.serviceName._id
-              : s.serviceName);
+              : s.serviceName));
 
       const name =
         (id && serviceNameById.get(String(id))) ||
@@ -1601,13 +1601,14 @@ const TransactionsScreen = ({ navigation }) => {
                   onPress={() => handleOpenForm(null)}
                 >
                   <PlusCircle size={16} color="#ffffff" strokeWidth={2.5} />
-                  <Text style={styles.premiumNewButtonText}>New Transaction</Text>
+                  <Text style={styles.premiumNewButtonText}>
+                    New Transaction
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
           </View>
         </View>
-
         {/* Tabs for large screens */}
         {width > 768 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -1623,7 +1624,8 @@ const TransactionsScreen = ({ navigation }) => {
                 style={[
                   styles.tabDateChip,
                   (dateRange.startDate ||
-                    dateRange.endDate !== new Date().toISOString().split('T')[0]) &&
+                    dateRange.endDate !==
+                      new Date().toISOString().split('T')[0]) &&
                     styles.tabDateChipActive,
                 ]}
                 onPress={() => setIsFilterModalOpen(true)}
@@ -1642,7 +1644,8 @@ const TransactionsScreen = ({ navigation }) => {
                   style={[
                     styles.tabDateChipText,
                     (dateRange.startDate ||
-                      dateRange.endDate !== new Date().toISOString().split('T')[0]) &&
+                      dateRange.endDate !==
+                        new Date().toISOString().split('T')[0]) &&
                       styles.tabDateChipTextActive,
                   ]}
                 >
@@ -1662,7 +1665,6 @@ const TransactionsScreen = ({ navigation }) => {
             </View>
           </ScrollView>
         )}
-
         {/* Mobile horizontal tabs with arrows */}
         {width <= 768 && (
           <View
@@ -1692,7 +1694,8 @@ const TransactionsScreen = ({ navigation }) => {
                 style={[
                   styles.tabDateChip,
                   (dateRange.startDate ||
-                    dateRange.endDate !== new Date().toISOString().split('T')[0]) &&
+                    dateRange.endDate !==
+                      new Date().toISOString().split('T')[0]) &&
                     styles.tabDateChipActive,
                 ]}
                 onPress={() => setIsFilterModalOpen(true)}
@@ -1711,7 +1714,8 @@ const TransactionsScreen = ({ navigation }) => {
                   style={[
                     styles.tabDateChipText,
                     (dateRange.startDate ||
-                      dateRange.endDate !== new Date().toISOString().split('T')[0]) &&
+                      dateRange.endDate !==
+                        new Date().toISOString().split('T')[0]) &&
                       styles.tabDateChipTextActive,
                   ]}
                 >
