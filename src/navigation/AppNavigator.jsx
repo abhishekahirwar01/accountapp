@@ -41,6 +41,7 @@ import { VendorForm } from '../components/vendors/VendorForm';
 import { CustomerForm } from '../components/customers/CustomerForm';
 import ServiceForm from '../components/services/ServiceForm';
 import UsersScreen from '../screens/main/UsersScreen';
+import AdditionalServiceForm from '../components/additional-services/AdditionalServiceForm';
 import SettingsScreen from '../screens/main/SettingsScreen';
 import Reports from '../screens/main/reports/Reports';
 import Ledger from '../screens/main/ledger/Ledger';
@@ -209,6 +210,10 @@ export default function AppNavigator({
       <Stack.Screen name="CompanyForm" component={CompanyForm} />
       <Stack.Screen name="ClientForm" component={ClientForm} />
       <Stack.Screen name="ProductForm" component={ProductForm} />
+      <Stack.Screen
+        name="AdditionalServiceForm"
+        component={AdditionalServiceForm}
+      />
       <Stack.Screen name="UserForm" component={UserForm} />
       <Stack.Screen name="CustomerForm" component={CustomerForm} />
       <Stack.Screen

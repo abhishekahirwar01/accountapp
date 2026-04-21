@@ -46,6 +46,7 @@ import { generatePDF } from 'react-native-html-to-pdf';
 
 // Custom components
 import ProductForm from '../../components/products/ProductForm';
+import AdditionalServiceForm from '../../components/additional-services/AdditionalServiceForm';
 import { useNavigation } from '@react-navigation/native';
 import ExcelImportExport from '../../components/ui/ExcelImportExport';
 import InventorySocketListener from '../../socketlisteners/InventorySocketListener';
@@ -56,7 +57,7 @@ const { width } = Dimensions.get('window');
 const ITEMS_PER_PAGE = 10;
 
 // ==========================================
-// UTILITY FUNCTIONS - Moved outside component for better performance
+// UTILITY FUNCTIONS
 // ==========================================
 const formatCurrencyINR = value => {
   if (value === null || value === undefined || value === '') return '₹0.00';
@@ -105,7 +106,6 @@ const ProductCard = memo(
   ({ item, index, isSelected, onSelect, onEdit }) => {
     const isLowStock = (item.stocks ?? 0) <= 10;
 
-    // Memoize company name extraction
     const companyName = useMemo(() => {
       return typeof item.company === 'object' && item.company
         ? item.company.businessName
@@ -333,6 +333,103 @@ const ServiceCard = memo(
 
 ServiceCard.displayName = 'ServiceCard';
 
+// NEW: Additional Service Card Component
+const AdditionalServiceCard = memo(({ item, companies, onEdit, onDelete }) => {
+  const getCompanyName = company => {
+    if (!company) return '';
+    if (typeof company === 'object') return company.businessName || '';
+    const found = companies.find(c => String(c._id) === String(company));
+    return found?.businessName || '';
+  };
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.ServiceCardHeader}>
+        <View style={styles.serviceInfo}>
+          <View style={[styles.iconCircle, { backgroundColor: '#f3e8ff' }]}>
+            <Icon name="description" size={20} color="#8b77ff" />
+          </View>
+          <View style={styles.serviceDetails}>
+            <Text style={styles.serviceName} numberOfLines={1}>
+              {item.serviceName}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.ServiceCardBody}>
+        <View style={styles.serviceInfoRow}>
+          <View style={styles.serviceAmountBox}>
+            <Text style={styles.label}>Service Cost</Text>
+            <Text style={styles.serviceAmount}>
+              ₹
+              {(item.serviceCost || 0).toLocaleString('en-IN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </Text>
+          </View>
+        </View>
+
+        {/* Companies */}
+        <View style={{ marginTop: 8 }}>
+          <Text style={styles.label}>Companies</Text>
+          {item.companies && item.companies.length > 0 ? (
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 4,
+                marginTop: 4,
+              }}
+            >
+              {item.companies.map((c, i) => (
+                <View key={i} style={styles.sacBadge}>
+                  <Text style={styles.sacValue}>{getCompanyName(c)}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>
+              All Companies
+            </Text>
+          )}
+        </View>
+
+        {item.description ? (
+          <Text
+            style={{ fontSize: 12, color: '#9CA3AF', marginTop: 6 }}
+            numberOfLines={2}
+          >
+            {item.description}
+          </Text>
+        ) : null}
+      </View>
+
+      <View style={styles.cardFooter}>
+        <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
+        <View style={styles.serviceActionsContainer}>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => onEdit(item)}
+          >
+            <Icon name="edit" size={16} color="#2887c7" />
+            <Text style={styles.editButtonText}>Edit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.deleteButtonCompact}
+            onPress={() => onDelete(item)}
+          >
+            <Icon name="delete" size={16} color="#ef4444" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+});
+
+AdditionalServiceCard.displayName = 'AdditionalServiceCard';
+
 const QuantityControl = memo(({ productId, quantity, onQuantityChange }) => {
   const handleDecrement = useCallback(() => {
     if (quantity > 1) {
@@ -420,22 +517,28 @@ export default function InventoryScreen() {
   const [activeTab, setActiveTab] = useState('products');
   const [products, setProducts] = useState([]);
   const [services, setServices] = useState([]);
+  const [additionalServices, setAdditionalServices] = useState([]); // NEW
   const [companies, setCompanies] = useState([]);
 
   const [productCurrentPage, setProductCurrentPage] = useState(1);
   const [serviceCurrentPage, setServiceCurrentPage] = useState(1);
+  const [additionalServiceCurrentPage, setAdditionalServiceCurrentPage] =
+    useState(1); // NEW
 
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [isLoadingServices, setIsLoadingServices] = useState(true);
+  const [isLoadingAdditionalServices, setIsLoadingAdditionalServices] =
+    useState(true); // NEW
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Removed: isProductFormOpen, productToEdit (handled by navigation)
   const [productToDelete, setProductToDelete] = useState(null);
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [lastSelectedIndex, setLastSelectedIndex] = useState(null);
 
   const [serviceToDelete, setServiceToDelete] = useState(null);
+  const [additionalServiceToDelete, setAdditionalServiceToDelete] =
+    useState(null); // NEW
 
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [userRole, setUserRole] = useState(null);
@@ -451,7 +554,35 @@ export default function InventoryScreen() {
     });
   };
 
-  // Permissions - Memoized
+  // Show Additional Services tab only for Travels/Courier companies
+  const showAdditionalServicesTab = useMemo(() => {
+    if (selectedCompanyId && selectedCompanyId !== 'all') {
+      const selectedCompany = companies.find(
+        c => String(c._id) === String(selectedCompanyId),
+      );
+      if (selectedCompany) {
+        const type = String(selectedCompany.industryType || '')
+          .toLowerCase()
+          .trim();
+        return type === 'travels' || type === 'courier';
+      }
+    }
+
+    return companies.some(c => {
+      const type = String(c.industryType || '')
+        .toLowerCase()
+        .trim();
+      return type === 'travels' || type === 'courier';
+    });
+  }, [companies, selectedCompanyId]);
+
+  useEffect(() => {
+    if (!showAdditionalServicesTab && activeTab === 'additionalServices') {
+      setActiveTab('products');
+    }
+  }, [showAdditionalServicesTab, activeTab]);
+
+  // Permissions
   const hasCreatePermission = useMemo(() => {
     const canCreateProducts =
       userCaps?.canCreateProducts ?? userCaps?.canCreateInventory ?? false;
@@ -462,7 +593,8 @@ export default function InventoryScreen() {
     userCaps?.canCreateInventory,
     permissions?.canCreateProducts,
   ]);
-  // Load user data once on mount
+
+  // Load user data
   useEffect(() => {
     const loadUserData = async () => {
       try {
@@ -483,12 +615,19 @@ export default function InventoryScreen() {
     useCallback(() => {
       fetchProducts(true);
       fetchServices(true);
+      fetchAdditionalServices(true); // NEW
       if (triggerCompaniesRefresh) {
         triggerCompaniesRefresh();
       }
-    }, [selectedCompanyId, fetchProducts, fetchServices]),
+    }, [
+      selectedCompanyId,
+      fetchProducts,
+      fetchServices,
+      fetchAdditionalServices,
+    ]),
   );
-  // Initialize bulk print quantities - optimized with useMemo
+
+  // Initialize bulk print quantities
   const initialBulkQuantities = useMemo(() => {
     if (isBulkPrintDialogOpen && selectedProducts.length > 0) {
       const quantities = {};
@@ -510,7 +649,7 @@ export default function InventoryScreen() {
   }, [initialBulkQuantities]);
 
   // ==========================================
-  // Fetch functions - Optimized with AbortController
+  // Fetch functions
   // ==========================================
   const fetchCompanies = useCallback(
     async signal => {
@@ -608,7 +747,47 @@ export default function InventoryScreen() {
     [toast],
   );
 
-  // Initial data fetch with AbortController
+  // NEW: Fetch Additional Services
+  const fetchAdditionalServices = useCallback(
+    async (isSilent = false, signal) => {
+      if (!isSilent) setIsLoadingAdditionalServices(true);
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) throw new Error('Authentication token not found.');
+
+        const res = await fetch(
+          `${BASE_URL}/api/additional-services?page=1&limit=500`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            signal,
+          },
+        );
+        if (!res.ok) throw new Error('Failed to fetch additional services.');
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : data.additionalServices || [];
+        setAdditionalServices(
+          list.sort(
+            (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0),
+          ),
+        );
+        setAdditionalServiceCurrentPage(1);
+      } catch (error) {
+        if (error.name !== 'AbortError' && !isSilent) {
+          toast({
+            variant: 'destructive',
+            title: 'Failed to load additional services',
+            description:
+              error instanceof Error ? error.message : 'Something went wrong.',
+          });
+        }
+      } finally {
+        if (!isSilent) setIsLoadingAdditionalServices(false);
+      }
+    },
+    [toast],
+  );
+
+  // Initial data fetch
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
@@ -617,6 +796,7 @@ export default function InventoryScreen() {
       fetchCompanies(signal),
       fetchProducts(false, signal),
       fetchServices(false, signal),
+      fetchAdditionalServices(false, signal), // NEW
     ]).catch(err => {
       if (err.name !== 'AbortError') {
         console.error('Initial load error:', err);
@@ -661,6 +841,7 @@ export default function InventoryScreen() {
       fetchCompanies(controller.signal),
       fetchProducts(false, controller.signal),
       fetchServices(false, controller.signal),
+      fetchAdditionalServices(true, controller.signal), // NEW
       refetch ? refetch() : Promise.resolve(),
       refetchUserPermissions ? refetchUserPermissions() : Promise.resolve(),
     ]).finally(() => {
@@ -672,19 +853,24 @@ export default function InventoryScreen() {
     fetchCompanies,
     fetchProducts,
     fetchServices,
+    fetchAdditionalServices,
     refetch,
     refetchUserPermissions,
   ]);
 
   // ==========================================
-  // CRUD Operations - All optimized with useCallback
+  // CRUD Operations
   // ==========================================
   const openCreateProduct = useCallback(() => {
     navigation.navigate('ProductForm');
-  }, [navigation, onProductSaved]);
+  }, [navigation]);
 
   const openCreateService = useCallback(() => {
     navigation.navigate('ServiceForm');
+  }, [navigation]);
+
+  const openCreateAdditionalService = useCallback(() => {
+    navigation.navigate('AdditionalServiceForm');
   }, [navigation]);
 
   const openEditProduct = useCallback(
@@ -693,12 +879,21 @@ export default function InventoryScreen() {
         product: p,
       });
     },
-    [navigation, onProductSaved],
+    [navigation],
   );
 
   const openEditService = useCallback(
     s => {
       navigation.navigate('ServiceForm', {
+        service: s,
+      });
+    },
+    [navigation],
+  );
+
+  const openEditAdditionalService = useCallback(
+    s => {
+      navigation.navigate('AdditionalServiceForm', {
         service: s,
       });
     },
@@ -739,15 +934,41 @@ export default function InventoryScreen() {
     [toast],
   );
 
+  const onAdditionalServiceSaved = useCallback(
+    saved => {
+      setAdditionalServices(prev => {
+        const exists = prev.some(s => s._id === saved._id);
+        if (exists) {
+          return prev.map(s => (s._id === saved._id ? saved : s));
+        }
+        return [saved, ...prev];
+      });
+      toast({
+        title: 'Additional service saved',
+        description: 'Additional service has been saved successfully.',
+      });
+    },
+    [toast],
+  );
+
   const confirmDeleteProduct = useCallback(p => {
     setProductToDelete(p);
     setServiceToDelete(null);
+    setAdditionalServiceToDelete(null);
     setIsAlertOpen(true);
   }, []);
 
   const confirmDeleteService = useCallback(s => {
     setServiceToDelete(s);
     setProductToDelete(null);
+    setAdditionalServiceToDelete(null);
+    setIsAlertOpen(true);
+  }, []);
+
+  const confirmDeleteAdditionalService = useCallback(s => {
+    setAdditionalServiceToDelete(s);
+    setProductToDelete(null);
+    setServiceToDelete(null);
     setIsAlertOpen(true);
   }, []);
 
@@ -778,6 +999,19 @@ export default function InventoryScreen() {
         if (!res.ok) throw new Error('Failed to delete service.');
         setServices(prev => prev.filter(s => s._id !== serviceToDelete._id));
         toast({ title: 'Service deleted' });
+      } else if (additionalServiceToDelete) {
+        const res = await fetch(
+          `${BASE_URL}/api/additional-services/${additionalServiceToDelete._id}`,
+          {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+        if (!res.ok) throw new Error('Failed to delete additional service.');
+        setAdditionalServices(prev =>
+          prev.filter(s => s._id !== additionalServiceToDelete._id),
+        );
+        toast({ title: 'Additional service deleted' });
       }
     } catch (error) {
       toast({
@@ -790,8 +1024,9 @@ export default function InventoryScreen() {
       setIsAlertOpen(false);
       setProductToDelete(null);
       setServiceToDelete(null);
+      setAdditionalServiceToDelete(null);
     }
-  }, [productToDelete, serviceToDelete, toast]);
+  }, [productToDelete, serviceToDelete, additionalServiceToDelete, toast]);
 
   // ==========================================
   // Bulk Print Handler
@@ -986,6 +1221,32 @@ export default function InventoryScreen() {
     return data;
   }, [services, selectedCompanyId, userAllowedCompanyIds]);
 
+  // NEW: Filtered Additional Services
+  const filteredAdditionalServices = useMemo(() => {
+    let data = additionalServices;
+
+    if (selectedCompanyId) {
+      data = data.filter(s => {
+        const ids = Array.isArray(s.companies)
+          ? s.companies.map(c => (typeof c === 'object' ? c._id : c))
+          : [];
+        return ids.length === 0 || ids.includes(selectedCompanyId);
+      });
+    } else if (userAllowedCompanyIds.length > 0) {
+      data = data.filter(s => {
+        const ids = Array.isArray(s.companies)
+          ? s.companies.map(c => (typeof c === 'object' ? c._id : c))
+          : [];
+        return (
+          ids.length === 0 ||
+          ids.some(id => userAllowedCompanyIds.includes(String(id)))
+        );
+      });
+    }
+
+    return data;
+  }, [additionalServices, selectedCompanyId, userAllowedCompanyIds]);
+
   const productTotalPages = useMemo(
     () => Math.ceil(filteredProducts.length / ITEMS_PER_PAGE) || 1,
     [filteredProducts.length],
@@ -994,6 +1255,12 @@ export default function InventoryScreen() {
   const serviceTotalPages = useMemo(
     () => Math.ceil(filteredServices.length / ITEMS_PER_PAGE) || 1,
     [filteredServices.length],
+  );
+
+  // NEW: Additional Services total pages
+  const additionalServiceTotalPages = useMemo(
+    () => Math.ceil(filteredAdditionalServices.length / ITEMS_PER_PAGE) || 1,
+    [filteredAdditionalServices.length],
   );
 
   const paginatedProducts = useMemo(() => {
@@ -1007,6 +1274,13 @@ export default function InventoryScreen() {
     const endIndex = startIndex + ITEMS_PER_PAGE;
     return filteredServices.slice(startIndex, endIndex);
   }, [filteredServices, serviceCurrentPage]);
+
+  // NEW: Paginated Additional Services
+  const paginatedAdditionalServices = useMemo(() => {
+    const startIndex = (additionalServiceCurrentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    return filteredAdditionalServices.slice(startIndex, endIndex);
+  }, [filteredAdditionalServices, additionalServiceCurrentPage]);
 
   // ==========================================
   // Pagination
@@ -1027,13 +1301,22 @@ export default function InventoryScreen() {
     setServiceCurrentPage(prev => Math.max(prev - 1, 1));
   }, []);
 
+  const goToNextAdditionalServicePage = useCallback(() => {
+    setAdditionalServiceCurrentPage(prev =>
+      Math.min(prev + 1, additionalServiceTotalPages),
+    );
+  }, [additionalServiceTotalPages]);
+
+  const goToPrevAdditionalServicePage = useCallback(() => {
+    setAdditionalServiceCurrentPage(prev => Math.max(prev - 1, 1));
+  }, []);
+
   // ==========================================
-  // Header Component - Updated to match UserScreen
+  // Header Component
   // ==========================================
   const renderHeader = useCallback(() => {
     return (
       <View>
-        {/* Tabs Section */}
         <View style={styles.tabsContainer}>
           <View style={styles.tabs}>
             <TouchableOpacity
@@ -1068,10 +1351,31 @@ export default function InventoryScreen() {
                 <View style={styles.activeTabIndicator} />
               )}
             </TouchableOpacity>
+            {/* NEW: Additional Services Tab */}
+            {showAdditionalServicesTab && (
+              <TouchableOpacity
+                style={[
+                  styles.tab,
+                  activeTab === 'additionalServices' && styles.activeTab,
+                ]}
+                onPress={() => setActiveTab('additionalServices')}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === 'additionalServices' && styles.activeTabText,
+                  ]}
+                >
+                  Add. Services ({filteredAdditionalServices.length})
+                </Text>
+                {activeTab === 'additionalServices' && (
+                  <View style={styles.activeTabIndicator} />
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
-        {/* Bulk Print Bar (Appears when items selected) */}
         {selectedProducts.length > 0 && (
           <View style={styles.selectionToolbar}>
             <TouchableOpacity
@@ -1086,7 +1390,7 @@ export default function InventoryScreen() {
           </View>
         )}
 
-        {/* Empty States */}
+        {/* Products Empty State */}
         {activeTab === 'products' &&
           !isLoadingProducts &&
           filteredProducts.length === 0 && (
@@ -1100,6 +1404,8 @@ export default function InventoryScreen() {
               </Text>
             </View>
           )}
+
+        {/* Services Empty State */}
         {activeTab === 'services' &&
           !isLoadingServices &&
           filteredServices.length === 0 && (
@@ -1113,6 +1419,23 @@ export default function InventoryScreen() {
               </Text>
             </View>
           )}
+
+        {/* NEW: Additional Services Empty State */}
+        {activeTab === 'additionalServices' &&
+          !isLoadingAdditionalServices &&
+          filteredAdditionalServices.length === 0 && (
+            <View style={styles.emptyState}>
+              <Icon name="description" size={48} color="#666" />
+              <Text style={styles.emptyStateTitle}>
+                No Additional Services Found
+              </Text>
+              <Text style={styles.emptyStateDescription}>
+                {hasCreatePermission
+                  ? 'Create your first additional service to get started.'
+                  : 'No additional services available.'}
+              </Text>
+            </View>
+          )}
       </View>
     );
   }, [
@@ -1120,13 +1443,16 @@ export default function InventoryScreen() {
     activeTab,
     filteredProducts.length,
     filteredServices.length,
+    filteredAdditionalServices.length,
     isLoadingProducts,
     isLoadingServices,
+    isLoadingAdditionalServices,
     hasCreatePermission,
+    showAdditionalServicesTab,
   ]);
 
   // ==========================================
-  // Footer Component - Memoized
+  // Footer Component
   // ==========================================
   const renderFooter = useCallback(() => {
     if (
@@ -1259,6 +1585,75 @@ export default function InventoryScreen() {
       );
     }
 
+    // NEW: Additional Services Pagination
+    if (
+      activeTab === 'additionalServices' &&
+      additionalServiceTotalPages > 1 &&
+      filteredAdditionalServices.length > 0
+    ) {
+      return (
+        <View style={styles.pagination}>
+          <Text style={styles.paginationInfo}>
+            Showing {(additionalServiceCurrentPage - 1) * ITEMS_PER_PAGE + 1} to{' '}
+            {Math.min(
+              additionalServiceCurrentPage * ITEMS_PER_PAGE,
+              filteredAdditionalServices.length,
+            )}{' '}
+            of {filteredAdditionalServices.length} services
+          </Text>
+          <View style={styles.paginationButtons}>
+            <TouchableOpacity
+              style={[
+                styles.paginationButton,
+                additionalServiceCurrentPage === 1 &&
+                  styles.paginationButtonDisabled,
+              ]}
+              onPress={goToPrevAdditionalServicePage}
+              disabled={additionalServiceCurrentPage === 1}
+            >
+              <Icon
+                name="chevron-left"
+                size={20}
+                color={additionalServiceCurrentPage === 1 ? '#999' : '#333'}
+              />
+              <Text
+                style={[
+                  styles.paginationButtonText,
+                  additionalServiceCurrentPage === 1 &&
+                    styles.paginationButtonTextDisabled,
+                ]}
+              >
+                Previous
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.paginationButton,
+                styles.paginationButtonPrimary,
+                additionalServiceCurrentPage === additionalServiceTotalPages &&
+                  styles.paginationButtonDisabled,
+              ]}
+              onPress={goToNextAdditionalServicePage}
+              disabled={
+                additionalServiceCurrentPage === additionalServiceTotalPages
+              }
+            >
+              <Text
+                style={[
+                  styles.paginationButtonText,
+                  styles.paginationButtonTextPrimary,
+                ]}
+              >
+                Next
+              </Text>
+              <Icon name="chevron-right" size={20} color="white" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
     return null;
   }, [
     activeTab,
@@ -1268,10 +1663,15 @@ export default function InventoryScreen() {
     serviceTotalPages,
     filteredServices.length,
     serviceCurrentPage,
+    additionalServiceTotalPages,
+    filteredAdditionalServices.length,
+    additionalServiceCurrentPage,
     goToPrevProductPage,
     goToNextProductPage,
     goToPrevServicePage,
     goToNextServicePage,
+    goToPrevAdditionalServicePage,
+    goToNextAdditionalServicePage,
   ]);
 
   const renderItem = useCallback(
@@ -1287,12 +1687,22 @@ export default function InventoryScreen() {
             onEdit={openEditProduct}
           />
         );
-      } else {
+      } else if (activeTab === 'services') {
         return (
           <ServiceCard
             item={item}
             onEdit={openEditService}
             onDelete={confirmDeleteService}
+          />
+        );
+      } else {
+        // Additional Services
+        return (
+          <AdditionalServiceCard
+            item={item}
+            companies={companies}
+            onEdit={openEditAdditionalService}
+            onDelete={confirmDeleteAdditionalService}
           />
         );
       }
@@ -1303,7 +1713,10 @@ export default function InventoryScreen() {
       handleSelectProduct,
       openEditProduct,
       openEditService,
+      openEditAdditionalService,
       confirmDeleteService,
+      confirmDeleteAdditionalService,
+      companies,
     ],
   );
 
@@ -1321,8 +1734,12 @@ export default function InventoryScreen() {
   const getData = useMemo(() => {
     if (activeTab === 'products') {
       return filteredProducts.length > 0 ? paginatedProducts : [];
-    } else {
+    } else if (activeTab === 'services') {
       return filteredServices.length > 0 ? paginatedServices : [];
+    } else {
+      return filteredAdditionalServices.length > 0
+        ? paginatedAdditionalServices
+        : [];
     }
   }, [
     activeTab,
@@ -1330,6 +1747,8 @@ export default function InventoryScreen() {
     paginatedProducts,
     filteredServices.length,
     paginatedServices,
+    filteredAdditionalServices.length,
+    paginatedAdditionalServices,
   ]);
 
   // ==========================================
@@ -1414,7 +1833,6 @@ export default function InventoryScreen() {
         />
       )}
 
-      {/* FIXED HEADER - Add this BEFORE FlatList (matches UserScreen exactly) */}
       <View style={styles.fixedHeader}>
         <View style={styles.headerTitle}>
           <Text
@@ -1429,7 +1847,6 @@ export default function InventoryScreen() {
         <View style={styles.headerActions}>
           {hasCreatePermission && userCaps?.canCreateInventory && (
             <View style={styles.buttonGroup}>
-              {/* Import/Export Component */}
               <ExcelImportExport
                 templateData={
                   activeTab === 'products'
@@ -1447,15 +1864,29 @@ export default function InventoryScreen() {
                           HSN: '',
                         },
                       ]
-                    : [{ 'Service Name': '', Amount: '', SAC: '' }]
+                    : activeTab === 'services'
+                    ? [{ 'Service Name': '', Amount: '', SAC: '' }]
+                    : [
+                        {
+                          'Service Name': '',
+                          'Service Cost': '',
+                          Description: '',
+                        },
+                      ]
                 }
                 templateFileName={
                   activeTab === 'products'
                     ? 'product_template.xlsx'
-                    : 'service_template.xlsx'
+                    : activeTab === 'services'
+                    ? 'service_template.xlsx'
+                    : 'additional_service_template.xlsx'
                 }
                 onImportSuccess={
-                  activeTab === 'products' ? fetchProducts : fetchServices
+                  activeTab === 'products'
+                    ? fetchProducts
+                    : activeTab === 'services'
+                    ? fetchServices
+                    : fetchAdditionalServices
                 }
                 expectedColumns={
                   activeTab === 'products'
@@ -1468,7 +1899,9 @@ export default function InventoryScreen() {
                         'Selling Price',
                         'HSN',
                       ]
-                    : ['Service Name', 'Amount', 'SAC']
+                    : activeTab === 'services'
+                    ? ['Service Name', 'Amount', 'SAC']
+                    : ['Service Name', 'Service Cost', 'Description']
                 }
                 transformImportData={data => {
                   if (activeTab === 'products') {
@@ -1489,12 +1922,14 @@ export default function InventoryScreen() {
                         hsn: item['HSN'] || '',
                       };
                     });
+                  } else if (activeTab === 'services') {
+                    return data.map(item => ({
+                      serviceName: item['Service Name'],
+                      amount: extractNumber(item['Amount']),
+                      sac: item['SAC'],
+                    }));
                   }
-                  return data.map(item => ({
-                    serviceName: item['Service Name'],
-                    amount: extractNumber(item['Amount']),
-                    sac: item['SAC'],
-                  }));
+                  return data;
                 }}
                 activeTab={activeTab}
                 companies={companies}
@@ -1504,7 +1939,6 @@ export default function InventoryScreen() {
                 <PlusButton onPress={handleOpenFabMenu} />
               </View>
 
-              {/* FAB MENU */}
               <FabMenu
                 visible={open}
                 onClose={() => setOpen(false)}
@@ -1518,6 +1952,15 @@ export default function InventoryScreen() {
                     label: '+ Add Service',
                     onPress: () => navigation.navigate('ServiceForm'),
                   },
+                  ...(showAdditionalServicesTab
+                    ? [
+                        {
+                          label: '+ Addi. Service',
+                          onPress: () =>
+                            navigation.navigate('AdditionalServiceForm'),
+                        },
+                      ]
+                    : []),
                 ]}
               />
             </View>
@@ -1544,6 +1987,7 @@ export default function InventoryScreen() {
         updateCellsBatchingPeriod={50}
       />
 
+      {/* Bulk Print Modal */}
       <Modal
         visible={isBulkPrintDialogOpen}
         transparent
@@ -1652,9 +2096,6 @@ export default function InventoryScreen() {
         </View>
       </Modal>
 
-      {/* ProductForm now opens as a full screen via navigation */}
-      {/* ServiceForm now opens as a full screen via navigation */}
-
       {/* Delete Confirmation Modal */}
       <Modal
         visible={isAlertOpen}
@@ -1667,7 +2108,12 @@ export default function InventoryScreen() {
             <Text style={styles.alertTitle}>Are you absolutely sure?</Text>
             <Text style={styles.alertDescription}>
               This action cannot be undone. This will permanently delete the{' '}
-              {productToDelete ? 'product' : 'service'}.
+              {productToDelete
+                ? 'product'
+                : serviceToDelete
+                ? 'service'
+                : 'additional service'}
+              .
             </Text>
             <View style={styles.alertButtons}>
               <TouchableOpacity
@@ -1689,7 +2135,6 @@ export default function InventoryScreen() {
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,

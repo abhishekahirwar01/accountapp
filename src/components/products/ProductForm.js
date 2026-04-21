@@ -27,7 +27,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useCompany } from '../../contexts/company-context';
 import { z } from 'zod';
 
-// ── Form Schema (unchanged) ────────────────────────────────────────────────
+// Schema - company as ARRAY for both create and edit
 const formSchema = z
   .object({
     name: z.string().min(2, 'Product name is required.'),
@@ -42,7 +42,9 @@ const formSchema = z
     costPrice: z.coerce
       .number()
       .min(0.01, 'Cost price must be greater than 0.'),
-    company: z.string().min(1, 'Company is required.'),
+    company: z
+      .array(z.string())
+      .min(1, 'At least one company must be selected.'),
   })
   .refine(
     data => {
@@ -97,11 +99,12 @@ export default function ProductForm({
   const [showUnitDropdown, setShowUnitDropdown] = useState(false);
   const [unitSearchQuery, setUnitSearchQuery] = useState('');
 
-  // Company Dropdown States
-  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+  // Company Modal States
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
   const [companySearchQuery, setCompanySearchQuery] = useState('');
 
   const isInitialLoad = useRef(true);
+  const isEdit = !!product;
 
   function getDefaultUnit(productUnit) {
     const standardUnits = STANDARD_UNITS.map(u => u.toLowerCase());
@@ -146,7 +149,7 @@ export default function ProductForm({
     handleSubmit,
     watch,
     setValue,
-    setError,
+    getValues,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(formSchema),
@@ -159,16 +162,20 @@ export default function ProductForm({
       sellingPrice: product?.sellingPrice ?? 0,
       costPrice: product?.costPrice ?? 0,
       company: product
-        ? typeof product.company === 'object' && product.company
-          ? product.company._id
-          : product.company
-        : selectedCompanyId || '',
+        ? [
+            typeof product.company === 'object' && product.company
+              ? product.company._id
+              : product.company,
+          ]
+        : selectedCompanyId
+        ? [selectedCompanyId]
+        : [],
     },
   });
 
   const hsnValue = watch('hsn');
   const unitValue = watch('unit');
-  const companyValue = watch('company');
+  const selectedCompanies = watch('company');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -191,12 +198,15 @@ export default function ProductForm({
           const companiesData = await companiesRes.json();
           setCompanies(companiesData);
 
-          if (!product && !companyValue) {
-            const selectedCompanyId = await getSelectedCompanyId();
-            if (selectedCompanyId) {
-              setValue('company', selectedCompanyId);
+          if (
+            !isEdit &&
+            (!selectedCompanies || selectedCompanies.length === 0)
+          ) {
+            const storedCompanyId = await getSelectedCompanyId();
+            if (storedCompanyId) {
+              setValue('company', [storedCompanyId]);
             } else if (companiesData.length > 0) {
-              setValue('company', companiesData[0]._id);
+              setValue('company', [companiesData[0]._id]);
             }
           }
         }
@@ -220,13 +230,40 @@ export default function ProductForm({
     setUnitSearchQuery('');
   };
 
-  const handleCompanySelect = company => {
-    setValue('company', company._id);
-    setShowCompanyDropdown(false);
+  // 🔥 COMPANY SELECTION LOGIC - Same for both create and edit
+  // For edit: selects single company and closes modal (like web)
+  // For create: multi-select with toggle (modal stays open)
+  const handleCompanySelect = companyId => {
+    if (isEdit) {
+      // EDIT MODE: Single select, close modal immediately
+      setValue('company', [companyId]);
+      setShowCompanyModal(false);
+      setCompanySearchQuery('');
+    } else {
+      // CREATE MODE: Multi-select toggle, modal stays open
+      const currentCompanies = getValues('company') || [];
+      if (currentCompanies.includes(companyId)) {
+        setValue(
+          'company',
+          currentCompanies.filter(id => id !== companyId),
+        );
+      } else {
+        setValue('company', [...currentCompanies, companyId]);
+      }
+    }
+  };
+
+  const openCompanyModal = () => {
+    setCompanySearchQuery('');
+    setShowCompanyModal(true);
+  };
+
+  const closeCompanyModal = () => {
+    setShowCompanyModal(false);
     setCompanySearchQuery('');
   };
 
-  // Currency Utils (unchanged)
+  // Currency Utils
   const formatCurrency = value => {
     if (value === '' || value == null) return '';
     const num = Number(value);
@@ -246,35 +283,81 @@ export default function ProductForm({
     return formatCurrency(raw);
   };
 
+  // 🔥 SUBMIT LOGIC
   const onSubmit = async values => {
     setIsSubmitting(true);
     try {
       const token = await AsyncStorage.getItem('token');
-      const url = product
-        ? `${BASE_URL}/api/products/${product._id}`
-        : `${BASE_URL}/api/products`;
-      const method = product ? 'PUT' : 'POST';
+      if (!token) throw new Error('Authentication token not found');
 
-      const payload = {
-        ...values,
-        unit: values.unit === 'other' ? values.customUnit : values.unit,
-      };
+      if (isEdit) {
+        // EDIT MODE: Single company update
+        const singleCompanyId = values.company[0];
+        const payload = {
+          name: values.name,
+          stocks: values.stocks,
+          unit: values.unit === 'other' ? values.customUnit : values.unit,
+          hsn: values.hsn,
+          sellingPrice: values.sellingPrice,
+          costPrice: values.costPrice,
+          company: singleCompanyId,
+        };
 
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+        const res = await fetch(`${BASE_URL}/api/products/${product._id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to save product');
-      if (onClose) {
-        onClose();
+        const data = await res.json();
+        if (!res.ok)
+          throw new Error(data.message || 'Failed to update product');
+
+        Alert.alert('Success', 'Product updated successfully.');
+        if (onClose) onClose();
+        else navigation.goBack();
       } else {
-        navigation.goBack();
+        // CREATE MODE: Multi-company parallel creation
+        const creationPromises = values.company.map(async companyId => {
+          const payload = {
+            name: values.name,
+            stocks: values.stocks,
+            unit: values.unit === 'other' ? values.customUnit : values.unit,
+            hsn: values.hsn,
+            sellingPrice: values.sellingPrice,
+            costPrice: values.costPrice,
+            company: companyId,
+          };
+
+          const res = await fetch(`${BASE_URL}/api/products`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+          });
+
+          const data = await res.json();
+          if (!res.ok)
+            throw new Error(data.message || `Failed for company ${companyId}`);
+          return data;
+        });
+
+        await Promise.all(creationPromises);
+
+        Alert.alert(
+          'Success!',
+          `${values.company.length} product${
+            values.company.length > 1 ? 's' : ''
+          } created successfully.`,
+        );
+
+        if (onClose) onClose();
+        else navigation.goBack();
       }
     } catch (error) {
       Alert.alert('Error', error.message);
@@ -325,14 +408,24 @@ export default function ProductForm({
       .includes(companySearchQuery.toLowerCase()),
   );
 
-  const isEdit = !!product;
   const heading = title || (isEdit ? 'Edit Product' : 'Create New Product');
+
+  // 🔥 DISPLAY TEXT for selected companies
+  const getSelectedCompaniesText = () => {
+    if (!selectedCompanies || selectedCompanies.length === 0) {
+      return 'Select company...';
+    }
+    if (selectedCompanies.length === 1) {
+      const company = companies.find(c => c._id === selectedCompanies[0]);
+      return company?.businessName || 'Select company...';
+    }
+    return `${selectedCompanies.length} Companies Selected`;
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* ── Header: back arrow + title only (no subtitle, no X) ── */}
       {!hideHeader && (
         <View style={styles.header}>
           <TouchableOpacity
@@ -350,7 +443,6 @@ export default function ProductForm({
         </View>
       )}
 
-      {/* ── Scrollable Form ── */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -362,27 +454,30 @@ export default function ProductForm({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Company */}
+          {/* 🔥 COMPANY FIELD - Same UI for both, different behavior */}
           <View style={styles.field}>
-            <Text style={styles.label}>Company <Text style={styles.req}>*</Text></Text>
+            <Text style={styles.label}>
+              {isEdit ? 'Company' : 'Companies'}{' '}
+              <Text style={styles.req}>*</Text>
+            </Text>
+
             <Controller
               control={control}
               name="company"
               render={() => (
                 <TouchableOpacity
                   style={[styles.inputBox, errors.company && styles.inputError]}
-                  onPress={() => setShowCompanyDropdown(true)}
+                  onPress={openCompanyModal}
                   activeOpacity={0.7}
                 >
                   <Text
                     style={[
                       styles.inputText,
-                      !companies.find(c => c._id === companyValue) &&
+                      (!selectedCompanies || selectedCompanies.length === 0) &&
                         styles.placeholderText,
                     ]}
                   >
-                    {companies.find(c => c._id === companyValue)
-                      ?.businessName || 'Select company...'}
+                    {getSelectedCompaniesText()}
                   </Text>
                   <SimpleLineIcons name="arrow-down" color="#000" size={10} />
                 </TouchableOpacity>
@@ -395,7 +490,9 @@ export default function ProductForm({
 
           {/* Product Name */}
           <View style={styles.field}>
-            <Text style={styles.label}>Product Name <Text style={styles.req}>*</Text></Text>
+            <Text style={styles.label}>
+              Product Name <Text style={styles.req}>*</Text>
+            </Text>
             <Controller
               control={control}
               name="name"
@@ -415,7 +512,7 @@ export default function ProductForm({
             )}
           </View>
 
-          {/* Opening Stock + Unit — side by side */}
+          {/* Opening Stock + Unit */}
           <View style={styles.row}>
             <View style={[styles.field, styles.half]}>
               <Text style={styles.label}>Opening Stock</Text>
@@ -424,21 +521,34 @@ export default function ProductForm({
                 name="stocks"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <TextInput
-                    style={[styles.inputBox, product && styles.inputDisabled]}
+                    style={[
+                      styles.inputBox,
+                      errors.stocks && styles.inputError,
+                    ]}
                     placeholder="0"
                     placeholderTextColor="#9CA3AF"
                     keyboardType="numeric"
                     value={String(value)}
-                    onChangeText={onChange}
                     onBlur={onBlur}
-                    editable={!product}
+                    onChangeText={text => {
+                      // Removes non-numeric characters and limits length to 6
+                      const raw = text.replace(/[^\d]/g, '');
+                      if (raw.length > 6) return;
+                      onChange(raw === '' ? 0 : Number(raw));
+                    }}
+                    editable={true}
                   />
                 )}
               />
+              {errors.stocks && (
+                <Text style={styles.error}>{errors.stocks.message}</Text>
+              )}
             </View>
 
             <View style={[styles.field, styles.half]}>
-              <Text style={styles.label}>Unit <Text style={styles.req}>*</Text></Text>
+              <Text style={styles.label}>
+                Unit <Text style={styles.req}>*</Text>
+              </Text>
               <Controller
                 control={control}
                 name="unit"
@@ -484,7 +594,7 @@ export default function ProductForm({
             </View>
           )}
 
-          {/* Selling Price + Cost Price — side by side */}
+          {/* Selling Price + Cost Price */}
           <View style={styles.row}>
             <View style={[styles.field, styles.half]}>
               <Text style={styles.label}>Selling Price/Unit</Text>
@@ -511,7 +621,9 @@ export default function ProductForm({
             </View>
 
             <View style={[styles.field, styles.half]}>
-              <Text style={styles.label}>Cost Price/Unit <Text style={styles.req}>*</Text></Text>
+              <Text style={styles.label}>
+                Cost Price/Unit <Text style={styles.req}>*</Text>
+              </Text>
               <Controller
                 control={control}
                 name="costPrice"
@@ -564,7 +676,7 @@ export default function ProductForm({
           <View style={{ height: 16 }} />
         </ScrollView>
 
-        {/* ── Sticky Footer: full-width Create Product button ── */}
+        {/* Footer */}
         <View style={styles.footer}>
           <TouchableOpacity
             style={[
@@ -586,46 +698,98 @@ export default function ProductForm({
         </View>
       </KeyboardAvoidingView>
 
-      {/* ── Company Modal ── */}
-      <Modal visible={showCompanyDropdown} animationType="slide" transparent>
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setShowCompanyDropdown(false)}
-        >
+      {/* 🔥 COMPANY MODAL - Same UI for both, different selection behavior */}
+      <Modal visible={showCompanyModal} animationType="slide" transparent>
+        <Pressable style={styles.modalBackdrop} onPress={closeCompanyModal}>
           <Pressable style={styles.bottomSheet} onPress={() => {}}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Select Company</Text>
+              <Text style={styles.sheetTitle}>
+                {isEdit ? 'Select Company' : 'Select Companies'}
+              </Text>
               <TouchableOpacity
-                onPress={() => setShowCompanyDropdown(false)}
+                onPress={closeCompanyModal}
                 style={styles.sheetCloseBtn}
               >
                 <Text style={styles.sheetCloseTxt}>✕</Text>
               </TouchableOpacity>
             </View>
+
             <TextInput
               style={styles.sheetSearch}
-              placeholder="Search..."
+              placeholder="Search companies..."
               placeholderTextColor="#9CA3AF"
+              value={companySearchQuery}
               onChangeText={setCompanySearchQuery}
               autoFocus
             />
+
             <ScrollView style={styles.sheetList}>
-              {filteredCompanies.map(c => (
-                <TouchableOpacity
-                  key={c._id}
-                  style={styles.sheetItem}
-                  onPress={() => handleCompanySelect(c)}
-                >
-                  <Text style={styles.sheetItemText}>{c.businessName}</Text>
-                </TouchableOpacity>
-              ))}
+              {filteredCompanies.map(company => {
+                const isSelected = selectedCompanies?.includes(company._id);
+                return (
+                  <TouchableOpacity
+                    key={company._id}
+                    style={styles.sheetItem}
+                    onPress={() => handleCompanySelect(company._id)}
+                  >
+                    {isEdit ? (
+                      // EDIT MODE: Show radio style (single select)
+                      <View style={styles.radioContainer}>
+                        <View
+                          style={[
+                            styles.radio,
+                            isSelected && styles.radioSelected,
+                          ]}
+                        >
+                          {isSelected && <View style={styles.radioInner} />}
+                        </View>
+                        <Text style={styles.sheetItemText}>
+                          {company.businessName}
+                        </Text>
+                      </View>
+                    ) : (
+                      // CREATE MODE: Show checkbox style (multi select)
+                      <View style={styles.checkboxContainer}>
+                        <View
+                          style={[
+                            styles.checkbox,
+                            isSelected && styles.checkboxChecked,
+                          ]}
+                        >
+                          {isSelected && (
+                            <Icon name="checkmark" size={14} color="#fff" />
+                          )}
+                        </View>
+                        <Text style={styles.sheetItemText}>
+                          {company.businessName}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+              {filteredCompanies.length === 0 && (
+                <Text style={styles.emptyText}>No companies found</Text>
+              )}
             </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.confirmBtn}
+                onPress={closeCompanyModal}
+              >
+                <Text style={styles.confirmBtnText}>
+                  Done{' '}
+                  {isEdit ? '' : `(${selectedCompanies?.length || 0} selected)`}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
 
-      {/* ── Unit Modal ── */}
+      {/* Unit Modal */}
       <Modal visible={showUnitDropdown} animationType="slide" transparent>
         <Pressable
           style={styles.modalBackdrop}
@@ -696,7 +860,7 @@ export default function ProductForm({
         </Pressable>
       </Modal>
 
-      {/* ── HSN Modal ── */}
+      {/* HSN Modal */}
       <Modal visible={showHsnModal} animationType="slide" transparent>
         <Pressable
           style={styles.modalBackdrop}
@@ -770,14 +934,13 @@ export default function ProductForm({
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// Styles
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
 
-  // ── Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -801,7 +964,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // ── Scroll
   scroll: { flex: 1, backgroundColor: '#FFFFFF' },
   scrollContent: {
     paddingHorizontal: 16,
@@ -809,12 +971,10 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
 
-  // ── Fields
   field: { marginBottom: 20 },
   half: { flex: 1 },
   row: { flexDirection: 'row', gap: 12 },
 
-  // label style like Vyapar — small, grey, medium weight
   label: {
     fontSize: 13,
     fontWeight: '500',
@@ -824,7 +984,6 @@ const styles = StyleSheet.create({
   },
   req: { color: '#EF4444' },
 
-  // ── Input box like Vyapar — tall, clean border, no shadow
   inputBox: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
@@ -839,17 +998,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   inputError: { borderColor: '#EF4444' },
-  inputDisabled: { backgroundColor: '#F9FAFB', color: '#9CA3AF' },
+  inputDisabled: { backgroundColor: '#F9FAFB' },
   inputText: { fontSize: 15, color: '#111827', flex: 1 },
   placeholderText: { color: '#9CA3AF' },
-  chevron: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginLeft: 4,
-  },
   error: { color: '#EF4444', fontSize: 12, marginTop: 5 },
 
-  // ── Footer
   footer: {
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -874,7 +1027,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 
-  // ── Bottom-sheet modals
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -934,4 +1086,74 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F3F4F6',
   },
   sheetItemText: { fontSize: 15, color: '#111827' },
+
+  // Checkbox styles (for CREATE mode)
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  checkboxChecked: {
+    backgroundColor: '#4F46E5',
+    borderColor: '#4F46E5',
+  },
+
+  // Radio styles (for EDIT mode)
+  radioContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  radioSelected: {
+    borderColor: '#4F46E5',
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#4F46E5',
+  },
+
+  modalFooter: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  confirmBtn: {
+    backgroundColor: '#4F46E5',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  confirmBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#9CA3AF',
+    padding: 24,
+    fontSize: 14,
+  },
 });

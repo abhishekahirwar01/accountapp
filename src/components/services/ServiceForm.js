@@ -14,6 +14,8 @@ import {
   Platform,
   ScrollView,
   StatusBar,
+  Pressable,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -24,6 +26,8 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
+const { height: SCREEN_H } = Dimensions.get('window');
+
 // Form Schema with Zod
 const formSchema = z.object({
   serviceName: z.string().min(2, 'Service name is required.'),
@@ -32,6 +36,7 @@ const formSchema = z.object({
     .min(0, 'Amount must be a positive number.')
     .default(0),
   sac: z.string().optional(),
+  companies: z.array(z.string()).optional().default([]),
 });
 
 export default function ServiceForm({
@@ -51,6 +56,14 @@ export default function ServiceForm({
   const serviceParam = service || route?.params?.service;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Company Selection States
+  const [allCompanies, setAllCompanies] = useState([]);
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
+  const [tempSelectedCompanies, setTempSelectedCompanies] = useState([]);
+  const [isGlobalService, setIsGlobalService] = useState(false);
 
   // SAC Search States
   const [sacSuggestions, setSacSuggestions] = useState([]);
@@ -77,11 +90,88 @@ export default function ServiceForm({
       serviceName: serviceParam?.serviceName || initialName || '',
       amount: serviceParam?.amount || 0,
       sac: serviceParam?.sac || '',
+      companies:
+        serviceParam?.companies && Array.isArray(serviceParam.companies)
+          ? serviceParam.companies
+              .map(c => (typeof c === 'string' ? c : c?._id))
+              .filter(Boolean)
+          : [],
     },
   });
 
   const sacValue = watch('sac');
   const amountValue = watch('amount');
+
+  // Fetch companies on component mount
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) return;
+        const res = await fetch(`${BASE_URL}/api/companies/my`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setAllCompanies(Array.isArray(data) ? data : data?.data || []);
+      } catch (e) {
+        console.error('fetch companies', e);
+      } finally {
+        setIsLoadingCompanies(false);
+      }
+    };
+    fetchCompanies();
+  }, []);
+
+  // Initialize global service state based on initial companies
+  useEffect(() => {
+    const initialCompanies = watch('companies') || [];
+    setIsGlobalService(initialCompanies.length === 0);
+  }, []);
+
+  const handleOpenCompanyModal = () => {
+    setTempSelectedCompanies([...(watch('companies') || [])]);
+    setShowCompanyModal(true);
+  };
+
+  const handleToggleCompany = id =>
+    setTempSelectedCompanies(p =>
+      p.includes(id) ? p.filter(c => c !== id) : [...p, id],
+    );
+
+  const filteredCompanies = allCompanies.filter(c =>
+    c.businessName.toLowerCase().includes(companySearch.toLowerCase()),
+  );
+  const allFilteredSelected =
+    filteredCompanies.length > 0 &&
+    filteredCompanies.every(c => tempSelectedCompanies.includes(c._id));
+
+  const handleSelectAllCompanies = () => {
+    const ids = filteredCompanies.map(c => c._id);
+    const all = ids.every(id => tempSelectedCompanies.includes(id));
+    setTempSelectedCompanies(p =>
+      all ? p.filter(id => !ids.includes(id)) : [...new Set([...p, ...ids])],
+    );
+  };
+
+  const handleDoneCompanySelection = () => {
+    setValue('companies', [...tempSelectedCompanies]);
+    setShowCompanyModal(false);
+    setCompanySearch('');
+  };
+
+  const handleCancelCompanyModal = () => {
+    setTempSelectedCompanies([...(watch('companies') || [])]);
+    setShowCompanyModal(false);
+    setCompanySearch('');
+  };
+
+  const handleGlobalServiceChange = checked => {
+    setIsGlobalService(checked);
+    if (checked) {
+      setValue('companies', []);
+    }
+  };
 
   // Format currency for display
   const formatCurrency = value => {
@@ -176,6 +266,19 @@ export default function ServiceForm({
       return;
     }
 
+    // Validate companies if not global service
+    if (
+      !isGlobalService &&
+      (!values.companies || values.companies.length === 0)
+    ) {
+      setError('companies', {
+        type: 'manual',
+        message:
+          'Please select at least one company or mark as available for all companies.',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const token = await AsyncStorage.getItem('token');
@@ -187,13 +290,20 @@ export default function ServiceForm({
 
       const method = serviceParam ? 'PUT' : 'POST';
 
+      const payload = {
+        serviceName: values.serviceName,
+        amount: values.amount,
+        sac: values.sac || '',
+        companies: isGlobalService ? [] : values.companies || [],
+      };
+
       const res = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -317,9 +427,92 @@ export default function ServiceForm({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Service Name */}
+          {/* ── Companies Selection ── */}
           <View style={styles.field}>
-            <Text style={styles.label}>Service Name <Text style={styles.req}>*</Text></Text>
+            <View style={styles.companyLabelRow}>
+              <Text style={styles.label}>
+                Companies <Text style={styles.req}>*</Text>
+              </Text>
+              <View style={styles.globalServiceCheckbox}>
+                <TouchableOpacity
+                  style={[
+                    styles.checkbox,
+                    isGlobalService && styles.checkboxChecked,
+                  ]}
+                  onPress={() => handleGlobalServiceChange(!isGlobalService)}
+                >
+                  {isGlobalService && <Text style={styles.checkmark}>✓</Text>}
+                </TouchableOpacity>
+                <Text style={styles.globalServiceLabel}>
+                  Available for all companies
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.input, isGlobalService && styles.inputDisabled]}
+              onPress={handleOpenCompanyModal}
+              disabled={isGlobalService}
+              activeOpacity={0.7}
+            >
+              {isLoadingCompanies ? (
+                <ActivityIndicator size="small" color="#9CA3AF" />
+              ) : (
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.inputText,
+                    !(watch('companies') || []).length && styles.placeholder,
+                  ]}
+                >
+                  {isGlobalService
+                    ? 'All companies'
+                    : (watch('companies') || []).length > 0
+                    ? `${(watch('companies') || []).length} compan${
+                        (watch('companies') || []).length > 1 ? 'ies' : 'y'
+                      } selected`
+                    : 'Select companies...'}
+                </Text>
+              )}
+              <Text style={styles.chevron}>⌄</Text>
+            </TouchableOpacity>
+
+            {(watch('companies') || []).length > 0 && (
+              <View style={styles.badges}>
+                {(watch('companies') || []).map(id => {
+                  const comp = allCompanies.find(c => c._id === id);
+                  return comp ? (
+                    <View key={id} style={styles.badge}>
+                      <Text style={styles.badgeText} numberOfLines={1}>
+                        {comp.businessName}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          const updated = (watch('companies') || []).filter(
+                            c => c !== id,
+                          );
+                          setValue('companies', updated);
+                        }}
+                      >
+                        <Icon
+                          name="close-circle"
+                          size={16}
+                          color="#4F46E5"
+                          style={{ marginLeft: 5 }}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  ) : null;
+                })}
+              </View>
+            )}
+          </View>
+
+          {/* ── Service Name ── */}
+          <View style={styles.field}>
+            <Text style={styles.label}>
+              Service Name <Text style={styles.req}>*</Text>
+            </Text>
             <Controller
               control={control}
               name="serviceName"
@@ -527,6 +720,113 @@ export default function ServiceForm({
           )}
         </View>
       </KeyboardAvoidingView>
+
+      {/* Companies Selection Modal */}
+      <Modal visible={showCompanyModal} transparent animationType="slide">
+        <Pressable style={styles.backdrop} onPress={handleCancelCompanyModal}>
+          <Pressable style={styles.sheet} onPress={e => e.stopPropagation()}>
+            {/* Handle */}
+            <View style={styles.handle} />
+
+            {/* Header */}
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Choose Companies</Text>
+              <TouchableOpacity
+                onPress={handleCancelCompanyModal}
+                style={styles.closeBtn}
+              >
+                <Text style={styles.closeX}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Search */}
+            <TextInput
+              style={styles.search}
+              placeholder="Search..."
+              placeholderTextColor="#9CA3AF"
+              value={companySearch}
+              onChangeText={setCompanySearch}
+            />
+
+            {/* Select All */}
+            <TouchableOpacity
+              style={styles.selectAll}
+              onPress={handleSelectAllCompanies}
+            >
+              <Icon
+                name={
+                  allFilteredSelected
+                    ? 'checkmark-done-circle'
+                    : 'radio-button-off'
+                }
+                size={20}
+                color={allFilteredSelected ? '#4F46E5' : '#6B7280'}
+              />
+              <Text
+                style={[
+                  styles.selectAllText,
+                  allFilteredSelected && { color: '#4F46E5' },
+                ]}
+              >
+                {allFilteredSelected ? 'Deselect All' : 'Select All'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Company List */}
+            {isLoadingCompanies ? (
+              <View style={styles.centerBox}>
+                <ActivityIndicator size="large" color="#4F46E5" />
+                <Text style={styles.centerText}>Loading...</Text>
+              </View>
+            ) : filteredCompanies.length === 0 ? (
+              <View style={styles.centerBox}>
+                <Text style={styles.centerText}>No companies found</Text>
+              </View>
+            ) : (
+              <ScrollView
+                style={styles.list}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled={true}
+              >
+                {filteredCompanies.map(c => {
+                  const sel = tempSelectedCompanies.includes(c._id);
+                  return (
+                    <TouchableOpacity
+                      key={c._id}
+                      style={[styles.listItem, sel && styles.listItemSel]}
+                      onPress={() => handleToggleCompany(c._id)}
+                    >
+                      <Icon
+                        name={sel ? 'checkmark-circle' : 'radio-button-off'}
+                        size={22}
+                        color={sel ? '#4F46E5' : '#D1D5DB'}
+                      />
+                      <Text
+                        style={[
+                          styles.listItemText,
+                          sel && styles.listItemTextSel,
+                        ]}
+                      >
+                        {c.businessName}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+
+            {/* Footer */}
+            <View style={styles.sheetFooter}>
+              <TouchableOpacity
+                style={styles.doneBtn}
+                onPress={handleDoneCompanySelection}
+              >
+                <Text style={styles.doneBtnText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -602,8 +902,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#D1D5DB',
     borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#111827',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: '#fff',
   },
   inputError: {
@@ -757,5 +1062,205 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 4,
     textAlign: 'center',
+  },
+  // ── Company Selection Styles ──
+  companyLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 7,
+  },
+  globalServiceCheckbox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    borderColor: '#4F46E5',
+    backgroundColor: '#4F46E5',
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  globalServiceLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  inputDisabled: {
+    backgroundColor: '#F9FAFB',
+    opacity: 0.7,
+  },
+  inputText: {
+    fontSize: 15,
+    color: '#111827',
+    flex: 1,
+    flexShrink: 1,
+  },
+  placeholder: {
+    color: '#9CA3AF',
+  },
+  chevron: {
+    fontSize: 16,
+    color: '#6B7280',
+  },
+  badges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  badgeText: {
+    fontSize: 12,
+    color: '#4F46E5',
+    fontWeight: '600',
+    maxWidth: 150,
+  },
+  // ── Modal Bottom Sheet Styles ──
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    height: SCREEN_H * 0.75,
+    overflow: 'hidden',
+  },
+  handle: {
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D1D5DB',
+    alignSelf: 'center',
+    marginTop: 10,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  closeBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeX: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  search: {
+    margin: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    fontSize: 15,
+    color: '#111827',
+    backgroundColor: '#F9FAFB',
+  },
+  selectAll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 12,
+    marginBottom: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  selectAllText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  list: {
+    height: SCREEN_H * 0.33,
+  },
+  centerBox: {
+    height: SCREEN_H * 0.2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  centerText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginTop: 8,
+  },
+  listItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  listItemSel: {
+    backgroundColor: '#F5F3FF',
+  },
+  listItemText: {
+    fontSize: 15,
+    color: '#374151',
+  },
+  listItemTextSel: {
+    color: '#4F46E5',
+    fontWeight: '600',
+  },
+  sheetFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  doneBtn: {
+    backgroundColor: '#4F46E5',
+    borderRadius: 10,
+    paddingVertical: 15,
+    alignItems: 'center',
+  },
+  doneBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
